@@ -1,0 +1,44 @@
+.shortlist-form select {
+  min-height: 39px;
+  padding: 8px 12px;
+  border-radius: var(--gsc-radius-sm);
+  border: 1px solid var(--gsc-color-line-strong);
+  font-size: 14px;
+  background: var(--gsc-color-surface);
+}
+
+.shortlist-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.shortlist-table th {
+  text-align: left;
+  color: var(--gsc-color-muted);
+  font-weight: 600;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--gsc-color-line);
+  white-space: nowrap;
+}
+
+.shortlist-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--gsc-color-line);
+  vertical-align: middle;
+}
+
+.shortlist-table input {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 8px;
+  border-radius: var(--gsc-radius-sm);
+  border: 1px solid var(--gsc-color-line-strong);
+  font-size: 13px;
+}
+
+.shortlist-table input:focus {
+  outline: 2px solid var(--gsc-color-brand);
+  outline-offset: 1px;
+}

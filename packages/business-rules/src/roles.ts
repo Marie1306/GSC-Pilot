@@ -143,6 +143,24 @@ export function canApprovePurchaseRequest(
 export function canResubmitRejectedPurchase(): boolean {
   return false;
 }
+
+/**
+ * Liste rapide d'achats liés à un projet — confirmé le 12 août 2026.
+ * Propriétaire et Direction seulement peuvent soumettre cette liste
+ * (plusieurs lignes : description, fournisseurs suggérés en texte libre,
+ * fourchette de prix — tous facultatifs sauf la description). Chaque
+ * ligne devient une demande d'achat indépendante SANS catégorie — c'est
+ * cette absence de catégorie qui retire le seuil (voir
+ * canApprovePurchaseRequest ci-dessus), pas une règle séparée ici.
+ * Volontairement distinct de la permission générale de soumettre une
+ * demande d'achat (ouverte à tous) : sans cette porte dédiée, n'importe
+ * qui pourrait soumettre sans catégorie pour contourner le seuil du
+ * Propriétaire sur un gros montant.
+ */
+export function canCreatePurchaseShortlist(persona: Persona): boolean {
+  assertRole(persona);
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
+}
 export interface PurchaseLike {
   requester?: string;
 }

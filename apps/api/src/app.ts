@@ -10,6 +10,8 @@ import { apiRateLimit } from "./middleware/rateLimit.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { healthRouter } from "./modules/health/routes.js";
 import { employeesRouter } from "./modules/employees/routes.js";
+import { purchasesRouter } from "./modules/purchases/routes.js";
+import { projectsRouter } from "./modules/projects/routes.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -35,6 +37,8 @@ export function createApp() {
 
   app.use(healthRouter);
   app.use("/api", employeesRouter);
+  app.use("/api", purchasesRouter);
+  app.use("/api", projectsRouter);
 
   // En production, l'API sert aussi le build statique de apps/web (un seul
   // hôte, une seule URL, aucun CORS à configurer) — voir CLAUDE.md /

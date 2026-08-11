@@ -632,3 +632,45 @@ nécessaire à reporter dans v01.
 - Accès aux Paramètres : owner seulement, confirmé et expliqué (verrouillé
   au niveau navigation depuis v0.8) — badge « Direction et Administration »
   à l'intérieur de la page est cosmétique, sans impact réel.
+
+## Achats — liste rapide de projet (nouveau mécanisme, confirmé le 12 août 2026)
+Troisième mécanisme d'achat, distinct des deux déjà confirmés (achats
+directs de projet, demandes d'achat à seuil) — répond à un besoin réel :
+le Propriétaire (Marc, aussi le seul designer/conception) a besoin de
+transmettre rapidement les articles précis identifiés pendant la
+conception d'un projet, sans remplir le formulaire complet pensé pour
+Administration.
+
+- **Qui peut soumettre** : Propriétaire et Direction seulement — permission
+  dédiée (`canCreatePurchaseShortlist`), volontairement séparée de la
+  permission générale de soumettre une demande d'achat (ouverte à tous).
+  Sans cette séparation, n'importe qui pourrait soumettre sans catégorie
+  pour contourner le seuil d'approbation du Propriétaire.
+- **Formulaire** : un projet obligatoire en haut (s'applique à toutes les
+  lignes de la soumission — chaque achat se comptabilise au bon projet),
+  puis plusieurs lignes (au moins 5-6 de base, extensible). Par ligne :
+  description/numéro d'article (seul champ obligatoire), fournisseurs
+  suggérés en texte libre séparés par des virgules (facultatif), fourchette
+  de prix approximative min-max (facultatif).
+- **Approbation par ligne, pas par lot** : chaque ligne devient une demande
+  d'achat (`PurchaseRequest`) indépendante dès la soumission — pas de
+  notion de « lot » conservée après coup. 10 lignes soumises = 10 entrées
+  indépendantes dans le centre d'action de Direction, à plat (pas
+  regroupées visuellement — confirmé, la simplicité l'emporte ici).
+- **Jamais de double autorisation** : ces lignes n'ont volontairement
+  aucune catégorie — c'est cette absence qui retire le seuil (le mécanisme
+  déjà confirmé `canApprovePurchaseRequest` ne trouve simplement aucun
+  seuil à dépasser), pas une règle spéciale ajoutée. Direction approuve
+  seule, comme pour les achats directs de projet.
+- **Prix modifiable avant approbation** : Direction fixe/ajuste le prix
+  final avant d'approuver une ligne — une ligne sans prix confirmé ne peut
+  pas être approuvée. Même esprit que la tarification des pièces d'appel
+  de service (0$ jusqu'à tarification par Direction).
+- **Comptabilisation au projet** : comme les demandes d'achat régulières —
+  pas de champ total dupliqué sur le projet, calculé à la lecture en
+  sommant les demandes autorisées (même principe que les statistiques
+  internes, qui filtrent et somment plutôt que de maintenir un total à
+  part).
+- Distinguer ces lignes des demandes régulières dans les rapports plus
+  tard : **pas nécessaire**, confirmé — une fois traitées, aucune
+  différence à conserver.

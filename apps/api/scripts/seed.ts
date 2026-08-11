@@ -164,6 +164,39 @@ async function seedSalesChannels() {
   }
 }
 
+/** Un contact + un projet fictifs pour pouvoir tester une fonctionnalité de bout en bout (ex. liste rapide d'achats) sans attendre la vraie saisie de projets. */
+async function seedTestProject() {
+  const direction = await prisma.employee.findUnique({ where: { email: "test-direction@gscpilot.local" } });
+  if (!direction) throw new Error("Usager de test 'Test Direction' introuvable — seedTestEmployees doit rouler avant seedTestProject.");
+
+  let contact = await prisma.contact.findFirst({ where: { email: "client-test@gscpilot.local" } });
+  if (!contact) {
+    contact = await prisma.contact.create({
+      data: {
+        type: "Client",
+        company: "Client Test inc.",
+        name: "Alex Client-Test",
+        role: "Contact client",
+        email: "client-test@gscpilot.local",
+        categories: ["Client", "Projet"],
+      },
+    });
+  }
+
+  const existing = await prisma.project.findUnique({ where: { projectNumber: "PRJ-0001" } });
+  if (!existing) {
+    await prisma.project.create({
+      data: {
+        projectNumber: "PRJ-0001",
+        name: "Projet de test — sécuritaire à effacer",
+        contactId: contact.id,
+        status: "active",
+        createdById: direction.id,
+      },
+    });
+  }
+}
+
 async function main() {
   console.log("Usagers de test (Supabase Auth + Employee) :");
   await seedTestEmployees();
@@ -175,6 +208,8 @@ async function main() {
   await seedPurchaseCategories();
   console.log("Canaux de vente...");
   await seedSalesChannels();
+  console.log("Projet de test...");
+  await seedTestProject();
   console.log("\nTerminé. Mot de passe des usagers de test :", TEST_PASSWORD);
   console.log("(données de développement seulement — jamais utilisé pour de vrais employés)");
 }

@@ -54,6 +54,7 @@ model Employee {
   delegationsGranted DelegationGrant[] @relation("DelegationGrantedBy")
   delegationsHeld     DelegationGrant[] @relation("DelegationDelegate")
   auditLogEntries      AuditLogEntry[]
+  purchaseRequestsMade PurchaseRequest[] @relation("PurchaseRequestRequester")
 
   @@index([persona])
 }
@@ -298,14 +299,15 @@ model Project {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  team           ProjectTeamMember[]
-  tasks          ProjectTask[]
-  invoiceEntries InvoicePlanEntry[]
-  purchases      ProjectPurchaseEntry[]
-  timeEntries    TimeEntry[]
-  subassemblies  Subassembly[]
-  amendments     Amendment[]
-  deliveries     Delivery[]
+  team             ProjectTeamMember[]
+  tasks            ProjectTask[]
+  invoiceEntries   InvoicePlanEntry[]
+  purchases        ProjectPurchaseEntry[]
+  purchaseRequests PurchaseRequest[]
+  timeEntries      TimeEntry[]
+  subassemblies    Subassembly[]
+  amendments       Amendment[]
+  deliveries       Delivery[]
 
   @@index([status])
 }
@@ -421,14 +423,31 @@ model PurchaseRequest {
   id               String    @id @default(uuid())
   displayId        String    @unique // format DA-AAAA-NNNN
   requesterId      String // n'importe quel persona — mécanisme ouvert à tous, y compris Employé/Magasinier
+  requester        Employee  @relation("PurchaseRequestRequester", fields: [requesterId], references: [id])
   projectType      String // project | service | internal
   projectId        String?
+  project          Project?  @relation(fields: [projectId], references: [id])
   serviceCallId    String?
-  categoryId       String
-  category         PurchaseCategory @relation(fields: [categoryId], references: [id])
-  supplier         String?
+  // Nullable depuis le 12 août 2026 : la liste rapide d'achats de projet
+  // (Propriétaire/Direction, voir canCreatePurchaseShortlist dans roles.ts)
+  // crée des lignes SANS catégorie, par choix — c'est justement l'absence
+  // de catégorie à seuil qui fait qu'aucune double autorisation du
+  // Propriétaire ne s'applique jamais à ces lignes-là, sans code spécial
+  // (canApprovePurchaseRequest ne trouve simplement aucun seuil à dépasser).
+  categoryId       String?
+  category         PurchaseCategory? @relation(fields: [categoryId], references: [id])
+  supplier         String? // texte libre, plusieurs fournisseurs séparés par des virgules acceptés
   description      String
-  amount           Decimal   @db.Decimal(12, 2)
+  // Nullable : la liste rapide permet un prix facultatif à la soumission —
+  // Direction le complète/l'ajuste avant d'approuver (même esprit que le
+  // prix des pièces d'appel de service, 0$ jusqu'à tarification).
+  amount           Decimal?  @db.Decimal(12, 2)
+  // Fourchette de prix optionnelle fournie à la soumission par la liste
+  // rapide (ex. Marc ne connaît pas encore de prix ferme) — jamais utilisée
+  // pour les demandes d'achat régulières, seulement affichée en attendant
+  // qu'`amount` soit confirmé.
+  estimatedAmountMin Decimal? @db.Decimal(12, 2)
+  estimatedAmountMax Decimal? @db.Decimal(12, 2)
   status           String    @default("owner_pending") // owner_pending | boss_pending | authorized | rejected
   ownerApprovedById String?
   ownerApprovedAt   DateTime?
@@ -440,6 +459,7 @@ model PurchaseRequest {
 
   @@index([status])
   @@index([requesterId])
+  @@index([projectId])
 }
 
 // ---------------------------------------------------------------------------
@@ -680,6 +700,7 @@ model Settings {
   defaultBillingSplit           Json // voir billing.ts DEFAULT_BILLING_SPLIT
   projectNumberPrefix           String  @default("PRJ")
   nextProjectNumber             Int     @default(1)
+  nextPurchaseRequestNumber     Int     @default(1) // format DA-AAAA-NNNN
   servicePartsDefaultMarginPct  Decimal @default(20) @db.Decimal(5, 2)
   punchRoundingMinutes          Int     @default(15)
   updatedAt                     DateTime @updatedAt

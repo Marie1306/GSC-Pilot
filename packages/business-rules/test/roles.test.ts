@@ -242,3 +242,23 @@ describe("Création de demandes clients et d'appels de service (règle confirmé
     expect(P.canCreateServiceCall(WAREHOUSE)).toBe(false);
   });
 });
+
+// Règle confirmée directement avec l'utilisateur (12 août 2026, pas dans roles.js d'origine) —
+// voir le commentaire dans src/roles.ts (canCreatePurchaseShortlist).
+describe("Liste rapide d'achats de projet (règle confirmée le 12 août 2026)", () => {
+  it("Propriétaire et Direction peuvent soumettre la liste rapide", () => {
+    expect(P.canCreatePurchaseShortlist(BOSS)).toBe(true);
+    expect(P.canCreatePurchaseShortlist(OWNER)).toBe(true);
+  });
+  it("Administration, Employé et Magasinier ne peuvent jamais soumettre la liste rapide", () => {
+    expect(P.canCreatePurchaseShortlist(ADMIN)).toBe(false);
+    expect(P.canCreatePurchaseShortlist(MEMBER)).toBe(false);
+    expect(P.canCreatePurchaseShortlist(WAREHOUSE)).toBe(false);
+  });
+  it("Une ligne sans catégorie (liste rapide) ne déclenche jamais le seuil du Propriétaire, peu importe le montant — comportement déjà correct de canApprovePurchaseRequest, sans modification", () => {
+    const thresholds = { fabrication: 5000 };
+    const lineSansCategorie = { amount: 50000 }; // gros montant, mais pas de "category" — comme une ligne de la liste rapide
+    expect(P.canApprovePurchaseRequest({}, OWNER, lineSansCategorie, thresholds)).toBe(true);
+    expect(P.canApprovePurchaseRequest({}, BOSS, lineSansCategorie, thresholds)).toBe(false); // pas nécessaire, jamais de double autorisation
+  });
+});
