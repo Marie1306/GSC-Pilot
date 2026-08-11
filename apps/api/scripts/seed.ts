@@ -10,7 +10,7 @@
  */
 import { prisma } from "../src/db.js";
 import { supabaseAdmin } from "../src/auth/supabase.js";
-import { ROLES, type Persona } from "@gsc-pilot/business-rules";
+import { ROLES, BUDGET_CATEGORY_KIND, type Persona, type BudgetCategorySlug, type SectionKind } from "@gsc-pilot/business-rules";
 
 const TEST_PASSWORD = "gsc-pilot-test-2026";
 
@@ -22,36 +22,11 @@ const TEST_EMPLOYEES: { persona: Persona; name: string; initials: string; email:
   { persona: ROLES.WAREHOUSE, name: "Test Magasinier", initials: "TM", email: "test-magasinier@gscpilot.local", costRate: 26 },
 ];
 
-type BudgetCategorySlug =
-  | "conception"
-  | "fabrication"
-  | "panelProgramming"
-  | "assemblyTest"
-  | "installationLabor"
-  | "stockFabrication"
-  | "stockPanel"
-  | "motorization"
-  | "hardware"
-  | "consumables"
-  | "subcontracting"
-  | "installationStock"
-  | "installationExpenses";
-
-const CATEGORY_KIND: Record<BudgetCategorySlug, "labor" | "purchase"> = {
-  conception: "labor",
-  fabrication: "labor",
-  panelProgramming: "labor",
-  assemblyTest: "labor",
-  installationLabor: "labor",
-  stockFabrication: "purchase",
-  stockPanel: "purchase",
-  motorization: "purchase",
-  hardware: "purchase",
-  consumables: "purchase",
-  subcontracting: "purchase",
-  installationStock: "purchase",
-  installationExpenses: "purchase",
-};
+// Catégorie/type dérivés du catalogue unique (@gsc-pilot/business-rules) —
+// voir l'audit du 12 août 2026, section H. Seules les lignes/taux ci-dessous
+// (CATEGORY_ROWS) restent propres à ce seed, puisqu'elles sont de vraies
+// données, pas de la structure.
+const CATEGORY_KIND: Record<BudgetCategorySlug, SectionKind> = BUDGET_CATEGORY_KIND;
 
 interface RowSeed {
   slug: string;

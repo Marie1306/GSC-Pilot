@@ -1,4 +1,5 @@
 import { apiFetch } from "../../lib/apiClient.js";
+import { BUDGET_CATEGORY_LABELS, BUDGET_GROUP_LABELS, BUDGET_CATEGORY_GROUP, MODULAR_BUDGET_CATEGORIES } from "@gsc-pilot/business-rules";
 
 export interface ClientRequestOption {
   id: string;
@@ -128,53 +129,16 @@ export const STATUS_LABELS: Record<string, string> = {
   declined: "Refusé",
 };
 
-/**
- * 13 catégories réelles, libellés vérifiés directement dans le prototype
- * v19 catégorie par catégorie (12 août 2026), pas devinés — voir
- * spécification confirmée pour le détail de cette deuxième vérification.
- */
-export const CATEGORY_LABELS: Record<string, string> = {
-  conception: "Conception",
-  fabrication: "Fabrication",
-  panelProgramming: "Panneau & Programmation",
-  assemblyTest: "Assemblage & Test",
-  installationLabor: "Installation/Service — Main-d'œuvre",
-  stockFabrication: "Stock Fabrication / Châssis",
-  stockPanel: "Stock Panneau / Programmation",
-  motorization: "Motorisation / Automatisation",
-  hardware: "Quincaillerie / Autre",
-  consumables: "Consommables",
-  subcontracting: "Sous-traitance",
-  installationStock: "Installation — Stock",
-  installationExpenses: "Installation — Frais divers",
-};
-
-/** Regroupement visuel — même 3 groupes que le prototype v19 (Main-d'œuvre / Achats prévus / Installation, cette dernière apparaît deux fois). */
-export const BUDGET_GROUP_LABELS = {
-  labor: "Main-d'œuvre",
-  purchases: "Achats prévus",
-  installation: "Installation / Service",
-} as const;
+// Dérivés du catalogue unique (@gsc-pilot/business-rules/categories.ts,
+// partagé avec l'API et le seed) plutôt que retapés ici — voir l'audit du
+// 12 août 2026, section H. CATEGORY_LABELS/CATEGORY_GROUP/MODULAR_CATEGORIES
+// gardent leurs noms d'origine pour ne pas devoir changer chaque écran qui
+// les consomme déjà.
+export const CATEGORY_LABELS: Record<string, string> = BUDGET_CATEGORY_LABELS;
+export { BUDGET_GROUP_LABELS };
 export type BudgetGroupKey = keyof typeof BUDGET_GROUP_LABELS;
-
-export const CATEGORY_GROUP: Record<string, BudgetGroupKey> = {
-  conception: "labor",
-  fabrication: "labor",
-  panelProgramming: "labor",
-  assemblyTest: "labor",
-  installationLabor: "installation",
-  stockFabrication: "purchases",
-  stockPanel: "purchases",
-  motorization: "purchases",
-  hardware: "purchases",
-  consumables: "purchases",
-  subcontracting: "purchases",
-  installationStock: "installation",
-  installationExpenses: "installation",
-};
-
-/** Sections où Direction peut ajouter/retirer des lignes — aucune section "labor" n'est modulable (vérifié v19, 12 août 2026). */
-export const MODULAR_CATEGORIES = ["stockFabrication", "stockPanel", "motorization", "hardware", "subcontracting", "installationStock"];
+export const CATEGORY_GROUP: Record<string, BudgetGroupKey> = BUDGET_CATEGORY_GROUP;
+export const MODULAR_CATEGORIES: readonly string[] = MODULAR_BUDGET_CATEGORIES;
 
 const currencyFormatter = new Intl.NumberFormat("fr-CA", { style: "currency", currency: "CAD" });
 

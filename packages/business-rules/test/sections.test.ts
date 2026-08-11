@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { sectionSummary, budgetTotals, projectBackupSummary, effectiveRowHours } from "../src/sections.js";
+import { backupSummary } from "../src/backup.js";
 
 describe("sectionSummary — section de type 'labor' (heures × taux)", () => {
   it("additionne les heures et le coût de toutes les lignes de la section", () => {
@@ -120,5 +121,72 @@ describe("budgetTotals — additionne les sections, le back-up d'heures ET le ba
     expect(totals.totalHours).toBe(sections[0].hours + sections[1].hours + hoursBackup.hours);
     expect(totals.totalBaseCost).toBeCloseTo(sections[0].baseCost + sections[1].baseCost + hoursBackup.baseCost + projectBackup.baseCost, 2);
     expect(totals.totalSale).toBeCloseTo(sections[0].sale + sections[1].sale + hoursBackup.sale + projectBackup.sale, 2);
+  });
+});
+
+/**
+ * Scénario de bout en bout figé, codifié depuis l'audit du 12 août 2026
+ * (section K, validation mathématique) — valeurs distinctes et connues par
+ * type de ligne, ligne auto, back-up d'heures RÉEL (backup.ts, pas un
+ * chiffre inventé comme le test ci-dessus) et back-up projet. Sert de
+ * garde-fou : toute dérive de formule, tout double comptage, toute valeur
+ * résiduelle sur une ligne vide fait échouer ce test précisément, sans
+ * attendre qu'un futur audit visuel le remarque.
+ */
+describe("Scénario mathématique déterministe complet (audit du 12 août 2026)", () => {
+  it("chaque sous-total, back-up et le grand total correspondent exactement à la valeur attendue à la main", () => {
+    // Conception (labor) — 2 lignes saisies + 1 ligne auto (10 %), complexité 5 → marge 30 %.
+    const conceptionRows = [
+      { id: "r1", hourlyRate: 117, hours: 10 },
+      { id: "r2", hourlyRate: 117, hours: 0, autoFromRowId: "r1", autoPct: 10 },
+      { id: "r3", hourlyRate: 112, hours: 4 },
+    ];
+    const conception = sectionSummary({ category: "conception", kind: "labor", complexity: 5, rows: conceptionRows });
+    expect(conception.hours).toBe(15); // 10 + (10×10%) + 4
+    expect(conception.baseCost).toBe(1735); // 10×117 + 1×117 + 4×112
+    expect(conception.margin).toBe(30);
+    expect(conception.sale).toBeCloseTo(1735 / 0.7, 2); // saleFromCost = coût ÷ (1 − marge), pas coût × (1 + marge)
+
+    // Stock Fabrication (purchase) — 2 lignes remplies + 1 ligne vierge, complexité 2 → marge 23 %.
+    const stockRows = [
+      { id: "s1", qty: 3, unitPrice: 25.5 },
+      { id: "s2", qty: 1, unitPrice: 899.99 },
+      { id: "s3", qty: 0, unitPrice: 0 }, // ligne vierge — doit valoir 0, jamais une valeur résiduelle
+    ];
+    const stock = sectionSummary({ category: "stockFabrication", kind: "purchase", complexity: 2, rows: stockRows });
+    expect(stock.hours).toBe(0);
+    expect(stock.baseCost).toBe(976.49);
+    expect(stock.margin).toBe(23);
+
+    expect(effectiveRowHours(conceptionRows[1], conceptionRows)).toBe(1); // 10h × 10 %
+
+    // Back-up d'heures RÉEL — sections admissibles (alias fabrication/programmation/assemblage), taux gelé 112$, 10 %, complexité 3 → marge 24 %.
+    const backup = backupSummary(
+      {
+        sections: [
+          { id: "fabrication", rows: [{ hours: 20 }, { hours: 10 }] },
+          { id: "programmation", rows: [{ hours: 8 }] },
+          { id: "assemblage", rows: [{ hours: 12 }] },
+        ],
+        backupHourlyRate: 112,
+        backupHoursPct: 10,
+        backupHoursComplexity: 3,
+      },
+      112,
+    );
+    expect(backup.hours).toBe(5); // (20+10+8+12) × 10 %
+    expect(backup.baseCost).toBe(560); // 5h × 112$
+    expect(backup.margin).toBe(24);
+
+    // Back-up projet — montant saisi à la main, complexité distincte 7 → marge 38 %.
+    const projectBackup = projectBackupSummary(2500, 7);
+    expect(projectBackup.baseCost).toBe(2500);
+    expect(projectBackup.margin).toBe(38);
+
+    // Grand total — chaque section et chaque back-up compté EXACTEMENT une fois.
+    const totals = budgetTotals([conception, stock], backup, projectBackup);
+    expect(totals.totalHours).toBe(20); // 15 + 0 + 5
+    expect(totals.totalBaseCost).toBeCloseTo(1735 + 976.49 + 560 + 2500, 2); // 5771.49
+    expect(totals.totalSale).toBeCloseTo(conception.sale + stock.sale + backup.sale + projectBackup.sale, 2);
   });
 });

@@ -37,6 +37,10 @@ import {
   effectiveRowHours,
   canModifyBudget,
   canModifyBudgetPurchaseLine,
+  BUDGET_CATEGORY_SLUGS,
+  MODULAR_BUDGET_CATEGORIES,
+  BACKUP_ELIGIBLE_ALIAS,
+  type BudgetCategorySlug,
   type SectionSummary,
   type BackupSummary,
   type ProjectBackupSummary,
@@ -47,33 +51,17 @@ import { HttpError } from "../../middleware/errorHandler.js";
 import { resolveClientRequestContact, createClientRequestInTx, type CreateClientRequestInput } from "../clientRequests/service.js";
 import type { Budget, BudgetSection, BudgetRow, BudgetSectionKind } from "../../generated/prisma/client.js";
 
-/** Ordre d'affichage — 3 groupes vérifiés dans le prototype v19 (12 août 2026), voir BUDGET_GROUPS côté application pour les libellés. */
-export const BUDGET_CATEGORIES = [
-  "conception",
-  "fabrication",
-  "panelProgramming",
-  "assemblyTest",
-  "installationLabor",
-  "stockFabrication",
-  "stockPanel",
-  "motorization",
-  "hardware",
-  "consumables",
-  "subcontracting",
-  "installationStock",
-  "installationExpenses",
-] as const;
-export type BudgetCategoryValue = (typeof BUDGET_CATEGORIES)[number];
-
-/** Sections où Direction peut ajouter/retirer des lignes — aucune section "labor" n'est modulable (vérifié v19, 12 août 2026). */
-export const MODULAR_CATEGORIES = ["stockFabrication", "stockPanel", "motorization", "hardware", "subcontracting", "installationStock"] as const;
-
-/** backup.ts (jamais modifié) attend "fabrication"/"programmation"/"assemblage" — adapte nos vrais noms de catégorie vers ce vocabulaire figé. */
-const BACKUP_ELIGIBLE_ALIAS: Partial<Record<BudgetCategoryValue, string>> = {
-  fabrication: "fabrication",
-  panelProgramming: "programmation",
-  assemblyTest: "assemblage",
-};
+// Catalogue déclaratif unique (packages/business-rules/src/categories.ts) —
+// voir l'audit du 12 août 2026, section H. Avant ce catalogue, l'ordre
+// d'affichage, la liste des catégories modulables et l'alias du back-up
+// d'heures étaient tapés à la main ici ET dans apps/web/.../budgets/api.ts
+// ET dans apps/api/scripts/seed.ts, sans rien pour empêcher une dérive
+// silencieuse entre les trois (et un 4e exemplaire, périmé, dormait dans
+// business-rules — retiré en même temps que ce catalogue a été introduit).
+export const BUDGET_CATEGORIES = BUDGET_CATEGORY_SLUGS;
+export type BudgetCategoryValue = BudgetCategorySlug;
+export const MODULAR_CATEGORIES = MODULAR_BUDGET_CATEGORIES;
+export { BACKUP_ELIGIBLE_ALIAS };
 
 export const OUTCOME_STATUSES = ["sent", "won", "declined"] as const;
 
