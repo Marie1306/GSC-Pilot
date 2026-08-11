@@ -1,0 +1,32 @@
+.settings-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.settings-table th {
+  text-align: left;
+  color: var(--gsc-color-muted);
+  font-weight: 600;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--gsc-color-line);
+}
+
+.settings-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--gsc-color-line);
+  vertical-align: middle;
+}
+
+.settings-table input {
+  min-height: 34px;
+  padding: 6px 8px;
+  border-radius: var(--gsc-radius-sm);
+  border: 1px solid var(--gsc-color-line-strong);
+  font-size: 13px;
+}
+
+.settings-row-inactive {
+  opacity: 0.55;
+}

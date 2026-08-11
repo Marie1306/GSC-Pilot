@@ -11,11 +11,39 @@
  * + ProjectPurchaseEntry approuvées pour ce projet (même esprit que
  * internal-stats.ts, qui filtre et somme plutôt que de dupliquer un total).
  * Pas encore construit — cette vue de synthèse viendra avec l'écran projet.
+ *
+ * ⚠️ IMPORTANT pour la future création d'une demande d'achat RÉGULIÈRE
+ * (avec catégorie — pas encore construite, seule la liste rapide existe
+ * pour l'instant) : elle DOIT copier PurchaseCategory.thresholdAmount dans
+ * PurchaseRequest.thresholdAmountAtSubmission au moment de la création,
+ * jamais laisser ce champ nul pour une demande catégorisée. Confirmé le
+ * 12 août 2026 : le seuil se fige à la soumission, un changement de seuil
+ * ultérieur par Direction ne doit jamais affecter une demande déjà en
+ * attente (voir assertCanActOnRequest dans routes.ts, qui lit déjà ce
+ * champ gelé plutôt que la catégorie en direct — cette fonction-ci est
+ * prête, il ne manque que le point de création à construire).
  */
 import { canSeeFinancialValues, type Persona } from "@gsc-pilot/business-rules";
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
 import type { PurchaseRequest, Employee } from "../../generated/prisma/client.js";
+
+/**
+ * Construit la carte de seuils à passer à canApprovePurchaseRequest
+ * (roles.ts, non modifiée) à partir du seuil GELÉ sur la demande, jamais
+ * relu en direct depuis PurchaseCategory — voir la note en tête de
+ * fichier. Extraite en fonction pure pour être testable sans base de
+ * données réelle.
+ */
+export function buildFrozenThresholdsMap(request: {
+  category: { name: string } | null;
+  thresholdAmountAtSubmission: unknown;
+}): Record<string, number> {
+  if (!request.category || request.thresholdAmountAtSubmission === null || request.thresholdAmountAtSubmission === undefined) {
+    return {};
+  }
+  return { [request.category.name]: Number(request.thresholdAmountAtSubmission) };
+}
 
 export interface ShortlistLineInput {
   description: string;

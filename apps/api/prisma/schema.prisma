@@ -414,7 +414,8 @@ model PurchaseCategory {
   id             String  @id @default(uuid())
   name           String  @unique
   thresholdAmount Decimal @db.Decimal(12, 2)
-  active         Boolean @default(true)
+  active         Boolean @default(true) // "supprimer" dans Paramètres = désactiver, jamais une suppression réelle (mêmes demandes déjà faites la référencent)
+  sortOrder      Int     @default(0)
 
   purchaseRequests PurchaseRequest[]
 }
@@ -436,6 +437,12 @@ model PurchaseRequest {
   // (canApprovePurchaseRequest ne trouve simplement aucun seuil à dépasser).
   categoryId       String?
   category         PurchaseCategory? @relation(fields: [categoryId], references: [id])
+  // Gelé au moment de la soumission, à partir de PurchaseCategory.thresholdAmount
+  // — confirmé le 12 août 2026 : un changement de seuil par Direction ne
+  // s'applique jamais rétroactivement à une demande déjà en attente, même
+  // esprit que les autres taux gelés (ex. Budget.backupHourlyRate). Nul si
+  // categoryId est nul (liste rapide — jamais de seuil de toute façon).
+  thresholdAmountAtSubmission Decimal? @db.Decimal(12, 2)
   supplier         String? // texte libre, plusieurs fournisseurs séparés par des virgules acceptés
   description      String
   // Nullable : la liste rapide permet un prix facultatif à la soumission —

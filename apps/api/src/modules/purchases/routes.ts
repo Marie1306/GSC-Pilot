@@ -11,6 +11,7 @@ import {
   setPurchaseRequestAmount,
   approvePurchaseRequest,
   rejectPurchaseRequest,
+  buildFrozenThresholdsMap,
 } from "./service.js";
 
 export const purchasesRouter = Router();
@@ -94,13 +95,18 @@ async function loadRequestOrThrow(id: string) {
  * quelle (roles.ts), jamais modifiée. Pour une ligne de liste rapide,
  * categoryId est toujours nul → aucun seuil trouvé → jamais de double
  * autorisation, exactement le comportement confirmé.
+ *
+ * Le seuil utilisé ici est CELUI GELÉ SUR LA DEMANDE (thresholdAmountAtSubmission),
+ * jamais relu en direct depuis PurchaseCategory — confirmé le 12 août 2026 :
+ * un changement de seuil par Direction ne s'applique jamais rétroactivement
+ * à une demande déjà en attente.
  */
 async function assertCanActOnRequest(
   employee: { id: string; persona: Persona },
-  request: { id: string; category: { name: string; thresholdAmount: unknown } | null; amount: unknown },
+  request: { id: string; category: { name: string } | null; thresholdAmountAtSubmission: unknown; amount: unknown },
 ): Promise<void> {
   const settings = await loadDelegationSettings();
-  const thresholds = request.category ? { [request.category.name]: Number(request.category.thresholdAmount) } : {};
+  const thresholds = buildFrozenThresholdsMap(request);
   const allowed = canApprovePurchaseRequest(
     settings,
     employee.persona,

@@ -149,11 +149,11 @@ async function seedBudgetModel() {
 }
 
 async function seedPurchaseCategories() {
-  for (const category of PURCHASE_CATEGORIES) {
+  for (const [sortOrder, category] of PURCHASE_CATEGORIES.entries()) {
     await prisma.purchaseCategory.upsert({
       where: { name: category.name },
-      update: { thresholdAmount: category.thresholdAmount },
-      create: category,
+      update: { thresholdAmount: category.thresholdAmount, sortOrder },
+      create: { ...category, sortOrder },
     });
   }
 }
