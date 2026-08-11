@@ -346,3 +346,15 @@ export function canCreateServiceCall(persona: Persona): boolean {
   assertRole(persona);
   return ([ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS] as Persona[]).includes(persona);
 }
+
+/** Voir la liste/le détail des demandes clients : mêmes rôles que la création — confirmé le 12 août 2026. */
+export function canViewClientRequests(persona: Persona): boolean {
+  assertRole(persona);
+  return ([ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS] as Persona[]).includes(persona);
+}
+
+/** Ajouter une note ou changer le statut d'une demande client : mêmes rôles que la création. */
+export function canManageClientRequest(persona: Persona): boolean {
+  assertRole(persona);
+  return ([ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS] as Persona[]).includes(persona);
+}

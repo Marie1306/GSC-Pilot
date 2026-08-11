@@ -691,3 +691,49 @@ Administration.
   demande garde le seuil qui était en vigueur au moment où elle a été
   soumise — jamais recalculée avec le nouveau seuil. Même principe que les
   autres taux gelés déjà établis (ex. `Budget.backupHourlyRate`).
+
+## Demandes clients — création/liste/consultation (confirmé le 12 août 2026)
+
+Premier morceau de la tranche « demande client → budgétaire → projet →
+facturation ». Champs et libellés des menus déroulants vérifiés
+directement dans le formulaire du prototype v19
+(`docs/handoff/04-reference-v19`), jamais devinés.
+
+- **Champs à la création** : Entreprise, Nom du contact, Rôle du contact
+  (facultatif), Téléphone, Courriel, Adresse (facultatif), Type de
+  demande, Urgence, Canal d'entrée, Précision sur la provenance
+  (facultatif), Date de relance (facultatif), Résumé détaillé de la
+  demande. Seuls les champs marqués « facultatif » dans le prototype le
+  sont réellement — tous les autres sont obligatoires à la création.
+- **Type de demande** (valeurs) : Projet, Roulement, Call de service,
+  Demande d'information. Stocké comme `information` (pas `info`, valeur
+  brute du prototype) pour correspondre exactement aux clés de
+  `CATEGORY_BY_SOURCE` dans `contacts.ts` — même résultat visuellement,
+  correspondance explicite plutôt que par repli implicite.
+- **Urgence** (valeurs) : Urgent, Non urgent (par défaut), À discuter.
+- **Canal d'entrée** : liste gérée (table `SalesChannel`, comme les
+  catégories d'achat), pas figée en dur comme dans le prototype — valeurs
+  de départ vérifiées dans le prototype : Google, Facebook, LinkedIn,
+  Réseautage, Référence client, Site Web, Téléphone / direct, Autre.
+  (Corrige une liste de 5 canaux inventée par erreur dans une session
+  précédente, jamais confirmée — voir seed.ts.)
+- **Contact automatique** : chaque demande crée ou met à jour le contact
+  correspondant via `ensureContact` (contacts.ts, fonction pure déjà
+  vérifiée, jamais modifiée) — déduplique par courriel puis par nom.
+  Vérifié avec de vraies écritures en base (pas seulement des appels
+  internes) : une deuxième demande avec le même courriel réutilise le
+  même contact et ajoute la nouvelle catégorie sans dupliquer.
+- **Visibilité** : identique pour Direction, Administration et
+  Propriétaire — aucune restriction supplémentaire, aucun filtrage par
+  créateur. *Confirmé.*
+- **Statuts gérables manuellement pour cette étape** : Nouvelle → En
+  traitement → Perdue (avec raison facultative). *Convertie* existe déjà
+  dans le vocabulaire du schéma mais n'est pas une action manuelle tant
+  que la conversion réelle en budgétaire/projet n'est pas construite.
+- **Portée volontairement reportée, à ne pas oublier** : assignation à un
+  employé (`assignedEmployeeId`), transfert au Propriétaire
+  (`transmittedToOwnerAt`) et conversion en budgétaire/projet/roulement
+  (`budgetId`, `convertedType`, `convertedProjectId`,
+  `convertedRollingId`) — champs déjà réservés dans le schéma, à
+  construire avec les fonctionnalités Budgétaire/Projets elles-mêmes.
+  *Confirmé avec l'utilisatrice — reste un suivi actif, pas oublié.*

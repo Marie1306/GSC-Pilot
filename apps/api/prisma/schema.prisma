@@ -708,6 +708,7 @@ model Settings {
   projectNumberPrefix           String  @default("PRJ")
   nextProjectNumber             Int     @default(1)
   nextPurchaseRequestNumber     Int     @default(1) // format DA-AAAA-NNNN
+  nextClientRequestNumber      Int     @default(1) // format DC-AAAA-NNNN
   servicePartsDefaultMarginPct  Decimal @default(20) @db.Decimal(5, 2)
   punchRoundingMinutes          Int     @default(15)
   updatedAt                     DateTime @updatedAt

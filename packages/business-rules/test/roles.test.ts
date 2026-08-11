@@ -241,6 +241,16 @@ describe("Création de demandes clients et d'appels de service (règle confirmé
     expect(P.canCreateServiceCall(MEMBER)).toBe(false);
     expect(P.canCreateServiceCall(WAREHOUSE)).toBe(false);
   });
+  it("Mêmes rôles pour voir et gérer (notes/statut) une demande client", () => {
+    for (const persona of [OWNER, ADMIN, BOSS]) {
+      expect(P.canViewClientRequests(persona)).toBe(true);
+      expect(P.canManageClientRequest(persona)).toBe(true);
+    }
+    for (const persona of [MEMBER, WAREHOUSE]) {
+      expect(P.canViewClientRequests(persona)).toBe(false);
+      expect(P.canManageClientRequest(persona)).toBe(false);
+    }
+  });
 });
 
 // Règle confirmée directement avec l'utilisateur (12 août 2026, pas dans roles.js d'origine) —

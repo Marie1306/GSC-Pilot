@@ -6,6 +6,7 @@ import {
   canAccessOverviewViews,
   canCreateInvoiceRecord,
   canCreateRollingDirectly,
+  canViewClientRequests,
   type Persona,
 } from "@gsc-pilot/business-rules";
 
@@ -34,7 +35,7 @@ const notMemberOnly = (persona: Persona) => persona !== ROLES.MEMBER;
 
 export const NAV_ITEMS: NavItem[] = [
   { key: "dashboard", label: "Tableau de bord", path: "/", allow: everyone },
-  { key: "client-requests", label: "Demandes clients", path: "/demandes", allow: backOfficeOnly },
+  { key: "client-requests", label: "Demandes clients", path: "/demandes", allow: canViewClientRequests },
   { key: "budgets", label: "Budgétaire", path: "/budgetaire", allow: canAccessBudget },
   { key: "projects", label: "Projets", path: "/projets", allow: backOfficeOnly },
   // Facturation : Direction et Administration seulement — le Propriétaire en est explicitement exclu (spec confirmée).

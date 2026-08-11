@@ -53,7 +53,8 @@ const PURCHASE_CATEGORIES = [
   { name: "Autre", thresholdAmount: 500 },
 ];
 
-const SALES_CHANNELS = ["Référence client", "Site web", "Appel entrant", "Salon professionnel", "Réseaux sociaux"];
+// Valeurs vérifiées directement dans le prototype v19 (formulaire de demande client), pas devinées.
+const SALES_CHANNELS = ["Google", "Facebook", "LinkedIn", "Réseautage", "Référence client", "Site Web", "Téléphone / direct", "Autre"];
 
 async function seedTestEmployees() {
   for (const [index, def] of TEST_EMPLOYEES.entries()) {
