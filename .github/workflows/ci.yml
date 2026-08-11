@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Générer le client Prisma
+        run: npm run db:generate -w apps/api
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Tests
+        run: npm test
+
+      - name: Valider le schéma Prisma
+        working-directory: apps/api
+        run: npx prisma validate
+        env:
+          DIRECT_URL: "postgresql://user:pass@localhost:5432/placeholder"
