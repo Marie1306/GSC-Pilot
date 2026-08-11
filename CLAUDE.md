@@ -61,7 +61,7 @@ limité à 3 tâches de terrain : punch d'heures, scan QR, formulaire d'appel
 de service) · Node.js/Express · PostgreSQL + Prisma (migrations) · Supabase
 (base de données + authentification + stockage — projet dédié, jamais
 partagé avec d'autres applications) · hébergement de l'API séparé de
-Supabase (Render pressenti, à confirmer).
+Supabase sur Render (confirmé, en ligne — voir section suivante).
 
 ## État du projet Supabase réel (11 août 2026)
 
@@ -84,5 +84,30 @@ la structure de la base réelle, s'attendre à devoir repasser par ce même
 contournement (ou vérifier si l'accès réseau a changé) plutôt que de
 supposer qu'une connexion directe est possible.
 
-Reste ouvert : hébergement de l'API (Render pressenti, jamais confirmé —
-l'utilisatrice devait vérifier de son côté).
+## Déploiement réel — Render (11 août 2026)
+
+L'API est déployée sur Render (service `gsc-pilot`, plan gratuit, région
+Ohio) : https://gsc-pilot.onrender.com — sert aussi le build statique de
+`apps/web` (même origine, voir `app.ts`). Branche déployée :
+`claude/app-development-help-j8mp22` (pas encore de branche `main` sur ce
+dépôt — auto-deploy Render suit cette branche pour l'instant). Connexion
+de bout en bout vérifiée réellement (pas juste en tests) avec 2 des 5
+comptes de test, permissions par rôle confirmées visuellement (menu
+Direction complet vs menu Employé restreint).
+
+Deux bugs réels trouvés et corrigés pendant cette vérification (déjà
+committés) :
+- CSP (Helmet) n'autorisait pas `connect-src` vers Supabase — bloquait
+  Supabase Auth côté navigateur. Voir `app.ts`.
+- `prisma generate` ne tournait jamais sur un clone/déploiement frais
+  (sortie gitignored, aucun hook) — `postinstall` ajouté dans
+  `apps/api/package.json`.
+
+Le plan gratuit de Render s'endort après 15 min d'inactivité (~30-60s de
+réveil) — acceptable pour l'instant, à passer au plan payant (~7$/mois)
+avant un usage quotidien réel par l'équipe (surtout le punch d'heures).
+
+Le mot de passe de la base de données et `SUPABASE_SERVICE_ROLE_KEY` ont
+été régénérés après le dépannage (les valeurs d'origine étaient apparues
+en clair dans la conversation) — les valeurs actuelles ne sont documentées
+nulle part, seulement dans Render (Environment) et Supabase.
