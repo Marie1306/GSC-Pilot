@@ -2,6 +2,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { canModifyBudget, canModifyBudgetPurchaseLine, canApproveBudgetForSending, canRecordBudgetOutcome } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
+import { ApiError } from "../../lib/apiClient.js";
 import {
   fetchBudgetDetail,
   updateRow,
@@ -271,40 +272,53 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
   const { employee } = useAuth();
   const queryClient = useQueryClient();
   const detailQuery = useQuery({ queryKey: ["budget", id], queryFn: () => fetchBudgetDetail(id) });
+  const [error, setError] = useState<string | null>(null);
 
   const invalidate = () => {
+    setError(null);
     void queryClient.invalidateQueries({ queryKey: ["budget", id] });
     void queryClient.invalidateQueries({ queryKey: ["budgets"] });
   };
+  // Sans ceci, un échec (permission refusée, ligne calculée automatiquement,
+  // validation) échouait entièrement en silence — aucun message, aucun
+  // indicateur — sur les 8 actions de cet écran (voir audit du 12 août 2026).
+  const onMutationError = (err: unknown) => setError(err instanceof ApiError ? err.message : "Une erreur est survenue — réessayez.");
 
   const rowMutation = useMutation({
     mutationFn: ({ rowId, patch }: { rowId: string; patch: UpdateRowPatch }) => updateRow(id, rowId, patch),
     onSuccess: invalidate,
+    onError: onMutationError,
   });
   const addRowMutation = useMutation({
     mutationFn: ({ sectionId, label, unitPrice }: { sectionId: string; label: string; unitPrice: number }) =>
       addBudgetRow(id, sectionId, { label, unitPrice }),
     onSuccess: invalidate,
+    onError: onMutationError,
   });
   const removeRowMutation = useMutation({
     mutationFn: (rowId: string) => removeBudgetRow(id, rowId),
     onSuccess: invalidate,
+    onError: onMutationError,
   });
   const complexityMutation = useMutation({
     mutationFn: ({ sectionId, complexity }: { sectionId: string; complexity: number }) => updateSectionComplexity(id, sectionId, complexity),
     onSuccess: invalidate,
+    onError: onMutationError,
   });
   const backupMutation = useMutation({
     mutationFn: (patch: { pct?: number; complexity?: number }) => updateBackupSettings(id, patch),
     onSuccess: invalidate,
+    onError: onMutationError,
   });
   const projectBackupMutation = useMutation({
     mutationFn: (patch: { amount?: number; complexity?: number }) => updateProjectBackup(id, patch),
     onSuccess: invalidate,
+    onError: onMutationError,
   });
   const metaMutation = useMutation({
     mutationFn: (patch: UpdateBudgetMetaInput) => updateBudgetMeta(id, patch),
     onSuccess: invalidate,
+    onError: onMutationError,
   });
   const statusMutation = useMutation({
     mutationFn: (action: StatusAction) => {
@@ -314,6 +328,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
       return markBudgetDeclined(id);
     },
     onSuccess: invalidate,
+    onError: onMutationError,
   });
 
   if (!employee) return null;
@@ -354,6 +369,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
 
         <div className="modal-body">
           {!budget && <p>Chargement…</p>}
+          {error && <p className="form-error">{error}</p>}
           {budget && (
             <>
               <div className="budget-total-bar">

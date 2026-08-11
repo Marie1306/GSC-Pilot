@@ -36,6 +36,7 @@ const newClientRequestSchema = z.object({
   email: z.email(),
   address: z.string().trim().optional(),
   requestType: z.enum(["project", "rolling", "service"]),
+  urgency: z.enum(["urgent", "normal", "discuss"]),
   salesChannelId: z.uuid(),
   sourceDetail: z.string().trim().optional(),
   summary: z.string().min(1),

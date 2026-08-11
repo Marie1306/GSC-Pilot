@@ -16,6 +16,16 @@ export interface SalesChannelOption {
   name: string;
 }
 
+// Mêmes valeurs/libellés que features/clientRequests/api.ts — dupliqués
+// plutôt que partagés entre fonctionnalités (même choix que le reste de ce
+// fichier, voir CATEGORY_LABELS ci-dessous).
+export type Urgency = "urgent" | "normal" | "discuss";
+export const URGENCY_LABELS: Record<Urgency, string> = {
+  urgent: "Urgent",
+  normal: "Non urgent",
+  discuss: "À discuter",
+};
+
 export interface NewClientRequestForBudget {
   company: string;
   contactName: string;
@@ -24,6 +34,7 @@ export interface NewClientRequestForBudget {
   email: string;
   address?: string;
   requestType: "project" | "rolling" | "service";
+  urgency: "urgent" | "normal" | "discuss";
   salesChannelId: string;
   sourceDetail?: string;
   summary: string;

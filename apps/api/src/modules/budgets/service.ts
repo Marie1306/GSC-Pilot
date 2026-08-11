@@ -44,7 +44,7 @@ import {
 } from "@gsc-pilot/business-rules";
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
-import { createClientRequest, type CreateClientRequestInput } from "../clientRequests/service.js";
+import { resolveClientRequestContact, createClientRequestInTx, type CreateClientRequestInput } from "../clientRequests/service.js";
 import type { Budget, BudgetSection, BudgetRow, BudgetSectionKind } from "../../generated/prisma/client.js";
 
 /** Ordre d'affichage — 3 groupes vérifiés dans le prototype v19 (12 août 2026), voir BUDGET_GROUPS côté application pour les libellés. */
@@ -85,6 +85,7 @@ export interface NewClientRequestForBudget {
   email: string;
   address?: string;
   requestType: "project" | "rolling" | "service";
+  urgency: "urgent" | "normal" | "discuss";
   salesChannelId: string;
   sourceDetail?: string;
   summary: string;
@@ -103,20 +104,35 @@ export async function createBudget(createdById: string, input: CreateBudgetInput
     throw new HttpError(400, "Choisir une demande existante OU en créer une nouvelle, pas les deux.");
   }
 
-  let clientRequestId = input.clientRequestId;
+  // Résolu AVANT la transaction (lecture/écriture idempotente du carnet de
+  // contacts, comme dans clientRequests/service.ts) — mais la demande client
+  // elle-même n'est créée qu'À L'INTÉRIEUR de la transaction du budgétaire
+  // ci-dessous, jamais avant. Corrige un bug réel (12 août 2026) : une
+  // demande client créée séparément, puis un échec dans la suite de cette
+  // fonction, laissait une demande orpheline sans budgétaire — voir l'audit
+  // livré à l'utilisatrice. Si la création du budgétaire échoue maintenant,
+  // toute la transaction est annulée, y compris la demande client.
+  let contactId: string | null = null;
   if (input.newClientRequest) {
-    const created = await createClientRequest(createdById, input.newClientRequest as CreateClientRequestInput);
-    clientRequestId = created.id;
+    const contact = await resolveClientRequestContact(input.newClientRequest);
+    contactId = contact.id;
   }
 
-  const clientRequest = await prisma.clientRequest.findUnique({ where: { id: clientRequestId } });
-  if (!clientRequest) throw new HttpError(404, "Demande client introuvable.");
-  if (clientRequest.budgetId) throw new HttpError(400, "Cette demande a déjà un budgétaire.");
+  let existingClientRequest: { id: string; budgetId: string | null } | null = null;
+  if (input.clientRequestId) {
+    existingClientRequest = await prisma.clientRequest.findUnique({ where: { id: input.clientRequestId }, select: { id: true, budgetId: true } });
+    if (!existingClientRequest) throw new HttpError(404, "Demande client introuvable.");
+    if (existingClientRequest.budgetId) throw new HttpError(400, "Cette demande a déjà un budgétaire.");
+  }
 
   const model = await prisma.budgetModel.findFirst({ include: { sections: { include: { rows: { where: { active: true } } } } } });
   if (!model) throw new HttpError(500, "Modèle de budgétaire non initialisé — lancer le seed.");
 
   return prisma.$transaction(async (tx) => {
+    const clientRequestId = input.newClientRequest
+      ? (await createClientRequestInTx(tx, createdById, input.newClientRequest as CreateClientRequestInput, contactId!)).id
+      : existingClientRequest!.id;
+
     const settings = await tx.settings.findFirst();
     if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
     const year = new Date().getFullYear();

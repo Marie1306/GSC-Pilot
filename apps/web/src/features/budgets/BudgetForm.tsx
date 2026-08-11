@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchClientRequests, fetchSalesChannels, createBudget, type NewClientRequestForBudget } from "./api.js";
+import { ApiError } from "../../lib/apiClient.js";
+import { fetchClientRequests, fetchSalesChannels, createBudget, URGENCY_LABELS, type NewClientRequestForBudget, type Urgency } from "./api.js";
 
 interface BudgetFormProps {
   onClose: () => void;
@@ -23,6 +24,7 @@ const EMPTY_NEW_REQUEST: NewClientRequestForBudget = {
   email: "",
   address: "",
   requestType: "project",
+  urgency: "normal",
   salesChannelId: "",
   sourceDetail: "",
   summary: "",
@@ -65,7 +67,7 @@ export function BudgetForm({ onClose, onCreated }: BudgetFormProps) {
       void queryClient.invalidateQueries({ queryKey: ["client-requests"] });
       onCreated(result.id);
     },
-    onError: () => setError("Erreur lors de la création — vérifiez les champs et réessayez."),
+    onError: (err) => setError(err instanceof ApiError ? err.message : "Erreur lors de la création — vérifiez les champs et réessayez."),
   });
 
   function set<K extends keyof NewClientRequestForBudget>(key: K, value: NewClientRequestForBudget[K]) {
@@ -140,6 +142,16 @@ export function BudgetForm({ onClose, onCreated }: BudgetFormProps) {
                   <label htmlFor="bg-requestType">Type prévu</label>
                   <select id="bg-requestType" value={newRequest.requestType} onChange={(e) => set("requestType", e.target.value as NewRequestType)}>
                     {Object.entries(NEW_REQUEST_TYPE_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="bg-urgency">Urgence</label>
+                  <select id="bg-urgency" value={newRequest.urgency} onChange={(e) => set("urgency", e.target.value as Urgency)}>
+                    {Object.entries(URGENCY_LABELS).map(([value, label]) => (
                       <option key={value} value={value}>
                         {label}
                       </option>

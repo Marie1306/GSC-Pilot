@@ -23,7 +23,15 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
 
   const res = await fetch(path, { ...init, headers });
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    const body = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      issues?: { path: (string | number)[]; message: string }[];
+    };
+    const first = body.error === "validation_error" ? body.issues?.[0] : undefined;
+    if (first) {
+      const field = first.path.join(".") || "champ";
+      throw new ApiError(res.status, `${field} : ${first.message}`);
+    }
     throw new ApiError(res.status, body.error || `Erreur ${res.status}`);
   }
   if (res.status === 204) return undefined as T;

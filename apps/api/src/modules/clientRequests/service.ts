@@ -10,7 +10,7 @@
 import { ensureContact, type Contact as PlainContact, type EnsureContactInput } from "@gsc-pilot/business-rules";
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
-import type { ClientRequest, Contact } from "../../generated/prisma/client.js";
+import type { ClientRequest, Contact, Prisma } from "../../generated/prisma/client.js";
 
 export const REQUEST_TYPES = ["project", "rolling", "service", "information"] as const;
 export type RequestType = (typeof REQUEST_TYPES)[number];
@@ -44,7 +44,8 @@ export interface CreateClientRequestInput {
  * en mémoire, puis écrit le résultat — une mise à jour si un contact
  * existant a été retrouvé (identité d'objet), sinon une création.
  */
-async function ensureContactRow(input: EnsureContactInput): Promise<Contact> {
+/** Exportée pour que budgets/service.ts puisse résoudre le contact AVANT d'ouvrir sa propre transaction (voir createClientRequestInTx ci-dessous). */
+export async function ensureContactRow(input: EnsureContactInput): Promise<Contact> {
   const email = input.email?.trim().toLowerCase();
   const name = (input.contactName || input.name || "").trim();
 
@@ -100,11 +101,62 @@ async function ensureContactRow(input: EnsureContactInput): Promise<Contact> {
   });
 }
 
-export async function createClientRequest(createdById: string, input: CreateClientRequestInput): Promise<ClientRequest> {
+/**
+ * Cœur transactionnel de la création — accepte un client de transaction
+ * (celui de l'appelant, ou `prisma` lui-même) pour que la création d'une
+ * demande client puisse participer à une transaction PLUS LARGE (voir
+ * budgets/service.ts::createBudget) au lieu de toujours commettre pour de
+ * bon avant que le reste de l'opération soit connu comme réussie. Corrige
+ * un bug réel (12 août 2026) : une demande client créée ici, suivie d'un
+ * échec dans createBudget, restait enregistrée pour de bon sans budgétaire
+ * attaché — voir l'audit livré à l'utilisatrice le même jour.
+ */
+export async function createClientRequestInTx(
+  tx: Prisma.TransactionClient,
+  createdById: string,
+  input: CreateClientRequestInput,
+  contactId: string,
+): Promise<ClientRequest> {
+  const settings = await tx.settings.findFirst();
+  if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
+  const year = new Date().getFullYear();
+  const displayId = `DC-${year}-${String(settings.nextClientRequestNumber).padStart(4, "0")}`;
+
+  const row = await tx.clientRequest.create({
+    data: {
+      displayId,
+      createdById,
+      contactId,
+      contactName: input.contactName.trim(),
+      contactRole: input.contactRole?.trim() || null,
+      company: input.company.trim(),
+      email: input.email.trim(),
+      phone: input.phone.trim(),
+      address: input.address?.trim() || null,
+      summary: input.summary.trim(),
+      requestType: input.requestType,
+      urgency: input.urgency,
+      salesChannelId: input.salesChannelId,
+      sourceDetail: input.sourceDetail?.trim() || null,
+      nextFollowUp: input.nextFollowUp ?? null,
+      status: "new",
+    },
+  });
+
+  await tx.settings.update({
+    where: { id: settings.id },
+    data: { nextClientRequestNumber: settings.nextClientRequestNumber + 1 },
+  });
+
+  return row;
+}
+
+/** Validations et résolution du contact AVANT toute écriture — mêmes étapes que l'ancienne version, exposées pour budgets/service.ts. */
+export async function resolveClientRequestContact(input: Pick<CreateClientRequestInput, "salesChannelId" | "email" | "contactName" | "company" | "contactRole" | "phone" | "requestType">): Promise<Contact> {
   const channel = await prisma.salesChannel.findUnique({ where: { id: input.salesChannelId } });
   if (!channel || !channel.active) throw new HttpError(400, "Canal d'entrée invalide.");
 
-  const contact = await ensureContactRow({
+  return ensureContactRow({
     email: input.email,
     contactName: input.contactName,
     company: input.company,
@@ -112,41 +164,11 @@ export async function createClientRequest(createdById: string, input: CreateClie
     phone: input.phone,
     requestType: input.requestType,
   });
+}
 
-  return prisma.$transaction(async (tx) => {
-    const settings = await tx.settings.findFirst();
-    if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
-    const year = new Date().getFullYear();
-    const displayId = `DC-${year}-${String(settings.nextClientRequestNumber).padStart(4, "0")}`;
-
-    const row = await tx.clientRequest.create({
-      data: {
-        displayId,
-        createdById,
-        contactId: contact.id,
-        contactName: input.contactName.trim(),
-        contactRole: input.contactRole?.trim() || null,
-        company: input.company.trim(),
-        email: input.email.trim(),
-        phone: input.phone.trim(),
-        address: input.address?.trim() || null,
-        summary: input.summary.trim(),
-        requestType: input.requestType,
-        urgency: input.urgency,
-        salesChannelId: input.salesChannelId,
-        sourceDetail: input.sourceDetail?.trim() || null,
-        nextFollowUp: input.nextFollowUp ?? null,
-        status: "new",
-      },
-    });
-
-    await tx.settings.update({
-      where: { id: settings.id },
-      data: { nextClientRequestNumber: settings.nextClientRequestNumber + 1 },
-    });
-
-    return row;
-  });
+export async function createClientRequest(createdById: string, input: CreateClientRequestInput): Promise<ClientRequest> {
+  const contact = await resolveClientRequestContact(input);
+  return prisma.$transaction((tx) => createClientRequestInTx(tx, createdById, input, contact.id));
 }
 
 export interface ClientRequestListItemDto {
