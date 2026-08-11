@@ -1,0 +1,244 @@
+// Porté 1-pour-1 depuis docs/handoff/03-modules-v01/roles.test.js (60 assertions).
+// Un scénario par règle confirmée dans GSC_Pilot_Specification_confirmee.md.
+import { describe, it, expect } from "vitest";
+import * as P from "../src/roles.js";
+
+const { OWNER, ADMIN, BOSS, MEMBER, WAREHOUSE } = P.ROLES;
+
+describe("Visibilité financière (principe général)", () => {
+  it("Direction voit les valeurs", () => {
+    expect(P.canSeeFinancialValues(OWNER)).toBe(true);
+  });
+  it("Employé ne voit jamais de valeurs", () => {
+    expect(P.canSeeFinancialValues(MEMBER)).toBe(false);
+  });
+  it("Magasinier ne voit jamais de valeurs", () => {
+    expect(P.canSeeFinancialValues(WAREHOUSE)).toBe(false);
+  });
+});
+
+describe("Achats directs de projet (jamais de seuil)", () => {
+  it("Administration peut saisir", () => {
+    expect(P.canEnterProjectPurchase(ADMIN)).toBe(true);
+  });
+  it("Employé ne peut pas saisir", () => {
+    expect(P.canEnterProjectPurchase(MEMBER)).toBe(false);
+  });
+  it("Direction approuve peu importe le montant", () => {
+    expect(P.canApproveProjectPurchase({}, OWNER)).toBe(true);
+  });
+  it("Administration ne peut jamais approuver elle-même", () => {
+    expect(P.canApproveProjectPurchase({}, ADMIN)).toBe(false);
+  });
+});
+
+describe("Demandes d'achat (seuil par catégorie)", () => {
+  const thresholds = { fabrication: 5000 };
+  it("Sous le seuil : Direction approuve", () => {
+    expect(P.canApprovePurchaseRequest({}, OWNER, { category: "fabrication", amount: 1000 }, thresholds)).toBe(true);
+  });
+  it("Sous le seuil : Propriétaire ne peut pas (pas nécessaire)", () => {
+    expect(P.canApprovePurchaseRequest({}, BOSS, { category: "fabrication", amount: 1000 }, thresholds)).toBe(false);
+  });
+  it("Au-dessus du seuil : seul le Propriétaire approuve", () => {
+    expect(P.canApprovePurchaseRequest({}, BOSS, { category: "fabrication", amount: 9000 }, thresholds)).toBe(true);
+  });
+  it("Au-dessus du seuil : Direction seule ne suffit plus", () => {
+    expect(P.canApprovePurchaseRequest({}, OWNER, { category: "fabrication", amount: 9000 }, thresholds)).toBe(false);
+  });
+  it("Achat rejeté par le Propriétaire : jamais re-soumis", () => {
+    expect(P.canResubmitRejectedPurchase()).toBe(false);
+  });
+  it("Employé voit son propre achat", () => {
+    expect(P.canViewPurchase(MEMBER, { requester: "emp-1" }, "emp-1")).toBe(true);
+  });
+  it("Employé ne voit pas l'achat d'un autre", () => {
+    expect(P.canViewPurchase(MEMBER, { requester: "emp-2" }, "emp-1")).toBe(false);
+  });
+});
+
+describe("Délégation", () => {
+  it("Seule la Direction peut mettre en place une délégation", () => {
+    expect(P.canGrantDelegation(OWNER)).toBe(true);
+  });
+  it("Le Propriétaire ne peut pas configurer sa propre délégation", () => {
+    expect(P.canGrantDelegation(BOSS)).toBe(false);
+  });
+  it("Administration ne peut pas configurer une délégation", () => {
+    expect(P.canGrantDelegation(ADMIN)).toBe(false);
+  });
+
+  const activeDelegation = {
+    delegation: { delegatePersona: BOSS, start: "2026-08-01", end: "2026-08-31", permissions: ["purchases", "hours"] as P.DelegationCategory[] },
+  };
+  const today = new Date("2026-08-15T12:00:00");
+
+  it("Délégué actif peut approuver un achat direct pendant la période", () => {
+    expect(P.canApproveProjectPurchase(activeDelegation, BOSS)).toBe(true);
+  });
+  it("Délégation hors période = inactive", () => {
+    expect(P.delegationActive(activeDelegation, BOSS, "purchases", new Date("2026-09-15"))).toBe(false);
+  });
+  it("Délégation sur catégorie non cochée = inactive", () => {
+    expect(P.delegationActive(activeDelegation, BOSS, "service", today)).toBe(false);
+  });
+  it("Administration non désignée ne peut pas agir comme Direction", () => {
+    expect(P.canApproveProjectPurchase(activeDelegation, ADMIN)).toBe(false);
+  });
+});
+
+describe("Appels de service", () => {
+  it("Direction voit les prix", () => {
+    expect(P.canSeeServicePricing(OWNER)).toBe(true);
+  });
+  it("Propriétaire voit aussi les prix", () => {
+    expect(P.canSeeServicePricing(BOSS)).toBe(true);
+  });
+  it("Technicien ne voit jamais de prix", () => {
+    expect(P.canSeeServicePricing(MEMBER)).toBe(false);
+  });
+  it("Seule la Direction fixe le prix des pièces", () => {
+    expect(P.canPriceServiceParts(OWNER)).toBe(true);
+  });
+  it("Administration ne peut pas fixer le prix des pièces", () => {
+    expect(P.canPriceServiceParts(ADMIN)).toBe(false);
+  });
+  it("Magasinier hors de la portée des appels de service", () => {
+    expect(P.canAccessServiceCalls(WAREHOUSE)).toBe(false);
+  });
+});
+
+describe("Budgétaire", () => {
+  it("Direction crée toujours", () => {
+    expect(P.canCreateBudgetFromRequest(OWNER)).toBe(true);
+  });
+  it("Propriétaire crée aussi, sans condition de transmission", () => {
+    expect(P.canCreateBudgetFromRequest(BOSS)).toBe(true);
+  });
+  it("Administration ne crée jamais de budgétaire", () => {
+    expect(P.canCreateBudgetFromRequest(ADMIN)).toBe(false);
+  });
+  it("Administration ne modifie jamais un budgétaire", () => {
+    expect(P.canModifyBudget(ADMIN)).toBe(false);
+  });
+  it("Employé n'accède jamais au budgétaire", () => {
+    expect(P.canAccessBudget(MEMBER)).toBe(false);
+  });
+});
+
+describe("Punchs", () => {
+  it("Direction approuve les punchs", () => {
+    expect(P.canApprovePunch({}, OWNER)).toBe(true);
+  });
+  it("Administration n'approuve pas les punchs", () => {
+    expect(P.canApprovePunch({}, ADMIN)).toBe(false);
+  });
+  it("Employé corrige son punch avant approbation", () => {
+    expect(P.canEditOwnPunch(MEMBER, { employee: "emp-1", status: "submitted" }, "emp-1")).toBe(true);
+  });
+  it("Employé ne peut plus corriger après approbation", () => {
+    expect(P.canEditOwnPunch(MEMBER, { employee: "emp-1", status: "approved" }, "emp-1")).toBe(false);
+  });
+});
+
+describe("Facturation", () => {
+  it("Direction demande la facturation", () => {
+    expect(P.canRequestInvoice(OWNER)).toBe(true);
+  });
+  it("Administration ne demande pas (elle traite)", () => {
+    expect(P.canRequestInvoice(ADMIN)).toBe(false);
+  });
+  it("Administration crée une facture", () => {
+    expect(P.canCreateInvoiceRecord(ADMIN)).toBe(true);
+  });
+  it("Direction crée aussi une facture", () => {
+    expect(P.canCreateInvoiceRecord(OWNER)).toBe(true);
+  });
+  it("Propriétaire ne crée jamais de facture", () => {
+    expect(P.canCreateInvoiceRecord(BOSS)).toBe(false);
+  });
+  it("Direction enregistre le paiement", () => {
+    expect(P.canRecordPayment(OWNER)).toBe(true);
+  });
+  it("Administration enregistre aussi le paiement", () => {
+    expect(P.canRecordPayment(ADMIN)).toBe(true);
+  });
+  it("Direction met en suspens", () => {
+    expect(P.canHoldInvoice(OWNER)).toBe(true);
+  });
+  it("Propriétaire ne met jamais en suspens", () => {
+    expect(P.canHoldInvoice(BOSS)).toBe(false);
+  });
+});
+
+describe("Livraisons / Roulements", () => {
+  it("Direction marque la production complétée", () => {
+    expect(P.canMarkProductionComplete(OWNER)).toBe(true);
+  });
+  it("Propriétaire ne marque jamais la production complétée", () => {
+    expect(P.canMarkProductionComplete(BOSS)).toBe(false);
+  });
+  it("Administration ne marque pas la production complétée", () => {
+    expect(P.canMarkProductionComplete(ADMIN)).toBe(false);
+  });
+  it("Direction choisit le mode de sortie", () => {
+    expect(P.canChooseFulfillmentMode(OWNER)).toBe(true);
+  });
+  it("Administration choisit aussi le mode de sortie", () => {
+    expect(P.canChooseFulfillmentMode(ADMIN)).toBe(true);
+  });
+  it("Propriétaire ne choisit jamais le mode de sortie", () => {
+    expect(P.canChooseFulfillmentMode(BOSS)).toBe(false);
+  });
+  it("Direction crée un roulement directement", () => {
+    expect(P.canCreateRollingDirectly(OWNER)).toBe(true);
+  });
+  it("Propriétaire crée aussi un roulement directement", () => {
+    expect(P.canCreateRollingDirectly(BOSS)).toBe(true);
+  });
+  it("Administration ne crée pas de roulement directement", () => {
+    expect(P.canCreateRollingDirectly(ADMIN)).toBe(false);
+  });
+  it("Direction crée un projet directement", () => {
+    expect(P.canCreateProjectDirectly(OWNER)).toBe(true);
+  });
+  it("Propriétaire crée aussi un projet directement", () => {
+    expect(P.canCreateProjectDirectly(BOSS)).toBe(true);
+  });
+  it("Administration ne crée pas de projet directement", () => {
+    expect(P.canCreateProjectDirectly(ADMIN)).toBe(false);
+  });
+});
+
+describe("Paramètres", () => {
+  it("Direction accède aux Paramètres", () => {
+    expect(P.canAccessSettings(OWNER)).toBe(true);
+  });
+  it("Administration n'accède jamais aux Paramètres", () => {
+    expect(P.canAccessSettings(ADMIN)).toBe(false);
+  });
+  it("Administration ne modifie jamais un taux horaire", () => {
+    expect(P.canModifyEmployeeRate(ADMIN)).toBe(false);
+  });
+});
+
+// Règle confirmée directement avec l'utilisateur (11 août 2026, pas dans roles.js d'origine) —
+// voir le commentaire dans src/roles.ts (canCreateClientRequest / canCreateServiceCall).
+describe("Création de demandes clients et d'appels de service (règle confirmée le 11 août 2026)", () => {
+  it("Direction, Administration et Propriétaire peuvent créer une demande client", () => {
+    expect(P.canCreateClientRequest(OWNER)).toBe(true);
+    expect(P.canCreateClientRequest(ADMIN)).toBe(true);
+    expect(P.canCreateClientRequest(BOSS)).toBe(true);
+  });
+  it("Employé et Magasinier ne peuvent jamais créer une demande client", () => {
+    expect(P.canCreateClientRequest(MEMBER)).toBe(false);
+    expect(P.canCreateClientRequest(WAREHOUSE)).toBe(false);
+  });
+  it("Mêmes rôles pour la création d'un appel de service", () => {
+    expect(P.canCreateServiceCall(OWNER)).toBe(true);
+    expect(P.canCreateServiceCall(ADMIN)).toBe(true);
+    expect(P.canCreateServiceCall(BOSS)).toBe(true);
+    expect(P.canCreateServiceCall(MEMBER)).toBe(false);
+    expect(P.canCreateServiceCall(WAREHOUSE)).toBe(false);
+  });
+});
