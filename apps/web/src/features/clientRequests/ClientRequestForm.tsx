@@ -41,7 +41,19 @@ export function ClientRequestForm({ onClose }: ClientRequestFormProps) {
   const [error, setError] = useState<string | null>(null);
 
   const mutation = useMutation({
-    mutationFn: () => createClientRequest(form),
+    // Les champs facultatifs vides restent des chaînes vides dans le
+    // formulaire (contrôlé), mais l'API doit les recevoir absents plutôt
+    // que "" — surtout nextFollowUp, dont le format ISO rejette une
+    // chaîne vide même si le champ est facultatif (z.iso.date().optional()
+    // n'accepte pas "" comme "absent").
+    mutationFn: () =>
+      createClientRequest({
+        ...form,
+        contactRole: form.contactRole?.trim() || undefined,
+        address: form.address?.trim() || undefined,
+        sourceDetail: form.sourceDetail?.trim() || undefined,
+        nextFollowUp: form.nextFollowUp?.trim() || undefined,
+      }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["client-requests"] });
       onClose();
