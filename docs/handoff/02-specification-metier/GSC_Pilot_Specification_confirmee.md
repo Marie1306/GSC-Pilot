@@ -674,3 +674,20 @@ Administration.
 - Distinguer ces lignes des demandes régulières dans les rapports plus
   tard : **pas nécessaire**, confirmé — une fois traitées, aucune
   différence à conserver.
+
+## Paramètres — gestion des catégories d'achat (confirmé le 12 août 2026)
+- Direction (seulement) peut ajouter, renommer et désactiver les
+  catégories utilisées par la demande d'achat régulière — même patron que
+  les tâches punchables par catégorie déjà confirmées. « Supprimer » =
+  désactiver, jamais une suppression réelle : une catégorie désactivée
+  disparaît des nouveaux choix, mais les demandes déjà faites continuent
+  de la référencer sans problème.
+- **Un seuil est obligatoire à la création** d'une catégorie — pas
+  d'option « sans seuil » (ça n'existe que pour la liste rapide de projet,
+  qui elle n'a délibérément aucune catégorie).
+- **Le seuil se fige au moment de la soumission d'une demande, jamais
+  rétroactif.** Si Direction change le seuil d'une catégorie pendant
+  qu'une demande utilisant cette catégorie est déjà en attente, la
+  demande garde le seuil qui était en vigueur au moment où elle a été
+  soumise — jamais recalculée avec le nouveau seuil. Même principe que les
+  autres taux gelés déjà établis (ex. `Budget.backupHourlyRate`).
