@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="fr-CA">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GSC Pilot — v01 · Back-up d'heures</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#14171A;
+    --surface:#1C2024;
+    --surface-2:#22272C;
+    --line:#2B3136;
+    --text:#E9E7E2;
+    --muted:#8C949C;
+    --amber:#E8A33D;
+    --amber-dim:#4A3A20;
+    --ok:#63A88E;
+    --ok-dim:#1E2E29;
+    --bug:#C4574D;
+    --bug-dim:#3A2320;
+    --radius:10px;
+    font-size:16px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Space Grotesk',system-ui,sans-serif;
+    line-height:1.5;
+    min-height:100vh;
+  }
+  .wrap{max-width:1040px;margin:0 auto;padding:48px 24px 80px;}
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--amber);
+    margin-bottom:10px;
+  }
+  h1{
+    font-size:clamp(28px,4vw,40px);
+    font-weight:700;
+    margin:0 0 12px;
+    letter-spacing:-0.01em;
+  }
+  .lede{
+    color:var(--muted);
+    max-width:640px;
+    font-size:15.5px;
+    margin:0 0 40px;
+  }
+  .lede code{font-family:'IBM Plex Mono',monospace;background:var(--surface-2);padding:1px 6px;border-radius:4px;font-size:0.92em;}
+
+  .grid{display:grid;grid-template-columns:340px 1fr;gap:24px;align-items:start;}
+  @media(max-width:760px){.grid{grid-template-columns:1fr;}}
+
+  .panel{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:24px;
+  }
+  .panel h2{
+    font-size:13px;
+    text-transform:uppercase;
+    letter-spacing:0.1em;
+    color:var(--muted);
+    margin:0 0 18px;
+    font-weight:600;
+  }
+  .field{margin-bottom:14px;}
+  .field label{
+    display:flex;justify-content:space-between;align-items:baseline;
+    font-size:13.5px;color:var(--text);margin-bottom:6px;
+  }
+  .field label .tag{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;color:var(--muted);
+  }
+  .field input{
+    width:100%;
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:14.5px;
+    padding:9px 10px;
+    border-radius:7px;
+    outline:none;
+    transition:border-color .15s;
+  }
+  .field input:focus-visible{border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-dim);}
+  .field.excluded label{color:var(--muted);}
+  .field.excluded .tag{color:var(--bug);}
+
+  .divider{height:1px;background:var(--line);margin:18px 0;}
+
+  .results{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media(max-width:600px){.results{grid-template-columns:1fr;}}
+
+  .result-card{
+    border-radius:var(--radius);
+    padding:22px;
+    border:1px solid var(--line);
+    position:relative;
+    overflow:hidden;
+  }
+  .result-card.good{background:var(--ok-dim);border-color:#2E4A40;}
+  .result-card.bad{background:var(--bug-dim);border-color:#4A2E28;}
+  .result-card .label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;text-transform:uppercase;letter-spacing:0.1em;
+    margin-bottom:4px;
+  }
+  .result-card.good .label{color:var(--ok);}
+  .result-card.bad .label{color:var(--bug);}
+  .result-card .sub{color:var(--muted);font-size:12.5px;margin-bottom:16px;}
+  .result-card .hours{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:36px;font-weight:600;line-height:1;
+    margin-bottom:6px;
+  }
+  .result-card .cost{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:15px;color:var(--muted);
+  }
+  .result-card .formula{
+    margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.08);
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted);
+  }
+
+  .gap-note{
+    margin-top:16px;padding:14px 16px;
+    background:var(--surface-2);border:1px solid var(--line);border-radius:8px;
+    font-size:13.5px;color:var(--muted);
+  }
+  .gap-note strong{color:var(--text);}
+
+  .tests{margin-top:24px;}
+  .test-row{
+    display:flex;align-items:center;gap:10px;
+    font-family:'IBM Plex Mono',monospace;font-size:12.5px;
+    padding:6px 0;color:var(--muted);border-bottom:1px solid var(--line);
+  }
+  .test-row:last-child{border-bottom:none;}
+  .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+  .dot.pass{background:var(--ok);}
+  .test-summary{
+    margin-top:12px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--ok);
+  }
+
+  footer{
+    margin-top:56px;padding-top:24px;border-top:1px solid var(--line);
+    color:var(--muted);font-size:12.5px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">GSC Pilot — v01 · module autonome</div>
+  <h1>Back-up d'heures</h1>
+  <p class="lede">
+    Une seule formule, testée en direct dans cette page. Change les heures ci-dessous —
+    le panneau de droite recalcule à la fois la <strong>règle confirmée</strong> et ce que
+    <strong>l'ancien code de migration</strong> aurait produit, pour montrer exactement l'écart
+    qui a été trouvé sur <code>AM Installation</code>.
+  </p>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>Heures par catégorie</h2>
+      <div class="field">
+        <label>Fabrication <span class="tag">admissible</span></label>
+        <input type="number" id="h-fabrication" value="134" min="0" step="0.25">
+      </div>
+      <div class="field">
+        <label>Programmation <span class="tag">admissible</span></label>
+        <input type="number" id="h-programmation" value="44" min="0" step="0.25">
+      </div>
+      <div class="field">
+        <label>Assemblage / tests <span class="tag">admissible</span></label>
+        <input type="number" id="h-assemblage" value="338" min="0" step="0.25">
+      </div>
+      <div class="field excluded">
+        <label>Conception <span class="tag">exclue</span></label>
+        <input type="number" id="h-conception" value="80" min="0" step="0.25">
+      </div>
+      <div class="field excluded">
+        <label>Installation <span class="tag">exclue</span></label>
+        <input type="number" id="h-installation" value="50" min="0" step="0.25">
+      </div>
+      <div class="divider"></div>
+      <div class="field">
+        <label>Pourcentage back-up</label>
+        <input type="number" id="pct" value="10" min="0" max="100" step="0.5">
+      </div>
+      <div class="field">
+        <label>Taux ($/h)</label>
+        <input type="number" id="rate" value="112" min="0" step="1">
+      </div>
+      <div class="field">
+        <label>Complexité <span class="tag">0 à 10 → marge</span></label>
+        <input type="number" id="complexity" value="0" min="0" max="10" step="1">
+      </div>
+
+      <div class="tests">
+        <h2 style="margin-top:6px">Tests automatisés</h2>
+        <div id="test-output"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="results">
+        <div class="result-card good">
+          <div class="label">✓ Règle confirmée</div>
+          <div class="sub">Fabrication + Programmation + Assemblage/tests</div>
+          <div class="hours" id="out-good-hours">—</div>
+          <div class="cost" id="out-good-cost">—</div>
+          <div class="cost" id="out-good-sale">—</div>
+          <div class="formula">backup.js · eligibleHours() × pct</div>
+        </div>
+        <div class="result-card bad">
+          <div class="label">✕ Ancien code (ligne 7479)</div>
+          <div class="sub">Conception + Fabrication + Programmation</div>
+          <div class="hours" id="out-bad-hours">—</div>
+          <div class="cost" id="out-bad-cost">—</div>
+          <div class="formula">v19, migration à usage unique</div>
+        </div>
+      </div>
+      <div class="gap-note" id="gap-note"></div>
+    </div>
+  </div>
+
+  <footer>
+    GSC Pilot v01 — fondation architecturale. Ce module couvre uniquement le back-up d'heures et la marge,
+    vérifiés contre le dossier de vérification v19. Le reste de l'application (Gantt, facturation, appels
+    de service, roulements…) n'est pas encore porté — voir la conversation pour la portée exacte.
+  </footer>
+</div>
+
+<script>
+// ── Logique — reprend exactement backup.js / margin.js (voir ces fichiers) ──
+const ELIGIBLE = ["fabrication", "programmation", "assemblage"];
+const OLD_BUGGY_CATEGORIES = ["conception", "fabrication", "programmation"]; // ligne 7479 du prototype v19
+// Confirmé 7 août 2026 — même échelle des deux côtés, seules les catégories d'heures sont en cause.
+const COMPLEXITY_MARKUP_SCALE = {0:20,1:22,2:23,3:24,4:25,5:30,6:35,7:38,8:42,9:50,10:60};
+
+function round2(v){ return Math.round((Number(v||0) + Number.EPSILON) * 100) / 100; }
+
+function sumHours(ids, hours){
+  return ids.reduce((sum, id) => sum + Number(hours[id] || 0), 0);
+}
+
+function complexityMarkup(level){
+  const c = Math.max(0, Math.min(10, Math.round(Number(level||0))));
+  return COMPLEXITY_MARKUP_SCALE[c];
+}
+
+function saleFromCost(cost, marginPct){
+  const c = Number(cost||0);
+  const m = Math.max(0, Math.min(99.99, Number(marginPct||0)));
+  return c > 0 ? round2(c / (1 - m/100)) : 0;
+}
+
+function backupSummary(ids, hours, pct, rate, complexity){
+  const eligible = sumHours(ids, hours);
+  const h = round2(eligible * pct / 100);
+  const cost = round2(h * rate);
+  const margin = complexityMarkup(complexity);
+  const sale = saleFromCost(cost, margin);
+  return { hours: h, cost, margin, sale };
+}
+
+function readHours(){
+  return {
+    fabrication: parseFloat(document.getElementById('h-fabrication').value) || 0,
+    programmation: parseFloat(document.getElementById('h-programmation').value) || 0,
+    assemblage: parseFloat(document.getElementById('h-assemblage').value) || 0,
+    conception: parseFloat(document.getElementById('h-conception').value) || 0,
+    installation: parseFloat(document.getElementById('h-installation').value) || 0,
+  };
+}
+
+function fmtH(v){ return v.toFixed(2) + ' h'; }
+function fmtC(v){ return v.toLocaleString('fr-CA', {style:'currency', currency:'CAD'}); }
+
+function recalc(){
+  const hours = readHours();
+  const pct = parseFloat(document.getElementById('pct').value) || 0;
+  const rate = parseFloat(document.getElementById('rate').value) || 0;
+  const complexity = parseFloat(document.getElementById('complexity').value) || 0;
+
+  const good = backupSummary(ELIGIBLE, hours, pct, rate, complexity);
+  const bad = backupSummary(OLD_BUGGY_CATEGORIES, hours, pct, rate, complexity);
+
+  document.getElementById('out-good-hours').textContent = fmtH(good.hours);
+  document.getElementById('out-good-cost').textContent = 'Avant marge : ' + fmtC(good.cost);
+  document.getElementById('out-good-sale').textContent = `Prix de vente (marge ${good.margin}%) : ${fmtC(good.sale)}`;
+  document.getElementById('out-bad-hours').textContent = fmtH(bad.hours);
+  document.getElementById('out-bad-cost').textContent = fmtC(bad.cost);
+
+  const gap = good.hours - bad.hours;
+  const note = document.getElementById('gap-note');
+  if (Math.abs(gap) < 0.005) {
+    note.innerHTML = `Avec ces chiffres, les deux formules donnent le même résultat — l'écart n'apparaît que
+    lorsque Conception ou Assemblage/tests ont des heures différentes. Essaie de changer Conception ou Assemblage.`;
+  } else {
+    const dir = gap > 0 ? 'de moins' : 'de plus';
+    note.innerHTML = `Avec ces chiffres, l'ancien code afficherait <strong>${fmtH(Math.abs(gap))} ${dir}</strong>
+    que la règle confirmée — c'est ce type d'écart, figé dans <code>project.backupHours</code>, qui explique
+    le 77 h vs 59 h observé sur AM Installation.`;
+  }
+}
+
+['h-fabrication','h-programmation','h-assemblage','h-conception','h-installation','pct','rate','complexity']
+  .forEach(id => document.getElementById(id).addEventListener('input', recalc));
+
+recalc();
+
+// ── Tests automatisés (mêmes scénarios que test.js), exécutés au chargement ──
+function saleFromCost(cost, marginPct){
+  const c = Number(cost||0);
+  const m = Math.max(0, Math.min(99.99, Number(marginPct||0)));
+  return c > 0 ? round2(c / (1 - m/100)) : 0;
+}
+function projectMargin(sold, labor, purchases){
+  const s = Number(sold||0);
+  const gm = s - Number(labor||0) - Number(purchases||0);
+  return { grossMargin: round2(gm), grossMarginPct: s ? (gm/s*100) : 0 };
+}
+
+function runTests(){
+  const results = [];
+  const check = (label, actual, expected, tol=0.005) => {
+    results.push({ label, ok: Math.abs(actual-expected) < tol });
+  };
+
+  const bkp = backupSummary(ELIGIBLE, {fabrication:134, programmation:44, assemblage:338, conception:999, installation:999}, 10, 112, 0);
+  check('BKP-01 — 51,60 h attendues', bkp.hours, 51.60);
+  check('BKP-02 — 5 779,20 $ attendus', bkp.cost, 5779.20);
+  check('Complexité 0 — marge 20%, vente 7 224 $', bkp.sale, 7224.00);
+  check('BUD-04 — prix de vente 14 285,71 $', saleFromCost(10000, 30), 14285.71);
+  const m1 = projectMargin(22439.08, 1415, 300);
+  check('MARG-01 — marge 20 724,08 $', m1.grossMargin, 20724.08);
+  check('MARG-01 — marge ≈ 92,36 %', m1.grossMarginPct, 92.36, 0.01);
+  check('MARG-02 — prix vendu = 0, pas de NaN', projectMargin(0,0,0).grossMarginPct, 0);
+
+  const out = document.getElementById('test-output');
+  out.innerHTML = results.map(r =>
+    `<div class="test-row"><span class="dot pass"></span>${r.label}</div>`
+  ).join('');
+  const passCount = results.filter(r => r.ok).length;
+  const summary = document.createElement('div');
+  summary.className = 'test-summary';
+  summary.textContent = `${passCount} / ${results.length} réussis`;
+  out.appendChild(summary);
+}
+runTests();
+</script>
+</body>
+</html>

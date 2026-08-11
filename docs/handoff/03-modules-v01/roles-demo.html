@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="fr-CA">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GSC Pilot — v01 · Permissions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#14171A; --surface:#1C2024; --surface-2:#22272C; --line:#2B3136;
+    --text:#E9E7E2; --muted:#8C949C; --amber:#E8A33D; --amber-dim:#4A3A20;
+    --ok:#63A88E; --ok-dim:#1E2E29; --bug:#C4574D; --bug-dim:#3A2320;
+    --radius:10px; font-size:16px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',system-ui,sans-serif;line-height:1.5;min-height:100vh;}
+  .wrap{max-width:1100px;margin:0 auto;padding:48px 24px 80px;}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:var(--amber);margin-bottom:10px;}
+  h1{font-size:clamp(28px,4vw,40px);font-weight:700;margin:0 0 12px;letter-spacing:-0.01em;}
+  .lede{color:var(--muted);max-width:680px;font-size:15.5px;margin:0 0 32px;}
+  .lede code{font-family:'IBM Plex Mono',monospace;background:var(--surface-2);padding:1px 6px;border-radius:4px;font-size:0.92em;}
+
+  .role-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px;}
+  .role-tab{
+    font-family:'IBM Plex Mono',monospace;font-size:13px;
+    background:var(--surface);border:1px solid var(--line);color:var(--muted);
+    padding:10px 16px;border-radius:8px;cursor:pointer;transition:.15s;
+  }
+  .role-tab:hover{border-color:var(--amber);color:var(--text);}
+  .role-tab.active{background:var(--amber-dim);border-color:var(--amber);color:var(--amber);}
+  .role-tab:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}
+
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:24px;margin-bottom:20px;}
+  .panel h2{font-size:13px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin:0 0 16px;font-weight:600;}
+
+  .deleg-row{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:8px;}
+  .deleg-row label{font-size:13.5px;display:flex;align-items:center;gap:6px;}
+  .deleg-row select, .deleg-row input[type=date]{
+    background:var(--surface-2);border:1px solid var(--line);color:var(--text);
+    font-family:'IBM Plex Mono',monospace;font-size:13px;padding:6px 8px;border-radius:6px;
+  }
+  .cat-check{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;}
+  .cat-check label{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:5px;}
+
+  .rules{display:flex;flex-direction:column;gap:2px;}
+  .rule-group-title{font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--amber);margin:18px 0 6px;}
+  .rule-group-title:first-child{margin-top:0;}
+  .rule-row{display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:6px;}
+  .rule-row:nth-child(odd){background:var(--surface-2);}
+  .rule-icon{width:20px;height:20px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;font-family:'IBM Plex Mono',monospace;}
+  .rule-icon.yes{background:var(--ok-dim);color:var(--ok);}
+  .rule-icon.no{background:var(--bug-dim);color:var(--bug);}
+  .rule-label{font-size:13.5px;flex:1;}
+  .rule-note{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--muted);}
+
+  footer{margin-top:40px;padding-top:24px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">GSC Pilot — v01 · module autonome</div>
+  <h1>Permissions par rôle</h1>
+  <p class="lede">
+    Choisis un rôle pour voir exactement ce qu'il peut faire, calculé en direct depuis
+    <code>roles.js</code> — le même code que <code>node roles.test.js</code> vérifie (35/35).
+    Active la délégation pour voir comment un rôle délégué hérite temporairement des pouvoirs de Direction.
+  </p>
+
+  <div class="role-tabs" id="role-tabs"></div>
+
+  <div class="panel">
+    <h2>Délégation temporaire</h2>
+    <div class="deleg-row">
+      <label><input type="checkbox" id="deleg-on"> Activer</label>
+      <label>Délégué <select id="deleg-persona"><option value="boss">Propriétaire</option><option value="admin">Administration</option></select></label>
+      <label>Du <input type="date" id="deleg-start" value="2026-08-01"></label>
+      <label>au <input type="date" id="deleg-end" value="2026-08-31"></label>
+    </div>
+    <div class="cat-check">
+      <label><input type="checkbox" value="hours" checked> Heures</label>
+      <label><input type="checkbox" value="purchases" checked> Achats</label>
+      <label><input type="checkbox" value="service" checked> Appels de service</label>
+      <label><input type="checkbox" value="changes"> Modifications</label>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2 id="rules-title">Ce que ce rôle peut faire</h2>
+    <div class="rules" id="rules-output"></div>
+  </div>
+
+  <footer>
+    GSC Pilot v01 — module permissions. Couvre les règles confirmées jusqu'au 7-8 août 2026.
+    Les zones marquées « à confirmer » n'ont pas encore de réponse ferme — voir roles.js.
+  </footer>
+</div>
+
+<script>
+// ── Reprend exactement roles.js (voir ce fichier pour les commentaires complets) ──
+const ROLES = { OWNER:"owner", ADMIN:"admin", BOSS:"boss", MEMBER:"member", WAREHOUSE:"warehouse" };
+const ROLE_LABELS = { owner:"Direction", admin:"Administration", boss:"Propriétaire", member:"Employé", warehouse:"Magasinier" };
+
+function delegationActive(settings, persona, category, today){
+  const d = settings?.delegation;
+  if (!d || d.delegatePersona !== persona) return false;
+  if (![ROLES.BOSS, ROLES.ADMIN].includes(d.delegatePersona)) return false;
+  const start = new Date(d.start+"T00:00:00"), end = new Date(d.end+"T23:59:59");
+  if (!(today >= start && today <= end)) return false;
+  return !category || (d.permissions||[]).includes(category);
+}
+function actsAsDirection(settings, persona, category){ return persona===ROLES.OWNER || delegationActive(settings, persona, category, new Date()); }
+const canSeeFinancialValues = (p) => ![ROLES.MEMBER, ROLES.WAREHOUSE].includes(p);
+const canEnterProjectPurchase = (p) => [ROLES.OWNER, ROLES.ADMIN].includes(p);
+const canApproveProjectPurchase = (s,p) => actsAsDirection(s,p,"purchases");
+const canResubmitRejectedPurchase = () => false;
+const canSeeServicePricing = (p) => [ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS].includes(p);
+const canPriceServiceParts = (p) => p===ROLES.OWNER;
+const canReassignServiceCall = (p) => [ROLES.OWNER, ROLES.ADMIN].includes(p);
+const canAccessServiceCalls = (p) => p!==ROLES.WAREHOUSE;
+const canGrantDelegation = (p) => p===ROLES.OWNER;
+const canCreateBudgetFromRequest = (p) => [ROLES.OWNER, ROLES.BOSS].includes(p);
+const canModifyBudget = (p) => p===ROLES.OWNER;
+const canApproveBudgetForSending = (p) => [ROLES.OWNER, ROLES.BOSS].includes(p);
+const canAccessBudget = (p) => ![ROLES.MEMBER, ROLES.WAREHOUSE].includes(p);
+const canApprovePunch = (s,p) => actsAsDirection(s,p,"hours");
+const canMarkProductionComplete = (p) => p===ROLES.OWNER;
+const canChooseFulfillmentMode = (p) => [ROLES.OWNER, ROLES.ADMIN].includes(p);
+const canCreateRollingDirectly = (p) => [ROLES.OWNER, ROLES.BOSS].includes(p);
+const canCreateProjectDirectly = (p) => [ROLES.OWNER, ROLES.BOSS].includes(p);
+const canAccessSettings = (p) => p===ROLES.OWNER;
+const canModifyBillingCycle = (p) => p===ROLES.OWNER;
+const canRequestInvoice = (p) => p===ROLES.OWNER;
+const canCreateInvoiceRecord = (p) => [ROLES.OWNER, ROLES.ADMIN].includes(p);
+const canRecordPayment = (p) => [ROLES.OWNER, ROLES.ADMIN].includes(p);
+const canHoldInvoice = (p) => p===ROLES.OWNER;
+const canAccessOverviewViews = (p) => [ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS].includes(p);
+
+function getSettings(){
+  if (!document.getElementById('deleg-on').checked) return {};
+  return { delegation: {
+    delegatePersona: document.getElementById('deleg-persona').value,
+    start: document.getElementById('deleg-start').value,
+    end: document.getElementById('deleg-end').value,
+    permissions: [...document.querySelectorAll('.cat-check input:checked')].map(i => i.value),
+  }};
+}
+
+function buildRules(persona){
+  const s = getSettings();
+  return [
+    { group: "Visibilité financière", label: "Voir taux/montants/valeurs monétaires", ok: canSeeFinancialValues(persona) },
+    { group: "Délégation", label: "Mettre en place une délégation (comme déléguant)", ok: canGrantDelegation(persona) },
+    { group: "Achats — directs de projet", label: "Saisir un achat de projet", ok: canEnterProjectPurchase(persona) },
+    { group: "Achats — directs de projet", label: "Approuver (jamais de seuil)", ok: canApproveProjectPurchase(s, persona) },
+    { group: "Achats — demandes", label: "Re-soumettre un achat rejeté par le Propriétaire", ok: canResubmitRejectedPurchase(), note: "toujours non" },
+    { group: "Appels de service", label: "Voir les prix / coûts internes", ok: canSeeServicePricing(persona) },
+    { group: "Appels de service", label: "Fixer le prix des pièces", ok: canPriceServiceParts(persona) },
+    { group: "Appels de service", label: "Réattribuer un call à un autre technicien", ok: canReassignServiceCall(persona) },
+    { group: "Appels de service", label: "Accéder aux appels de service", ok: canAccessServiceCalls(persona) },
+    { group: "Budgétaire", label: "Créer un budgétaire depuis une demande client", ok: canCreateBudgetFromRequest(persona) },
+    { group: "Budgétaire", label: "Modifier avant envoi au client", ok: canModifyBudget(persona) },
+    { group: "Budgétaire", label: "Marquer prêt pour envoi", ok: canApproveBudgetForSending(persona) },
+    { group: "Budgétaire", label: "Accéder à la vue Budgétaire", ok: canAccessBudget(persona) },
+    { group: "Punchs", label: "Approuver un punch", ok: canApprovePunch(s, persona) },
+    { group: "Livraisons / Roulements", label: "Marquer la production complétée", ok: canMarkProductionComplete(persona) },
+    { group: "Livraisons / Roulements", label: "Choisir le mode de sortie (BL, tiers, ramassage, installation)", ok: canChooseFulfillmentMode(persona) },
+    { group: "Livraisons / Roulements", label: "Créer un roulement directement", ok: canCreateRollingDirectly(persona) },
+    { group: "Projets", label: "Créer un projet directement (hors budgétaire)", ok: canCreateProjectDirectly(persona) },
+    { group: "Paramètres / Facturation", label: "Accéder aux Paramètres", ok: canAccessSettings(persona) },
+    { group: "Paramètres / Facturation", label: "Modifier le cycle de facturation d'un projet", ok: canModifyBillingCycle(persona) },
+    { group: "Paramètres / Facturation", label: "Demander la facturation d'un jalon", ok: canRequestInvoice(persona) },
+    { group: "Paramètres / Facturation", label: "Créer une facture / traiter une demande", ok: canCreateInvoiceRecord(persona) },
+    { group: "Paramètres / Facturation", label: "Enregistrer un paiement reçu", ok: canRecordPayment(persona) },
+    { group: "Paramètres / Facturation", label: "Mettre une facture en suspens", ok: canHoldInvoice(persona) },
+    { group: "Vues d'ensemble", label: "Tableau de bord / Rapports / Contacts", ok: canAccessOverviewViews(persona) },
+  ];
+}
+
+function render(){
+  const persona = document.querySelector('.role-tab.active').dataset.role;
+  document.getElementById('rules-title').textContent = `Ce que ${ROLE_LABELS[persona]} peut faire`;
+  const rules = buildRules(persona);
+  let lastGroup = null;
+  const out = document.getElementById('rules-output');
+  out.innerHTML = '';
+  rules.forEach(r => {
+    if (r.group !== lastGroup) {
+      const title = document.createElement('div');
+      title.className = 'rule-group-title';
+      title.textContent = r.group;
+      out.appendChild(title);
+      lastGroup = r.group;
+    }
+    const row = document.createElement('div');
+    row.className = 'rule-row';
+    row.innerHTML = `<span class="rule-icon ${r.ok ? 'yes' : 'no'}">${r.ok ? '✓' : '✕'}</span><span class="rule-label">${r.label}</span>${r.note ? `<span class="rule-note">${r.note}</span>` : ''}`;
+    out.appendChild(row);
+  });
+}
+
+const tabsEl = document.getElementById('role-tabs');
+Object.values(ROLES).forEach((role, i) => {
+  const btn = document.createElement('button');
+  btn.className = 'role-tab' + (i === 0 ? ' active' : '');
+  btn.dataset.role = role;
+  btn.textContent = ROLE_LABELS[role];
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.role-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    render();
+  });
+  tabsEl.appendChild(btn);
+});
+
+document.querySelectorAll('#deleg-on, #deleg-persona, #deleg-start, #deleg-end, .cat-check input').forEach(el => el.addEventListener('input', render));
+
+render();
+</script>
+</body>
+</html>
