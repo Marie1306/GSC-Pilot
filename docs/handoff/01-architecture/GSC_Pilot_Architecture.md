@@ -89,3 +89,22 @@ la construction réelle dans Claude Code.
 - Les données des utilisateurs ne sont jamais affectées par une mise à
   jour de l'application, peu importe l'approche — elles vivent sur le
   serveur, jamais sur l'appareil.
+
+## Row Level Security (Supabase) — confirmé le 11 août 2026
+- **RLS activée sur toutes les tables dès leur création**, proposée
+  automatiquement par l'éditeur SQL de Supabase (case « Run and enable
+  RLS ») au moment d'exécuter la migration initiale — acceptée.
+- **Aucune politique (policy) à écrire pour l'instant, et c'est
+  volontaire** : le seul chemin d'accès aux données est l'API Express
+  (via Prisma, rôle propriétaire des tables — non soumis à RLS). Le
+  frontend ne se connecte jamais directement à Postgres/PostgREST avec
+  la clé publique (`sb_publishable_...`) ou une session Supabase Auth —
+  toujours par l'API Express, qui applique `roles.ts` normalement.
+  RLS activée sans aucune politique bloque donc entièrement les rôles
+  `anon`/`authenticated` de Supabase sur toutes les tables — exactement
+  le comportement voulu, en défense en profondeur si jamais la clé
+  publique du projet fuitait.
+- Si un futur besoin exige un accès direct Supabase→table depuis le
+  frontend (contournant l'API Express), il faudra écrire une politique
+  RLS explicite pour ce cas précis à ce moment-là — ne jamais l'ouvrir
+  par anticipation.
