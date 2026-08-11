@@ -217,6 +217,18 @@ export function canModifyBudget(persona: Persona): boolean {
   assertRole(persona);
   return persona === ROLES.OWNER;
 }
+/**
+ * Modification d'une ligne de type Achat marquée "Direction ET Propriétaire"
+ * (vérifié dans le prototype v19, 12 août 2026 — varie PAR LIGNE, pas
+ * seulement par catégorie). Plus large que canModifyBudget : ne remplace pas
+ * la porte Direction seulement des lignes Heures / lignes Achat marquées
+ * "Direction seulement" / complexité / back-up / méta — voir la logique par
+ * ligne dans budgets/service.ts.
+ */
+export function canModifyBudgetPurchaseLine(persona: Persona): boolean {
+  assertRole(persona);
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
+}
 /** Marquer prêt / approuver pour envoi : Propriétaire et Direction. */
 export function canApproveBudgetForSending(persona: Persona): boolean {
   assertRole(persona);

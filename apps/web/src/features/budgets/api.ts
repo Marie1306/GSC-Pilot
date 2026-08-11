@@ -45,18 +45,24 @@ export interface BudgetListItem {
   totalSale: number;
 }
 
+export type BudgetSectionKind = "labor" | "purchase";
+
 export interface BudgetSectionRow {
   id: string;
   label: string;
   hourlyRate: number;
-  hours: number;
-  purchaseAmount: number;
+  hours: number; // heures effectives (déjà calculées côté serveur si auto === true)
+  qty: number;
+  unitPrice: number;
+  directionOnly: boolean;
+  auto: boolean; // heures calculées automatiquement à partir d'une autre ligne — non modifiable directement
   risk: string | null;
 }
 
 export interface BudgetSectionData {
   id: string;
   category: string;
+  kind: BudgetSectionKind;
   hours: number;
   baseCost: number;
   sale: number;
@@ -111,20 +117,53 @@ export const STATUS_LABELS: Record<string, string> = {
   declined: "Refusé",
 };
 
-/** Libellés vérifiés directement dans le prototype v19 (12 août 2026), pas devinés. */
+/**
+ * 13 catégories réelles, libellés vérifiés directement dans le prototype
+ * v19 catégorie par catégorie (12 août 2026), pas devinés — voir
+ * spécification confirmée pour le détail de cette deuxième vérification.
+ */
 export const CATEGORY_LABELS: Record<string, string> = {
   conception: "Conception",
   fabrication: "Fabrication",
-  programmation: "Panneau & programmation",
-  assemblage: "Assemblage & tests",
-  installation: "Installation",
-  stock: "Stock & consommables",
-  sousTraitance: "Sous-traitance",
-  deplacements: "Déplacements & frais",
+  panelProgramming: "Panneau & Programmation",
+  assemblyTest: "Assemblage & Test",
+  installationLabor: "Installation/Service — Main-d'œuvre",
+  stockFabrication: "Stock Fabrication / Châssis",
+  stockPanel: "Stock Panneau / Programmation",
+  motorization: "Motorisation / Automatisation",
+  hardware: "Quincaillerie / Autre",
+  consumables: "Consommables",
+  subcontracting: "Sous-traitance",
+  installationStock: "Installation — Stock",
+  installationExpenses: "Installation — Frais divers",
 };
 
-/** Sections où Direction peut ajouter/retirer des lignes — même liste que MODULAR_CATEGORIES côté API. */
-export const MODULAR_CATEGORIES = ["fabrication", "programmation", "assemblage", "sousTraitance", "deplacements"];
+/** Regroupement visuel — même 3 groupes que le prototype v19 (Main-d'œuvre / Achats prévus / Installation, cette dernière apparaît deux fois). */
+export const BUDGET_GROUP_LABELS = {
+  labor: "Main-d'œuvre",
+  purchases: "Achats prévus",
+  installation: "Installation / Service",
+} as const;
+export type BudgetGroupKey = keyof typeof BUDGET_GROUP_LABELS;
+
+export const CATEGORY_GROUP: Record<string, BudgetGroupKey> = {
+  conception: "labor",
+  fabrication: "labor",
+  panelProgramming: "labor",
+  assemblyTest: "labor",
+  installationLabor: "installation",
+  stockFabrication: "purchases",
+  stockPanel: "purchases",
+  motorization: "purchases",
+  hardware: "purchases",
+  consumables: "purchases",
+  subcontracting: "purchases",
+  installationStock: "installation",
+  installationExpenses: "installation",
+};
+
+/** Sections où Direction peut ajouter/retirer des lignes — aucune section "labor" n'est modulable (vérifié v19, 12 août 2026). */
+export const MODULAR_CATEGORIES = ["stockFabrication", "stockPanel", "motorization", "hardware", "subcontracting", "installationStock"];
 
 const currencyFormatter = new Intl.NumberFormat("fr-CA", { style: "currency", currency: "CAD" });
 
@@ -153,8 +192,10 @@ export function createBudget(input: CreateBudgetInput): Promise<{ id: string; di
 }
 
 export interface UpdateRowPatch {
+  label?: string;
   hours?: number;
-  purchaseAmount?: number;
+  qty?: number;
+  unitPrice?: number;
   risk?: string | null;
 }
 
@@ -162,11 +203,7 @@ export function updateRow(budgetId: string, rowId: string, patch: UpdateRowPatch
   return apiFetch(`/api/budgets/${budgetId}/rows/${rowId}`, { method: "PATCH", body: JSON.stringify(patch) });
 }
 
-export function addBudgetRow(
-  budgetId: string,
-  sectionId: string,
-  input: { label: string; hourlyRate?: number; purchaseAmount?: number },
-): Promise<{ id: string }> {
+export function addBudgetRow(budgetId: string, sectionId: string, input: { label: string; unitPrice?: number }): Promise<{ id: string }> {
   return apiFetch(`/api/budgets/${budgetId}/sections/${sectionId}/rows`, { method: "POST", body: JSON.stringify(input) });
 }
 

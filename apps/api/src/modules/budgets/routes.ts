@@ -4,6 +4,7 @@ import {
   canCreateBudgetFromRequest,
   canAccessBudget,
   canModifyBudget,
+  canModifyBudgetPurchaseLine,
   canApproveBudgetForSending,
   canRecordBudgetOutcome,
 } from "@gsc-pilot/business-rules";
@@ -74,18 +75,23 @@ budgetsRouter.get("/budgets/:id", requireAuth, requirePermission((persona) => ca
 budgetsRouter.patch(
   "/budgets/:id/rows/:rowId",
   requireAuth,
-  requirePermission((persona) => canModifyBudget(persona)),
+  // Porte large ici (Direction OU Propriétaire) — la porte fine par ligne
+  // (Direction seulement pour les lignes "labor"/directionOnly) vit dans le
+  // service, qui connaît le type réel de la ligne visée.
+  requirePermission((persona) => canModifyBudgetPurchaseLine(persona)),
   async (req, res) => {
     const id = z.uuid().parse(req.params.id);
     const rowId = z.uuid().parse(req.params.rowId);
     const patch = z
       .object({
+        label: z.string().optional(),
         hours: z.number().nonnegative().optional(),
-        purchaseAmount: z.number().nonnegative().optional(),
+        qty: z.number().nonnegative().optional(),
+        unitPrice: z.number().nonnegative().optional(),
         risk: z.string().nullable().optional(),
       })
       .parse(req.body);
-    await updateRow(id, rowId, patch);
+    await updateRow(req.employee!.persona, id, rowId, patch);
     res.status(204).send();
   },
 );
@@ -93,14 +99,12 @@ budgetsRouter.patch(
 budgetsRouter.post(
   "/budgets/:id/sections/:sectionId/rows",
   requireAuth,
-  requirePermission((persona) => canModifyBudget(persona)),
+  requirePermission((persona) => canModifyBudgetPurchaseLine(persona)),
   async (req, res) => {
     const id = z.uuid().parse(req.params.id);
     const sectionId = z.uuid().parse(req.params.sectionId);
-    const body = z
-      .object({ label: z.string().min(1), hourlyRate: z.number().nonnegative().optional(), purchaseAmount: z.number().nonnegative().optional() })
-      .parse(req.body);
-    const row = await addBudgetRow(id, sectionId, body);
+    const body = z.object({ label: z.string().min(1), unitPrice: z.number().nonnegative().optional() }).parse(req.body);
+    const row = await addBudgetRow(req.employee!.persona, id, sectionId, body);
     res.status(201).json(row);
   },
 );
@@ -108,11 +112,11 @@ budgetsRouter.post(
 budgetsRouter.delete(
   "/budgets/:id/rows/:rowId",
   requireAuth,
-  requirePermission((persona) => canModifyBudget(persona)),
+  requirePermission((persona) => canModifyBudgetPurchaseLine(persona)),
   async (req, res) => {
     const id = z.uuid().parse(req.params.id);
     const rowId = z.uuid().parse(req.params.rowId);
-    await removeBudgetRow(id, rowId);
+    await removeBudgetRow(req.employee!.persona, id, rowId);
     res.status(204).send();
   },
 );

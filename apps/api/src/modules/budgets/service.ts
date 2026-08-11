@@ -1,7 +1,7 @@
 /**
  * Budgétaire — création (via demande client existante ou nouvelle, créée à
- * la volée), calculateur 8 sections + achats par ligne + back-up d'heures +
- * back-up projet, cycle de statuts.
+ * la volée), calculateur 13 catégories (2 types de ligne) + back-up
+ * d'heures + back-up projet, cycle de statuts.
  *
  * Découverte en vérifiant le prototype v19 (12 août 2026) : il n'y a pas de
  * chemin de création vraiment indépendant — le même formulaire lie une
@@ -15,46 +15,65 @@
  * colonne miroir simple (pas de @relation dessus), gardée synchronisée
  * manuellement ici pour rester cohérente avec l'autre sens.
  *
- * Deuxième vérification (12 août 2026, après un premier retour de
- * l'utilisatrice — « très loin d'être complet ») : le vrai calculateur v19
- * (fonctions ms()/vs(), effectivement câblées à l'écran budget) a 8
- * catégories (pas 5), un montant d'achat direct par ligne en plus des
- * heures × taux, des sections « modulables » où Direction ajoute/retire des
- * lignes, une note de risque par ligne, et des champs d'en-tête (PO client,
- * quantité, validité, résumés). Le back-up affiché dans cet écran est un
- * montant $ saisi à la main — confirmé avec l'utilisatrice que c'est un
- * BACK-UP PROJET distinct du BACK-UP D'HEURES (backup.ts, déjà construit et
- * vérifié) : les deux réserves coexistent dans le même budgétaire, jamais
- * l'une à la place de l'autre.
+ * Deuxième vérification (12 août 2026, après un retour de l'utilisatrice —
+ * « très loin d'être complet », puis des captures d'écran catégorie par
+ * catégorie du vrai prototype) : 13 catégories réelles (pas 8), réparties en
+ * 3 groupes visuels (voir BUDGET_GROUPS côté application) ; deux types de
+ * ligne — "labor" (heures × taux) et "purchase" (quantité × prix unitaire),
+ * jamais mélangés dans une même section ; certaines lignes calculées
+ * automatiquement à partir d'une autre ligne (ex. « Conception plus 10 % »),
+ * jamais saisies directement ; l'éditabilité varie PAR LIGNE (Direction
+ * seulement vs Direction ET Propriétaire), pas seulement par catégorie ; le
+ * résumé et le résumé des risques sont obligatoires avant de marquer un
+ * budgétaire prêt. Le back-up d'heures (calculé automatiquement) et le
+ * back-up projet (montant saisi à la main) sont deux réserves distinctes qui
+ * coexistent toujours dans le même budgétaire.
  */
 import {
   sectionSummary,
   backupSummary,
   projectBackupSummary,
   budgetTotals,
+  effectiveRowHours,
+  canModifyBudget,
+  canModifyBudgetPurchaseLine,
   type SectionSummary,
   type BackupSummary,
   type ProjectBackupSummary,
+  type Persona,
 } from "@gsc-pilot/business-rules";
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
 import { createClientRequest, type CreateClientRequestInput } from "../clientRequests/service.js";
-import type { Budget, BudgetSection, BudgetRow } from "../../generated/prisma/client.js";
+import type { Budget, BudgetSection, BudgetRow, BudgetSectionKind } from "../../generated/prisma/client.js";
 
+/** Ordre d'affichage — 3 groupes vérifiés dans le prototype v19 (12 août 2026), voir BUDGET_GROUPS côté application pour les libellés. */
 export const BUDGET_CATEGORIES = [
   "conception",
   "fabrication",
-  "programmation",
-  "assemblage",
-  "installation",
-  "stock",
-  "sousTraitance",
-  "deplacements",
+  "panelProgramming",
+  "assemblyTest",
+  "installationLabor",
+  "stockFabrication",
+  "stockPanel",
+  "motorization",
+  "hardware",
+  "consumables",
+  "subcontracting",
+  "installationStock",
+  "installationExpenses",
 ] as const;
 export type BudgetCategoryValue = (typeof BUDGET_CATEGORIES)[number];
 
-/** Sections où Direction peut ajouter/retirer des lignes — les autres ont une composition fixe (vérifié v19, 12 août 2026). */
-export const MODULAR_CATEGORIES = ["fabrication", "programmation", "assemblage", "sousTraitance", "deplacements"] as const;
+/** Sections où Direction peut ajouter/retirer des lignes — aucune section "labor" n'est modulable (vérifié v19, 12 août 2026). */
+export const MODULAR_CATEGORIES = ["stockFabrication", "stockPanel", "motorization", "hardware", "subcontracting", "installationStock"] as const;
+
+/** backup.ts (jamais modifié) attend "fabrication"/"programmation"/"assemblage" — adapte nos vrais noms de catégorie vers ce vocabulaire figé. */
+const BACKUP_ELIGIBLE_ALIAS: Partial<Record<BudgetCategoryValue, string>> = {
+  fabrication: "fabrication",
+  panelProgramming: "programmation",
+  assemblyTest: "assemblage",
+};
 
 export const OUTCOME_STATUSES = ["sent", "won", "declined"] as const;
 
@@ -118,29 +137,40 @@ export async function createBudget(createdById: string, input: CreateBudgetInput
     });
 
     // Copie le modèle de budgétaire actuel (sections + lignes) vers ce
-    // budgétaire réel — tous les taux/montants d'achat GELÉS au moment de la
+    // budgétaire réel — tous les taux/prix/permissions GELÉS au moment de la
     // création, jamais recalculés si le modèle change ensuite (même
-    // principe que backupHourlyRate ci-dessus).
+    // principe que backupHourlyRate ci-dessus). Deuxième passe pour
+    // résoudre les lignes calculées automatiquement (ex. « Conception plus
+    // 10 % ») une fois que toutes les lignes ont un vrai id — même
+    // technique que scripts/seed.ts.
+    const rowIdByModelRowId = new Map<string, string>();
     for (const modelSection of model.sections) {
       const section = await tx.budgetSection.create({
-        data: {
-          budgetId: budget.id,
-          category: modelSection.category,
-          hourlyRate: modelSection.rows[0]?.hourlyRate ?? 0,
-          complexity: 0,
-        },
+        data: { budgetId: budget.id, category: modelSection.category, kind: modelSection.kind, complexity: 0 },
       });
       for (const modelRow of modelSection.rows) {
-        await tx.budgetRow.create({
+        const row = await tx.budgetRow.create({
           data: {
             sectionId: section.id,
             modelRowId: modelRow.id,
             label: modelRow.label,
             hourlyRate: modelRow.hourlyRate,
-            purchaseAmount: modelRow.purchaseAmount,
+            unitPrice: modelRow.unitPrice,
+            directionOnly: modelRow.directionOnly,
             hours: 0,
+            qty: 0,
           },
         });
+        rowIdByModelRowId.set(modelRow.id, row.id);
+      }
+    }
+    for (const modelSection of model.sections) {
+      for (const modelRow of modelSection.rows) {
+        if (!modelRow.autoFromRowId) continue;
+        const rowId = rowIdByModelRowId.get(modelRow.id);
+        const sourceId = rowIdByModelRowId.get(modelRow.autoFromRowId);
+        if (!rowId || !sourceId) continue;
+        await tx.budgetRow.update({ where: { id: rowId }, data: { autoFromRowId: sourceId, autoPct: modelRow.autoPct } });
       }
     }
 
@@ -156,20 +186,36 @@ type SectionWithRows = BudgetSection & { rows: BudgetRow[] };
 function toSectionSummary(section: SectionWithRows): SectionSummary {
   return sectionSummary({
     category: section.category,
+    kind: section.kind,
     complexity: section.complexity,
-    rows: section.rows.map((row) => ({ hourlyRate: Number(row.hourlyRate), hours: Number(row.hours), purchaseAmount: Number(row.purchaseAmount) })),
+    rows: section.rows.map((row) => ({
+      id: row.id,
+      hourlyRate: Number(row.hourlyRate),
+      hours: Number(row.hours),
+      qty: Number(row.qty),
+      unitPrice: Number(row.unitPrice),
+      autoFromRowId: row.autoFromRowId,
+      autoPct: row.autoPct !== null ? Number(row.autoPct) : null,
+    })),
   });
 }
 
 function toBackupSummary(budget: Budget, sections: SectionWithRows[]): BackupSummary {
-  // backup.ts filtre par section.id === nom de catégorie (fabrication/programmation/assemblage) —
-  // adaptation : passer la catégorie comme "id", jamais le vrai identifiant de base de données.
+  // backup.ts filtre par section.id === "fabrication"/"programmation"/"assemblage" —
+  // adaptation : passer l'alias attendu comme "id", jamais notre vrai nom de catégorie.
   return backupSummary(
     {
-      sections: sections.map((section) => ({
-        id: section.category,
-        rows: section.rows.map((row) => ({ hours: Number(row.hours) })),
-      })),
+      sections: sections
+        .filter((section) => section.category in BACKUP_ELIGIBLE_ALIAS)
+        .map((section) => {
+          const rows = section.rows.map((row) => ({
+            id: row.id,
+            hours: Number(row.hours),
+            autoFromRowId: row.autoFromRowId,
+            autoPct: row.autoPct !== null ? Number(row.autoPct) : null,
+          }));
+          return { id: BACKUP_ELIGIBLE_ALIAS[section.category as BudgetCategoryValue]!, rows: rows.map((row) => ({ hours: effectiveRowHours(row, rows) })) };
+        }),
       backupHourlyRate: Number(budget.backupHourlyRate),
       backupHoursPct: Number(budget.backupHoursPct),
       backupHoursComplexity: budget.backupHoursComplexity,
@@ -182,9 +228,38 @@ function toProjectBackupSummary(budget: Budget): ProjectBackupSummary {
   return projectBackupSummary(Number(budget.projectBackupAmount), budget.projectBackupComplexity);
 }
 
+export interface BudgetRowDto {
+  id: string;
+  label: string;
+  hourlyRate: number;
+  hours: number; // heures effectives (calculées si auto === true)
+  qty: number;
+  unitPrice: number;
+  directionOnly: boolean;
+  auto: boolean; // heures calculées automatiquement à partir d'une autre ligne — non modifiable directement
+  risk: string | null;
+}
+
 export interface BudgetSectionDto extends SectionSummary {
   id: string;
-  rows: { id: string; label: string; hourlyRate: number; hours: number; purchaseAmount: number; risk: string | null }[];
+  kind: BudgetSectionKind;
+  rows: BudgetRowDto[];
+}
+
+function toRowDto(row: BudgetRow, allRows: BudgetRow[]): BudgetRowDto {
+  const plainRows = allRows.map((r) => ({ id: r.id, hours: Number(r.hours), autoFromRowId: r.autoFromRowId, autoPct: r.autoPct !== null ? Number(r.autoPct) : null }));
+  const plainRow = plainRows.find((r) => r.id === row.id)!;
+  return {
+    id: row.id,
+    label: row.label,
+    hourlyRate: Number(row.hourlyRate),
+    hours: effectiveRowHours(plainRow, plainRows),
+    qty: Number(row.qty),
+    unitPrice: Number(row.unitPrice),
+    directionOnly: row.directionOnly,
+    auto: row.autoFromRowId !== null,
+    risk: row.risk,
+  };
 }
 
 export interface BudgetListItemDto {
@@ -267,14 +342,8 @@ export async function getBudgetDetail(id: string): Promise<BudgetDetailDto> {
       .map((section) => ({
         ...toSectionSummary(section),
         id: section.id,
-        rows: section.rows.map((row) => ({
-          id: row.id,
-          label: row.label,
-          hourlyRate: Number(row.hourlyRate),
-          hours: Number(row.hours),
-          purchaseAmount: Number(row.purchaseAmount),
-          risk: row.risk,
-        })),
+        kind: section.kind,
+        rows: section.rows.map((row) => toRowDto(row, section.rows)),
       })),
     backup,
     projectBackup,
@@ -320,21 +389,48 @@ async function assertSectionOfBudget(budgetId: string, sectionId: string): Promi
   return section;
 }
 
+/**
+ * Porte d'autorisation PAR LIGNE (pas seulement par route) — une ligne
+ * "labor" ou marquée directionOnly exige Direction seulement; une ligne
+ * "purchase" non marquée directionOnly accepte aussi le Propriétaire.
+ * Vérifié dans le prototype v19 (12 août 2026, éditabilité mélangée à
+ * l'intérieur d'une même catégorie pour Installation — Frais divers).
+ */
+function assertRowEditable(persona: Persona, kind: BudgetSectionKind, directionOnly: boolean): void {
+  const requiresDirectionOnly = kind === "labor" || directionOnly;
+  const allowed = requiresDirectionOnly ? canModifyBudget(persona) : canModifyBudgetPurchaseLine(persona);
+  if (!allowed) throw new HttpError(403, "Vous n'avez pas la permission de modifier cette ligne.");
+}
+
 export interface UpdateRowPatch {
+  label?: string;
   hours?: number;
-  purchaseAmount?: number;
+  qty?: number;
+  unitPrice?: number;
   risk?: string | null;
 }
 
-export async function updateRow(budgetId: string, rowId: string, patch: UpdateRowPatch): Promise<void> {
+export async function updateRow(persona: Persona, budgetId: string, rowId: string, patch: UpdateRowPatch): Promise<void> {
   await assertBudgetExists(budgetId);
   const row = await prisma.budgetRow.findUnique({ where: { id: rowId }, include: { section: true } });
   if (!row || row.section.budgetId !== budgetId) throw new HttpError(404, "Ligne introuvable pour ce budgétaire.");
+  assertRowEditable(persona, row.section.kind, row.directionOnly);
+  if (row.autoFromRowId && patch.hours !== undefined) {
+    throw new HttpError(400, "Cette ligne est calculée automatiquement — ses heures ne sont pas modifiables directement.");
+  }
+  // Le nom d'une ligne n'est renommable que dans les sections modulables (lignes
+  // vierges au départ, ex. Stock Fabrication) — les tâches fixes (Heures,
+  // Consommables, Frais divers) gardent leur nom réel, jamais renommé à la main.
+  if (patch.label !== undefined && !(MODULAR_CATEGORIES as readonly string[]).includes(row.section.category)) {
+    throw new HttpError(400, "Le nom de cette ligne n'est pas modifiable.");
+  }
   await prisma.budgetRow.update({
     where: { id: rowId },
     data: {
+      ...(patch.label !== undefined ? { label: patch.label.trim() } : {}),
       ...(patch.hours !== undefined ? { hours: patch.hours } : {}),
-      ...(patch.purchaseAmount !== undefined ? { purchaseAmount: patch.purchaseAmount } : {}),
+      ...(patch.qty !== undefined ? { qty: patch.qty } : {}),
+      ...(patch.unitPrice !== undefined ? { unitPrice: patch.unitPrice } : {}),
       ...(patch.risk !== undefined ? { risk: patch.risk?.trim() || null } : {}),
     },
   });
@@ -342,36 +438,37 @@ export async function updateRow(budgetId: string, rowId: string, patch: UpdateRo
 
 export interface AddBudgetRowInput {
   label: string;
-  hourlyRate?: number;
-  purchaseAmount?: number;
+  unitPrice?: number;
 }
 
-export async function addBudgetRow(budgetId: string, sectionId: string, input: AddBudgetRowInput): Promise<{ id: string }> {
+export async function addBudgetRow(persona: Persona, budgetId: string, sectionId: string, input: AddBudgetRowInput): Promise<{ id: string }> {
   await assertBudgetExists(budgetId);
   const section = await assertSectionOfBudget(budgetId, sectionId);
   if (!(MODULAR_CATEGORIES as readonly string[]).includes(section.category)) {
     throw new HttpError(400, "Cette section n'accepte pas de lignes ajoutées manuellement.");
   }
+  // Toutes les sections modulables sont de type "purchase", éditables par Direction et Propriétaire.
+  if (!canModifyBudgetPurchaseLine(persona)) throw new HttpError(403, "Vous n'avez pas la permission d'ajouter une ligne.");
   const row = await prisma.budgetRow.create({
     data: {
       sectionId,
       modelRowId: null,
       label: input.label.trim(),
-      hourlyRate: input.hourlyRate ?? 0,
-      purchaseAmount: input.purchaseAmount ?? 0,
-      hours: 0,
+      unitPrice: input.unitPrice ?? 0,
+      directionOnly: false,
     },
   });
   return { id: row.id };
 }
 
-export async function removeBudgetRow(budgetId: string, rowId: string): Promise<void> {
+export async function removeBudgetRow(persona: Persona, budgetId: string, rowId: string): Promise<void> {
   await assertBudgetExists(budgetId);
   const row = await prisma.budgetRow.findUnique({ where: { id: rowId }, include: { section: { include: { rows: true } } } });
   if (!row || row.section.budgetId !== budgetId) throw new HttpError(404, "Ligne introuvable pour ce budgétaire.");
   if (!(MODULAR_CATEGORIES as readonly string[]).includes(row.section.category)) {
     throw new HttpError(400, "Cette section n'accepte pas le retrait de lignes.");
   }
+  assertRowEditable(persona, row.section.kind, row.directionOnly);
   if (row.section.rows.length <= 1) {
     throw new HttpError(400, "Impossible de retirer la dernière ligne d'une section.");
   }
@@ -432,6 +529,10 @@ export async function updateBudgetMeta(budgetId: string, patch: UpdateBudgetMeta
 export async function markBudgetReady(id: string): Promise<Budget> {
   const budget = await assertBudgetExists(id);
   if (budget.status !== "draft") throw new HttpError(400, "Seul un budgétaire en brouillon peut être marqué prêt.");
+  // Obligatoire avant de terminer le budgétaire — vérifié dans le prototype v19 (12 août 2026).
+  if (!budget.summary?.trim() || !budget.riskSummary?.trim()) {
+    throw new HttpError(400, "Le résumé du budgétaire et le résumé des risques sont obligatoires avant de marquer le budgétaire prêt.");
+  }
   return prisma.budget.update({ where: { id }, data: { status: "ready" } });
 }
 

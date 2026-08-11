@@ -25,46 +25,117 @@ const TEST_EMPLOYEES: { persona: Persona; name: string; initials: string; email:
 type BudgetCategorySlug =
   | "conception"
   | "fabrication"
-  | "programmation"
-  | "assemblage"
-  | "installation"
-  | "stock"
-  | "sousTraitance"
-  | "deplacements";
+  | "panelProgramming"
+  | "assemblyTest"
+  | "installationLabor"
+  | "stockFabrication"
+  | "stockPanel"
+  | "motorization"
+  | "hardware"
+  | "consumables"
+  | "subcontracting"
+  | "installationStock"
+  | "installationExpenses";
+
+const CATEGORY_KIND: Record<BudgetCategorySlug, "labor" | "purchase"> = {
+  conception: "labor",
+  fabrication: "labor",
+  panelProgramming: "labor",
+  assemblyTest: "labor",
+  installationLabor: "labor",
+  stockFabrication: "purchase",
+  stockPanel: "purchase",
+  motorization: "purchase",
+  hardware: "purchase",
+  consumables: "purchase",
+  subcontracting: "purchase",
+  installationStock: "purchase",
+  installationExpenses: "purchase",
+};
+
+interface RowSeed {
+  slug: string;
+  label: string;
+  hourlyRate?: number;
+  unitPrice?: number;
+  /** Modifiable Direction seulement (défaut : labor=true, purchase=false) — Installation/Frais divers mélange les deux, voir ci-dessous. */
+  directionOnly?: boolean;
+  /** Heures dérivées automatiquement d'une autre ligne de la même section (ex. « Conception plus 10 % »), non saisies directement. */
+  autoFromSlug?: string;
+  autoPct?: number;
+}
+
+function blankPurchaseRows(count: number): RowSeed[] {
+  return Array.from({ length: count }, (_, i) => ({ slug: `blank-${i + 1}`, label: "", unitPrice: 0, directionOnly: false }));
+}
 
 /**
- * Sous-catégories (lignes) réelles par catégorie — vérifiées directement
- * dans le prototype v19 (12 août 2026, newBudgetProposal()), pas devinées.
- * Taux internes des 5 catégories d'origine : mêmes valeurs que
- * packages/business-rules/src/amendments.ts (AMENDMENT_INTERNAL_RATES).
- * Stock/Sous-traitance/Déplacements sont des achats directs (taux 0) —
- * Direction ajoute un montant par ligne au moment du budgétaire réel.
+ * Sous-catégories (lignes), taux et permissions réels par catégorie —
+ * vérifiés directement dans le prototype v19 (12 août 2026), catégorie par
+ * catégorie, à partir de captures d'écran fournies par l'utilisatrice après
+ * qu'une première passe se soit avérée incomplète (5 catégories au lieu de
+ * 13, un seul type de ligne au lieu de deux). Taux internes de Conception/
+ * Assemblage & Test/Installation — Main-d'œuvre : mêmes valeurs que
+ * packages/business-rules/src/amendments.ts (AMENDMENT_INTERNAL_RATES) là où
+ * elles coïncident; Fabrication et Panneau & Programmation ont des taux
+ * différenciés par tâche, vérifiés dans le prototype, pas dans amendments.ts.
  */
-const CATEGORY_ROWS: Record<BudgetCategorySlug, { slug: string; label: string; hourlyRate: number }[]> = {
-  conception: [{ slug: "conception", label: "Conception", hourlyRate: 117 }],
+const CATEGORY_ROWS: Record<BudgetCategorySlug, RowSeed[]> = {
+  conception: [
+    { slug: "conception-dessin", label: "Conception & Dessin", hourlyRate: 117 },
+    { slug: "conception-plus-10", label: "Conception plus 10 %", hourlyRate: 117, autoFromSlug: "conception-dessin", autoPct: 10 },
+    { slug: "preparation", label: "Préparation", hourlyRate: 112 },
+    { slug: "gestion-bom", label: "Gestion / BOM", hourlyRate: 112 },
+  ],
   fabrication: [
-    { slug: "fabrication-plasma", label: "Plasma", hourlyRate: 112 },
-    { slug: "fabrication-pliage", label: "Pliage", hourlyRate: 112 },
-    { slug: "fabrication-usinage", label: "Usinage", hourlyRate: 112 },
-    { slug: "fabrication-soudage", label: "Soudage", hourlyRate: 112 },
-    { slug: "fabrication-peinture", label: "Peinture", hourlyRate: 112 },
+    { slug: "fabrication-plasma", label: "Plasma", hourlyRate: 116 },
+    { slug: "fabrication-usinage", label: "Usinage", hourlyRate: 113 },
+    { slug: "fabrication-pliage", label: "Pliage", hourlyRate: 113 },
+    { slug: "fabrication-soudage", label: "Soudage / Montage", hourlyRate: 110 },
+    { slug: "fabrication-peinture", label: "Peinture", hourlyRate: 107 },
   ],
-  programmation: [
-    { slug: "programmation-panneau", label: "Panneau & schémas", hourlyRate: 117 },
-    { slug: "programmation-programmation", label: "Programmation", hourlyRate: 117 },
+  panelProgramming: [
+    { slug: "panel-schemas", label: "Panneau & Schémas", hourlyRate: 110 },
+    { slug: "panel-programmation", label: "Programmation", hourlyRate: 117 },
   ],
-  assemblage: [
-    { slug: "assemblage-assemblage", label: "Assemblage", hourlyRate: 112 },
-    { slug: "assemblage-tests", label: "Test & finition", hourlyRate: 112 },
-    { slug: "assemblage-emballage", label: "Emballage", hourlyRate: 112 },
+  assemblyTest: [
+    { slug: "assembly-assemblage", label: "Assemblage", hourlyRate: 112 },
+    { slug: "assembly-tests", label: "Test & Finition", hourlyRate: 112 },
+    { slug: "assembly-emballage", label: "Emballage", hourlyRate: 112 },
+    { slug: "assembly-menage", label: "Ménage", hourlyRate: 112 },
   ],
-  installation: [{ slug: "installation", label: "Installation", hourlyRate: 112 }],
-  stock: [{ slug: "stock", label: "Stock / consommables", hourlyRate: 0 }],
-  sousTraitance: [{ slug: "sous-traitance", label: "Sous-traitance", hourlyRate: 0 }],
-  deplacements: [
-    { slug: "deplacements-km", label: "Kilométrage", hourlyRate: 0 },
-    { slug: "deplacements-repas", label: "Repas", hourlyRate: 0 },
-    { slug: "deplacements-hebergement", label: "Hébergement", hourlyRate: 0 },
+  installationLabor: [
+    { slug: "install-preparation", label: "Préparation", hourlyRate: 107 },
+    { slug: "install-temps-regulier", label: "Temps homme régulier", hourlyRate: 112 },
+    { slug: "install-temps-supplementaire", label: "Temps homme supplémentaire", hourlyRate: 125 },
+    { slug: "install-gestion-bom", label: "Gestion / BOM", hourlyRate: 112 },
+    { slug: "install-service-apres-vente", label: "Service après-vente", hourlyRate: 112 },
+  ],
+  stockFabrication: blankPurchaseRows(10),
+  stockPanel: blankPurchaseRows(10),
+  motorization: blankPurchaseRows(10),
+  hardware: blankPurchaseRows(10),
+  consumables: [
+    { slug: "consumables-plasma", label: "Plasma", unitPrice: 0, directionOnly: false },
+    { slug: "consumables-soudage", label: "Soudage", unitPrice: 0, directionOnly: false },
+    { slug: "consumables-usinage", label: "Usinage", unitPrice: 0, directionOnly: false },
+    { slug: "consumables-peinture", label: "Peinture", unitPrice: 0, directionOnly: false },
+    { slug: "consumables-emballage", label: "Emballage", unitPrice: 0, directionOnly: false },
+  ],
+  subcontracting: blankPurchaseRows(10),
+  installationStock: blankPurchaseRows(10),
+  installationExpenses: [
+    { slug: "expenses-formation", label: "Formation (heures × techniciens)", unitPrice: 112, directionOnly: true },
+    { slug: "expenses-hebergement", label: "Hébergement (nuits × techniciens)", unitPrice: 250, directionOnly: true },
+    { slug: "expenses-kilometrage", label: "Kilométrage (distance × déplacements)", unitPrice: 0.97, directionOnly: true },
+    { slug: "expenses-transport", label: "Temps de transport (heures × technicien)", unitPrice: 112, directionOnly: true },
+    { slug: "expenses-dejeuner", label: "Frais repas — Déjeuner", unitPrice: 17.9, directionOnly: true },
+    { slug: "expenses-diner", label: "Frais repas — Dîner", unitPrice: 26.9, directionOnly: true },
+    { slug: "expenses-souper", label: "Frais repas — Souper", unitPrice: 37.65, directionOnly: true },
+    { slug: "expenses-avion", label: "Avion", unitPrice: 0, directionOnly: true },
+    { slug: "expenses-location", label: "Location transport / outils / machinerie", unitPrice: 0, directionOnly: false },
+    { slug: "expenses-manutention", label: "Frais de manutention", unitPrice: 0, directionOnly: false },
+    { slug: "expenses-livraison", label: "Frais de livraison / service", unitPrice: 0, directionOnly: false },
   ],
 };
 
@@ -151,28 +222,50 @@ async function seedBudgetModel() {
   }
 
   const categories = Object.keys(CATEGORY_ROWS) as BudgetCategorySlug[];
+  const rowIdBySlug = new Map<string, string>();
+
   for (const [sortOrder, category] of categories.entries()) {
+    const kind = CATEGORY_KIND[category];
     const section = await prisma.budgetModelSection.upsert({
       where: { budgetModelId_category: { budgetModelId: model.id, category } },
-      update: {},
-      create: { budgetModelId: model.id, category, sortOrder },
+      update: { kind },
+      create: { budgetModelId: model.id, category, kind, sortOrder },
     });
 
     for (const [rowOrder, row] of CATEGORY_ROWS[category].entries()) {
-      await prisma.budgetModelRow.upsert({
+      const created = await prisma.budgetModelRow.upsert({
         where: { sectionId_slug: { sectionId: section.id, slug: row.slug } },
         update: {},
-        create: { sectionId: section.id, slug: row.slug, label: row.label, hourlyRate: row.hourlyRate, sortOrder: rowOrder },
+        create: {
+          sectionId: section.id,
+          slug: row.slug,
+          label: row.label,
+          hourlyRate: row.hourlyRate ?? 0,
+          unitPrice: row.unitPrice ?? 0,
+          directionOnly: row.directionOnly ?? kind === "labor",
+          sortOrder: rowOrder,
+        },
       });
+      rowIdBySlug.set(`${category}:${row.slug}`, created.id);
     }
 
-    // Retrait = désactivation (jamais une suppression physique, voir schema.prisma) —
-    // couvre la transition du 12 août 2026 (ex. programmation/assemblage passées
-    // d'une seule ligne générique à plusieurs sous-tâches nommées).
+    // Retrait = désactivation (jamais une suppression physique, voir schema.prisma).
     await prisma.budgetModelRow.updateMany({
       where: { sectionId: section.id, slug: { notIn: CATEGORY_ROWS[category].map((row) => row.slug) } },
       data: { active: false },
     });
+  }
+
+  // Deuxième passe : résout les lignes calculées automatiquement (ex. « Conception
+  // plus 10 % ») une fois que toutes les lignes existent et ont un vrai id.
+  for (const category of categories) {
+    for (const row of CATEGORY_ROWS[category]) {
+      if (!row.autoFromSlug) continue;
+      const rowId = rowIdBySlug.get(`${category}:${row.slug}`);
+      const sourceId = rowIdBySlug.get(`${category}:${row.autoFromSlug}`);
+      if (!rowId || !sourceId) continue;
+      await prisma.budgetModelRow.update({ where: { id: rowId }, data: { autoFromRowId: sourceId, autoPct: row.autoPct ?? 0 } });
+    }
   }
 }
 

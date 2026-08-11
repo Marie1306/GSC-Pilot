@@ -186,41 +186,69 @@ model BudgetModel {
 }
 
 model BudgetModelSection {
-  id            String           @id @default(uuid())
+  id            String            @id @default(uuid())
   budgetModelId String
-  budgetModel   BudgetModel      @relation(fields: [budgetModelId], references: [id])
+  budgetModel   BudgetModel       @relation(fields: [budgetModelId], references: [id])
   category      BudgetCategory
-  sortOrder     Int              @default(0)
+  kind          BudgetSectionKind
+  sortOrder     Int               @default(0)
   rows          BudgetModelRow[]
 
   @@unique([budgetModelId, category])
 }
 
 model BudgetModelRow {
-  id             String             @id @default(uuid())
-  sectionId      String
-  section        BudgetModelSection @relation(fields: [sectionId], references: [id])
-  slug           String // identifiant stable, ex. "fabrication-plasma"
-  label          String // renommable (Direction, Paramètres) — non rétroactif, voir spec
-  hourlyRate     Decimal            @db.Decimal(10, 2)
-  // Coût direct par défaut (matériel, sous-traitance...), en plus des heures × taux —
-  // vérifié dans le prototype v19 (12 août 2026), ex. Stock/Sous-traitance/Déplacements.
-  purchaseAmount Decimal            @default(0) @db.Decimal(10, 2)
-  active         Boolean            @default(true) // retrait = désactivation, jamais une suppression physique
-  sortOrder      Int                @default(0)
+  id            String             @id @default(uuid())
+  sectionId     String
+  section       BudgetModelSection @relation(fields: [sectionId], references: [id])
+  slug          String // identifiant stable, ex. "fabrication-plasma"
+  label         String // renommable (Direction, Paramètres) — non rétroactif, voir spec
+  hourlyRate    Decimal            @default(0) @db.Decimal(10, 2) // lignes de type "labor" seulement
+  unitPrice     Decimal            @default(0) @db.Decimal(10, 2) // lignes de type "purchase" seulement
+  // Modifiable Direction seulement (vrai, par défaut) vs Direction ET
+  // Propriétaire (faux) — varie PAR LIGNE, pas seulement par catégorie
+  // (ex. Installation — Frais divers mélange les deux). Vérifié dans le
+  // prototype v19 (12 août 2026).
+  directionOnly Boolean            @default(true)
+  // Ligne calculée automatiquement à partir d'une AUTRE ligne de la même
+  // section (ex. « Conception plus 10 % »), jamais saisie directement —
+  // heures effectives = heures de autoFromRow × autoPct / 100.
+  autoFromRowId String?
+  autoFromRow   BudgetModelRow?    @relation("BudgetModelRowAuto", fields: [autoFromRowId], references: [id])
+  autoRows      BudgetModelRow[]   @relation("BudgetModelRowAuto")
+  autoPct       Decimal?           @db.Decimal(5, 2)
+  active        Boolean            @default(true) // retrait = désactivation, jamais une suppression physique
+  sortOrder     Int                @default(0)
 
   @@unique([sectionId, slug])
 }
 
+enum BudgetSectionKind {
+  labor
+  purchase
+}
+
+/// Vérifié directement dans le prototype v19 (12 août 2026) — 13 catégories
+/// réelles réparties en 3 groupes visuels (voir CATEGORY_LABELS/BUDGET_GROUPS
+/// côté application, jamais recalculé ici) : Main-d'œuvre (conception,
+/// fabrication, panelProgramming, assemblyTest, installationLabor), Achats
+/// prévus (stockFabrication, stockPanel, motorization, hardware,
+/// consumables, subcontracting), Installation (installationLabor déjà listée,
+/// installationStock, installationExpenses).
 enum BudgetCategory {
   conception
   fabrication
-  programmation
-  assemblage
-  installation
-  stock // Stock & consommables — vérifié dans le prototype v19 (12 août 2026), manquant jusqu'ici
-  sousTraitance // Sous-traitance — idem
-  deplacements // Déplacements & frais (kilométrage, repas, hébergement) — idem
+  panelProgramming
+  assemblyTest
+  installationLabor
+  stockFabrication
+  stockPanel
+  motorization
+  hardware
+  consumables
+  subcontracting
+  installationStock
+  installationExpenses
 }
 
 model Budget {
@@ -259,28 +287,34 @@ model Budget {
 }
 
 model BudgetSection {
-  id         String         @id @default(uuid())
+  id         String            @id @default(uuid())
   budgetId   String
-  budget     Budget         @relation(fields: [budgetId], references: [id])
+  budget     Budget            @relation(fields: [budgetId], references: [id])
   category   BudgetCategory
-  hourlyRate Decimal        @db.Decimal(10, 2) // gelé au moment de la création du budgétaire
-  complexity Int            @default(0) // 0-10, PAR SECTION (confirmé le 11 août 2026 — pas un seul niveau projet)
+  kind       BudgetSectionKind // gelé au moment de la création (copié du modèle)
+  complexity Int               @default(0) // 0-10, PAR SECTION (confirmé le 11 et reconfirmé le 12 août 2026 — pas un seul niveau projet, pas par ligne)
   rows       BudgetRow[]
 
   @@unique([budgetId, category])
 }
 
 model BudgetRow {
-  id             String        @id @default(uuid())
-  sectionId      String
-  section        BudgetSection @relation(fields: [sectionId], references: [id])
-  modelRowId     String? // traçabilité seulement, absent pour une ligne ajoutée à la main — label/taux ci-dessous sont des copies gelées
-  label          String
-  hourlyRate     Decimal       @db.Decimal(10, 2)
-  hours          Decimal       @default(0) @db.Decimal(10, 2)
-  purchaseAmount Decimal       @default(0) @db.Decimal(10, 2) // coût direct (matériel, sous-traitance...), en plus des heures × taux
-  risk           String? // risque, hypothèse ou note — vérifié dans le prototype v19 (12 août 2026)
-  createdAt      DateTime      @default(now())
+  id            String        @id @default(uuid())
+  sectionId     String
+  section       BudgetSection @relation(fields: [sectionId], references: [id])
+  modelRowId    String? // traçabilité seulement, absent pour une ligne ajoutée à la main — label/taux ci-dessous sont des copies gelées
+  label         String
+  hourlyRate    Decimal       @default(0) @db.Decimal(10, 2) // lignes "labor" seulement
+  hours         Decimal       @default(0) @db.Decimal(10, 2) // lignes "labor" seulement (ou calculé, voir autoFromRowId)
+  qty           Decimal       @default(0) @db.Decimal(10, 2) // lignes "purchase" seulement
+  unitPrice     Decimal       @default(0) @db.Decimal(10, 2) // lignes "purchase" seulement
+  directionOnly Boolean       @default(true) // Modifiable Direction seulement vs Direction ET Propriétaire — gelé depuis le modèle, voir BudgetModelRow
+  autoFromRowId String? // ligne dont "hours" est dérivé automatiquement (× autoPct) — non modifiable directement si non nul
+  autoFromRow   BudgetRow?    @relation("BudgetRowAuto", fields: [autoFromRowId], references: [id])
+  autoRows      BudgetRow[]   @relation("BudgetRowAuto")
+  autoPct       Decimal?      @db.Decimal(5, 2)
+  risk          String? // risque, hypothèse ou note — vérifié dans le prototype v19 (12 août 2026)
+  createdAt     DateTime      @default(now())
 }
 
 // ---------------------------------------------------------------------------

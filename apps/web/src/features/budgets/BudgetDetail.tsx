@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { canModifyBudget, canApproveBudgetForSending, canRecordBudgetOutcome } from "@gsc-pilot/business-rules";
+import { canModifyBudget, canModifyBudgetPurchaseLine, canApproveBudgetForSending, canRecordBudgetOutcome } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import {
   fetchBudgetDetail,
@@ -18,7 +18,12 @@ import {
   formatCurrency,
   STATUS_LABELS,
   CATEGORY_LABELS,
+  BUDGET_GROUP_LABELS,
+  CATEGORY_GROUP,
   MODULAR_CATEGORIES,
+  type BudgetSectionData,
+  type BudgetSectionRow,
+  type BudgetGroupKey,
   type UpdateRowPatch,
   type UpdateBudgetMetaInput,
 } from "./api.js";
@@ -39,13 +44,233 @@ function toDateInputValue(iso: string | null): string {
   return iso ? iso.slice(0, 10) : "";
 }
 
+/** Une ligne "labor" ou marquée directionOnly exige Direction seulement; sinon Direction ET Propriétaire — voir service.ts, même règle côté serveur. */
+function isRowEditable(row: BudgetSectionRow, kind: "labor" | "purchase", canModifyLabor: boolean, canModifyPurchase: boolean): boolean {
+  const requiresDirectionOnly = kind === "labor" || row.directionOnly;
+  return requiresDirectionOnly ? canModifyLabor : canModifyPurchase;
+}
+
+interface BudgetSectionCardProps {
+  section: BudgetSectionData;
+  canModifyLabor: boolean;
+  canModifyPurchase: boolean;
+  busy: boolean;
+  onUpdateRow: (rowId: string, patch: UpdateRowPatch) => void;
+  onAddRow: (sectionId: string, label: string, unitPrice: number) => void;
+  onRemoveRow: (rowId: string) => void;
+  onUpdateComplexity: (sectionId: string, complexity: number) => void;
+}
+
+function BudgetSectionCard({
+  section,
+  canModifyLabor,
+  canModifyPurchase,
+  busy,
+  onUpdateRow,
+  onAddRow,
+  onRemoveRow,
+  onUpdateComplexity,
+}: BudgetSectionCardProps) {
+  const [adding, setAdding] = useState(false);
+  const [newLabel, setNewLabel] = useState("");
+  const [newPrice, setNewPrice] = useState("");
+  const isModular = MODULAR_CATEGORIES.includes(section.category);
+  const labelEditable = isModular; // seules les sections à lignes vierges permettent de nommer/renommer une ligne
+
+  function handleAdd(event: FormEvent) {
+    event.preventDefault();
+    if (!newLabel.trim()) return;
+    onAddRow(section.id, newLabel.trim(), Number(newPrice || 0));
+    setAdding(false);
+    setNewLabel("");
+    setNewPrice("");
+  }
+
+  return (
+    <section className="card budget-section">
+      <div className="budget-section-header">
+        <h3>{CATEGORY_LABELS[section.category] ?? section.category}</h3>
+        <div className="field budget-complexity-field">
+          <label htmlFor={`complexity-${section.id}`}>Complexité</label>
+          <select
+            id={`complexity-${section.id}`}
+            value={section.complexity}
+            disabled={!canModifyLabor || busy}
+            onChange={(e) => onUpdateComplexity(section.id, Number(e.target.value))}
+          >
+            {COMPLEXITY_OPTIONS.map((level) => (
+              <option key={level} value={level}>
+                {level}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <table className="shortlist-table budget-rows-table">
+        <thead>
+          <tr>
+            <th>{section.kind === "labor" ? "Tâche" : "Article / Dépense"}</th>
+            {section.kind === "labor" && <th className="num">Taux</th>}
+            <th className="num">{section.kind === "labor" ? "Heures" : "Qté"}</th>
+            {section.kind === "purchase" && <th className="num">Prix unit.</th>}
+            <th>Risque / note</th>
+            {isModular && <th></th>}
+          </tr>
+        </thead>
+        <tbody>
+          {section.rows.map((row) => {
+            const editable = isRowEditable(row, section.kind, canModifyLabor, canModifyPurchase) && !busy;
+            return (
+              <tr key={row.id}>
+                <td>
+                  {labelEditable ? (
+                    <input
+                      key={`label-${row.id}-${row.label}`}
+                      placeholder="Nom de l'article / dépense"
+                      defaultValue={row.label}
+                      disabled={!editable}
+                      onBlur={(e) => {
+                        const label = e.target.value.trim();
+                        if (label !== row.label) onUpdateRow(row.id, { label });
+                      }}
+                    />
+                  ) : (
+                    <>
+                      {row.label}
+                      {row.auto && <div className="cell-sub">Calcul automatique, non punchable</div>}
+                    </>
+                  )}
+                </td>
+                {section.kind === "labor" && <td className="num">{formatCurrency(row.hourlyRate)}</td>}
+                <td className="num">
+                  {row.auto ? (
+                    <span className="budget-readonly-value">{row.hours}</span>
+                  ) : (
+                    <input
+                      key={`qty-${row.id}-${section.kind === "labor" ? row.hours : row.qty}`}
+                      type="number"
+                      min={0}
+                      step={section.kind === "labor" ? 0.25 : 1}
+                      defaultValue={section.kind === "labor" ? row.hours : row.qty}
+                      disabled={!editable}
+                      onBlur={(e) => {
+                        const value = Number(e.target.value || 0);
+                        if (section.kind === "labor") {
+                          if (value !== row.hours) onUpdateRow(row.id, { hours: value });
+                        } else if (value !== row.qty) {
+                          onUpdateRow(row.id, { qty: value });
+                        }
+                      }}
+                    />
+                  )}
+                </td>
+                {section.kind === "purchase" && (
+                  <td className="num">
+                    <input
+                      key={`price-${row.id}-${row.unitPrice}`}
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      defaultValue={row.unitPrice}
+                      disabled={!editable}
+                      onBlur={(e) => {
+                        const unitPrice = Number(e.target.value || 0);
+                        if (unitPrice !== row.unitPrice) onUpdateRow(row.id, { unitPrice });
+                      }}
+                    />
+                  </td>
+                )}
+                <td>
+                  <input
+                    key={`risk-${row.id}-${row.risk}`}
+                    placeholder="Risque, hypothèse ou note"
+                    defaultValue={row.risk ?? ""}
+                    disabled={!editable}
+                    onBlur={(e) => {
+                      const risk = e.target.value.trim() || null;
+                      if (risk !== row.risk) onUpdateRow(row.id, { risk });
+                    }}
+                  />
+                </td>
+                {isModular && (
+                  <td>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      aria-label="Retirer la ligne"
+                      disabled={busy || !editable || section.rows.length === 1}
+                      onClick={() => onRemoveRow(row.id)}
+                    >
+                      ×
+                    </button>
+                  </td>
+                )}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      {isModular && canModifyPurchase && (
+        <div className="budget-add-row">
+          {adding ? (
+            <form className="budget-add-row-form" onSubmit={handleAdd}>
+              <input placeholder="Nom de la ligne" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} autoFocus />
+              <input type="number" min={0} placeholder="Prix unit. (facultatif)" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} />
+              <button type="submit" className="btn btn-secondary" disabled={!newLabel.trim() || busy}>
+                Ajouter
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  setAdding(false);
+                  setNewLabel("");
+                  setNewPrice("");
+                }}
+              >
+                Annuler
+              </button>
+            </form>
+          ) : (
+            <button type="button" className="btn btn-secondary btn-small" onClick={() => setAdding(true)}>
+              + Ajouter une ligne
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="budget-section-total">
+        <span>
+          Heures <strong>{section.hours}</strong>
+        </span>
+        <span>
+          Coût planifié <strong>{formatCurrency(section.baseCost)}</strong>
+        </span>
+        <span>Marge {section.margin} %</span>
+        <span>
+          Prix de vente <strong>{formatCurrency(section.sale)}</strong>
+        </span>
+      </div>
+    </section>
+  );
+}
+
+function buildSectionList(sections: BudgetSectionData[]): { key: string; group: BudgetGroupKey | null; section: BudgetSectionData }[] {
+  let lastGroup: BudgetGroupKey | null = null;
+  return sections.map((section) => {
+    const group = CATEGORY_GROUP[section.category] ?? null;
+    const entryGroup = group !== lastGroup ? group : null;
+    lastGroup = group;
+    return { key: section.id, group: entryGroup, section };
+  });
+}
+
 export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
   const { employee } = useAuth();
   const queryClient = useQueryClient();
   const detailQuery = useQuery({ queryKey: ["budget", id], queryFn: () => fetchBudgetDetail(id) });
-  const [addingRowSectionId, setAddingRowSectionId] = useState<string | null>(null);
-  const [newRowLabel, setNewRowLabel] = useState("");
-  const [newRowPurchase, setNewRowPurchase] = useState("");
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["budget", id] });
@@ -57,14 +282,9 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
     onSuccess: invalidate,
   });
   const addRowMutation = useMutation({
-    mutationFn: ({ sectionId, label, purchaseAmount }: { sectionId: string; label: string; purchaseAmount: number }) =>
-      addBudgetRow(id, sectionId, { label, purchaseAmount }),
-    onSuccess: () => {
-      setAddingRowSectionId(null);
-      setNewRowLabel("");
-      setNewRowPurchase("");
-      invalidate();
-    },
+    mutationFn: ({ sectionId, label, unitPrice }: { sectionId: string; label: string; unitPrice: number }) =>
+      addBudgetRow(id, sectionId, { label, unitPrice }),
+    onSuccess: invalidate,
   });
   const removeRowMutation = useMutation({
     mutationFn: (rowId: string) => removeBudgetRow(id, rowId),
@@ -99,7 +319,8 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
   if (!employee) return null;
 
   const budget = detailQuery.data?.budget;
-  const canModify = canModifyBudget(employee.persona);
+  const canModifyLabor = canModifyBudget(employee.persona);
+  const canModifyPurchase = canModifyBudgetPurchaseLine(employee.persona);
   const canApprove = canApproveBudgetForSending(employee.persona);
   const canOutcome = canRecordBudgetOutcome(employee.persona);
   const busy =
@@ -111,12 +332,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
     projectBackupMutation.isPending ||
     metaMutation.isPending ||
     statusMutation.isPending;
-
-  function handleAddRow(event: FormEvent, sectionId: string) {
-    event.preventDefault();
-    if (!newRowLabel.trim()) return;
-    addRowMutation.mutate({ sectionId, label: newRowLabel.trim(), purchaseAmount: Number(newRowPurchase || 0) });
-  }
+  const missingSummary = Boolean(budget) && (!budget!.summary?.trim() || !budget!.riskSummary?.trim());
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -170,7 +386,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       id="meta-po"
                       key={`po-${budget.poNumber}`}
                       defaultValue={budget.poNumber ?? ""}
-                      disabled={!canModify || busy}
+                      disabled={!canModifyLabor || busy}
                       onBlur={(e) => {
                         const value = e.target.value.trim() || null;
                         if (value !== budget.poNumber) metaMutation.mutate({ poNumber: value });
@@ -185,7 +401,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       type="number"
                       min={1}
                       defaultValue={budget.quantity}
-                      disabled={!canModify || busy}
+                      disabled={!canModifyLabor || busy}
                       onBlur={(e) => {
                         const value = Math.max(1, Number(e.target.value || 1));
                         if (value !== budget.quantity) metaMutation.mutate({ quantity: value });
@@ -199,7 +415,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       key={`valid-${budget.validUntil}`}
                       type="date"
                       defaultValue={toDateInputValue(budget.validUntil)}
-                      disabled={!canModify || busy}
+                      disabled={!canModifyLabor || busy}
                       onBlur={(e) => {
                         const value = e.target.value.trim() || null;
                         if (value !== toDateInputValue(budget.validUntil)) metaMutation.mutate({ validUntil: value });
@@ -207,14 +423,14 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                     />
                   </div>
                   <div className="field field-full">
-                    <label htmlFor="meta-summary">Résumé du budgétaire (facultatif)</label>
+                    <label htmlFor="meta-summary">Résumé du budgétaire {missingSummary && <span className="required-hint">— obligatoire avant de marquer prêt</span>}</label>
                     <textarea
                       id="meta-summary"
                       key={`summary-${budget.summary}`}
                       rows={2}
                       placeholder="Portée, hypothèses, prix, échéancier…"
                       defaultValue={budget.summary ?? ""}
-                      disabled={!canModify || busy}
+                      disabled={!canModifyLabor || busy}
                       onBlur={(e) => {
                         const value = e.target.value.trim() || null;
                         if (value !== budget.summary) metaMutation.mutate({ summary: value });
@@ -222,14 +438,16 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                     />
                   </div>
                   <div className="field field-full">
-                    <label htmlFor="meta-riskSummary">Résumé des risques (facultatif)</label>
+                    <label htmlFor="meta-riskSummary">
+                      Résumé des risques {missingSummary && <span className="required-hint">— obligatoire avant de marquer prêt</span>}
+                    </label>
                     <textarea
                       id="meta-riskSummary"
                       key={`risk-summary-${budget.riskSummary}`}
                       rows={2}
                       placeholder="Complexité, ressources critiques, disponibilité des composantes…"
                       defaultValue={budget.riskSummary ?? ""}
-                      disabled={!canModify || busy}
+                      disabled={!canModifyLabor || busy}
                       onBlur={(e) => {
                         const value = e.target.value.trim() || null;
                         if (value !== budget.riskSummary) metaMutation.mutate({ riskSummary: value });
@@ -239,161 +457,27 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                 </div>
               </section>
 
-              {budget.sections.map((section) => {
-                const isModular = MODULAR_CATEGORIES.includes(section.category);
-                return (
-                  <section key={section.id} className="card budget-section">
-                    <div className="budget-section-header">
-                      <h3>{CATEGORY_LABELS[section.category] ?? section.category}</h3>
-                      <div className="field budget-complexity-field">
-                        <label htmlFor={`complexity-${section.id}`}>Complexité</label>
-                        <select
-                          id={`complexity-${section.id}`}
-                          value={section.complexity}
-                          disabled={!canModify || busy}
-                          onChange={(e) => complexityMutation.mutate({ sectionId: section.id, complexity: Number(e.target.value) })}
-                        >
-                          {COMPLEXITY_OPTIONS.map((level) => (
-                            <option key={level} value={level}>
-                              {level}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <table className="shortlist-table budget-rows-table">
-                      <thead>
-                        <tr>
-                          <th>Tâche</th>
-                          <th className="num">Taux</th>
-                          <th className="num">Heures</th>
-                          <th className="num">Achat direct</th>
-                          <th>Risque / note</th>
-                          {isModular && canModify && <th></th>}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {section.rows.map((row) => (
-                          <tr key={row.id}>
-                            <td>{row.label}</td>
-                            <td className="num">{formatCurrency(row.hourlyRate)}</td>
-                            <td className="num">
-                              <input
-                                key={`hours-${row.id}-${row.hours}`}
-                                type="number"
-                                min={0}
-                                step={0.25}
-                                defaultValue={row.hours}
-                                disabled={!canModify || busy}
-                                onBlur={(e) => {
-                                  const hours = Number(e.target.value || 0);
-                                  if (hours !== row.hours) rowMutation.mutate({ rowId: row.id, patch: { hours } });
-                                }}
-                              />
-                            </td>
-                            <td className="num">
-                              <input
-                                key={`purchase-${row.id}-${row.purchaseAmount}`}
-                                type="number"
-                                min={0}
-                                step={1}
-                                defaultValue={row.purchaseAmount}
-                                disabled={!canModify || busy}
-                                onBlur={(e) => {
-                                  const purchaseAmount = Number(e.target.value || 0);
-                                  if (purchaseAmount !== row.purchaseAmount) rowMutation.mutate({ rowId: row.id, patch: { purchaseAmount } });
-                                }}
-                              />
-                            </td>
-                            <td>
-                              <input
-                                key={`risk-${row.id}-${row.risk}`}
-                                placeholder="Risque, hypothèse ou note"
-                                defaultValue={row.risk ?? ""}
-                                disabled={!canModify || busy}
-                                onBlur={(e) => {
-                                  const risk = e.target.value.trim() || null;
-                                  if (risk !== row.risk) rowMutation.mutate({ rowId: row.id, patch: { risk } });
-                                }}
-                              />
-                            </td>
-                            {isModular && canModify && (
-                              <td>
-                                <button
-                                  type="button"
-                                  className="icon-btn"
-                                  aria-label="Retirer la ligne"
-                                  disabled={busy || section.rows.length === 1}
-                                  onClick={() => removeRowMutation.mutate(row.id)}
-                                >
-                                  ×
-                                </button>
-                              </td>
-                            )}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {isModular && canModify && (
-                      <div className="budget-add-row">
-                        {addingRowSectionId === section.id ? (
-                          <form className="budget-add-row-form" onSubmit={(e) => handleAddRow(e, section.id)}>
-                            <input
-                              placeholder="Nom de la ligne"
-                              value={newRowLabel}
-                              onChange={(e) => setNewRowLabel(e.target.value)}
-                              autoFocus
-                            />
-                            <input
-                              type="number"
-                              min={0}
-                              placeholder="Achat $ (facultatif)"
-                              value={newRowPurchase}
-                              onChange={(e) => setNewRowPurchase(e.target.value)}
-                            />
-                            <button type="submit" className="btn btn-secondary" disabled={!newRowLabel.trim() || busy}>
-                              Ajouter
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-secondary"
-                              onClick={() => {
-                                setAddingRowSectionId(null);
-                                setNewRowLabel("");
-                                setNewRowPurchase("");
-                              }}
-                            >
-                              Annuler
-                            </button>
-                          </form>
-                        ) : (
-                          <button type="button" className="btn btn-secondary btn-small" onClick={() => setAddingRowSectionId(section.id)}>
-                            + Ajouter une ligne
-                          </button>
-                        )}
-                      </div>
-                    )}
-                    <div className="budget-section-total">
-                      <span>
-                        Heures <strong>{section.hours}</strong>
-                      </span>
-                      <span>
-                        Coût planifié <strong>{formatCurrency(section.baseCost)}</strong>
-                      </span>
-                      <span>Marge {section.margin} %</span>
-                      <span>
-                        Prix de vente <strong>{formatCurrency(section.sale)}</strong>
-                      </span>
-                    </div>
-                  </section>
-                );
-              })}
+              {buildSectionList(budget.sections).map((entry): ReactNode => (
+                <div key={entry.key}>
+                  {entry.group && <h2 className="budget-group-heading">{BUDGET_GROUP_LABELS[entry.group]}</h2>}
+                  <BudgetSectionCard
+                    section={entry.section}
+                    canModifyLabor={canModifyLabor}
+                    canModifyPurchase={canModifyPurchase}
+                    busy={busy}
+                    onUpdateRow={(rowId, patch) => rowMutation.mutate({ rowId, patch })}
+                    onAddRow={(sectionId, label, unitPrice) => addRowMutation.mutate({ sectionId, label, unitPrice })}
+                    onRemoveRow={(rowId) => removeRowMutation.mutate(rowId)}
+                    onUpdateComplexity={(sectionId, complexity) => complexityMutation.mutate({ sectionId, complexity })}
+                  />
+                </div>
+              ))}
 
               <section className="card budget-section">
                 <div className="budget-section-header">
                   <div>
                     <h3>Back-up d'heures</h3>
-                    <small>Réserve calculée automatiquement sur Fabrication + Programmation + Assemblage — non punchable.</small>
+                    <small>Réserve calculée automatiquement sur Fabrication + Panneau & Programmation + Assemblage & Test — non punchable.</small>
                   </div>
                 </div>
                 <div className="form-grid budget-backup-grid">
@@ -406,7 +490,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       min={0}
                       step={1}
                       defaultValue={budget.backupHoursPct}
-                      disabled={!canModify || busy}
+                      disabled={!canModifyLabor || busy}
                       onBlur={(e) => {
                         const pct = Number(e.target.value || 0);
                         if (pct !== budget.backupHoursPct) backupMutation.mutate({ pct });
@@ -418,7 +502,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                     <select
                       id="backup-complexity"
                       value={budget.backupHoursComplexity}
-                      disabled={!canModify || busy}
+                      disabled={!canModifyLabor || busy}
                       onChange={(e) => backupMutation.mutate({ complexity: Number(e.target.value) })}
                     >
                       {COMPLEXITY_OPTIONS.map((level) => (
@@ -460,7 +544,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       min={0}
                       step={100}
                       defaultValue={budget.projectBackupAmount}
-                      disabled={!canModify || busy}
+                      disabled={!canModifyLabor || busy}
                       onBlur={(e) => {
                         const amount = Number(e.target.value || 0);
                         if (amount !== budget.projectBackupAmount) projectBackupMutation.mutate({ amount });
@@ -472,7 +556,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                     <select
                       id="project-backup-complexity"
                       value={budget.projectBackupComplexity}
-                      disabled={!canModify || busy}
+                      disabled={!canModifyLabor || busy}
                       onChange={(e) => projectBackupMutation.mutate({ complexity: Number(e.target.value) })}
                     >
                       {COMPLEXITY_OPTIONS.map((level) => (
@@ -498,9 +582,12 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                 <span className="detail-label">Suivi</span>
                 <div className="status-actions">
                   {budget.status === "draft" && canApprove && (
-                    <button type="button" className="btn" disabled={busy} onClick={() => statusMutation.mutate("ready")}>
-                      Marquer le budgétaire prêt
-                    </button>
+                    <>
+                      <button type="button" className="btn" disabled={busy || missingSummary} onClick={() => statusMutation.mutate("ready")}>
+                        Marquer le budgétaire prêt
+                      </button>
+                      {missingSummary && <span className="required-hint">Complétez le résumé et le résumé des risques pour continuer.</span>}
+                    </>
                   )}
                   {budget.status === "ready" && canOutcome && (
                     <button type="button" className="btn" disabled={busy} onClick={() => statusMutation.mutate("sent")}>

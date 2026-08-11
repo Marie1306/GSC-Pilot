@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { sectionSummary, budgetTotals, projectBackupSummary } from "../src/sections.js";
+import { sectionSummary, budgetTotals, projectBackupSummary, effectiveRowHours } from "../src/sections.js";
 
-describe("sectionSummary — heures et coût avant marge d'une section", () => {
+describe("sectionSummary — section de type 'labor' (heures × taux)", () => {
   it("additionne les heures et le coût de toutes les lignes de la section", () => {
     const result = sectionSummary({
       category: "fabrication",
+      kind: "labor",
       complexity: 0,
       rows: [
         { hourlyRate: 112, hours: 40 },
@@ -15,35 +16,66 @@ describe("sectionSummary — heures et coût avant marge d'une section", () => {
     expect(result.baseCost).toBe(6720); // 60h × 112$
   });
 
-  it("chaque ligne garde son propre taux gelé (fabrication peut avoir des sous-tâches à des taux différents)", () => {
+  it("chaque ligne garde son propre taux gelé (fabrication a des sous-tâches à des taux différents : Plasma 116$, Usinage 113$...)", () => {
     const result = sectionSummary({
       category: "fabrication",
+      kind: "labor",
       rows: [
-        { hourlyRate: 112, hours: 10 },
-        { hourlyRate: 130, hours: 10 },
+        { hourlyRate: 116, hours: 10 },
+        { hourlyRate: 113, hours: 10 },
       ],
     });
-    expect(result.baseCost).toBe(2420); // 10×112 + 10×130
+    expect(result.baseCost).toBe(2290); // 10×116 + 10×113
   });
 
   it("section sans lignes = 0h, 0$, sans erreur", () => {
-    const result = sectionSummary({ category: "conception", rows: [] });
+    const result = sectionSummary({ category: "conception", kind: "labor", rows: [] });
     expect(result).toMatchObject({ hours: 0, baseCost: 0, sale: 0 });
   });
 
-  it("un achat direct par ligne s'ajoute au coût, en plus des heures × taux (vérifié dans le prototype v19, 12 août 2026)", () => {
-    const result = sectionSummary({
-      category: "programmation",
-      complexity: 0,
-      rows: [{ hourlyRate: 117, hours: 10, purchaseAmount: 500 }],
-    });
-    expect(result.baseCost).toBe(1670); // 10×117 + 500
+  it("kind par défaut = 'labor' si omis (rétrocompatibilité)", () => {
+    const result = sectionSummary({ category: "conception", rows: [{ hourlyRate: 117, hours: 10 }] });
+    expect(result.baseCost).toBe(1170);
+  });
+});
+
+describe("sectionSummary — ligne calculée automatiquement (ex. « Conception plus 10 % », vérifié le 12 août 2026)", () => {
+  it("heures effectives = heures d'une autre ligne de la même section × autoPct / 100, jamais saisies directement", () => {
+    const rows = [
+      { id: "conception-dessin", hourlyRate: 117, hours: 40 },
+      { id: "conception-plus-10", hourlyRate: 117, hours: 999, autoFromRowId: "conception-dessin", autoPct: 10 },
+    ];
+    expect(effectiveRowHours(rows[1], rows)).toBe(4); // 40h × 10 %, ignore le 999 stocké
+    const result = sectionSummary({ category: "conception", kind: "labor", complexity: 0, rows });
+    expect(result.hours).toBe(44); // 40 + 4
+    expect(result.baseCost).toBe(44 * 117);
   });
 
-  it("une ligne purement achat (0h) contribue quand même au coût — ex. Stock, Déplacements", () => {
-    const result = sectionSummary({ category: "stock", rows: [{ hourlyRate: 0, hours: 0, purchaseAmount: 1200 }] });
-    expect(result.hours).toBe(0);
-    expect(result.baseCost).toBe(1200);
+  it("source introuvable → 0h effectives, sans erreur", () => {
+    const rows = [{ id: "orphelin", hourlyRate: 117, hours: 5, autoFromRowId: "inexistant", autoPct: 10 }];
+    expect(effectiveRowHours(rows[0], rows)).toBe(0);
+  });
+});
+
+describe("sectionSummary — section de type 'purchase' (quantité × prix unitaire, vérifié le 12 août 2026)", () => {
+  it("le coût vient de qty × unitPrice, jamais des heures", () => {
+    const result = sectionSummary({
+      category: "stockFabrication",
+      kind: "purchase",
+      complexity: 0,
+      rows: [
+        { qty: 4, unitPrice: 25 },
+        { qty: 2, unitPrice: 100 },
+      ],
+    });
+    expect(result.hours).toBe(0); // une section achat n'a pas d'heures
+    expect(result.baseCost).toBe(300); // 4×25 + 2×100
+  });
+
+  it("10 lignes vierges (qty=0) = 0$, sans erreur", () => {
+    const rows = Array.from({ length: 10 }, () => ({ qty: 0, unitPrice: 0 }));
+    const result = sectionSummary({ category: "subcontracting", kind: "purchase", rows });
+    expect(result).toMatchObject({ hours: 0, baseCost: 0, sale: 0 });
   });
 });
 

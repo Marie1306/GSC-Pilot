@@ -129,6 +129,11 @@ describe("Budgétaire", () => {
     expect(P.canRecordBudgetOutcome(BOSS)).toBe(false);
     expect(P.canRecordBudgetOutcome(ADMIN)).toBe(false);
   });
+  it("Direction et Propriétaire modifient une ligne Achat 'Direction/Propriétaire' — Administration exclue", () => {
+    expect(P.canModifyBudgetPurchaseLine(OWNER)).toBe(true);
+    expect(P.canModifyBudgetPurchaseLine(BOSS)).toBe(true);
+    expect(P.canModifyBudgetPurchaseLine(ADMIN)).toBe(false);
+  });
 });
 
 describe("Punchs", () => {

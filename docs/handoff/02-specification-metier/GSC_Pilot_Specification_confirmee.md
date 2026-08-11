@@ -843,3 +843,71 @@ ligne 4881) était un brouillon dépassé. Corrigé :
   section déjà construite, décision d'origine de la toute première
   planification (avant le premier écran construit), qui prévaut donc sur
   ce que montre le prototype à cet endroit précis.
+
+## Budgétaire — refonte complète après vérification catégorie par catégorie (12 août 2026, troisième passage)
+
+La correction ci-dessus restait incomplète — l'utilisatrice a fourni des
+captures d'écran du vrai prototype, une catégorie à la fois, comparées
+directement à l'application construite. Constat final : **13 catégories**
+réparties en 3 groupes visuels, **deux structures de ligne complètement
+différentes** selon la catégorie, et des permissions qui varient **par
+ligne**, pas seulement par catégorie.
+
+- **Groupe Main-d'œuvre** (type "labor" — Tâche/Taux/Heures/Risque, jamais
+  d'ajout/retrait de ligne, jamais d'achat direct sur la ligne, modifiable
+  Direction seulement) :
+  - **Conception** — Conception & Dessin (117 $), **Conception plus 10 %**
+    (ligne calculée automatiquement : heures = celles de Conception &
+    Dessin × 10 %, jamais saisie directement, non punchable — nouveau
+    mécanisme `autoFromRowId`/`autoPct` dans `sections.ts`), Préparation
+    (112 $), Gestion/BOM (112 $).
+  - **Fabrication** — taux différenciés par tâche (vérifiés dans le
+    prototype, pas inventés) : Plasma 116 $, Usinage 113 $, Pliage 113 $,
+    Soudage/Montage 110 $, Peinture 107 $.
+  - **Panneau & Programmation** — Panneau & Schémas 110 $, Programmation
+    117 $ (taux différenciés, pas uniformes comme construit d'abord).
+  - **Assemblage & Test** — Assemblage, Test & Finition, Emballage,
+    **Ménage** (manquait), toutes à 112 $.
+  - **Installation/Service — Main-d'œuvre** — Préparation (107 $), Temps
+    homme régulier (112 $), **Temps homme supplémentaire (125 $)**,
+    Gestion/BOM (112 $), Service après-vente (112 $).
+- **Groupe Achats prévus** (type "purchase" — Article-Dépense/Qté/Prix
+  unitaire/Risque, coût = qté × prix unitaire, jamais heures × taux) :
+  Stock Fabrication/Châssis, Stock Panneau/Programmation, Motorisation/
+  Automatisation, Quincaillerie/Autre, Sous-traitance — chacune **10
+  lignes vierges au départ, ajustables** (ajout/retrait par Direction ET
+  Propriétaire) ; Consommables — 5 lignes déjà nommées (Plasma, Soudage,
+  Usinage, Peinture, Emballage), composition fixe, modifiable
+  Direction/Propriétaire.
+- **Groupe Installation (suite)** — Installation — Stock (10 lignes
+  vierges, ajustables, type Achat) ; Installation — Frais divers (11
+  lignes fixes avec de vrais taux : Formation 112 $, Hébergement 250 $,
+  Kilométrage 0,97 $/km, Transport 112 $, Déjeuner 17,90 $, Dîner 26,90 $,
+  Souper 37,65 $, Avion 0 $ — ces 8 **Direction seulement** ; Location,
+  Manutention, Livraison — ces 3 **Direction ET Propriétaire**, même
+  catégorie, permissions mélangées par ligne).
+- **Aucune catégorie "labor" n'est modulable** — contrairement à ce qui
+  avait été construit deux fois de suite (Fabrication/Programmation/
+  Assemblage avaient un bouton « + Ajouter une ligne » à tort). Seules les
+  6 catégories Achat à lignes vierges le sont.
+- **Permissions par ligne, pas seulement par catégorie** — nouvelle
+  fonction `canModifyBudgetPurchaseLine` (Direction OU Propriétaire) dans
+  `roles.ts`, en plus de `canModifyBudget` (Direction seulement, déjà
+  existante) : une ligne "labor" ou marquée `directionOnly` exige
+  Direction seulement; une ligne "purchase" non marquée `directionOnly`
+  accepte aussi le Propriétaire. Vérifié par test réel : le Propriétaire
+  peut modifier une ligne Stock Fabrication mais pas « Formation »
+  (Installation — Frais divers, marquée Direction seulement) ni aucune
+  ligne Heures.
+- **Résumé et résumé des risques obligatoires** avant de marquer un
+  budgétaire prêt (« Terminer et marquer le budgétaire prêt ») — les
+  champs existaient déjà, seul le blocage manquait.
+- **Non reconstruit, jugé hors de portée pour cette passe** : la colonne
+  « Prix vente réparti » par ligne (répartition proportionnelle du prix de
+  vente de la catégorie, affichage seulement, aucun impact sur les
+  calculs) — les totaux par catégorie et le grand total restent exacts
+  sans elle.
+
+Vérifié de bout en bout contre une vraie base de données (13 catégories,
+96 lignes, ligne auto-calculée, permissions par ligne, blocage du
+résumé/risques, totaux) avant d'être committé.
