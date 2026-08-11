@@ -19,7 +19,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export function createApp() {
   const app = express();
 
-  app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+          // L'interface appelle Supabase Auth directement depuis le
+          // navigateur (connexion, session) — sans ça, la CSP par défaut
+          // (connect-src replié sur default-src 'self') bloque ces appels.
+          "connect-src": ["'self'", env.SUPABASE_URL],
+        },
+      },
+    }),
+  );
   app.use(
     cors({
       origin: CORS_ORIGINS,
