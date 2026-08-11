@@ -124,6 +124,11 @@ describe("Budgétaire", () => {
   it("Employé n'accède jamais au budgétaire", () => {
     expect(P.canAccessBudget(MEMBER)).toBe(false);
   });
+  it("Seule la Direction enregistre le résultat d'une soumission (envoyé/Contrat obtenu/Refusé) — Propriétaire exclu", () => {
+    expect(P.canRecordBudgetOutcome(OWNER)).toBe(true);
+    expect(P.canRecordBudgetOutcome(BOSS)).toBe(false);
+    expect(P.canRecordBudgetOutcome(ADMIN)).toBe(false);
+  });
 });
 
 describe("Punchs", () => {

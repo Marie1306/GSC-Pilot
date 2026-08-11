@@ -227,6 +227,17 @@ export function canAccessBudget(persona: Persona): boolean {
   return !([ROLES.MEMBER, ROLES.WAREHOUSE] as Persona[]).includes(persona);
 }
 
+/**
+ * Marquer envoyé, Contrat obtenu, ou Refusé : Direction seulement, le
+ * Propriétaire n'y est pas impliqué — spec confirmée (« Suivi budgétaire »)
+ * pour envoyé/Contrat obtenu, étendue à Refusé le 12 août 2026 (même
+ * catégorie d'action : enregistrer le résultat d'une soumission envoyée).
+ */
+export function canRecordBudgetOutcome(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}
+
 // ---------------------------------------------------------------------------
 // Punchs et temps
 // ---------------------------------------------------------------------------

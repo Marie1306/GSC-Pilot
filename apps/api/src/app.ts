@@ -14,6 +14,7 @@ import { purchasesRouter } from "./modules/purchases/routes.js";
 import { projectsRouter } from "./modules/projects/routes.js";
 import { settingsRouter } from "./modules/settings/routes.js";
 import { clientRequestsRouter } from "./modules/clientRequests/routes.js";
+import { budgetsRouter } from "./modules/budgets/routes.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -54,6 +55,7 @@ export function createApp() {
   app.use("/api", purchasesRouter);
   app.use("/api", projectsRouter);
   app.use("/api", clientRequestsRouter);
+  app.use("/api", budgetsRouter);
   app.use("/api/settings", settingsRouter);
 
   // En production, l'API sert aussi le build statique de apps/web (un seul

@@ -737,3 +737,52 @@ directement dans le formulaire du prototype v19
   `convertedRollingId`) — champs déjà réservés dans le schéma, à
   construire avec les fonctionnalités Budgétaire/Projets elles-mêmes.
   *Confirmé avec l'utilisatrice — reste un suivi actif, pas oublié.*
+
+## Budgétaire — calculateur, création, cycle de statuts (confirmé le 12 août 2026)
+
+Deuxième morceau de la tranche « demande client → budgétaire → projet →
+facturation ». Flux de création vérifié directement dans `budgetStartModal()`
+du prototype v19 (`docs/handoff/04-reference-v19`), jamais deviné.
+
+- **Un seul flux de création, pas trois mécanismes séparés** : le prototype
+  ne distingue pas « directement » vs « depuis une demande » — un même
+  formulaire propose une demande client existante (liste filtrée : ni déjà
+  liée à un budgétaire, ni statut Perdue, ni type Demande d'information) OU,
+  si aucune n'est choisie, crée automatiquement le contact et la demande
+  client via `createClientRequest` telle quelle — jamais un deuxième
+  mécanisme de contact. Le champ Urgence n'existe pas dans ce flux (absent
+  du formulaire v19 aussi) — `ClientRequest.urgency` reste `null` pour les
+  demandes créées par cette voie, ce qui est valide (colonne facultative).
+- **5 sections fixes** (Conception, Fabrication, Programmation, Assemblage,
+  Installation), copiées depuis le `BudgetModel` courant au moment de la
+  création — lignes et taux **gelés**, jamais recalculés rétroactivement si
+  le modèle change ensuite (même principe déjà appliqué au taux horaire de
+  back-up).
+- **Complexité PAR SECTION (0-10), pas un seul niveau pour tout le
+  budgétaire** — chaque section calcule indépendamment ses heures/coût/prix
+  de vente (nouvelle fonction `sectionSummary`, `packages/business-rules/
+  src/sections.ts`), avec le même mécanisme que `backup.ts` :
+  `complexityMarkup()`/`saleFromCost()` de `margin.ts`, non modifiées.
+- **Back-up** : réutilise `backup.ts` tel quel, sans changement — Fabrication
+  + Programmation + Assemblage seulement, taux/pourcentage/complexité
+  propres à ce budgétaire et gelés à la création.
+- **Numérotation** : `BG-AAAA-NNNN`, même mécanisme que `DC-AAAA-NNNN` pour
+  les demandes clients (compteur `Settings.nextBudgetNumber`).
+- **Cycle de statuts** : Brouillon → Prêt → Envoyé → {Contrat obtenu |
+  **Refusé**}. Statut Refusé confirmé le 12 août 2026 (absent du prototype,
+  ajouté à la demande de l'utilisatrice — « Oui un statut Refusé serait
+  apprécié »).
+- **Permissions** (voir `roles.ts`, déjà testées) : création (demande
+  existante ou nouvelle) = Direction et Propriétaire seulement, **jamais
+  Administration** contrairement à la création d'une demande client;
+  modification des heures/complexité/réglages de back-up avant envoi =
+  Direction seulement; marquer prêt = Direction et Propriétaire; marquer
+  envoyé/Contrat obtenu/Refusé = **Direction seulement, le Propriétaire
+  n'y est pas impliqué**; accès en lecture (liste et détail) = tous les
+  rôles sauf Employé et Magasinier.
+- **Portée volontairement reportée, à ne pas oublier** : conversion réelle
+  d'un budgétaire « Contrat obtenu » en projet (`transferBackupToProject`)
+  — en attendant que Projets existe comme fonctionnalité réelle et
+  construisible, même report déjà confirmé pour la conversion des demandes
+  clients. *Confirmé avec l'utilisatrice — reste un suivi actif, pas
+  oublié.*

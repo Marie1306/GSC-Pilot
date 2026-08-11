@@ -162,6 +162,8 @@ export interface ClientRequestListItemDto {
   createdByName: string;
   createdAt: string;
   nextFollowUp: string | null;
+  /** Exposé pour que le module Budgétaire puisse exclure les demandes déjà liées à un budgétaire de son sélecteur. */
+  budgetId: string | null;
 }
 
 type ClientRequestRow = ClientRequest & { salesChannel: { name: string } | null };
@@ -180,6 +182,7 @@ function toListItemDto(row: ClientRequestRow, createdByName: string): ClientRequ
     createdByName,
     createdAt: row.createdAt.toISOString(),
     nextFollowUp: row.nextFollowUp?.toISOString() ?? null,
+    budgetId: row.budgetId,
   };
 }
 
