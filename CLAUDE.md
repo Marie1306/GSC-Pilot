@@ -42,6 +42,22 @@ la réimplémenter. Si une règle semble manquante ou ambiguë, consulter la
 spécification (section précédente) — ne jamais deviner une valeur non
 confirmée, c'est le principe qui a guidé tout ce projet depuis le début.
 
+## Ordre de priorité confirmé : fonctionnalité avant peaufinage visuel
+
+Confirmé avec l'utilisatrice le 12 août 2026, **à ne pas oublier** :
+chaque nouvel écran utilise déjà les vrais jetons de conception (couleur
+de marque, police, boutons, cartes — voir `packages/shared/src/design-tokens.ts`),
+mais **pas encore** la mise en page détaillée et le peaufinage exact de
+chaque page du prototype v19. C'est délibéré, pas un oubli : les règles
+métier de chaque module se confirment encore une à une en le construisant
+(champs, statuts, permissions — voir par ex. la section « Demandes
+clients » de la spécification), donc peaufiner le visuel maintenant
+risquerait d'être refait à chaque ajustement. Le plan reste : construire
+la fonctionnalité réelle de tous les modules d'abord, puis faire une
+passe visuelle dédiée écran par écran une fois les règles stabilisées —
+confirmé explicitement avec l'utilisatrice, qui a demandé que ce soit
+noté pour ne pas être oublié.
+
 ## Commandes utiles
 
 ```
