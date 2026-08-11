@@ -62,3 +62,27 @@ de service) · Node.js/Express · PostgreSQL + Prisma (migrations) · Supabase
 (base de données + authentification + stockage — projet dédié, jamais
 partagé avec d'autres applications) · hébergement de l'API séparé de
 Supabase (Render pressenti, à confirmer).
+
+## État du projet Supabase réel (11 août 2026)
+
+Le vrai projet Supabase (réf. `oczshmnsyuhpmkuvhtkz`) est provisionné :
+structure complète (33 tables, migration `20260811114623_init` committée
+dans `apps/api/prisma/migrations/`) + données de départ (modèle de
+budgétaire, catégories d'achat, canaux de vente, réglages) + 5 comptes de
+test (un par rôle, mot de passe `gsc-pilot-test-2026`, voir
+`apps/api/scripts/seed.ts`) créés et liés à leurs fiches `Employee`. RLS
+activée sur toutes les tables, sans politique — voir
+`GSC_Pilot_Architecture.md`, section RLS, pour le raisonnement.
+
+Cette session n'a **aucun accès réseau** au projet Supabase réel (ni HTTPS
+vers cet hôte, ni Postgres brut — bloqué par le proxy sortant du bac à
+sable). Le provisionnement ci-dessus a été fait en générant le SQL via une
+vraie base Postgres locale au bac à sable (migration + seed réels, jamais
+deviné), puis en guidant l'utilisatrice pour le coller elle-même dans
+l'éditeur SQL de Supabase. Si une prochaine session doit à nouveau modifier
+la structure de la base réelle, s'attendre à devoir repasser par ce même
+contournement (ou vérifier si l'accès réseau a changé) plutôt que de
+supposer qu'une connexion directe est possible.
+
+Reste ouvert : hébergement de l'API (Render pressenti, jamais confirmé —
+l'utilisatrice devait vérifier de son côté).
