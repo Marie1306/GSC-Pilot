@@ -50,6 +50,8 @@ export interface BudgetSectionRow {
   label: string;
   hourlyRate: number;
   hours: number;
+  purchaseAmount: number;
+  risk: string | null;
 }
 
 export interface BudgetSectionData {
@@ -73,15 +75,31 @@ export interface BudgetBackupData {
   rate: number;
 }
 
+export interface ProjectBackupData {
+  baseCost: number;
+  sale: number;
+  complexity: number;
+  margin: number;
+}
+
 export interface BudgetDetail extends BudgetListItem {
   backupHourlyRate: number;
   backupHoursPct: number;
   backupHoursComplexity: number;
+  projectBackupAmount: number;
+  projectBackupComplexity: number;
+  poNumber: string | null;
+  quantity: number;
+  validUntil: string | null;
+  summary: string | null;
+  riskSummary: string | null;
   clientRequestId: string | null;
+  clientRequestDisplayId: string | null;
   sentAt: string | null;
   contractWonAt: string | null;
   sections: BudgetSectionData[];
   backup: BudgetBackupData;
+  projectBackup: ProjectBackupData;
   totals: { totalHours: number; totalBaseCost: number; totalSale: number };
 }
 
@@ -93,13 +111,20 @@ export const STATUS_LABELS: Record<string, string> = {
   declined: "Refusé",
 };
 
+/** Libellés vérifiés directement dans le prototype v19 (12 août 2026), pas devinés. */
 export const CATEGORY_LABELS: Record<string, string> = {
   conception: "Conception",
   fabrication: "Fabrication",
-  programmation: "Programmation",
-  assemblage: "Assemblage",
+  programmation: "Panneau & programmation",
+  assemblage: "Assemblage & tests",
   installation: "Installation",
+  stock: "Stock & consommables",
+  sousTraitance: "Sous-traitance",
+  deplacements: "Déplacements & frais",
 };
+
+/** Sections où Direction peut ajouter/retirer des lignes — même liste que MODULAR_CATEGORIES côté API. */
+export const MODULAR_CATEGORIES = ["fabrication", "programmation", "assemblage", "sousTraitance", "deplacements"];
 
 const currencyFormatter = new Intl.NumberFormat("fr-CA", { style: "currency", currency: "CAD" });
 
@@ -127,8 +152,26 @@ export function createBudget(input: CreateBudgetInput): Promise<{ id: string; di
   return apiFetch("/api/budgets", { method: "POST", body: JSON.stringify(input) });
 }
 
-export function updateRowHours(budgetId: string, rowId: string, hours: number): Promise<void> {
-  return apiFetch(`/api/budgets/${budgetId}/rows/${rowId}`, { method: "PATCH", body: JSON.stringify({ hours }) });
+export interface UpdateRowPatch {
+  hours?: number;
+  purchaseAmount?: number;
+  risk?: string | null;
+}
+
+export function updateRow(budgetId: string, rowId: string, patch: UpdateRowPatch): Promise<void> {
+  return apiFetch(`/api/budgets/${budgetId}/rows/${rowId}`, { method: "PATCH", body: JSON.stringify(patch) });
+}
+
+export function addBudgetRow(
+  budgetId: string,
+  sectionId: string,
+  input: { label: string; hourlyRate?: number; purchaseAmount?: number },
+): Promise<{ id: string }> {
+  return apiFetch(`/api/budgets/${budgetId}/sections/${sectionId}/rows`, { method: "POST", body: JSON.stringify(input) });
+}
+
+export function removeBudgetRow(budgetId: string, rowId: string): Promise<void> {
+  return apiFetch(`/api/budgets/${budgetId}/rows/${rowId}`, { method: "DELETE" });
 }
 
 export function updateSectionComplexity(budgetId: string, sectionId: string, complexity: number): Promise<void> {
@@ -137,6 +180,22 @@ export function updateSectionComplexity(budgetId: string, sectionId: string, com
 
 export function updateBackupSettings(budgetId: string, patch: { pct?: number; complexity?: number }): Promise<void> {
   return apiFetch(`/api/budgets/${budgetId}/backup`, { method: "PATCH", body: JSON.stringify(patch) });
+}
+
+export function updateProjectBackup(budgetId: string, patch: { amount?: number; complexity?: number }): Promise<void> {
+  return apiFetch(`/api/budgets/${budgetId}/project-backup`, { method: "PATCH", body: JSON.stringify(patch) });
+}
+
+export interface UpdateBudgetMetaInput {
+  poNumber?: string | null;
+  quantity?: number;
+  validUntil?: string | null;
+  summary?: string | null;
+  riskSummary?: string | null;
+}
+
+export function updateBudgetMeta(budgetId: string, patch: UpdateBudgetMetaInput): Promise<void> {
+  return apiFetch(`/api/budgets/${budgetId}/meta`, { method: "PATCH", body: JSON.stringify(patch) });
 }
 
 export function markBudgetReady(id: string): Promise<{ id: string; status: string }> {

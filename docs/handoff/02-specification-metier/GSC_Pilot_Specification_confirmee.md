@@ -786,3 +786,60 @@ du prototype v19 (`docs/handoff/04-reference-v19`), jamais deviné.
   construisible, même report déjà confirmé pour la conversion des demandes
   clients. *Confirmé avec l'utilisatrice — reste un suivi actif, pas
   oublié.*
+
+**Écart trouvé et corrigé le 12 août 2026** (même jour, quelques heures plus
+tard) — la première construction ci-dessus a été jugée « très loin d'être
+complet » par l'utilisatrice, qui a demandé une deuxième vérification
+directe dans le prototype. Cause racine : le fichier v19 contient plusieurs
+générations de code superposées pour le budgétaire (au moins 3 mécanismes
+différents pour la même idée, trouvés dans le même fichier) — la première
+passe avait retenu la mauvaise version en jugeant, à tort, que le vrai écran
+câblé (`views.budget = ms`, vérifié en traçant le routeur de vues à la
+ligne 4881) était un brouillon dépassé. Corrigé :
+
+- **8 catégories, pas 5** : Conception, Fabrication, Panneau &
+  programmation, Assemblage & tests, Installation, **Stock &
+  consommables, Sous-traitance, Déplacements & frais** — ces 3 dernières
+  n'existaient pas du tout dans la première construction.
+- **Sections modulables** : Fabrication, Programmation, Assemblage,
+  Sous-traitance et Déplacements permettent à Direction d'ajouter/retirer
+  des lignes (jamais en bas d'une seule ligne restante) — Conception,
+  Installation et Stock restent à composition fixe. Sous-tâches réelles
+  ajoutées au modèle : Programmation → « Panneau & schémas » +
+  « Programmation »; Assemblage → « Assemblage » + « Test & finition » +
+  « Emballage » (taux internes inchangés, pas de nouveaux chiffres
+  inventés — seule la structure en lignes nommées était manquante).
+- **Achat direct par ligne** : chaque ligne peut porter, en plus des
+  heures × taux, un montant d'achat direct (matériel, sous-traitance) —
+  `sectionSummary` additionne maintenant les deux pour le coût avant
+  marge d'une ligne. Nécessaire pour Stock/Sous-traitance/Déplacements
+  (achats purs, 0 heure) et pour des lignes hybrides comme « Panneau &
+  schémas » (heures ET achat).
+- **Risque/note par ligne**, texte libre facultatif.
+- **Champs d'en-tête du budgétaire** : PO client, quantité, date de
+  validité, résumé du budgétaire, résumé des risques — tous facultatifs.
+- **DEUX réserves back-up distinctes, jamais une remplaçant l'autre**
+  (point le plus important de cette correction, tranché explicitement par
+  l'utilisatrice) :
+  - **Back-up D'HEURES** (déjà construit le 12 août, premier passage) —
+    réserve calculée automatiquement à partir des heures admissibles
+    (Fabrication + Programmation + Assemblage) × pourcentage × taux, avec
+    sa propre complexité pour la marge. **Inchangé** — c'est la formule
+    documentée dans « Back-up d'heures — confirmé au complet (7 août
+    2026) » ci-dessus, qui a priorité sur le montant $ affiché dans
+    l'écran `ms()` du prototype (bug déjà documenté et corrigé ailleurs
+    dans ce même fichier, pas un mécanisme à reproduire).
+  - **Back-up PROJET** (nouveau) — montant saisi à la main par Direction,
+    non dérivé des heures; une complexité (0-10) détermine seulement la
+    marge appliquée à ce montant, même mécanisme que
+    `sectionSummary`/`backupSummary` (`complexityMarkup()`/
+    `saleFromCost()` de `margin.ts`, non modifiées). Nouvelle fonction
+    `projectBackupSummary()` dans `packages/business-rules/src/
+    sections.ts`.
+- **Complexité par section confirmée** (pas par ligne) : re-demandé
+  explicitement après avoir vu que le vrai prototype varie la complexité
+  ligne par ligne (ex. Soudage à 12, Peinture à 5, dans la même section
+  Fabrication) — l'utilisatrice a confirmé garder la granularité par
+  section déjà construite, décision d'origine de la toute première
+  planification (avant le premier écran construit), qui prévaut donc sur
+  ce que montre le prototype à cet endroit précis.

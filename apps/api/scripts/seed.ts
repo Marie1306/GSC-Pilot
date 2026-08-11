@@ -22,24 +22,51 @@ const TEST_EMPLOYEES: { persona: Persona; name: string; initials: string; email:
   { persona: ROLES.WAREHOUSE, name: "Test Magasinier", initials: "TM", email: "test-magasinier@gscpilot.local", costRate: 26 },
 ];
 
-type BudgetCategorySlug = "conception" | "fabrication" | "programmation" | "assemblage" | "installation";
+type BudgetCategorySlug =
+  | "conception"
+  | "fabrication"
+  | "programmation"
+  | "assemblage"
+  | "installation"
+  | "stock"
+  | "sousTraitance"
+  | "deplacements";
 
-// Taux internes par catégorie — mêmes valeurs que packages/business-rules/src/amendments.ts (AMENDMENT_INTERNAL_RATES).
-const SECTION_RATES: Record<BudgetCategorySlug, number> = {
-  conception: 117,
-  fabrication: 112,
-  programmation: 117,
-  assemblage: 112,
-  installation: 112,
+/**
+ * Sous-catégories (lignes) réelles par catégorie — vérifiées directement
+ * dans le prototype v19 (12 août 2026, newBudgetProposal()), pas devinées.
+ * Taux internes des 5 catégories d'origine : mêmes valeurs que
+ * packages/business-rules/src/amendments.ts (AMENDMENT_INTERNAL_RATES).
+ * Stock/Sous-traitance/Déplacements sont des achats directs (taux 0) —
+ * Direction ajoute un montant par ligne au moment du budgétaire réel.
+ */
+const CATEGORY_ROWS: Record<BudgetCategorySlug, { slug: string; label: string; hourlyRate: number }[]> = {
+  conception: [{ slug: "conception", label: "Conception", hourlyRate: 117 }],
+  fabrication: [
+    { slug: "fabrication-plasma", label: "Plasma", hourlyRate: 112 },
+    { slug: "fabrication-pliage", label: "Pliage", hourlyRate: 112 },
+    { slug: "fabrication-usinage", label: "Usinage", hourlyRate: 112 },
+    { slug: "fabrication-soudage", label: "Soudage", hourlyRate: 112 },
+    { slug: "fabrication-peinture", label: "Peinture", hourlyRate: 112 },
+  ],
+  programmation: [
+    { slug: "programmation-panneau", label: "Panneau & schémas", hourlyRate: 117 },
+    { slug: "programmation-programmation", label: "Programmation", hourlyRate: 117 },
+  ],
+  assemblage: [
+    { slug: "assemblage-assemblage", label: "Assemblage", hourlyRate: 112 },
+    { slug: "assemblage-tests", label: "Test & finition", hourlyRate: 112 },
+    { slug: "assemblage-emballage", label: "Emballage", hourlyRate: 112 },
+  ],
+  installation: [{ slug: "installation", label: "Installation", hourlyRate: 112 }],
+  stock: [{ slug: "stock", label: "Stock / consommables", hourlyRate: 0 }],
+  sousTraitance: [{ slug: "sous-traitance", label: "Sous-traitance", hourlyRate: 0 }],
+  deplacements: [
+    { slug: "deplacements-km", label: "Kilométrage", hourlyRate: 0 },
+    { slug: "deplacements-repas", label: "Repas", hourlyRate: 0 },
+    { slug: "deplacements-hebergement", label: "Hébergement", hourlyRate: 0 },
+  ],
 };
-
-const FABRICATION_SUBROWS = [
-  { slug: "fabrication-plasma", label: "Plasma" },
-  { slug: "fabrication-pliage", label: "Pliage" },
-  { slug: "fabrication-usinage", label: "Usinage" },
-  { slug: "fabrication-soudage", label: "Soudage" },
-  { slug: "fabrication-peinture", label: "Peinture" },
-];
 
 const PURCHASE_CATEGORIES = [
   { name: "Métaux / matières premières", thresholdAmount: 2000 },
@@ -123,7 +150,7 @@ async function seedBudgetModel() {
     model = await prisma.budgetModel.create({ data: { backupHourlyRate: 112, backupDefaultPct: 10 } });
   }
 
-  const categories = ["conception", "fabrication", "programmation", "assemblage", "installation"] as const;
+  const categories = Object.keys(CATEGORY_ROWS) as BudgetCategorySlug[];
   for (const [sortOrder, category] of categories.entries()) {
     const section = await prisma.budgetModelSection.upsert({
       where: { budgetModelId_category: { budgetModelId: model.id, category } },
@@ -131,21 +158,21 @@ async function seedBudgetModel() {
       create: { budgetModelId: model.id, category, sortOrder },
     });
 
-    if (category === "fabrication") {
-      for (const [rowOrder, row] of FABRICATION_SUBROWS.entries()) {
-        await prisma.budgetModelRow.upsert({
-          where: { sectionId_slug: { sectionId: section.id, slug: row.slug } },
-          update: {},
-          create: { sectionId: section.id, slug: row.slug, label: row.label, hourlyRate: SECTION_RATES.fabrication, sortOrder: rowOrder },
-        });
-      }
-    } else {
+    for (const [rowOrder, row] of CATEGORY_ROWS[category].entries()) {
       await prisma.budgetModelRow.upsert({
-        where: { sectionId_slug: { sectionId: section.id, slug: category } },
+        where: { sectionId_slug: { sectionId: section.id, slug: row.slug } },
         update: {},
-        create: { sectionId: section.id, slug: category, label: category, hourlyRate: SECTION_RATES[category], sortOrder: 0 },
+        create: { sectionId: section.id, slug: row.slug, label: row.label, hourlyRate: row.hourlyRate, sortOrder: rowOrder },
       });
     }
+
+    // Retrait = désactivation (jamais une suppression physique, voir schema.prisma) —
+    // couvre la transition du 12 août 2026 (ex. programmation/assemblage passées
+    // d'une seule ligne générique à plusieurs sous-tâches nommées).
+    await prisma.budgetModelRow.updateMany({
+      where: { sectionId: section.id, slug: { notIn: CATEGORY_ROWS[category].map((row) => row.slug) } },
+      data: { active: false },
+    });
   }
 }
 

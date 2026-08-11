@@ -26,6 +26,26 @@ describe("Routes de budgétaire — aucun jeton fourni (401 avant même la véri
     expect(res.status).toBe(401);
   });
 
+  it("POST /api/budgets/:id/sections/:sectionId/rows refuse sans jeton", async () => {
+    const res = await request(app).post(`/api/budgets/${zeroId}/sections/${zeroId}/rows`).send({ label: "Ligne" });
+    expect(res.status).toBe(401);
+  });
+
+  it("DELETE /api/budgets/:id/rows/:rowId refuse sans jeton", async () => {
+    const res = await request(app).delete(`/api/budgets/${zeroId}/rows/${zeroId}`);
+    expect(res.status).toBe(401);
+  });
+
+  it("PATCH /api/budgets/:id/project-backup refuse sans jeton", async () => {
+    const res = await request(app).patch(`/api/budgets/${zeroId}/project-backup`).send({ amount: 1000 });
+    expect(res.status).toBe(401);
+  });
+
+  it("PATCH /api/budgets/:id/meta refuse sans jeton", async () => {
+    const res = await request(app).patch(`/api/budgets/${zeroId}/meta`).send({ poNumber: "PO-123" });
+    expect(res.status).toBe(401);
+  });
+
   it("PATCH /api/budgets/:id/sections/:sectionId refuse sans jeton", async () => {
     const res = await request(app).patch(`/api/budgets/${zeroId}/sections/${zeroId}`).send({ complexity: 5 });
     expect(res.status).toBe(401);

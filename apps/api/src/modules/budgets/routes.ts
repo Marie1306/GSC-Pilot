@@ -12,9 +12,13 @@ import {
   createBudget,
   listBudgets,
   getBudgetDetail,
-  updateRowHours,
+  updateRow,
+  addBudgetRow,
+  removeBudgetRow,
   updateSectionComplexity,
   updateBackupSettings,
+  updateProjectBackup,
+  updateBudgetMeta,
   markBudgetReady,
   markBudgetSent,
   markBudgetWon,
@@ -74,8 +78,41 @@ budgetsRouter.patch(
   async (req, res) => {
     const id = z.uuid().parse(req.params.id);
     const rowId = z.uuid().parse(req.params.rowId);
-    const { hours } = z.object({ hours: z.number().nonnegative() }).parse(req.body);
-    await updateRowHours(id, rowId, hours);
+    const patch = z
+      .object({
+        hours: z.number().nonnegative().optional(),
+        purchaseAmount: z.number().nonnegative().optional(),
+        risk: z.string().nullable().optional(),
+      })
+      .parse(req.body);
+    await updateRow(id, rowId, patch);
+    res.status(204).send();
+  },
+);
+
+budgetsRouter.post(
+  "/budgets/:id/sections/:sectionId/rows",
+  requireAuth,
+  requirePermission((persona) => canModifyBudget(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const sectionId = z.uuid().parse(req.params.sectionId);
+    const body = z
+      .object({ label: z.string().min(1), hourlyRate: z.number().nonnegative().optional(), purchaseAmount: z.number().nonnegative().optional() })
+      .parse(req.body);
+    const row = await addBudgetRow(id, sectionId, body);
+    res.status(201).json(row);
+  },
+);
+
+budgetsRouter.delete(
+  "/budgets/:id/rows/:rowId",
+  requireAuth,
+  requirePermission((persona) => canModifyBudget(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const rowId = z.uuid().parse(req.params.rowId);
+    await removeBudgetRow(id, rowId);
     res.status(204).send();
   },
 );
@@ -103,6 +140,40 @@ budgetsRouter.patch(
       .object({ pct: z.number().nonnegative().optional(), complexity: z.number().int().min(0).max(10).optional() })
       .parse(req.body);
     await updateBackupSettings(id, patch);
+    res.status(204).send();
+  },
+);
+
+budgetsRouter.patch(
+  "/budgets/:id/project-backup",
+  requireAuth,
+  requirePermission((persona) => canModifyBudget(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const patch = z
+      .object({ amount: z.number().nonnegative().optional(), complexity: z.number().int().min(0).max(10).optional() })
+      .parse(req.body);
+    await updateProjectBackup(id, patch);
+    res.status(204).send();
+  },
+);
+
+budgetsRouter.patch(
+  "/budgets/:id/meta",
+  requireAuth,
+  requirePermission((persona) => canModifyBudget(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const patch = z
+      .object({
+        poNumber: z.string().nullable().optional(),
+        quantity: z.number().int().positive().optional(),
+        validUntil: z.iso.date().nullable().optional(),
+        summary: z.string().nullable().optional(),
+        riskSummary: z.string().nullable().optional(),
+      })
+      .parse(req.body);
+    await updateBudgetMeta(id, patch);
     res.status(204).send();
   },
 );
