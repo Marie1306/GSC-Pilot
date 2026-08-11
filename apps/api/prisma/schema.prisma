@@ -1,0 +1,696 @@
+// GSC Pilot — schéma de base de données
+//
+// Dérivé entité par entité de docs/handoff/02-specification-metier/.
+// Source de vérité pour les règles métier encodées ici : ce document, pas
+// ce fichier — si un champ semble contredire la spécification, la
+// spécification a raison (voir CLAUDE.md).
+//
+// ⚠️ persona reprend exactement les valeurs de packages/business-rules/src/roles.ts
+// ("owner" = Direction, "boss" = Propriétaire) pour que les fonctions de ce
+// module s'appliquent sans modification. Ne jamais assumer que owner = le
+// propriétaire de l'entreprise.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+// Prisma 7 : les URL de connexion ne vivent plus ici, mais dans prisma.config.ts
+// (CLI/migrations) et dans src/db.ts via un adaptateur (exécution de l'app).
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Identité
+// ---------------------------------------------------------------------------
+
+enum Persona {
+  owner // Direction
+  admin // Administration
+  boss // Propriétaire
+  member // Employé
+  warehouse // Magasinier
+}
+
+model Employee {
+  id                String    @id @default(uuid())
+  authUserId        String?   @unique // lien vers auth.users de Supabase — nul tant que l'invitation n'est pas acceptée
+  name              String
+  initials          String
+  email             String    @unique
+  phone             String?
+  persona           Persona
+  jobTitle          String? // ex. "Fabrication", "Technicien" — distinct de persona (permission)
+  skills            String[]  @default([])
+  skillEfficiencies Json      @default("{}") // {[skill]: pct} — Gantt seulement, jamais le budgétaire/heures/post-mortem
+  costRate          Decimal   @default(0) @db.Decimal(10, 2)
+  techLevelId       String?
+  techLevel         TechLevel? @relation(fields: [techLevelId], references: [id])
+  active            Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  delegationsGranted DelegationGrant[] @relation("DelegationGrantedBy")
+  delegationsHeld     DelegationGrant[] @relation("DelegationDelegate")
+  auditLogEntries      AuditLogEntry[]
+
+  @@index([persona])
+}
+
+model TechLevel {
+  id        String     @id @default(uuid())
+  label     String // ex. "Technicien niveau 1/2/expert"
+  billRate  Decimal    @db.Decimal(10, 2)
+  employees Employee[]
+}
+
+/// Délégation d'approbation — table réelle avec historique (amélioration sur le blob unique de la v19),
+/// mappée vers la forme attendue par roles.ts (delegationActive) au moment de la lecture.
+model DelegationGrant {
+  id              String    @id @default(uuid())
+  delegateId      String
+  delegate        Employee  @relation("DelegationDelegate", fields: [delegateId], references: [id])
+  grantedById     String
+  grantedBy       Employee  @relation("DelegationGrantedBy", fields: [grantedById], references: [id])
+  categories      String[] // sous-ensemble de ["hours","purchases","service","changes"]
+  monetaryLimit   Decimal?  @db.Decimal(10, 2)
+  startDate       DateTime  @db.Date
+  endDate         DateTime  @db.Date
+  justification   String
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([delegateId, startDate, endDate])
+}
+
+// ---------------------------------------------------------------------------
+// Contacts / CRM
+// ---------------------------------------------------------------------------
+
+model Contact {
+  id         String   @id @default(uuid())
+  type       String   @default("Client")
+  company    String?
+  name       String
+  role       String? // ex. "Contact client"
+  email      String?
+  phone      String?
+  categories String[] // ex. ["Client", "Projet", "Roulement"]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  clientRequests ClientRequest[]
+  projects       Project[]
+  rollings       Rolling[]
+  serviceCalls   ServiceCall[]
+  deliveries     Delivery[]
+
+  @@index([email])
+  @@index([name])
+}
+
+model SalesChannel {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+
+  clientRequests ClientRequest[]
+}
+
+// ---------------------------------------------------------------------------
+// Demandes clients
+// ---------------------------------------------------------------------------
+
+model ClientRequest {
+  id                  String    @id @default(uuid())
+  displayId           String    @unique // format DC-AAAA-NNNN
+  createdById         String
+  contactId           String
+  contact             Contact   @relation(fields: [contactId], references: [id])
+  contactName         String
+  contactRole         String?
+  company              String?
+  email                String?
+  phone                String?
+  address              String?
+  summary              String
+  requestType          String // project | rolling | service | information
+  urgency              String?
+  salesChannelId       String?
+  salesChannel         SalesChannel? @relation(fields: [salesChannelId], references: [id])
+  sourceDetail         String?
+  status               String    @default("new")
+  assignedEmployeeId   String?
+  transmittedToOwnerAt DateTime? // visibilité seulement — jamais une porte de permission (voir roles.ts)
+  budgetId             String?   @unique
+  budget               Budget?   @relation(fields: [budgetId], references: [id])
+  convertedType        String? // project | rolling
+  convertedProjectId   String?
+  convertedRollingId   String?
+  lostReason           String?
+  nextFollowUp         DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  notes    ClientRequestNote[]
+  projects Project[]
+  rollings Rolling[]
+
+  @@index([status])
+}
+
+model ClientRequestNote {
+  id              String        @id @default(uuid())
+  clientRequestId String
+  clientRequest   ClientRequest @relation(fields: [clientRequestId], references: [id])
+  authorId        String
+  body            String
+  createdAt       DateTime      @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Budgétaire
+// ---------------------------------------------------------------------------
+
+/// Singleton (une seule ligne) — modèle courant, propagé automatiquement à tout nouveau budgétaire.
+model BudgetModel {
+  id                String              @id @default(uuid())
+  backupHourlyRate  Decimal             @default(112) @db.Decimal(10, 2)
+  backupDefaultPct  Decimal             @default(10) @db.Decimal(5, 2)
+  updatedById       String?
+  updatedAt         DateTime            @updatedAt
+  sections          BudgetModelSection[]
+}
+
+model BudgetModelSection {
+  id            String            @id @default(uuid())
+  budgetModelId String
+  budgetModel   BudgetModel       @relation(fields: [budgetModelId], references: [id])
+  category      BudgetCategory
+  sortOrder     Int               @default(0)
+  rows          BudgetModelRow[]
+
+  @@unique([budgetModelId, category])
+}
+
+model BudgetModelRow {
+  id        String              @id @default(uuid())
+  sectionId String
+  section   BudgetModelSection  @relation(fields: [sectionId], references: [id])
+  slug      String // identifiant stable, ex. "fabrication-plasma"
+  label     String // renommable (Direction, Paramètres) — non rétroactif, voir spec
+  hourlyRate Decimal            @db.Decimal(10, 2)
+  active    Boolean             @default(true) // retrait = désactivation, jamais une suppression physique
+  sortOrder Int                 @default(0)
+
+  @@unique([sectionId, slug])
+}
+
+enum BudgetCategory {
+  conception
+  fabrication
+  programmation
+  assemblage
+  installation
+}
+
+model Budget {
+  id                    String    @id @default(uuid())
+  clientRequestId       String?   @unique // nullable — confirmé : un budgétaire peut aussi être créé directement (voir spec/plan)
+  status                String    @default("draft")
+  backupHourlyRate      Decimal   @db.Decimal(10, 2) // gelé au premier calcul, jamais recalculé rétroactivement
+  backupHoursPct        Decimal   @default(10) @db.Decimal(5, 2)
+  backupHoursComplexity Int       @default(0) // 0-10
+  createdById           String
+  createdAt             DateTime  @default(now())
+  sentAt                DateTime?
+  contractWonAt         DateTime?
+
+  clientRequest ClientRequest?
+  sections      BudgetSection[]
+  project       Project?
+  rolling       Rolling?
+
+  @@index([status])
+}
+
+model BudgetSection {
+  id         String         @id @default(uuid())
+  budgetId   String
+  budget     Budget         @relation(fields: [budgetId], references: [id])
+  category   BudgetCategory
+  hourlyRate Decimal        @db.Decimal(10, 2) // gelé au moment de la création du budgétaire
+  complexity Int            @default(0) // 0-10, PAR SECTION (confirmé le 11 août 2026 — pas un seul niveau projet)
+  rows       BudgetRow[]
+
+  @@unique([budgetId, category])
+}
+
+model BudgetRow {
+  id          String        @id @default(uuid())
+  sectionId   String
+  section     BudgetSection @relation(fields: [sectionId], references: [id])
+  modelRowId  String? // traçabilité seulement — label/taux ci-dessous sont des copies gelées
+  label       String
+  hourlyRate  Decimal       @db.Decimal(10, 2)
+  hours       Decimal       @default(0) @db.Decimal(10, 2)
+}
+
+// ---------------------------------------------------------------------------
+// Projets
+// ---------------------------------------------------------------------------
+
+model Project {
+  id                   String    @id @default(uuid())
+  projectNumber        String    @unique
+  name                 String
+  contactId            String
+  contact              Contact   @relation(fields: [contactId], references: [id])
+  clientRequestId      String?   @unique
+  clientRequest        ClientRequest? @relation(fields: [clientRequestId], references: [id])
+  budgetId             String?   @unique // nullable — création directe possible, avec ou sans budgétaire (confirmé)
+  budget               Budget?   @relation(fields: [budgetId], references: [id])
+  status               String    @default("active")
+  priority             Int       @default(0)
+  sold                 Decimal   @default(0) @db.Decimal(12, 2)
+  plannedPurchases     Decimal   @default(0) @db.Decimal(12, 2)
+  actualPurchases      Decimal   @default(0) @db.Decimal(12, 2)
+  laborHours           Decimal   @default(0) @db.Decimal(10, 2)
+  laborCost            Decimal   @default(0) @db.Decimal(12, 2)
+  plannedHours         Decimal   @default(0) @db.Decimal(10, 2)
+  actualHours          Decimal   @default(0) @db.Decimal(10, 2)
+  backupHours          Decimal   @default(0) @db.Decimal(10, 2)
+  backupHoursCost      Decimal   @default(0) @db.Decimal(12, 2)
+  backupHourlyRate     Decimal?  @db.Decimal(10, 2) // taux gelé du budgétaire d'origine — utilisé par les avenants
+  billingSplitOverride Json?
+  deadline             DateTime?
+  desiredStart         DateTime?
+  productionCompleted  Boolean   @default(false)
+  fulfillmentMode      String?
+  fulfillmentStatus    String?
+  fulfillmentDriverId  String?
+  fulfillmentAddress   String?
+  fulfillmentScheduled DateTime?
+  closedAt             DateTime? // geste manuel séparé — jamais un effet de bord du mode de sortie
+  createdById          String
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  team           ProjectTeamMember[]
+  tasks          ProjectTask[]
+  invoiceEntries InvoicePlanEntry[]
+  purchases      ProjectPurchaseEntry[]
+  timeEntries    TimeEntry[]
+  subassemblies  Subassembly[]
+  amendments     Amendment[]
+  deliveries     Delivery[]
+
+  @@index([status])
+}
+
+model ProjectTeamMember {
+  id         String  @id @default(uuid())
+  projectId  String
+  project    Project @relation(fields: [projectId], references: [id])
+  employeeId String
+
+  @@unique([projectId, employeeId])
+}
+
+model ProjectTask {
+  id             String    @id @default(uuid())
+  projectId      String
+  project        Project   @relation(fields: [projectId], references: [id])
+  subassemblyId  String?
+  subassembly    Subassembly? @relation(fields: [subassemblyId], references: [id])
+  amendmentId    String?
+  amendment      Amendment? @relation(fields: [amendmentId], references: [id])
+  name           String
+  category       String
+  subcategory    String?
+  skill          String?
+  plannedHours   Decimal   @default(0) @db.Decimal(10, 2)
+  plannedCost    Decimal   @default(0) @db.Decimal(12, 2)
+  actualHours    Decimal   @default(0) @db.Decimal(10, 2)
+  actualCost     Decimal   @default(0) @db.Decimal(12, 2)
+  purchases      Decimal   @default(0) @db.Decimal(12, 2)
+  maxPeople      Int?
+  minPeople      Int?
+  desiredStart   DateTime?
+  ganttCompleted Boolean   @default(false) // geste explicite — jamais un effet de bord des heures consommées
+
+  dependsOn    ProjectTaskDependency[] @relation("TaskDependsOn")
+  dependedOnBy ProjectTaskDependency[] @relation("TaskDependedOnBy")
+
+  @@index([projectId])
+}
+
+model ProjectTaskDependency {
+  id            String      @id @default(uuid())
+  taskId        String
+  task          ProjectTask @relation("TaskDependsOn", fields: [taskId], references: [id])
+  dependsOnId   String
+  dependsOnTask ProjectTask @relation("TaskDependedOnBy", fields: [dependsOnId], references: [id])
+
+  @@unique([taskId, dependsOnId])
+}
+
+// ---------------------------------------------------------------------------
+// Facturation (suivi manuel — jamais de génération, voir billing.ts)
+// ---------------------------------------------------------------------------
+
+model InvoicePlanEntry {
+  id            String    @id @default(uuid())
+  projectId     String?
+  project       Project?  @relation(fields: [projectId], references: [id])
+  rollingId     String?
+  rolling       Rolling?  @relation(fields: [rollingId], references: [id])
+  serviceCallId String?
+  serviceCall   ServiceCall? @relation(fields: [serviceCallId], references: [id])
+  label         String
+  pct           Decimal   @db.Decimal(5, 2)
+  amount        Decimal   @db.Decimal(12, 2)
+  status        String    @default("pending") // pending | sent | paid | on_hold (calculé à la lecture par billing.ts)
+  invoiceNumber String? // saisi manuellement, reflète Sage
+  dueDate       DateTime?
+  paidAmount    Decimal   @default(0) @db.Decimal(12, 2)
+  paidAt        DateTime?
+  isExtra       Boolean   @default(false) // 5e jalon (extra installation / avenant) plutôt qu'un des 4 standards
+  requestedById String?
+  requestedAt   DateTime?
+  processedById String?
+  processedAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Achats — deux mécanismes distincts (confirmé, pas une contradiction)
+// ---------------------------------------------------------------------------
+
+model ProjectPurchaseEntry {
+  id           String    @id @default(uuid())
+  projectId    String
+  project      Project   @relation(fields: [projectId], references: [id])
+  date         DateTime  @db.Date
+  category     String
+  supplier     String?
+  description  String
+  amount       Decimal   @db.Decimal(12, 2)
+  enteredById  String
+  status       String    @default("pending") // pending | approved — jamais de double autorisation du Propriétaire
+  approvedById String?
+  approvedAt   DateTime?
+  note         String?
+  createdAt    DateTime  @default(now())
+}
+
+model PurchaseCategory {
+  id             String  @id @default(uuid())
+  name           String  @unique
+  thresholdAmount Decimal @db.Decimal(12, 2)
+  active         Boolean @default(true)
+
+  purchaseRequests PurchaseRequest[]
+}
+
+model PurchaseRequest {
+  id               String    @id @default(uuid())
+  displayId        String    @unique // format DA-AAAA-NNNN
+  requesterId      String // n'importe quel persona — mécanisme ouvert à tous, y compris Employé/Magasinier
+  projectType      String // project | service | internal
+  projectId        String?
+  serviceCallId    String?
+  categoryId       String
+  category         PurchaseCategory @relation(fields: [categoryId], references: [id])
+  supplier         String?
+  description      String
+  amount           Decimal   @db.Decimal(12, 2)
+  status           String    @default("owner_pending") // owner_pending | boss_pending | authorized | rejected
+  ownerApprovedById String?
+  ownerApprovedAt   DateTime?
+  bossApprovedById  String?
+  bossApprovedAt    DateTime?
+  rejectedReason   String?
+  requestedAt      DateTime  @default(now())
+  note             String?
+
+  @@index([status])
+  @@index([requesterId])
+}
+
+// ---------------------------------------------------------------------------
+// Punchs / temps
+// ---------------------------------------------------------------------------
+
+model PunchableTask {
+  id        String  @id @default(uuid())
+  category  String
+  label     String
+  active    Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  timeEntries TimeEntry[]
+}
+
+model TimeEntry {
+  id             String    @id @default(uuid())
+  date           DateTime  @db.Date
+  employeeId     String
+  projectType    String // project | service | internal
+  projectId      String?
+  project        Project?  @relation(fields: [projectId], references: [id])
+  serviceCallId  String?
+  serviceCall    ServiceCall? @relation(fields: [serviceCallId], references: [id])
+  category       String
+  taskId         String?
+  task           PunchableTask? @relation(fields: [taskId], references: [id])
+  startAt        DateTime
+  endAt          DateTime?
+  exactMinutes   Int?
+  roundedMinutes Int?
+  note           String?
+  status         String    @default("submitted") // submitted | approved
+  costRate       Decimal   @db.Decimal(10, 2) // gelé au moment du punch
+  blockageNote   String?
+  createdAt      DateTime  @default(now())
+
+  @@index([employeeId, date])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Appels de service
+// ---------------------------------------------------------------------------
+
+model ServiceCall {
+  id                          String    @id @default(uuid())
+  displayId                   String    @unique // format CS-AAAA-NNNN
+  contactId                   String
+  contact                     Contact   @relation(fields: [contactId], references: [id])
+  request                     String
+  assignedEmployeeId          String?
+  techLevelId                 String?
+  billRate                    Decimal?  @db.Decimal(10, 2) // gelé du TechLevel au moment de l'assignation
+  scheduledAt                 DateTime?
+  status                      String    @default("scheduled")
+  startAt                     DateTime?
+  endAt                       DateTime?
+  kmTraveled                  Decimal?  @db.Decimal(10, 2)
+  mealsClaimed                String[]  @default([])
+  summary                     String?
+  signatureCaptured           Boolean   @default(false)
+  signatureImageUrl           String?
+  ownerApprovedById           String?
+  ownerApprovedAt             DateTime?
+  partPricingMarginPctOverride Decimal? @db.Decimal(5, 2)
+  sentToAdminAt                DateTime?
+  createdAt                    DateTime  @default(now())
+
+  parts          ServiceCallPart[]
+  photos         ServiceCallPhoto[]
+  invoiceEntries InvoicePlanEntry[]
+  timeEntries    TimeEntry[]
+
+  @@index([status])
+}
+
+model ServiceCallPart {
+  id                String      @id @default(uuid())
+  serviceCallId     String
+  serviceCall       ServiceCall @relation(fields: [serviceCallId], references: [id])
+  name              String
+  qty               Decimal     @db.Decimal(10, 2)
+  unit              String?
+  costPerUnit       Decimal?    @db.Decimal(10, 2) // 0$ jusqu'à ce que Direction tarife (voir spec)
+  marginPctOverride Decimal?    @db.Decimal(5, 2)
+  salePricePerUnit  Decimal?    @db.Decimal(10, 2)
+  pricedById        String?
+  pricedAt          DateTime?
+}
+
+model ServiceCallPhoto {
+  id            String      @id @default(uuid())
+  serviceCallId String
+  serviceCall   ServiceCall @relation(fields: [serviceCallId], references: [id])
+  storagePath   String
+  uploadedById  String
+  uploadedAt    DateTime    @default(now())
+  caption       String?
+}
+
+// ---------------------------------------------------------------------------
+// Roulements / livraisons
+// ---------------------------------------------------------------------------
+
+model Rolling {
+  id                   String    @id @default(uuid())
+  contactId            String
+  contact              Contact   @relation(fields: [contactId], references: [id])
+  clientRequestId      String?   @unique
+  clientRequest        ClientRequest? @relation(fields: [clientRequestId], references: [id])
+  budgetId             String?   @unique // nullable — création directe possible, avec ou sans budgétaire (confirmé)
+  budget               Budget?   @relation(fields: [budgetId], references: [id])
+  status               String    @default("active")
+  sold                 Decimal   @default(0) @db.Decimal(12, 2)
+  productionCompleted  Boolean   @default(false)
+  fulfillmentMode      String?
+  fulfillmentStatus    String?
+  fulfillmentDriverId  String?
+  fulfillmentAddress   String?
+  fulfillmentScheduled DateTime?
+  createdDirectly      Boolean   @default(false)
+  closedAt             DateTime?
+  createdById          String
+  createdAt            DateTime  @default(now())
+
+  invoiceEntries InvoicePlanEntry[]
+  deliveries     Delivery[]
+
+  @@index([status])
+}
+
+model Delivery {
+  id                 String    @id @default(uuid())
+  displayId          String    @unique // format BL-AAAA-NNNN
+  type               String // project | rolling
+  projectId          String?
+  project            Project?  @relation(fields: [projectId], references: [id])
+  rollingId          String?
+  rolling            Rolling?  @relation(fields: [rollingId], references: [id])
+  contactId          String
+  contact            Contact   @relation(fields: [contactId], references: [id])
+  address            String?
+  scheduledAt        DateTime?
+  items              String?
+  driverEmployeeId   String? // seulement pour le mode "warehouse"
+  status             String    @default("planned")
+  signatureCaptured  Boolean   @default(false)
+  signatureImageUrl  String?
+  conditionNote      String?
+  kmTraveled         Decimal?  @db.Decimal(10, 2)
+  completedAt        DateTime?
+  createdAt          DateTime  @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Sous-assemblages de conception
+// ---------------------------------------------------------------------------
+
+model Subassembly {
+  id                        String    @id @default(uuid())
+  projectId                 String
+  project                   Project   @relation(fields: [projectId], references: [id])
+  number                    String // texte libre, numérotation de Marc — jamais parsé/validé
+  declaredById              String
+  declaredAt                DateTime  @default(now())
+  status                    String    @default("pending_parts_list") // pending_parts_list | ready_for_production
+  partsListPreparedById     String?
+  partsListPreparedAt       DateTime?
+  hoursByCategory           Json?
+  assemblyReadyDeclaredById String?
+  assemblyReadyDeclaredAt   DateTime?
+
+  tasks ProjectTask[]
+
+  @@unique([projectId, number])
+}
+
+// ---------------------------------------------------------------------------
+// Avenants (changements de commande)
+// ---------------------------------------------------------------------------
+
+model Amendment {
+  id                     String   @id @default(uuid())
+  displayId              String   @unique // format AV-NNN
+  projectId              String
+  project                Project  @relation(fields: [projectId], references: [id])
+  createdById            String
+  createdAt              DateTime @default(now())
+  hoursByCategory        Json
+  marginPct              Decimal  @db.Decimal(5, 2)
+  backupPct              Decimal  @db.Decimal(5, 2)
+  projectBackupRateUsed  Decimal  @db.Decimal(10, 2) // taux gelé du projet, jamais celui des Paramètres au moment de l'avenant
+  purchases              Decimal  @default(0) @db.Decimal(12, 2)
+  laborHours             Decimal  @db.Decimal(10, 2)
+  laborCost              Decimal  @db.Decimal(12, 2)
+  backupEligibleHours    Decimal  @db.Decimal(10, 2)
+  backupHours            Decimal  @db.Decimal(10, 2)
+  backupCost             Decimal  @db.Decimal(12, 2)
+  totalCost              Decimal  @db.Decimal(12, 2)
+  sale                   Decimal  @db.Decimal(12, 2)
+  invoiceRequestId       String?
+
+  tasks ProjectTask[]
+}
+
+// ---------------------------------------------------------------------------
+// Journal d'audit — portée volontairement limitée (voir audit-log.ts)
+// ---------------------------------------------------------------------------
+
+model AuditLogEntry {
+  id             String   @id @default(uuid())
+  at             DateTime @default(now())
+  actorId        String
+  actor          Employee @relation(fields: [actorId], references: [id])
+  actorPersona   Persona // figé au moment de l'action
+  action         String
+  entityType     String
+  entityId       String
+  meta           Json?
+  justification  String?
+
+  @@index([entityType, entityId])
+}
+
+// ---------------------------------------------------------------------------
+// Paramètres
+// ---------------------------------------------------------------------------
+
+/// Singleton (une seule ligne).
+model Settings {
+  id                            String  @id @default(uuid())
+  mileageRate                   Decimal @default(0) @db.Decimal(10, 4)
+  breakfastRate                 Decimal @default(0) @db.Decimal(10, 2)
+  lunchRate                     Decimal @default(0) @db.Decimal(10, 2)
+  dinnerRate                    Decimal @default(0) @db.Decimal(10, 2)
+  defaultBillingSplit           Json // voir billing.ts DEFAULT_BILLING_SPLIT
+  projectNumberPrefix           String  @default("PRJ")
+  nextProjectNumber             Int     @default(1)
+  servicePartsDefaultMarginPct  Decimal @default(20) @db.Decimal(5, 2)
+  punchRoundingMinutes          Int     @default(15)
+  updatedAt                     DateTime @updatedAt
+}
+
+model PdfTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  type        String
+  storagePath String?
+  builtIn     Boolean  @default(false)
+  isDefault   Boolean  @default(false)
+  importedAt  DateTime @default(now())
+}
