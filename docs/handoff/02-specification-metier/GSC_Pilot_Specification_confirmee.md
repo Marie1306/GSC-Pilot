@@ -911,3 +911,74 @@ ligne**, pas seulement par catégorie.
 Vérifié de bout en bout contre une vraie base de données (13 catégories,
 96 lignes, ligne auto-calculée, permissions par ligne, blocage du
 résumé/risques, totaux) avant d'être committé.
+
+## Conversion Budgétaire → Projet — préparation (12 août 2026, en soirée)
+
+Préparé par questions/réponses directes avec l'utilisatrice (aucun accès à
+Supabase/Render/l'application depuis la maison ce soir-là) et une vraie
+capture d'écran de la vue projet (vue cellulaire v19). **Construction
+reportée à une session dédiée** — ceci documente seulement les règles déjà
+confirmées, pour ne rien perdre d'ici là. Ne pas construire ce module à
+partir de cette seule section sans revoir le reste de la vue avec
+l'utilisatrice (voir dernier point).
+
+- **Déclencheur** : le bouton de conversion n'est disponible qu'une fois le
+  budgétaire au statut « Contrat obtenu » (`won`) — jamais avant.
+- **Permission de convertir** : **Direction seulement** (`owner`) —
+  distinct de la création *directe* d'un projet (Direction ET Propriétaire,
+  voir « Projets — création directe » plus haut). Nouvelle fonction à
+  ajouter dans `roles.ts` (ex. `canConvertBudgetToProject`), ne pas
+  réutiliser `canCreateProjectDirectly`.
+- **Vue projet — coup d'œil** (confirmé par capture d'écran réelle, vue
+  cellulaire) : Prix vendu, Heures planifiées, Heures réelles, Utilisation
+  heures (%), Achats prévus, Achats réels, Back-up heures (heures + $),
+  **Back-up projet ($)**, Livraison planifiée (heures + $), Marge brute
+  réelle ($), Marge brute %.
+  - `Project` (schema.prisma) n'a actuellement **aucun champ pour le
+    back-up projet** — à ajouter (ex. `projectBackupAmount`), copié/gelé
+    depuis `Budget.projectBackupAmount` au moment de la conversion.
+  - **Back-up projet, rôle confirmé** (mots de l'utilisatrice) : « réserve
+    monétaire liée à un projet — nous n'affectons pas d'achat ni de punch
+    [dessus], mais elle sert dans le calcul de la marge réelle. » Donc :
+    jamais alimenté par de vraies dépenses/punches individuels
+    (contrairement aux achats/heures réels), mais bien inclus comme un
+    coût dans le calcul de la marge brute réelle.
+  - **Nouveau champ demandé, absent de la v19 elle-même** : une case
+    « Marge visée » (ou « marge résultante ») — le % de marge cible du
+    budgétaire d'origine (ex. 20 %, gelé à la conversion), affichée À CÔTÉ
+    de « Marge brute réelle »/« Marge brute % ». Confirmé utile par
+    l'utilisatrice après avoir remarqué que « Marge brute % » affiche
+    100 % dès la création du projet (puisqu'elle se calcule sur les coûts
+    RÉELS encourus jusqu'ici, donc 0 $ au départ) — sans un point de
+    comparaison fixe, ce chiffre est trompeur en début de projet.
+  - **Le coup d'œil n'est qu'un résumé** — le détail des heures et des
+    achats est plus bas sur la même page (probablement la table de
+    comparaison planifié/réel décrite ci-dessous, à confirmer). Dit
+    explicitement par l'utilisatrice : à revoir en détail au moment de
+    construire ce module, pas deviné ici.
+- **Table de comparaison planifié/réel** (tracée dans le code source v19 le
+  12 août 2026 — `v14r1ProjectComparisonTable` / `v14ProjectComparisonRows`
+  / `v15ComparisonIdentity`, avec un auto-test intégré au code qui vérifie
+  explicitement ce comportement) : garde les **5 groupes historiques**, PAS
+  les 13 catégories du budgétaire refondu — Conception, Programmation/
+  panneau, Assemblage/test et Installation apparaissent chacune en une
+  seule ligne (« Toutes les tâches »); **Fabrication seule éclate en une
+  ligne par tâche** (Plasma, Usinage, Pliage, Soudage, Peinture). Confirmé
+  volontairement reconduit tel quel par l'utilisatrice, malgré le passage
+  du budgétaire à 13 catégories.
+- **Achats du projet** : suivis sur l'axe des 9 catégories du module Achats
+  déjà construit (`PurchaseCategory`), jamais celui du budgétaire — deux
+  vocabulaires de catégorie complètement séparés sur un même projet.
+- **`amendments.ts` (avenants)** : le taux interne unique par catégorie
+  (`AMENDMENT_INTERNAL_RATES`, ex. 112 $/h pour toute la Fabrication) reste
+  **intentionnellement** plus grossier que les taux différenciés par tâche
+  du budgétaire refondu (116/113/113/110/107 $/h pour Fabrication).
+  Confirmé « normal et voulu » par l'utilisatrice — aucune modification à
+  `amendments.ts`.
+
+**Encore à préciser lors de la construction de ce module** : détail complet
+de la section « plus bas » de la vue projet (heures + achats), nom/type
+exact des nouveaux champs schema (`projectBackupAmount`, marge visée),
+comportement du bloc « Progression du projet » (« Calcul indépendant du
+Gantt, fondé sur les heures et les achats », mode « Automatique » visible
+dans la capture) — pas encore exploré.
