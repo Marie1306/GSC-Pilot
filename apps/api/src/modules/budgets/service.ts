@@ -29,6 +29,7 @@
  * back-up projet (montant saisi à la main) sont deux réserves distinctes qui
  * coexistent toujours dans le même budgétaire.
  */
+import { randomUUID } from "node:crypto";
 import {
   sectionSummary,
   backupSummary,
@@ -143,40 +144,55 @@ export async function createBudget(createdById: string, input: CreateBudgetInput
     // Copie le modèle de budgétaire actuel (sections + lignes) vers ce
     // budgétaire réel — tous les taux/prix/permissions GELÉS au moment de la
     // création, jamais recalculés si le modèle change ensuite (même
-    // principe que backupHourlyRate ci-dessus). Deuxième passe pour
-    // résoudre les lignes calculées automatiquement (ex. « Conception plus
-    // 10 % ») une fois que toutes les lignes ont un vrai id — même
-    // technique que scripts/seed.ts.
+    // principe que backupHourlyRate ci-dessus).
+    //
+    // IDs générés à l'avance (pas laissés à @default(uuid()) en base) pour
+    // pouvoir regrouper toutes les sections dans UN SEUL createMany et
+    // toutes les lignes dans UN SEUL createMany — y compris la référence
+    // "autoFromRowId" d'une ligne calculée automatiquement (ex. « Conception
+    // plus 10 % »), connue à l'avance puisqu'on choisit nous-mêmes l'id de
+    // la ligne source. Corrige un bug réel trouvé dans les journaux Render
+    // le 12 août 2026 (code Prisma P2028) : l'ancienne version créait les
+    // 13 sections puis les 96 lignes UNE PAR UN (~110 allers-retours
+    // séquentiels) — invisible en local (latence quasi nulle), mais ça
+    // dépassait systématiquement le délai de 5000 ms de la transaction
+    // interactive de Prisma contre une vraie base Supabase distante.
+    const sectionIdByModelSectionId = new Map<string, string>();
     const rowIdByModelRowId = new Map<string, string>();
     for (const modelSection of model.sections) {
-      const section = await tx.budgetSection.create({
-        data: { budgetId: budget.id, category: modelSection.category, kind: modelSection.kind, complexity: 0 },
-      });
+      sectionIdByModelSectionId.set(modelSection.id, randomUUID());
       for (const modelRow of modelSection.rows) {
-        const row = await tx.budgetRow.create({
-          data: {
-            sectionId: section.id,
-            modelRowId: modelRow.id,
-            label: modelRow.label,
-            hourlyRate: modelRow.hourlyRate,
-            unitPrice: modelRow.unitPrice,
-            directionOnly: modelRow.directionOnly,
-            hours: 0,
-            qty: 0,
-          },
-        });
-        rowIdByModelRowId.set(modelRow.id, row.id);
+        rowIdByModelRowId.set(modelRow.id, randomUUID());
       }
     }
-    for (const modelSection of model.sections) {
-      for (const modelRow of modelSection.rows) {
-        if (!modelRow.autoFromRowId) continue;
-        const rowId = rowIdByModelRowId.get(modelRow.id);
-        const sourceId = rowIdByModelRowId.get(modelRow.autoFromRowId);
-        if (!rowId || !sourceId) continue;
-        await tx.budgetRow.update({ where: { id: rowId }, data: { autoFromRowId: sourceId, autoPct: modelRow.autoPct } });
-      }
-    }
+
+    await tx.budgetSection.createMany({
+      data: model.sections.map((modelSection) => ({
+        id: sectionIdByModelSectionId.get(modelSection.id)!,
+        budgetId: budget.id,
+        category: modelSection.category,
+        kind: modelSection.kind,
+        complexity: 0,
+      })),
+    });
+
+    await tx.budgetRow.createMany({
+      data: model.sections.flatMap((modelSection) =>
+        modelSection.rows.map((modelRow) => ({
+          id: rowIdByModelRowId.get(modelRow.id)!,
+          sectionId: sectionIdByModelSectionId.get(modelSection.id)!,
+          modelRowId: modelRow.id,
+          label: modelRow.label,
+          hourlyRate: modelRow.hourlyRate,
+          unitPrice: modelRow.unitPrice,
+          directionOnly: modelRow.directionOnly,
+          hours: 0,
+          qty: 0,
+          autoFromRowId: modelRow.autoFromRowId ? (rowIdByModelRowId.get(modelRow.autoFromRowId) ?? null) : null,
+          autoPct: modelRow.autoPct,
+        })),
+      ),
+    });
 
     await tx.clientRequest.update({ where: { id: clientRequestId }, data: { budgetId: budget.id } });
     await tx.settings.update({ where: { id: settings.id }, data: { nextBudgetNumber: settings.nextBudgetNumber + 1 } });
