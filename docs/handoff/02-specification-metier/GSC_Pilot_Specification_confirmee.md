@@ -1001,18 +1001,19 @@ apparues pendant la construction :
 - `Project.targetMarginPct` (marge visée) = marge globale du budgétaire
   ((prix vendu total − coût total) ÷ prix vendu total), gelée une seule
   fois à la conversion — confirmé avec l'utilisatrice.
-- **NON CONFORME / À VALIDER** : la formule de « Marge brute réelle »
-  construite en Phase 1 utilise seulement les achats réels (`actualPurchases`,
-  toujours à 0 pour l'instant — aucun mécanisme de suivi réel n'existe
-  encore). La capture d'écran fournie montre « Marge brute réelle » = « Prix
-  vendu » exactement (100 %) sur un projet à heures/achats réels nuls — ce
-  qui exclut mathématiquement que le back-up d'heures ou le back-up projet
-  soit soustrait à ce stade, malgré la confirmation verbale de
-  l'utilisatrice que le back-up projet « sert dans le calcul de la marge
-  réelle ». **Les deux ne sont pas réconciliés** — à trancher avant de
-  construire le vrai suivi des heures/achats réels (quand/comment le
-  back-up réduit-il la marge réelle : dès la conversion, ou seulement une
-  fois explicitement « consommé » par un mécanisme encore à définir?).
+- **« Marge brute réelle », mécanisme confirmé** (12 août 2026) : le
+  back-up d'heures ET le back-up projet sont déjà inclus, avec leur propre
+  marge, dans `sold` (le prix vendu total du budgétaire, gelé à la
+  conversion) — jamais un coût à soustraire une deuxième fois. La marge
+  réelle ne baisse que quand un coût ADDITIONNEL survient après coup : un
+  vrai punch enregistré au projet, ou un achat réellement autorisé au
+  projet. Tant qu'aucun des deux n'existe, `sold − 0 = sold`, donc 100 % —
+  normal et attendu sur un projet neuf, peu importe la taille du back-up,
+  pas une approximation. Formule Phase 1 (`sold − actualPurchases`)
+  confirmée correcte telle quelle; une future phase qui ajoute le suivi
+  réel des heures (`TimeEntry`) devra additionner le coût réel des punches
+  approuvés au même titre que `actualPurchases`, jamais toucher aux champs
+  back-up.
 - Numérotation `PRJ-NNNN` via `Settings.nextProjectNumber` — bug de seed.ts
   trouvé et corrigé en vérifiant : le projet de test (`PRJ-0001`) ne faisait
   jamais avancer ce compteur, donc la toute première vraie conversion

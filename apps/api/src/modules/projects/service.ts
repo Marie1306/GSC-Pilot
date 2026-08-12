@@ -147,17 +147,14 @@ export async function getProjectDetail(id: string): Promise<ProjectDetailDto> {
   });
   if (!project) throw new HttpError(404, "Projet introuvable.");
 
-  // NON CONFORME / À VALIDER : la capture d'écran fournie (12 août 2026)
-  // montre "Marge brute réelle" = "Prix vendu" exactement (100 %) sur un
-  // projet où heures réelles = 0 et achats réels = 0 — ce qui exclut que le
-  // back-up d'heures/projet soit soustrait ici, malgré la confirmation
-  // verbale de l'utilisatrice que le back-up projet "sert dans le calcul de
-  // la marge réelle". Les deux ne sont pas réconciliés (aucun mécanisme
-  // "réel" n'existe encore en Phase 1 pour les achats/heures de toute
-  // façon — TimeEntry/ProjectPurchaseEntry pas encore branchés). Formule
-  // ici volontairement fidèle à la capture (achats réels seulement) plutôt
-  // que d'inventer une soustraction non confirmée par un chiffre réel — à
-  // trancher avec l'utilisatrice avant la phase qui construit le suivi réel.
+  // Confirmé le 12 août 2026 : le back-up d'heures ET le back-up projet
+  // sont déjà inclus, avec leur propre marge, dans "sold" (le prix vendu
+  // total du budgétaire au moment de la conversion) — jamais un coût à
+  // soustraire une deuxième fois ici. La marge réelle ne baisse que quand
+  // un coût ADDITIONNEL survient après coup : un vrai punch ou un achat
+  // réellement autorisé. Tant qu'aucun des deux n'existe (TimeEntry /
+  // ProjectPurchaseEntry pas encore branchés en Phase 1), sold - 0 = sold,
+  // donc 100 % — normal et attendu, pas une approximation.
   const sold = Number(project.sold);
   const actualCost = Number(project.actualPurchases);
   const grossMargin = round2(sold - actualCost);
