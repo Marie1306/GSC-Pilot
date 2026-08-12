@@ -977,8 +977,48 @@ l'utilisatrice (voir dernier point).
   `amendments.ts`.
 
 **Encore à préciser lors de la construction de ce module** : détail complet
-de la section « plus bas » de la vue projet (heures + achats), nom/type
-exact des nouveaux champs schema (`projectBackupAmount`, marge visée),
-comportement du bloc « Progression du projet » (« Calcul indépendant du
-Gantt, fondé sur les heures et les achats », mode « Automatique » visible
-dans la capture) — pas encore exploré.
+de la section « plus bas » de la vue projet (heures + achats), comportement
+du bloc « Progression du projet » (« Calcul indépendant du Gantt, fondé sur
+les heures et les achats », mode « Automatique » visible dans la capture) —
+pas encore exploré.
+
+## Conversion Budgétaire → Projet — Phase 1 construite (12 août 2026, tard en soirée)
+
+Tout ce qui précède dans cette section a été construit, vérifié de bout en
+bout contre une base de données locale (budgétaire réel créé, rempli,
+marqué « Contrat obtenu », converti — chaque champ comparé à la valeur
+attendue calculée à la main) et committé. Précisions supplémentaires
+apparues pendant la construction :
+
+- `Project.plannedHours`/`plannedPurchases` dérivés des catégories du
+  budgétaire selon leur type (`labor` vs `purchase`) — jamais des réserves
+  back-up, qui ont leurs propres champs séparés.
+- `Project.laborHours`/`laborCost` démarrent égaux à `plannedHours`/coût de
+  main-d'œuvre du budgétaire à la conversion, puis grossissent SEULS avec
+  chaque avenant (`amendments.ts`, inchangé) — confirmé avec l'utilisatrice.
+  `plannedHours`/`actualHours` restent la référence figée pour la
+  comparaison, jamais touchés par un avenant.
+- `Project.targetMarginPct` (marge visée) = marge globale du budgétaire
+  ((prix vendu total − coût total) ÷ prix vendu total), gelée une seule
+  fois à la conversion — confirmé avec l'utilisatrice.
+- **NON CONFORME / À VALIDER** : la formule de « Marge brute réelle »
+  construite en Phase 1 utilise seulement les achats réels (`actualPurchases`,
+  toujours à 0 pour l'instant — aucun mécanisme de suivi réel n'existe
+  encore). La capture d'écran fournie montre « Marge brute réelle » = « Prix
+  vendu » exactement (100 %) sur un projet à heures/achats réels nuls — ce
+  qui exclut mathématiquement que le back-up d'heures ou le back-up projet
+  soit soustrait à ce stade, malgré la confirmation verbale de
+  l'utilisatrice que le back-up projet « sert dans le calcul de la marge
+  réelle ». **Les deux ne sont pas réconciliés** — à trancher avant de
+  construire le vrai suivi des heures/achats réels (quand/comment le
+  back-up réduit-il la marge réelle : dès la conversion, ou seulement une
+  fois explicitement « consommé » par un mécanisme encore à définir?).
+- Numérotation `PRJ-NNNN` via `Settings.nextProjectNumber` — bug de seed.ts
+  trouvé et corrigé en vérifiant : le projet de test (`PRJ-0001`) ne faisait
+  jamais avancer ce compteur, donc la toute première vraie conversion
+  entrait en collision avec lui sur une base fraîchement seedée.
+
+**Toujours hors de cette phase** : la table de comparaison planifié/réel
+par catégorie, le Gantt, les sous-assemblages, le suivi réel des
+heures/achats (`TimeEntry`/`ProjectPurchaseEntry`), la facturation, la
+section « plus bas » de la vue projet et le bloc « Progression du projet ».
