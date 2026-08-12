@@ -343,6 +343,18 @@ model Project {
   backupHours          Decimal        @default(0) @db.Decimal(10, 2)
   backupHoursCost      Decimal        @default(0) @db.Decimal(12, 2)
   backupHourlyRate     Decimal?       @db.Decimal(10, 2) // taux gelé du budgétaire d'origine — utilisé par les avenants
+  // Réserve monétaire liée au projet, distincte du back-up d'heures —
+  // jamais alimentée par un achat ou un punch réel, mais entre dans le
+  // calcul de la marge réelle (confirmé par capture d'écran de la vue
+  // projet v19, 12 août 2026). Gelée depuis Budget.projectBackupAmount au
+  // moment de la conversion.
+  projectBackupAmount  Decimal        @default(0) @db.Decimal(12, 2)
+  // Marge globale du budgétaire d'origine (prix vendu total vs coût total),
+  // gelée une seule fois au moment de la conversion — ne change plus
+  // jamais ensuite, même si un avenant fait varier la marge réelle
+  // ci-dessus. Absente pour un projet créé directement, sans budgétaire.
+  // Nouvelle case demandée par l'utilisatrice, absente de la v19 elle-même.
+  targetMarginPct      Decimal?       @db.Decimal(5, 2)
   billingSplitOverride Json?
   deadline             DateTime?
   desiredStart         DateTime?

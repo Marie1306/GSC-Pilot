@@ -240,6 +240,23 @@ export function canAccessBudget(persona: Persona): boolean {
 }
 
 /**
+ * Convertir un budgétaire « Contrat obtenu » en projet : Direction
+ * seulement — distinct de la création DIRECTE d'un projet (Direction ET
+ * Propriétaire, voir canCreateProjectDirectly plus bas), confirmé le
+ * 12 août 2026.
+ */
+export function canConvertBudgetToProject(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}
+
+/** Voir le détail financier d'un projet — mêmes rôles que le budgétaire (Employé/Magasinier jamais). */
+export function canAccessProject(persona: Persona): boolean {
+  assertRole(persona);
+  return !([ROLES.MEMBER, ROLES.WAREHOUSE] as Persona[]).includes(persona);
+}
+
+/**
  * Marquer envoyé, Contrat obtenu, ou Refusé : Direction seulement, le
  * Propriétaire n'y est pas impliqué — spec confirmée (« Suivi budgétaire »)
  * pour envoyé/Contrat obtenu, étendue à Refusé le 12 août 2026 (même

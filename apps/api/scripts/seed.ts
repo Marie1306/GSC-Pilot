@@ -290,6 +290,15 @@ async function seedTestProject() {
         createdById: direction.id,
       },
     });
+    // Numéroté hors compteur (comme "PRJ-0001" ci-dessus, jamais deviné) —
+    // sans ceci, la première VRAIE conversion Budgétaire → Projet
+    // entrerait en collision avec ce projet de test (nextProjectNumber
+    // resterait à 1 pour toujours). Découvert en vérifiant la conversion
+    // contre la base locale, 12 août 2026.
+    const settings = await prisma.settings.findFirst();
+    if (settings && settings.nextProjectNumber <= 1) {
+      await prisma.settings.update({ where: { id: settings.id }, data: { nextProjectNumber: 2 } });
+    }
   }
 }
 

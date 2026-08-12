@@ -7,6 +7,7 @@ import {
   canModifyBudgetPurchaseLine,
   canApproveBudgetForSending,
   canRecordBudgetOutcome,
+  canConvertBudgetToProject,
 } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import {
@@ -25,6 +26,7 @@ import {
   markBudgetWon,
   markBudgetDeclined,
 } from "./service.js";
+import { convertBudgetToProject } from "../projects/service.js";
 
 export const budgetsRouter = Router();
 
@@ -224,5 +226,18 @@ budgetsRouter.post(
     const id = z.uuid().parse(req.params.id);
     const budget = await markBudgetDeclined(id);
     res.json({ id: budget.id, status: budget.status });
+  },
+);
+
+/** Conversion en projet : Direction seulement, uniquement depuis un budgétaire « Contrat obtenu » (confirmé le 12 août 2026). */
+budgetsRouter.post(
+  "/budgets/:id/convert-to-project",
+  requireAuth,
+  requirePermission((persona) => canConvertBudgetToProject(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const body = z.object({ name: z.string().min(1) }).parse(req.body);
+    const project = await convertBudgetToProject(req.employee!.id, id, body);
+    res.status(201).json({ id: project.id, projectNumber: project.projectNumber });
   },
 );

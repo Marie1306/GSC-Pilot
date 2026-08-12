@@ -1,8 +1,16 @@
 import { useState, type FormEvent, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { canModifyBudget, canModifyBudgetPurchaseLine, canApproveBudgetForSending, canRecordBudgetOutcome } from "@gsc-pilot/business-rules";
+import {
+  canModifyBudget,
+  canModifyBudgetPurchaseLine,
+  canApproveBudgetForSending,
+  canRecordBudgetOutcome,
+  canConvertBudgetToProject,
+} from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
+import { convertBudgetToProject } from "../projects/api.js";
 import {
   fetchBudgetDetail,
   updateRow,
@@ -270,9 +278,12 @@ function buildSectionList(sections: BudgetSectionData[]): { key: string; group: 
 
 export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
   const { employee } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const detailQuery = useQuery({ queryKey: ["budget", id], queryFn: () => fetchBudgetDetail(id) });
   const [error, setError] = useState<string | null>(null);
+  const [showConvertForm, setShowConvertForm] = useState(false);
+  const [projectName, setProjectName] = useState("");
 
   const invalidate = () => {
     setError(null);
@@ -330,6 +341,14 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
     onSuccess: invalidate,
     onError: onMutationError,
   });
+  const convertMutation = useMutation({
+    mutationFn: () => convertBudgetToProject(id, projectName.trim()),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
+      navigate("/projets");
+    },
+    onError: onMutationError,
+  });
 
   if (!employee) return null;
 
@@ -338,6 +357,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
   const canModifyPurchase = canModifyBudgetPurchaseLine(employee.persona);
   const canApprove = canApproveBudgetForSending(employee.persona);
   const canOutcome = canRecordBudgetOutcome(employee.persona);
+  const canConvert = canConvertBudgetToProject(employee.persona);
   const busy =
     rowMutation.isPending ||
     addRowMutation.isPending ||
@@ -346,7 +366,8 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
     backupMutation.isPending ||
     projectBackupMutation.isPending ||
     metaMutation.isPending ||
-    statusMutation.isPending;
+    statusMutation.isPending ||
+    convertMutation.isPending;
   const missingSummary = Boolean(budget) && (!budget!.summary?.trim() || !budget!.riskSummary?.trim());
 
   return (
@@ -625,6 +646,36 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                   )}
                 </div>
               </div>
+
+              {budget.status === "won" && canConvert && (
+                <div className="status-row">
+                  <span className="detail-label">Projet</span>
+                  {!showConvertForm ? (
+                    <div>
+                      <button type="button" className="btn btn-small" disabled={busy} onClick={() => setShowConvertForm(true)}>
+                        Convertir en projet
+                      </button>
+                    </div>
+                  ) : (
+                    <form
+                      className="budget-add-row-form"
+                      onSubmit={(event: FormEvent) => {
+                        event.preventDefault();
+                        if (!projectName.trim()) return;
+                        convertMutation.mutate();
+                      }}
+                    >
+                      <input placeholder="Nom du projet" value={projectName} onChange={(e) => setProjectName(e.target.value)} autoFocus />
+                      <button type="submit" className="btn btn-small" disabled={!projectName.trim() || busy}>
+                        {convertMutation.isPending ? "Conversion…" : "Confirmer"}
+                      </button>
+                      <button type="button" className="btn btn-secondary btn-small" onClick={() => setShowConvertForm(false)}>
+                        Annuler
+                      </button>
+                    </form>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>

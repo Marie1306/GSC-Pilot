@@ -1,5 +1,14 @@
-import { PlaceholderPage } from "../../components/PlaceholderPage.js";
+import { useState } from "react";
+import { ProjectList } from "./ProjectList.js";
+import { ProjectDetail } from "./ProjectDetail.js";
 
 export function ProjectsPage() {
-  return <PlaceholderPage title="Projets" />;
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  return (
+    <div>
+      <ProjectList onOpen={setOpenId} />
+      {openId && <ProjectDetail id={openId} onClose={() => setOpenId(null)} />}
+    </div>
+  );
 }

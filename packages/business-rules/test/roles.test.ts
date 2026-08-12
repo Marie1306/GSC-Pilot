@@ -136,6 +136,23 @@ describe("Budgétaire", () => {
   });
 });
 
+describe("Conversion Budgétaire → Projet (confirmé le 12 août 2026)", () => {
+  it("Direction seulement peut convertir — distinct de la création directe (Direction ET Propriétaire)", () => {
+    expect(P.canConvertBudgetToProject(OWNER)).toBe(true);
+    expect(P.canConvertBudgetToProject(BOSS)).toBe(false);
+    expect(P.canConvertBudgetToProject(ADMIN)).toBe(false);
+  });
+  it("Propriétaire peut créer un projet directement, mais pas convertir un budgétaire", () => {
+    expect(P.canCreateProjectDirectly(BOSS)).toBe(true);
+    expect(P.canConvertBudgetToProject(BOSS)).toBe(false);
+  });
+  it("Employé et Magasinier n'accèdent jamais au détail financier d'un projet", () => {
+    expect(P.canAccessProject(MEMBER)).toBe(false);
+    expect(P.canAccessProject(WAREHOUSE)).toBe(false);
+    expect(P.canAccessProject(OWNER)).toBe(true);
+  });
+});
+
 describe("Punchs", () => {
   it("Direction approuve les punchs", () => {
     expect(P.canApprovePunch({}, OWNER)).toBe(true);
