@@ -36,19 +36,30 @@ export const BUDGET_GROUP_LABELS: Record<BudgetGroupKey, string> = Object.freeze
   installation: "Installation / Service",
 });
 
-/** Ordre d'affichage vérifié dans le prototype v19 (12 août 2026) — 3 groupes visuels, Installation en 2 morceaux non adjacents dans l'enum mais réunis par `group`. */
+/**
+ * Ordre d'affichage — 3 groupes visuels contigus (Main-d'œuvre, Achats
+ * prévus, Installation / Service), confirmé le 12 août 2026 dans la revue
+ * catégorie par catégorie de la v19. Corrigé le 12 août 2026 (deuxième
+ * passage) : une version antérieure plaçait "installationLabor" juste après
+ * "assemblyTest", séparée de "installationStock"/"installationExpenses" par
+ * tout le groupe Achats prévus — deux en-têtes "Installation / Service"
+ * affichés au lieu d'un seul, puisque l'affichage insère un en-tête chaque
+ * fois que le groupe change en parcourant CET ORDRE (voir buildSectionList,
+ * apps/web/.../BudgetDetail.tsx) — l'ordre du tableau doit donc lui-même
+ * garder chaque groupe contigu, pas seulement porter le bon `group`.
+ */
 export const BUDGET_CATEGORIES = Object.freeze([
   { slug: "conception", label: "Conception", kind: "labor", group: "labor", modular: false },
   { slug: "fabrication", label: "Fabrication", kind: "labor", group: "labor", modular: false },
   { slug: "panelProgramming", label: "Panneau & Programmation", kind: "labor", group: "labor", modular: false },
   { slug: "assemblyTest", label: "Assemblage & Test", kind: "labor", group: "labor", modular: false },
-  { slug: "installationLabor", label: "Installation/Service — Main-d'œuvre", kind: "labor", group: "installation", modular: false },
   { slug: "stockFabrication", label: "Stock Fabrication / Châssis", kind: "purchase", group: "purchases", modular: true },
   { slug: "stockPanel", label: "Stock Panneau / Programmation", kind: "purchase", group: "purchases", modular: true },
   { slug: "motorization", label: "Motorisation / Automatisation", kind: "purchase", group: "purchases", modular: true },
   { slug: "hardware", label: "Quincaillerie / Autre", kind: "purchase", group: "purchases", modular: true },
   { slug: "consumables", label: "Consommables", kind: "purchase", group: "purchases", modular: false },
   { slug: "subcontracting", label: "Sous-traitance", kind: "purchase", group: "purchases", modular: true },
+  { slug: "installationLabor", label: "Installation/Service — Main-d'œuvre", kind: "labor", group: "installation", modular: false },
   { slug: "installationStock", label: "Installation — Stock", kind: "purchase", group: "installation", modular: true },
   { slug: "installationExpenses", label: "Installation — Frais divers", kind: "purchase", group: "installation", modular: false },
 ] as const);
