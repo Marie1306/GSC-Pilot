@@ -121,6 +121,66 @@ export interface BudgetDetail extends BudgetListItem {
   totals: { totalHours: number; totalBaseCost: number; totalSale: number };
 }
 
+/**
+ * Sommaire « Budgétaire détaillé » (vue v19, confirmée verbalement par
+ * l'utilisatrice le 12 août 2026 — pas les montants de sa capture d'écran,
+ * cette partie de la v19 n'a jamais été ajustée/fiabilisée). Entièrement
+ * dérivé de `sections`/`totals` déjà renvoyés par l'API — aucun nouveau
+ * champ serveur nécessaire.
+ *
+ * Regroupement PROPRE à cette vue, différent des 13 catégories du
+ * calculateur ET des 5 groupes de la future comparaison Projet :
+ * Fabrication+Assemblage combinées, Installation Stock+Frais divers
+ * combinées, 5 catégories d'achats (hors Sous-traitance et Installation)
+ * repliées dans « Achats détaillés » seulement, jamais affichées seules ici.
+ */
+export interface CategoryRollup {
+  hours: number;
+  cost: number;
+}
+
+export interface DetailedSummary {
+  /** Main-d'œuvre + achats de toutes les catégories, AVANT marge — exclut les deux back-up (contrairement à totals.totalBaseCost). */
+  coutPlanifie: number;
+  /** Achats de toutes les catégories sauf celles du groupe Installation, avant marge. */
+  achatsDetailles: number;
+  /** Marge globale du budgétaire — (prix vendu total − coût total, catégories + back-up) ÷ prix vendu total. */
+  margeResultante: number;
+  conception: CategoryRollup;
+  fabricationAssemblage: CategoryRollup;
+  panelProgramming: CategoryRollup;
+  subcontracting: CategoryRollup;
+  installationLabor: CategoryRollup;
+  installationStockExpenses: CategoryRollup;
+}
+
+function rollupCategories(sections: BudgetSectionData[], categories: string[]): CategoryRollup {
+  return sections
+    .filter((section) => categories.includes(section.category))
+    .reduce((acc, section) => ({ hours: acc.hours + section.hours, cost: acc.cost + section.baseCost }), { hours: 0, cost: 0 });
+}
+
+export function computeDetailedSummary(budget: BudgetDetail): DetailedSummary {
+  const coutPlanifie = budget.sections.reduce((acc, section) => acc + section.baseCost, 0);
+  const achatsDetailles = budget.sections
+    .filter((section) => section.kind === "purchase" && CATEGORY_GROUP[section.category] !== "installation")
+    .reduce((acc, section) => acc + section.baseCost, 0);
+  const { totalSale, totalBaseCost } = budget.totals;
+  const margeResultante = totalSale > 0 ? Math.round(((totalSale - totalBaseCost) / totalSale) * 1000) / 10 : 0;
+
+  return {
+    coutPlanifie,
+    achatsDetailles,
+    margeResultante,
+    conception: rollupCategories(budget.sections, ["conception"]),
+    fabricationAssemblage: rollupCategories(budget.sections, ["fabrication", "assemblyTest"]),
+    panelProgramming: rollupCategories(budget.sections, ["panelProgramming"]),
+    subcontracting: rollupCategories(budget.sections, ["subcontracting"]),
+    installationLabor: rollupCategories(budget.sections, ["installationLabor"]),
+    installationStockExpenses: rollupCategories(budget.sections, ["installationStock", "installationExpenses"]),
+  };
+}
+
 export const STATUS_LABELS: Record<string, string> = {
   draft: "Brouillon",
   ready: "Prêt",

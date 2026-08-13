@@ -25,6 +25,7 @@ import {
   markBudgetWon,
   markBudgetDeclined,
   formatCurrency,
+  computeDetailedSummary,
   STATUS_LABELS,
   CATEGORY_LABELS,
   BUDGET_GROUP_LABELS,
@@ -369,6 +370,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
     statusMutation.isPending ||
     convertMutation.isPending;
   const missingSummary = Boolean(budget) && (!budget!.summary?.trim() || !budget!.riskSummary?.trim());
+  const detailedSummary = budget ? computeDetailedSummary(budget) : null;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -402,13 +404,70 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                   <span className="detail-label">Heures totales</span>
                   <span>{budget.totals.totalHours}</span>
                 </div>
+                <div className="budget-total-highlight">
+                  <span className="detail-label">Grand total — Prix de vente</span>
+                  <span>{formatCurrency(budget.totals.totalSale)}</span>
+                </div>
+              </div>
+
+              <div className="detail-grid">
                 <div>
                   <span className="detail-label">Coût planifié</span>
-                  <span>{formatCurrency(budget.totals.totalBaseCost)}</span>
+                  <span>{formatCurrency(detailedSummary!.coutPlanifie)}</span>
                 </div>
-                <div className="budget-total-highlight">
-                  <span className="detail-label">Prix de vente</span>
-                  <span>{formatCurrency(budget.totals.totalSale)}</span>
+                <div>
+                  <span className="detail-label">Achats détaillés</span>
+                  <span>{formatCurrency(detailedSummary!.achatsDetailles)}</span>
+                </div>
+                <div>
+                  <span className="detail-label">Réserve de back-up projet</span>
+                  <span>{formatCurrency(budget.projectBackupAmount)}</span>
+                </div>
+                <div>
+                  <span className="detail-label">Réserve d'heures de back-up</span>
+                  <span>
+                    {budget.backup.hours} h · {formatCurrency(budget.backup.baseCost)}
+                  </span>
+                </div>
+                <div>
+                  <span className="detail-label">Marge résultante</span>
+                  <span>{detailedSummary!.margeResultante} %</span>
+                </div>
+              </div>
+
+              <h3 className="budget-group-heading">Aperçu par catégorie</h3>
+              <div className="detail-grid">
+                <div>
+                  <span className="detail-label">Conception & Dessin</span>
+                  <span>
+                    {detailedSummary!.conception.hours} h · {formatCurrency(detailedSummary!.conception.cost)}
+                  </span>
+                </div>
+                <div>
+                  <span className="detail-label">Fabrication & Assemblage</span>
+                  <span>
+                    {detailedSummary!.fabricationAssemblage.hours} h · {formatCurrency(detailedSummary!.fabricationAssemblage.cost)}
+                  </span>
+                </div>
+                <div>
+                  <span className="detail-label">Panneau & Programmation</span>
+                  <span>
+                    {detailedSummary!.panelProgramming.hours} h · {formatCurrency(detailedSummary!.panelProgramming.cost)}
+                  </span>
+                </div>
+                <div>
+                  <span className="detail-label">Sous-traitance</span>
+                  <span>{formatCurrency(detailedSummary!.subcontracting.cost)}</span>
+                </div>
+                <div>
+                  <span className="detail-label">Installation — Heures</span>
+                  <span>
+                    {detailedSummary!.installationLabor.hours} h · {formatCurrency(detailedSummary!.installationLabor.cost)}
+                  </span>
+                </div>
+                <div>
+                  <span className="detail-label">Installation — Stock et frais divers</span>
+                  <span>{formatCurrency(detailedSummary!.installationStockExpenses.cost)}</span>
                 </div>
               </div>
 
