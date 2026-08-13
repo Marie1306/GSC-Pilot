@@ -31,9 +31,11 @@ import {
   BUDGET_GROUP_LABELS,
   CATEGORY_GROUP,
   MODULAR_CATEGORIES,
+  REQUEST_TYPE_LABELS,
   type BudgetSectionData,
   type BudgetSectionRow,
   type BudgetGroupKey,
+  type RequestType,
   type UpdateRowPatch,
   type UpdateBudgetMetaInput,
 } from "./api.js";
@@ -470,6 +472,45 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                   <span>{formatCurrency(detailedSummary!.installationStockExpenses.cost)}</span>
                 </div>
               </div>
+
+              <section className="card budget-section">
+                <div className="budget-section-header">
+                  <h3>Informations du client et de la demande</h3>
+                </div>
+                <p className="modal-subtitle">Le contact est lié au carnet de contacts et à la demande client — jamais ressaisi ici.</p>
+                <div className="detail-grid">
+                  <div>
+                    <span className="detail-label">Type prévu</span>
+                    <span>{(budget.requestType && REQUEST_TYPE_LABELS[budget.requestType as RequestType]) ?? budget.requestType ?? "—"}</span>
+                  </div>
+                  <div>
+                    <span className="detail-label">Client</span>
+                    <span>{budget.company ?? "—"}</span>
+                  </div>
+                  <div>
+                    <span className="detail-label">Contact</span>
+                    <span>{budget.contactName}</span>
+                  </div>
+                  <div>
+                    <span className="detail-label">Courriel</span>
+                    <span>{budget.email ?? "—"}</span>
+                  </div>
+                  <div>
+                    <span className="detail-label">Téléphone</span>
+                    <span>{budget.phone ?? "—"}</span>
+                  </div>
+                  <div>
+                    <span className="detail-label">Date de demande</span>
+                    <span>{budget.requestCreatedAt ? formatDate(budget.requestCreatedAt) : "—"}</span>
+                  </div>
+                </div>
+                {budget.requestSummary && (
+                  <div className="field field-full">
+                    <span className="detail-label">Portée / informations générales (demande d'origine)</span>
+                    <p>{budget.requestSummary}</p>
+                  </div>
+                )}
+              </section>
 
               <section className="card budget-section">
                 <div className="budget-section-header">

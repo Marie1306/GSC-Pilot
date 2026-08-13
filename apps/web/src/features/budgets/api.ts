@@ -1,5 +1,6 @@
 import { apiFetch } from "../../lib/apiClient.js";
 import { BUDGET_CATEGORY_LABELS, BUDGET_GROUP_LABELS, BUDGET_CATEGORY_GROUP, MODULAR_BUDGET_CATEGORIES } from "@gsc-pilot/business-rules";
+import { REQUEST_TYPE_LABELS, type RequestType } from "../clientRequests/api.js";
 
 export interface ClientRequestOption {
   id: string;
@@ -113,6 +114,13 @@ export interface BudgetDetail extends BudgetListItem {
   riskSummary: string | null;
   clientRequestId: string | null;
   clientRequestDisplayId: string | null;
+  // Toujours lus depuis la demande client liée, jamais ressaisis sur le
+  // budgétaire (confirmé le 13 août 2026 — voir service.ts, apps/api).
+  requestType: string | null;
+  email: string | null;
+  phone: string | null;
+  requestCreatedAt: string | null;
+  requestSummary: string | null;
   sentAt: string | null;
   contractWonAt: string | null;
   sections: BudgetSectionData[];
@@ -195,7 +203,8 @@ export const STATUS_LABELS: Record<string, string> = {
 // gardent leurs noms d'origine pour ne pas devoir changer chaque écran qui
 // les consomme déjà.
 export const CATEGORY_LABELS: Record<string, string> = BUDGET_CATEGORY_LABELS;
-export { BUDGET_GROUP_LABELS };
+export { BUDGET_GROUP_LABELS, REQUEST_TYPE_LABELS };
+export type { RequestType };
 export type BudgetGroupKey = keyof typeof BUDGET_GROUP_LABELS;
 export const CATEGORY_GROUP: Record<string, BudgetGroupKey> = BUDGET_CATEGORY_GROUP;
 export const MODULAR_CATEGORIES: readonly string[] = MODULAR_BUDGET_CATEGORIES;

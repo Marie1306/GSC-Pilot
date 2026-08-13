@@ -306,6 +306,17 @@ export interface BudgetDetailDto extends BudgetListItemDto {
   riskSummary: string | null;
   clientRequestId: string | null;
   clientRequestDisplayId: string | null;
+  // Champs de la demande client d'origine — jamais ressaisis sur le
+  // budgétaire, toujours lus depuis clientRequest (confirmé le 13 août
+  // 2026 : « ces informations doivent suivre directement de la demande
+  // client », capture d'écran v19 de la carte « Informations du client et
+  // de la demande »). null si le budgétaire n'a exceptionnellement aucune
+  // demande liée (clientRequestId nullable, voir schema.prisma).
+  requestType: string | null;
+  email: string | null;
+  phone: string | null;
+  requestCreatedAt: string | null;
+  requestSummary: string | null;
   sentAt: string | null;
   contractWonAt: string | null;
   sections: BudgetSectionDto[];
@@ -355,6 +366,11 @@ export async function getBudgetDetail(id: string): Promise<BudgetDetailDto> {
     riskSummary: budget.riskSummary,
     clientRequestId: budget.clientRequestId,
     clientRequestDisplayId: budget.clientRequest?.displayId ?? null,
+    requestType: budget.clientRequest?.requestType ?? null,
+    email: budget.clientRequest?.email ?? null,
+    phone: budget.clientRequest?.phone ?? null,
+    requestCreatedAt: budget.clientRequest?.createdAt.toISOString() ?? null,
+    requestSummary: budget.clientRequest?.summary ?? null,
     sentAt: budget.sentAt?.toISOString() ?? null,
     contractWonAt: budget.contractWonAt?.toISOString() ?? null,
     sections: sections
