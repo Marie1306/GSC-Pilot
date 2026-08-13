@@ -141,6 +141,9 @@ export interface BudgetDetail extends BudgetListItem {
  * Fabrication+Assemblage combinées, Installation Stock+Frais divers
  * combinées, 5 catégories d'achats (hors Sous-traitance et Installation)
  * repliées dans « Achats détaillés » seulement, jamais affichées seules ici.
+ * Sous-traitance a sa propre carte plus bas — exclue explicitement
+ * d'« Achats détaillés » pour ne pas la compter deux fois (confirmé le 13
+ * août 2026, corrige une ambiguïté laissée ouverte à la construction).
  */
 export interface CategoryRollup {
   hours: number;
@@ -150,7 +153,7 @@ export interface CategoryRollup {
 export interface DetailedSummary {
   /** Main-d'œuvre + achats de toutes les catégories, AVANT marge — exclut les deux back-up (contrairement à totals.totalBaseCost). */
   coutPlanifie: number;
-  /** Achats de toutes les catégories sauf celles du groupe Installation, avant marge. */
+  /** Achats de toutes les catégories sauf Sous-traitance (déjà sa propre carte) et celles du groupe Installation, avant marge. */
   achatsDetailles: number;
   /** Marge globale du budgétaire — (prix vendu total − coût total, catégories + back-up) ÷ prix vendu total. */
   margeResultante: number;
@@ -171,7 +174,7 @@ function rollupCategories(sections: BudgetSectionData[], categories: string[]): 
 export function computeDetailedSummary(budget: BudgetDetail): DetailedSummary {
   const coutPlanifie = budget.sections.reduce((acc, section) => acc + section.baseCost, 0);
   const achatsDetailles = budget.sections
-    .filter((section) => section.kind === "purchase" && CATEGORY_GROUP[section.category] !== "installation")
+    .filter((section) => section.kind === "purchase" && section.category !== "subcontracting" && CATEGORY_GROUP[section.category] !== "installation")
     .reduce((acc, section) => acc + section.baseCost, 0);
   const { totalSale, totalBaseCost } = budget.totals;
   const margeResultante = totalSale > 0 ? Math.round(((totalSale - totalBaseCost) / totalSale) * 1000) / 10 : 0;

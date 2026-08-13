@@ -1023,3 +1023,33 @@ apparues pendant la construction :
 par catégorie, le Gantt, les sous-assemblages, le suivi réel des
 heures/achats (`TimeEntry`/`ProjectPurchaseEntry`), la facturation, la
 section « plus bas » de la vue projet et le bloc « Progression du projet ».
+
+## Budgétaire — sommaire « Budgétaire détaillé » (12-13 août 2026)
+
+Vue ajoutée au détail budgétaire existant (pas un nouvel écran), formules
+confirmées verbalement par l'utilisatrice le 12 août 2026 — **pas** les
+montants de sa capture d'écran de la v19, cette partie du prototype n'a
+jamais été ajustée/fiabilisée. Entièrement dérivé de `sections`/`totals`
+déjà renvoyés par l'API, aucun nouveau champ serveur. Regroupement propre
+à cette vue, différent des 13 catégories du calculateur et des 5 groupes
+de la comparaison Projet :
+
+- **Coût planifié** = somme de `baseCost` de toutes les catégories, avant
+  marge, **excluant les deux back-up** (back-up d'heures et back-up
+  projet, chacun dans son propre champ, jamais mélangé aux catégories).
+- **Achats détaillés** = somme de `baseCost` des catégories `purchase`,
+  **excluant le groupe Installation ET Sous-traitance** — cette dernière
+  a sa propre carte plus bas dans le sommaire; l'inclure aussi dans
+  Achats détaillés la compterait deux fois. **Corrigé le 13 août 2026**
+  (l'implémentation initiale l'incluait par erreur).
+- **Marge résultante** = (prix vendu total − coût total, catégories +
+  back-up) ÷ prix vendu total — même calcul que `totals`, arrondi à 1
+  décimale.
+- **Conception & Dessin**, **Panneau & Programmation**, **Installation —
+  Heures** : heures + valeur de leur propre catégorie seule.
+- **Fabrication & Assemblage** : Fabrication et Assemblage & Test
+  combinées (heures + valeur additionnées des deux).
+- **Sous-traitance** : sa propre carte (valeur seulement, pas d'heures —
+  catégorie `purchase`).
+- **Installation — Stock et frais divers** : Installation Stock et
+  Installation Frais divers combinées.
