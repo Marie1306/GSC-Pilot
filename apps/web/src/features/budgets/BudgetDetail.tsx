@@ -67,6 +67,8 @@ interface BudgetSectionCardProps {
   canModifyLabor: boolean;
   canModifyPurchase: boolean;
   busy: boolean;
+  /** Ligne en cours d'enregistrement (une seule à la fois, voir onUpdateRow) — verrouille seulement CETTE ligne, jamais tout le tableau (12 août 2026 : bloquer tout le tableau à chaque frappe empêchait une saisie continue sur plusieurs lignes). */
+  savingRowId: string | undefined;
   onUpdateRow: (rowId: string, patch: UpdateRowPatch) => void;
   onAddRow: (sectionId: string, label: string, unitPrice: number) => void;
   onRemoveRow: (rowId: string) => void;
@@ -78,6 +80,7 @@ function BudgetSectionCard({
   canModifyLabor,
   canModifyPurchase,
   busy,
+  savingRowId,
   onUpdateRow,
   onAddRow,
   onRemoveRow,
@@ -132,7 +135,7 @@ function BudgetSectionCard({
         </thead>
         <tbody>
           {section.rows.map((row) => {
-            const editable = isRowEditable(row, section.kind, canModifyLabor, canModifyPurchase) && !busy;
+            const editable = isRowEditable(row, section.kind, canModifyLabor, canModifyPurchase) && !busy && savingRowId !== row.id;
             return (
               <tr key={row.id}>
                 <td>
@@ -166,6 +169,7 @@ function BudgetSectionCard({
                       step={section.kind === "labor" ? 0.25 : 1}
                       defaultValue={section.kind === "labor" ? row.hours : row.qty}
                       disabled={!editable}
+                      onFocus={(e) => e.target.select()}
                       onBlur={(e) => {
                         const value = Number(e.target.value || 0);
                         if (section.kind === "labor") {
@@ -186,6 +190,7 @@ function BudgetSectionCard({
                       step={0.01}
                       defaultValue={row.unitPrice}
                       disabled={!editable}
+                      onFocus={(e) => e.target.select()}
                       onBlur={(e) => {
                         const unitPrice = Number(e.target.value || 0);
                         if (unitPrice !== row.unitPrice) onUpdateRow(row.id, { unitPrice });
@@ -371,6 +376,14 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
     metaMutation.isPending ||
     statusMutation.isPending ||
     convertMutation.isPending;
+  // Busy du tableau de lignes SEULEMENT — exclut volontairement rowMutation
+  // (voir savingRowId ci-dessous) et les mutations d'autres cartes
+  // (méta/back-up), sans rapport avec la saisie de lignes. Corrige le 13
+  // août 2026 : le `busy` global désactivait TOUTES les lignes dès qu'UNE
+  // seule sauvegardait (~0,5 s), empêchant une saisie continue sur
+  // plusieurs lignes — signalé par l'utilisatrice.
+  const rowsBusy = addRowMutation.isPending || removeRowMutation.isPending || complexityMutation.isPending || statusMutation.isPending || convertMutation.isPending;
+  const savingRowId = rowMutation.isPending ? rowMutation.variables?.rowId : undefined;
   const missingSummary = Boolean(budget) && (!budget!.summary?.trim() || !budget!.riskSummary?.trim());
   const detailedSummary = budget ? computeDetailedSummary(budget) : null;
 
@@ -539,6 +552,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       min={1}
                       defaultValue={budget.quantity}
                       disabled={!canModifyLabor || busy}
+                      onFocus={(e) => e.target.select()}
                       onBlur={(e) => {
                         const value = Math.max(1, Number(e.target.value || 1));
                         if (value !== budget.quantity) metaMutation.mutate({ quantity: value });
@@ -601,7 +615,8 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                     section={entry.section}
                     canModifyLabor={canModifyLabor}
                     canModifyPurchase={canModifyPurchase}
-                    busy={busy}
+                    busy={rowsBusy}
+                    savingRowId={savingRowId}
                     onUpdateRow={(rowId, patch) => rowMutation.mutate({ rowId, patch })}
                     onAddRow={(sectionId, label, unitPrice) => addRowMutation.mutate({ sectionId, label, unitPrice })}
                     onRemoveRow={(rowId) => removeRowMutation.mutate(rowId)}
@@ -628,6 +643,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       step={1}
                       defaultValue={budget.backupHoursPct}
                       disabled={!canModifyLabor || busy}
+                      onFocus={(e) => e.target.select()}
                       onBlur={(e) => {
                         const pct = Number(e.target.value || 0);
                         if (pct !== budget.backupHoursPct) backupMutation.mutate({ pct });
@@ -682,6 +698,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       step={100}
                       defaultValue={budget.projectBackupAmount}
                       disabled={!canModifyLabor || busy}
+                      onFocus={(e) => e.target.select()}
                       onBlur={(e) => {
                         const amount = Number(e.target.value || 0);
                         if (amount !== budget.projectBackupAmount) projectBackupMutation.mutate({ amount });

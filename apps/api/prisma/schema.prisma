@@ -315,6 +315,13 @@ model BudgetRow {
   autoPct       Decimal?      @db.Decimal(5, 2)
   risk          String? // risque, hypothèse ou note — vérifié dans le prototype v19 (12 août 2026)
   createdAt     DateTime      @default(now())
+  // Ordre d'affichage figé — copié de BudgetModelRow.sortOrder à la création
+  // (voir createBudget(), budgets/service.ts). Sans lui, la requête qui lit
+  // les lignes n'a aucun ORDER BY : Postgres ne garantit alors aucun ordre
+  // stable, et un UPDATE peut déplacer la ligne modifiée dans le scan
+  // suivant — bug réel signalé par l'utilisatrice le 13 août 2026 (une
+  // ligne « saute » en bas de la liste dès qu'on y saisit une valeur).
+  sortOrder     Int           @default(0)
 }
 
 // ---------------------------------------------------------------------------

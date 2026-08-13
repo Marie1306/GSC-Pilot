@@ -114,7 +114,9 @@ export async function createBudget(createdById: string, input: CreateBudgetInput
     if (existingClientRequest.budgetId) throw new HttpError(400, "Cette demande a déjà un budgétaire.");
   }
 
-  const model = await prisma.budgetModel.findFirst({ include: { sections: { include: { rows: { where: { active: true } } } } } });
+  const model = await prisma.budgetModel.findFirst({
+    include: { sections: { include: { rows: { where: { active: true }, orderBy: { sortOrder: "asc" } } } } },
+  });
   if (!model) throw new HttpError(500, "Modèle de budgétaire non initialisé — lancer le seed.");
 
   return prisma.$transaction(async (tx) => {
@@ -190,6 +192,7 @@ export async function createBudget(createdById: string, input: CreateBudgetInput
           qty: 0,
           autoFromRowId: modelRow.autoFromRowId ? (rowIdByModelRowId.get(modelRow.autoFromRowId) ?? null) : null,
           autoPct: modelRow.autoPct,
+          sortOrder: modelRow.sortOrder,
         })),
       ),
     });
@@ -334,7 +337,7 @@ async function namesByEmployeeId(ids: string[]): Promise<Map<string, string>> {
 export async function getBudgetDetail(id: string): Promise<BudgetDetailDto> {
   const budget = await prisma.budget.findUnique({
     where: { id },
-    include: { sections: { include: { rows: true } }, clientRequest: true },
+    include: { sections: { include: { rows: { orderBy: { sortOrder: "asc" } } } }, clientRequest: true },
   });
   if (!budget) throw new HttpError(404, "Budgétaire introuvable.");
 
@@ -389,7 +392,7 @@ export async function getBudgetDetail(id: string): Promise<BudgetDetailDto> {
 
 export async function listBudgets(): Promise<BudgetListItemDto[]> {
   const budgets = await prisma.budget.findMany({
-    include: { sections: { include: { rows: true } }, clientRequest: true },
+    include: { sections: { include: { rows: { orderBy: { sortOrder: "asc" } } } }, clientRequest: true },
     orderBy: { createdAt: "desc" },
   });
   const nameById = await namesByEmployeeId(budgets.map((budget) => budget.createdById));
