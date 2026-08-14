@@ -34,4 +34,31 @@ describe("Routes d'achats — aucun jeton fourni (401 avant même la vérificati
     const res = await request(app).get("/api/projects");
     expect(res.status).toBe(401);
   });
+
+  it("GET /api/purchase-requests/categories refuse sans jeton", async () => {
+    const res = await request(app).get("/api/purchase-requests/categories");
+    expect(res.status).toBe(401);
+  });
+
+  it("POST /api/purchase-requests (formulaire général) refuse sans jeton", async () => {
+    const res = await request(app).post("/api/purchase-requests").send({});
+    expect(res.status).toBe(401);
+  });
+
+  it("PATCH /api/purchase-requests/:id (modification par le demandeur) refuse sans jeton", async () => {
+    const res = await request(app).patch("/api/purchase-requests/00000000-0000-0000-0000-000000000000").send({});
+    expect(res.status).toBe(401);
+  });
+
+  it("PATCH /api/purchase-requests/:id/fulfillment refuse sans jeton", async () => {
+    const res = await request(app)
+      .patch("/api/purchase-requests/00000000-0000-0000-0000-000000000000/fulfillment")
+      .send({ status: "ordered" });
+    expect(res.status).toBe(401);
+  });
+
+  it("POST /api/purchase-requests/:id/apply-to-project refuse sans jeton", async () => {
+    const res = await request(app).post("/api/purchase-requests/00000000-0000-0000-0000-000000000000/apply-to-project");
+    expect(res.status).toBe(401);
+  });
 });

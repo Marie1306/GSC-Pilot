@@ -507,11 +507,14 @@ model PurchaseRequest {
   project                     Project?          @relation(fields: [projectId], references: [id])
   serviceCallId               String?
   // Nullable depuis le 12 août 2026 : la liste rapide d'achats de projet
-  // (Propriétaire/Direction, voir canCreatePurchaseShortlist dans roles.ts)
   // crée des lignes SANS catégorie, par choix — c'est justement l'absence
   // de catégorie à seuil qui fait qu'aucune double autorisation du
   // Propriétaire ne s'applique jamais à ces lignes-là, sans code spécial
   // (canApprovePurchaseRequest ne trouve simplement aucun seuil à dépasser).
+  // Liste rapide ouverte à TOUS les rôles depuis le 13 août 2026 (confirmé
+  // explicitement par l'utilisatrice après qu'on lui ait signalé que ça
+  // permet à n'importe qui de contourner le seuil en n'entrant aucune
+  // catégorie — voulu). Voir canSubmitPurchaseRequest dans roles.ts.
   categoryId                  String?
   category                    PurchaseCategory? @relation(fields: [categoryId], references: [id])
   // Gelé au moment de la soumission, à partir de PurchaseCategory.thresholdAmount
@@ -540,6 +543,26 @@ model PurchaseRequest {
   rejectedReason              String?
   requestedAt                 DateTime          @default(now())
   note                        String?
+  // Édition par le demandeur — confirmé le 13 août 2026 : chacun peut
+  // modifier description/fournisseur/montant estimé de sa PROPRE demande
+  // tant qu'elle reste owner_pending/boss_pending, jamais après (voir
+  // updatePurchaseRequest, purchases/service.ts). Sert de signal pour
+  // Direction dans son centre d'action (PurchaseRequestList) — volontairement
+  // pas de système de notification séparé, juste ce champ mis en évidence
+  // tant que le statut reste en attente.
+  editedAt                    DateTime?
+  // Suivi post-autorisation — confirmé le 13 août 2026, DISTINCT du statut
+  // d'approbation ci-dessus. Rempli à "waiting" automatiquement au moment
+  // de l'autorisation (voir approvePurchaseRequest), puis Direction le fait
+  // progresser manuellement : waiting -> ordered -> received (en attente /
+  // commandé / reçu). Reste nul pour une demande encore en attente ou
+  // rejetée.
+  fulfillmentStatus           String?
+  // Étape explicite ajoutée le 13 août 2026 : un achat autorisé ne compte
+  // dans les totaux/le détail du projet qu'une fois appliqué — jamais
+  // automatique à l'autorisation. Exige fulfillmentStatus === "received"
+  // avant de pouvoir être posé (voir applyPurchaseRequestToProject).
+  appliedToProjectAt          DateTime?
 
   @@index([status])
   @@index([requesterId])

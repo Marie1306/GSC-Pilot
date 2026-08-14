@@ -1,49 +1,32 @@
 /**
- * Achats — module démarré le 12 août 2026 par la liste rapide de projet
- * (Propriétaire/Direction, voir canCreatePurchaseShortlist dans roles.ts).
- * Chaque ligne de la liste devient une demande d'achat (PurchaseRequest)
- * indépendante, SANS catégorie — c'est cette absence qui retire le seuil
- * de double autorisation du Propriétaire (roles.ts n'en trouve simplement
- * aucun à dépasser), pas une règle séparée ici.
+ * Achats — module démarré le 12 août 2026 par la liste rapide de projet,
+ * étendu le 13 août 2026 avec le formulaire général (avec catégorie),
+ * ouvert à tous (voir canSubmitPurchaseRequest, roles.ts), plus un suivi de
+ * commande après autorisation (en attente/commandé/reçu) et une étape
+ * explicite d'application au projet.
  *
  * Total des achats d'un projet : volontairement PAS un champ maintenu sur
- * Project — calculé à la lecture en sommant les PurchaseRequest autorisées
- * + ProjectPurchaseEntry approuvées pour ce projet (même esprit que
- * internal-stats.ts, qui filtre et somme plutôt que de dupliquer un total).
- * Pas encore construit — cette vue de synthèse viendra avec l'écran projet.
+ * Project — calculé à la lecture en sommant les PurchaseRequest APPLIQUÉES
+ * (appliedToProjectAt non nul, jamais simplement "authorized" depuis le 13
+ * août 2026) + ProjectPurchaseEntry approuvées pour ce projet (même esprit
+ * que internal-stats.ts, qui filtre et somme plutôt que de dupliquer un
+ * total). Pas encore construit — cette vue de synthèse viendra avec l'écran
+ * projet (module Achats du menu Projet).
  *
- * ⚠️ IMPORTANT pour la future création d'une demande d'achat RÉGULIÈRE
- * (avec catégorie — pas encore construite, seule la liste rapide existe
- * pour l'instant) : elle DOIT copier PurchaseCategory.thresholdAmount dans
- * PurchaseRequest.thresholdAmountAtSubmission au moment de la création,
- * jamais laisser ce champ nul pour une demande catégorisée. Confirmé le
- * 12 août 2026 : le seuil se fige à la soumission, un changement de seuil
- * ultérieur par Direction ne doit jamais affecter une demande déjà en
- * attente (voir assertCanActOnRequest dans routes.ts, qui lit déjà ce
- * champ gelé plutôt que la catégorie en direct — cette fonction-ci est
- * prête, il ne manque que le point de création à construire).
+ * PurchaseCategory.thresholdAmount est copié dans
+ * PurchaseRequest.thresholdAmountAtSubmission au moment de la création
+ * (createPurchaseRequest) — confirmé le 12 août 2026 : le seuil se fige à
+ * la soumission, un changement de seuil ultérieur par Direction ne doit
+ * jamais affecter une demande déjà en attente (voir assertCanActOnRequest
+ * dans routes.ts, qui lit ce champ gelé plutôt que la catégorie en direct).
  */
 import { canSeeFinancialValues, type Persona } from "@gsc-pilot/business-rules";
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
 import type { PurchaseRequest, Employee } from "../../generated/prisma/client.js";
 
-/**
- * Construit la carte de seuils à passer à canApprovePurchaseRequest
- * (roles.ts, non modifiée) à partir du seuil GELÉ sur la demande, jamais
- * relu en direct depuis PurchaseCategory — voir la note en tête de
- * fichier. Extraite en fonction pure pour être testable sans base de
- * données réelle.
- */
-export function buildFrozenThresholdsMap(request: {
-  category: { name: string } | null;
-  thresholdAmountAtSubmission: unknown;
-}): Record<string, number> {
-  if (!request.category || request.thresholdAmountAtSubmission === null || request.thresholdAmountAtSubmission === undefined) {
-    return {};
-  }
-  return { [request.category.name]: Number(request.thresholdAmountAtSubmission) };
-}
+export const FULFILLMENT_STATUSES = ["waiting", "ordered", "received"] as const;
+export type FulfillmentStatus = (typeof FULFILLMENT_STATUSES)[number];
 
 export interface ShortlistLineInput {
   description: string;
@@ -57,21 +40,32 @@ export interface PurchaseRequestDto {
   displayId: string;
   requesterId: string;
   requesterName: string;
+  /** Toujours inclus (non financier) — permet à l'interface de rejouer EXACTEMENT canApprovePurchaseRequest (roles.ts) plutôt que d'approximer qui peut agir sur cette ligne. */
+  requesterPersona: Persona;
   projectId: string | null;
   projectLabel: string | null;
+  categoryName: string | null;
   supplier: string | null;
   description: string;
   amount?: number | null;
   estimatedAmountMin?: number | null;
   estimatedAmountMax?: number | null;
+  /** Seuil gelé à la soumission — même visibilité que amount (canSeeFinancialValues). Nécessaire pour rejouer canApprovePurchaseRequest côté client. */
+  thresholdAmountAtSubmission?: number | null;
   hasCategory: boolean;
   status: string;
   requestedAt: string;
+  /** Modifiée par le demandeur depuis la soumission — sert de signal pour Direction (13 août 2026), voir schema.prisma. */
+  editedAt: string | null;
+  /** Suivi post-autorisation (waiting/ordered/received) — nul tant que pas encore autorisée. */
+  fulfillmentStatus: string | null;
+  appliedToProjectAt: string | null;
 }
 
 type PurchaseRequestWithRelations = PurchaseRequest & {
-  requester: Pick<Employee, "name">;
+  requester: Pick<Employee, "name" | "persona">;
   project: { projectNumber: string; name: string } | null;
+  category: { name: string } | null;
 };
 
 const PENDING_STATUSES = ["owner_pending", "boss_pending"];
@@ -125,14 +119,76 @@ export async function createPurchaseShortlist(
   });
 }
 
+export interface CreatePurchaseRequestInput {
+  projectType: "project" | "internal";
+  projectId?: string;
+  categoryId: string;
+  description: string;
+  supplier?: string;
+  estimatedAmountMin?: number;
+  estimatedAmountMax?: number;
+}
+
+/**
+ * Formulaire général de demande d'achat — ouvert à tous (13 août 2026, voir
+ * canSubmitPurchaseRequest). Contrairement à la liste rapide, TOUJOURS une
+ * catégorie, dont le seuil se fige ici sur thresholdAmountAtSubmission
+ * (jamais relu en direct plus tard, voir en-tête de fichier).
+ *
+ * "service" (appel de service) volontairement absent des projectType
+ * acceptés ici : aucun mécanisme de création d'appel de service n'existe
+ * encore pour choisir une valeur réelle — le champ reste supporté par le
+ * schéma pour ce futur module, pas construit dans ce formulaire pour
+ * l'instant plutôt que d'exposer un sélecteur toujours vide.
+ */
+export async function createPurchaseRequest(requesterId: string, input: CreatePurchaseRequestInput): Promise<PurchaseRequest> {
+  if (!input.description?.trim()) throw new HttpError(400, "La description est requise.");
+  const category = await prisma.purchaseCategory.findUnique({ where: { id: input.categoryId } });
+  if (!category || !category.active) throw new HttpError(400, "Catégorie invalide.");
+  if (input.projectType === "project") {
+    if (!input.projectId) throw new HttpError(400, "Le projet est requis.");
+    const project = await prisma.project.findUnique({ where: { id: input.projectId } });
+    if (!project) throw new HttpError(404, "Projet introuvable.");
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const settings = await tx.settings.findFirst();
+    if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
+    const year = new Date().getFullYear();
+    const displayId = `DA-${year}-${String(settings.nextPurchaseRequestNumber).padStart(4, "0")}`;
+    const row = await tx.purchaseRequest.create({
+      data: {
+        displayId,
+        requesterId,
+        projectType: input.projectType,
+        projectId: input.projectType === "project" ? input.projectId : null,
+        categoryId: category.id,
+        thresholdAmountAtSubmission: category.thresholdAmount,
+        supplier: input.supplier?.trim() || null,
+        description: input.description.trim(),
+        estimatedAmountMin: input.estimatedAmountMin ?? null,
+        estimatedAmountMax: input.estimatedAmountMax ?? null,
+        status: "owner_pending",
+      },
+    });
+    await tx.settings.update({ where: { id: settings.id }, data: { nextPurchaseRequestNumber: settings.nextPurchaseRequestNumber + 1 } });
+    return row;
+  });
+}
+
+/** Visibilité : Direction/Administration/Propriétaire voient tout; chacun des autres rôles ne voit que ses propres demandes (canViewPurchase, roles.ts). Sans `status`, retourne TOUTES les demandes visibles (pas seulement en attente) — Propriétaire doit voir le statut de chacune, Employé/Magasinier le suivi de leurs propres demandes passées (13 août 2026). */
 export async function listPurchaseRequests(viewer: { id: string; persona: Persona }, status?: string): Promise<PurchaseRequestDto[]> {
   const canSeeAll = ["owner", "admin", "boss"].includes(viewer.persona);
   const rows = await prisma.purchaseRequest.findMany({
     where: {
-      status: status ?? { in: PENDING_STATUSES },
+      ...(status ? { status } : {}),
       ...(canSeeAll ? {} : { requesterId: viewer.id }),
     },
-    include: { requester: { select: { name: true } }, project: { select: { projectNumber: true, name: true } } },
+    include: {
+      requester: { select: { name: true, persona: true } },
+      project: { select: { projectNumber: true, name: true } },
+      category: { select: { name: true } },
+    },
     orderBy: { requestedAt: "desc" },
   });
   return rows.map((row) => toPurchaseRequestDto(row, viewer.persona));
@@ -145,16 +201,24 @@ export function toPurchaseRequestDto(row: PurchaseRequestWithRelations, viewerPe
     displayId: row.displayId,
     requesterId: row.requesterId,
     requesterName: row.requester.name,
+    requesterPersona: row.requester.persona as Persona,
     projectId: row.projectId,
     projectLabel: row.project ? `${row.project.projectNumber} — ${row.project.name}` : null,
+    categoryName: row.category?.name ?? null,
     supplier: row.supplier,
     description: row.description,
     amount: showFinancials ? (row.amount === null ? null : Number(row.amount)) : undefined,
     estimatedAmountMin: showFinancials ? (row.estimatedAmountMin === null ? null : Number(row.estimatedAmountMin)) : undefined,
     estimatedAmountMax: showFinancials ? (row.estimatedAmountMax === null ? null : Number(row.estimatedAmountMax)) : undefined,
+    thresholdAmountAtSubmission: showFinancials
+      ? (row.thresholdAmountAtSubmission === null ? null : Number(row.thresholdAmountAtSubmission))
+      : undefined,
     hasCategory: row.categoryId !== null,
     status: row.status,
     requestedAt: row.requestedAt.toISOString(),
+    editedAt: row.editedAt?.toISOString() ?? null,
+    fulfillmentStatus: row.fulfillmentStatus,
+    appliedToProjectAt: row.appliedToProjectAt?.toISOString() ?? null,
   };
 }
 
@@ -179,8 +243,75 @@ export async function approvePurchaseRequest(id: string, approvedById: string): 
   }
   return prisma.purchaseRequest.update({
     where: { id },
-    data: { status: "authorized", ownerApprovedById: approvedById, ownerApprovedAt: new Date() },
+    // fulfillmentStatus démarre à "waiting" automatiquement à l'autorisation
+    // (13 août 2026) — Direction n'a pas de geste séparé pour "commencer"
+    // le suivi, elle le fait seulement progresser ensuite.
+    data: { status: "authorized", ownerApprovedById: approvedById, ownerApprovedAt: new Date(), fulfillmentStatus: "waiting" },
   });
+}
+
+export interface UpdatePurchaseRequestInput {
+  description?: string;
+  supplier?: string | null;
+  estimatedAmountMin?: number | null;
+  estimatedAmountMax?: number | null;
+}
+
+/**
+ * Le demandeur modifie sa PROPRE demande — confirmé le 13 août 2026 :
+ * description/fournisseur/montant estimé seulement (jamais la catégorie ni
+ * le projet, qui déterminent le seuil gelé), et seulement tant qu'elle
+ * reste owner_pending/boss_pending. editedAt sert de signal pour Direction
+ * dans son centre d'action (PurchaseRequestList), pas de système de
+ * notification séparé.
+ */
+export async function updatePurchaseRequest(id: string, requesterId: string, patch: UpdatePurchaseRequestInput): Promise<PurchaseRequest> {
+  const request = await prisma.purchaseRequest.findUnique({ where: { id } });
+  if (!request) throw new HttpError(404, "Demande d'achat introuvable.");
+  if (request.requesterId !== requesterId) throw new HttpError(403, "Vous ne pouvez modifier que vos propres demandes.");
+  if (!PENDING_STATUSES.includes(request.status)) {
+    throw new HttpError(400, "Cette demande n'est plus modifiable (déjà autorisée ou rejetée).");
+  }
+  if (patch.description !== undefined && !patch.description.trim()) {
+    throw new HttpError(400, "La description est requise.");
+  }
+  return prisma.purchaseRequest.update({
+    where: { id },
+    data: {
+      ...(patch.description !== undefined ? { description: patch.description.trim() } : {}),
+      ...(patch.supplier !== undefined ? { supplier: patch.supplier?.trim() || null } : {}),
+      ...(patch.estimatedAmountMin !== undefined ? { estimatedAmountMin: patch.estimatedAmountMin } : {}),
+      ...(patch.estimatedAmountMax !== undefined ? { estimatedAmountMax: patch.estimatedAmountMax } : {}),
+      editedAt: new Date(),
+    },
+  });
+}
+
+/** Direction fait progresser le suivi — seulement une fois autorisée (voir canManagePurchaseFulfillment, roles.ts). */
+export async function setFulfillmentStatus(id: string, status: FulfillmentStatus): Promise<PurchaseRequest> {
+  const request = await prisma.purchaseRequest.findUnique({ where: { id } });
+  if (!request) throw new HttpError(404, "Demande d'achat introuvable.");
+  if (request.status !== "authorized") {
+    throw new HttpError(400, "Le suivi de commande ne s'applique qu'aux demandes autorisées.");
+  }
+  return prisma.purchaseRequest.update({ where: { id }, data: { fulfillmentStatus: status } });
+}
+
+/**
+ * Applique l'achat autorisé au projet — geste explicite et distinct de
+ * l'autorisation (confirmé le 13 août 2026) : exige d'abord fulfillmentStatus
+ * === "received", jamais automatique. C'est ce champ, pas le statut
+ * "authorized" seul, qui doit compter dans les futurs totaux d'achats du
+ * projet (voir en-tête de fichier).
+ */
+export async function applyPurchaseRequestToProject(id: string): Promise<PurchaseRequest> {
+  const request = await prisma.purchaseRequest.findUnique({ where: { id } });
+  if (!request) throw new HttpError(404, "Demande d'achat introuvable.");
+  if (request.fulfillmentStatus !== "received") {
+    throw new HttpError(400, "L'achat doit être marqué « Reçu » avant d'être appliqué au projet.");
+  }
+  if (request.appliedToProjectAt) throw new HttpError(400, "Cet achat a déjà été appliqué au projet.");
+  return prisma.purchaseRequest.update({ where: { id }, data: { appliedToProjectAt: new Date() } });
 }
 
 export async function rejectPurchaseRequest(id: string, rejectedReason?: string): Promise<PurchaseRequest> {

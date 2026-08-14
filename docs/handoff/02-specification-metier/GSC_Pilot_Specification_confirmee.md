@@ -1053,3 +1053,61 @@ de la comparaison Projet :
   catégorie `purchase`).
 - **Installation — Stock et frais divers** : Installation Stock et
   Installation Frais divers combinées.
+
+## Achats — formulaire général, seuil par rôle, suivi de commande (13 août 2026)
+
+Étend le mécanisme « demandes d'achat » confirmé plus haut (section
+Achats), construit initialement le 12 août 2026 avec seulement la liste
+rapide de projet. Règles confirmées directement avec l'utilisatrice avant
+construction (voir échange du 13 août 2026) :
+
+- **Formulaire général de demande d'achat construit** — avec catégorie
+  (donc soumis au seuil de sa catégorie), ouvert à tous les rôles. Deux
+  onglets dans l'écran Achats : « Demande d'achat » (général) et « Liste
+  rapide de projet » (sans catégorie, jamais de seuil).
+- **Liste rapide OUVERTE À TOUS LES RÔLES** — changement volontaire par
+  rapport à la restriction Propriétaire/Direction confirmée le 12 août
+  2026. L'utilisatrice a été informée explicitement que ça permet à
+  n'importe qui (y compris Employé/Magasinier) de soumettre une ligne sans
+  catégorie, donc sans jamais déclencher le seuil du Propriétaire peu
+  importe le montant — **confirmé voulu malgré ce risque signalé**
+  (`canSubmitPurchaseRequest`, roles.ts).
+- **Le seuil de double autorisation dépend maintenant du RÔLE du
+  demandeur, pas seulement du montant/catégorie** — règle nouvelle,
+  absente de la version du 12 août 2026 : une demande soumise par
+  Administration, Propriétaire ou Direction n'entraîne **jamais** de
+  double autorisation du Propriétaire, peu importe le montant — Direction
+  seule approuve toujours. Seules les demandes soumises par Employé ou
+  Magasinier peuvent escalader au Propriétaire si le montant dépasse le
+  seuil de la catégorie (`canApprovePurchaseRequest`, champ
+  `requesterPersona`, roles.ts — rétrocompatible, comportement d'origine
+  inchangé si ce champ est absent).
+- **Modification par le demandeur** — chacun peut modifier
+  description/fournisseur/montant estimé de sa PROPRE demande tant qu'elle
+  reste en attente (jamais la catégorie ni le projet, qui déterminent le
+  seuil gelé), plus aucune modification possible une fois autorisée ou
+  rejetée. `editedAt` sert de signal visuel pour Direction dans son centre
+  d'action (liste des demandes) — volontairement pas de système de
+  notification séparé.
+- **Suivi de commande ajouté après l'autorisation** — troisième étape en
+  plus de « demande d'achat → autorisation » : Direction (ou délégué
+  « purchases ») fait progresser un statut distinct **en attente → commandé
+  → reçu** (`fulfillmentStatus`, démarre automatiquement à « en attente »
+  au moment de l'autorisation, jamais un geste séparé pour le déclencher).
+- **Application au projet — geste explicite, distinct de l'autorisation**
+  — un achat autorisé ne compte plus automatiquement dans les totaux/le
+  détail du projet. Direction doit d'abord atteindre le statut « Reçu »,
+  puis appliquer explicitement au projet (`appliedToProjectAt`). Un achat
+  déjà appliqué ne peut pas être appliqué une deuxième fois.
+- **Propriétaire voit TOUTES les demandes d'achat et le statut de
+  chacune** — pas seulement celles en attente de sa propre approbation
+  (déjà couvert par `canViewPurchase`, mais la liste ne se limitait avant
+  qu'aux statuts en attente par défaut — élargie pour montrer tout
+  l'historique visible).
+- **Vue « Achats » prévue dans le menu du module Projet** (pas encore
+  construite, voir tâche séparée) — ouvrira le détail des achats appliqués
+  à ce projet, avec description/numéro de pièce et fournisseur.
+- Vérifié de bout en bout contre une vraie base de données (21 scénarios :
+  seuil gelé, seuil par rôle demandeur × 4 personas, liste rapide toujours
+  sans seuil, modification autorisée/refusée, suivi complet, application
+  au projet avec ses gardes, visibilité par rôle) avant d'être committé.

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ROLES } from "@gsc-pilot/business-rules";
 import type { Employee } from "@gsc-pilot/shared";
@@ -46,26 +46,40 @@ describe("PurchasesPage", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string) => {
-        if (url.includes("/api/projects")) {
-          return new Response(JSON.stringify({ projects: [{ id: "p1", projectNumber: "PRJ-0001", name: "Projet test" }] }), { status: 200 });
+        // Vérifier le chemin le plus spécifique en premier — /api/purchase-requests/categories
+        // est un préfixe de /api/purchase-requests, un .includes() dans le mauvais ordre
+        // renverrait la mauvaise forme de réponse à l'un des deux appels.
+        if (url.includes("/api/purchase-requests/categories")) {
+          return new Response(JSON.stringify({ categories: [{ id: "c1", name: "Outillage", thresholdAmount: 1000 }] }), { status: 200 });
         }
         if (url.includes("/api/purchase-requests")) {
           return new Response(JSON.stringify({ purchaseRequests: [] }), { status: 200 });
+        }
+        if (url.includes("/api/projects")) {
+          return new Response(JSON.stringify({ projects: [{ id: "p1", projectNumber: "PRJ-0001", name: "Projet test" }] }), { status: 200 });
         }
         return new Response("{}", { status: 200 });
       }),
     );
   });
 
-  it("affiche le formulaire de liste rapide pour Direction (owner)", async () => {
+  it("affiche le formulaire de demande d'achat par défaut, la liste rapide dans son propre onglet", async () => {
     renderPage(direction);
+    // "Demande d'achat" apparaît deux fois (le bouton d'onglet ET le titre du formulaire) — getByRole distingue les deux.
+    expect(await screen.findByRole("heading", { name: "Demande d'achat" })).toBeInTheDocument();
+    expect(screen.queryByText("Liste rapide d'achats de projet")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Liste rapide de projet" }));
     expect(await screen.findByText("Liste rapide d'achats de projet")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("Aucune demande en attente pour l'instant.")).toBeInTheDocument());
   });
 
-  it("cache le formulaire de liste rapide pour un Employé", async () => {
+  it("Employé voit les deux onglets — checklist ouverte à tous depuis le 13 août 2026 (canSubmitPurchaseRequest)", async () => {
     renderPage({ ...direction, persona: ROLES.MEMBER });
-    await waitFor(() => expect(screen.getByText("Demandes d'achat en attente")).toBeInTheDocument());
-    expect(screen.queryByText("Liste rapide d'achats de projet")).not.toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "Demande d'achat" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Liste rapide de projet" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Liste rapide de projet" }));
+    expect(await screen.findByText("Liste rapide d'achats de projet")).toBeInTheDocument();
   });
 });

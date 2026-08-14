@@ -125,7 +125,39 @@ export function canApproveProjectPurchase(settings: DelegationSettings | null | 
 export interface PurchaseRequestLike {
   category?: string;
   amount?: number;
+  /**
+   * Rôle de la personne qui a soumis la demande — champ AJOUTÉ le 13 août
+   * 2026 (règle confirmée directement avec l'utilisatrice, absente du
+   * roles.js d'origine) : une demande soumise par Administration,
+   * Propriétaire ou Direction n'entraîne JAMAIS de double autorisation du
+   * Propriétaire, peu importe le montant — Direction seule approuve.
+   * Optionnel et rétrocompatible : un appelant qui ne le fournit pas
+   * retombe exactement sur le comportement d'origine (seuil basé
+   * uniquement sur catégorie/montant, voir les tests "Demandes d'achat
+   * (seuil par catégorie)", inchangés).
+   */
+  requesterPersona?: Persona;
 }
+
+/**
+ * Construit la carte de seuils à passer à canApprovePurchaseRequest à
+ * partir du seuil GELÉ sur une demande (jamais relu en direct depuis
+ * PurchaseCategory — confirmé le 12 août 2026, un changement de seuil ne
+ * s'applique jamais rétroactivement à une demande déjà en attente).
+ * Partagée entre apps/api (autorité réelle) et apps/web (même affichage
+ * que le serveur, jamais une approximation séparée) — ajoutée ici le 13
+ * août 2026 précisément pour ne pas la dupliquer entre les deux.
+ */
+export function buildFrozenPurchaseThresholdsMap(request: {
+  category?: string | null;
+  thresholdAmountAtSubmission?: number | null;
+}): Record<string, number> {
+  if (!request.category || request.thresholdAmountAtSubmission === null || request.thresholdAmountAtSubmission === undefined) {
+    return {};
+  }
+  return { [request.category]: request.thresholdAmountAtSubmission };
+}
+
 export function canApprovePurchaseRequest(
   settings: DelegationSettings | null | undefined,
   persona: Persona,
@@ -133,10 +165,24 @@ export function canApprovePurchaseRequest(
   thresholdsByCategory: Record<string, number> = {},
 ): boolean {
   assertRole(persona);
-  const category = request?.category;
-  const threshold = category !== undefined ? thresholdsByCategory[category] : undefined;
-  const overThreshold = Number.isFinite(threshold) && Number(request?.amount || 0) > (threshold as number);
-  if (overThreshold) return persona === ROLES.BOSS;
+  const requesterExempt =
+    request.requesterPersona !== undefined && ([ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS] as Persona[]).includes(request.requesterPersona);
+  if (!requesterExempt) {
+    const category = request?.category;
+    const threshold = category !== undefined ? thresholdsByCategory[category] : undefined;
+    const overThreshold = Number.isFinite(threshold) && Number(request?.amount || 0) > (threshold as number);
+    if (overThreshold) return persona === ROLES.BOSS;
+  }
+  return actsAsDirection(settings, persona, "purchases");
+}
+/**
+ * Suivi de commande (en attente/commandé/reçu) et application au projet —
+ * confirmé le 13 août 2026, réutilise la même porte que l'approbation
+ * normale (Direction, ou délégué "purchases"). Jamais le Propriétaire seul
+ * via l'escalade de seuil : cette étape suit toujours l'autorisation, pas
+ * le mécanisme de double autorisation.
+ */
+export function canManagePurchaseFulfillment(settings: DelegationSettings | null | undefined, persona: Persona): boolean {
   return actsAsDirection(settings, persona, "purchases");
 }
 /** Un achat rejeté par le Propriétaire est final — jamais de re-soumission. */
@@ -145,21 +191,23 @@ export function canResubmitRejectedPurchase(): boolean {
 }
 
 /**
- * Liste rapide d'achats liés à un projet — confirmé le 12 août 2026.
- * Propriétaire et Direction seulement peuvent soumettre cette liste
- * (plusieurs lignes : description, fournisseurs suggérés en texte libre,
- * fourchette de prix — tous facultatifs sauf la description). Chaque
- * ligne devient une demande d'achat indépendante SANS catégorie — c'est
- * cette absence de catégorie qui retire le seuil (voir
- * canApprovePurchaseRequest ci-dessus), pas une règle séparée ici.
- * Volontairement distinct de la permission générale de soumettre une
- * demande d'achat (ouverte à tous) : sans cette porte dédiée, n'importe
- * qui pourrait soumettre sans catégorie pour contourner le seuil du
- * Propriétaire sur un gros montant.
+ * Soumettre une demande d'achat — formulaire général (avec catégorie) OU
+ * liste rapide de projet (sans catégorie). Ouvert à TOUS les rôles.
+ *
+ * Historique : jusqu'au 12 août 2026, seuls Propriétaire et Direction
+ * pouvaient soumettre la liste rapide — restriction volontaire, puisque
+ * l'absence de catégorie sur ses lignes retire le seuil de double
+ * autorisation (voir canApprovePurchaseRequest ci-dessus), et n'importe
+ * qui aurait pu s'en servir pour contourner ce seuil. Le 13 août 2026,
+ * l'utilisatrice a confirmé EXPLICITEMENT vouloir ouvrir la liste rapide à
+ * tous les rôles malgré ce risque signalé (Employé/Magasinier peuvent donc
+ * bel et bien soumettre une ligne sans catégorie, sans jamais déclencher le
+ * seuil) — plus rien ne distingue la porte d'entrée des deux mécanismes,
+ * une seule fonction suffit désormais pour les deux.
  */
-export function canCreatePurchaseShortlist(persona: Persona): boolean {
+export function canSubmitPurchaseRequest(persona: Persona): boolean {
   assertRole(persona);
-  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
+  return true;
 }
 export interface PurchaseLike {
   requester?: string;

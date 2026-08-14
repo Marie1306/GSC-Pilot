@@ -1,3 +1,25 @@
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--gsc-color-line);
+}
+
+.tab {
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gsc-color-muted);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+
+.tab.active {
+  color: var(--gsc-color-brand);
+  border-bottom-color: var(--gsc-color-brand);
+}
+
 .shortlist-form select {
   min-height: 39px;
   padding: 8px 12px;

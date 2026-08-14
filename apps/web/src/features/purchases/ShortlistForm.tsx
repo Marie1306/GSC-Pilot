@@ -9,10 +9,13 @@ function emptyLines(count: number): ShortlistLine[] {
 }
 
 /**
- * Liste rapide d'achats de projet — Propriétaire et Direction seulement
- * (confirmé le 12 août 2026). Le projet choisi en haut s'applique à
- * toutes les lignes; chaque ligne devient sa propre demande d'achat
- * indépendante une fois soumise (voir apps/api/src/modules/purchases).
+ * Liste rapide d'achats de projet — ouverte à tous les rôles depuis le 13
+ * août 2026 (voir canSubmitPurchaseRequest, roles.ts; à l'origine réservée
+ * au Propriétaire/Direction, confirmé le 12 août 2026). Le projet choisi
+ * en haut s'applique à toutes les lignes; chaque ligne devient sa propre
+ * demande d'achat indépendante une fois soumise, SANS catégorie — donc
+ * jamais de double autorisation du Propriétaire, peu importe le montant
+ * (voir apps/api/src/modules/purchases).
  */
 export function ShortlistForm() {
   const queryClient = useQueryClient();

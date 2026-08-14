@@ -281,21 +281,93 @@ describe("Création de demandes clients et d'appels de service (règle confirmé
 });
 
 // Règle confirmée directement avec l'utilisateur (12 août 2026, pas dans roles.js d'origine) —
-// voir le commentaire dans src/roles.ts (canCreatePurchaseShortlist).
-describe("Liste rapide d'achats de projet (règle confirmée le 12 août 2026)", () => {
-  it("Propriétaire et Direction peuvent soumettre la liste rapide", () => {
-    expect(P.canCreatePurchaseShortlist(BOSS)).toBe(true);
-    expect(P.canCreatePurchaseShortlist(OWNER)).toBe(true);
-  });
-  it("Administration, Employé et Magasinier ne peuvent jamais soumettre la liste rapide", () => {
-    expect(P.canCreatePurchaseShortlist(ADMIN)).toBe(false);
-    expect(P.canCreatePurchaseShortlist(MEMBER)).toBe(false);
-    expect(P.canCreatePurchaseShortlist(WAREHOUSE)).toBe(false);
+// voir le commentaire dans src/roles.ts (canSubmitPurchaseRequest).
+describe("Soumission d'une demande d'achat — ouverte à tous depuis le 13 août 2026", () => {
+  it("Tous les rôles peuvent soumettre (formulaire général ou liste rapide)", () => {
+    for (const persona of [OWNER, ADMIN, BOSS, MEMBER, WAREHOUSE]) {
+      expect(P.canSubmitPurchaseRequest(persona)).toBe(true);
+    }
   });
   it("Une ligne sans catégorie (liste rapide) ne déclenche jamais le seuil du Propriétaire, peu importe le montant — comportement déjà correct de canApprovePurchaseRequest, sans modification", () => {
     const thresholds = { fabrication: 5000 };
     const lineSansCategorie = { amount: 50000 }; // gros montant, mais pas de "category" — comme une ligne de la liste rapide
     expect(P.canApprovePurchaseRequest({}, OWNER, lineSansCategorie, thresholds)).toBe(true);
     expect(P.canApprovePurchaseRequest({}, BOSS, lineSansCategorie, thresholds)).toBe(false); // pas nécessaire, jamais de double autorisation
+  });
+});
+
+// Règle confirmée directement avec l'utilisatrice (13 août 2026, pas dans roles.js d'origine) —
+// voir le commentaire dans src/roles.ts (canApprovePurchaseRequest, champ requesterPersona).
+describe("Demandes d'achat — jamais de double autorisation quand le demandeur est Administration/Propriétaire/Direction (13 août 2026)", () => {
+  const thresholds = { fabrication: 5000 };
+  it("Demandeur Administration, gros montant : Direction seule approuve, jamais le Propriétaire", () => {
+    const request = { category: "fabrication", amount: 50000, requesterPersona: ADMIN };
+    expect(P.canApprovePurchaseRequest({}, OWNER, request, thresholds)).toBe(true);
+    expect(P.canApprovePurchaseRequest({}, BOSS, request, thresholds)).toBe(false);
+  });
+  it("Demandeur Propriétaire, gros montant : Direction seule approuve", () => {
+    const request = { category: "fabrication", amount: 50000, requesterPersona: BOSS };
+    expect(P.canApprovePurchaseRequest({}, OWNER, request, thresholds)).toBe(true);
+    expect(P.canApprovePurchaseRequest({}, BOSS, request, thresholds)).toBe(false);
+  });
+  it("Demandeur Direction, gros montant : Direction seule approuve", () => {
+    const request = { category: "fabrication", amount: 50000, requesterPersona: OWNER };
+    expect(P.canApprovePurchaseRequest({}, OWNER, request, thresholds)).toBe(true);
+    expect(P.canApprovePurchaseRequest({}, BOSS, request, thresholds)).toBe(false);
+  });
+  it("Demandeur Employé, gros montant : le seuil s'applique normalement (double autorisation)", () => {
+    const request = { category: "fabrication", amount: 50000, requesterPersona: MEMBER };
+    expect(P.canApprovePurchaseRequest({}, OWNER, request, thresholds)).toBe(false);
+    expect(P.canApprovePurchaseRequest({}, BOSS, request, thresholds)).toBe(true);
+  });
+  it("Demandeur Magasinier, gros montant : le seuil s'applique normalement (double autorisation)", () => {
+    const request = { category: "fabrication", amount: 50000, requesterPersona: WAREHOUSE };
+    expect(P.canApprovePurchaseRequest({}, OWNER, request, thresholds)).toBe(false);
+    expect(P.canApprovePurchaseRequest({}, BOSS, request, thresholds)).toBe(true);
+  });
+  it("requesterPersona absent : comportement d'origine inchangé (rétrocompatibilité)", () => {
+    const request = { category: "fabrication", amount: 50000 };
+    expect(P.canApprovePurchaseRequest({}, OWNER, request, thresholds)).toBe(false);
+    expect(P.canApprovePurchaseRequest({}, BOSS, request, thresholds)).toBe(true);
+  });
+});
+
+// Déplacé depuis apps/api/src/modules/purchases/service.test.ts le 13 août
+// 2026 en même temps que buildFrozenPurchaseThresholdsMap elle-même — voir
+// le commentaire dans src/roles.ts : partagée entre apps/api (autorité
+// réelle) et apps/web (même affichage que le serveur), donc définie ici.
+describe("buildFrozenPurchaseThresholdsMap", () => {
+  it("utilise le seuil gelé sur la demande, jamais un autre montant", () => {
+    const map = P.buildFrozenPurchaseThresholdsMap({ category: "Outillage", thresholdAmountAtSubmission: 5000 });
+    expect(map).toEqual({ Outillage: 5000 });
+  });
+
+  it("reste correct même si le seuil ACTUEL de la catégorie a changé depuis (confirmé le 12 août 2026 : jamais rétroactif)", () => {
+    // Simule une demande soumise quand le seuil était 5000$, même si la catégorie affiche maintenant 2000$ ailleurs.
+    const requestFrozenAt5000 = { category: "Outillage", thresholdAmountAtSubmission: 5000 };
+    const map = P.buildFrozenPurchaseThresholdsMap(requestFrozenAt5000);
+    expect(map.Outillage).toBe(5000); // pas 2000 — la valeur gelée l'emporte toujours
+  });
+
+  it("retourne une carte vide sans catégorie (liste rapide) — jamais de seuil", () => {
+    expect(P.buildFrozenPurchaseThresholdsMap({ category: null, thresholdAmountAtSubmission: null })).toEqual({});
+  });
+
+  it("retourne une carte vide si le seuil gelé est manquant même avec une catégorie (garde défensive)", () => {
+    expect(P.buildFrozenPurchaseThresholdsMap({ category: "Outillage", thresholdAmountAtSubmission: null })).toEqual({});
+  });
+});
+
+describe("Suivi de commande et application au projet (13 août 2026)", () => {
+  it("Direction peut gérer le suivi", () => {
+    expect(P.canManagePurchaseFulfillment({}, OWNER)).toBe(true);
+  });
+  it("Propriétaire ne peut pas, sans délégation (voit tout, mais ne fait pas progresser le suivi)", () => {
+    expect(P.canManagePurchaseFulfillment({}, BOSS)).toBe(false);
+  });
+  it("Administration/Employé/Magasinier ne peuvent pas, sans délégation", () => {
+    expect(P.canManagePurchaseFulfillment({}, ADMIN)).toBe(false);
+    expect(P.canManagePurchaseFulfillment({}, MEMBER)).toBe(false);
+    expect(P.canManagePurchaseFulfillment({}, WAREHOUSE)).toBe(false);
   });
 });
