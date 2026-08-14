@@ -1111,3 +1111,25 @@ construction (voir échange du 13 août 2026) :
   seuil gelé, seuil par rôle demandeur × 4 personas, liste rapide toujours
   sans seuil, modification autorisée/refusée, suivi complet, application
   au projet avec ses gardes, visibilité par rôle) avant d'être committé.
+
+## Achats — numéro de demande sur 5 chiffres, remise à zéro annuelle (14 août 2026)
+
+Ajustement confirmé par l'utilisatrice après avoir testé le module :
+
+- **Format `DA-AAAA-NNNNN`** — 5 chiffres pour le numéro séquentiel, pas 4
+  (inchangé pour les autres numérotations — Budget, Demande client,
+  Projet — non concernées par cette demande).
+- **Remise à zéro automatique chaque nouvelle année d'affaires**, à la
+  frontière réelle du 31 décembre 23h59 **heure du Québec** (America/
+  Toronto) — pas minuit UTC, le serveur (Render) tournant probablement en
+  UTC. `Settings.purchaseRequestNumberYear` retient l'année à laquelle le
+  compteur s'applique; dès que l'année d'affaires courante diffère, la
+  toute première demande de la nouvelle année repart à `00001`.
+- **« Règle du plus haut +1 » conservée** à l'intérieur d'une même année —
+  aucun changement au mécanisme d'incrémentation lui-même, seulement sa
+  portée (par année plutôt qu'à vie).
+- Vérifié contre une vraie base de données : format à 5 chiffres,
+  incrémentation normale en cours d'année, remise à zéro correcte en
+  simulant un changement d'année (ancienne année + compteur élevé forcés
+  en base, la demande suivante repart bien à `00001` avec le préfixe de
+  l'année réelle courante).

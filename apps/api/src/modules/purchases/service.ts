@@ -28,6 +28,39 @@ import type { PurchaseRequest, Employee } from "../../generated/prisma/client.js
 export const FULFILLMENT_STATUSES = ["waiting", "ordered", "received"] as const;
 export type FulfillmentStatus = (typeof FULFILLMENT_STATUSES)[number];
 
+/**
+ * Année d'affaires courante — heure de l'Est/Québec (America/Toronto),
+ * PAS le fuseau du serveur (Render tourne probablement en UTC). Confirmé
+ * le 14 août 2026 : la remise à zéro annuelle du numéro de demande doit se
+ * produire à la vraie frontière du 31 décembre 23h59 heure du Québec, pas
+ * à minuit UTC (qui tombe ~19-20h heure du Québec le 31 décembre selon
+ * l'heure d'été/hiver — Intl.DateTimeFormat gère cette bascule tout seul,
+ * jamais un décalage fixe codé en dur).
+ */
+function currentBusinessYear(): number {
+  return Number(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Toronto", year: "numeric" }).format(new Date()));
+}
+
+/**
+ * Prochain numéro de demande d'achat (DA-AAAA-NNNNN, 5 chiffres depuis le
+ * 14 août 2026 — auparavant 4) — remise à zéro automatique dès la
+ * première demande d'une nouvelle année d'affaires, "règle du plus haut
+ * +1" (déjà confirmée) conservée à l'intérieur d'une même année. Fonction
+ * pure, testable sans base de données réelle — voir purchases côté appel
+ * pour la lecture/écriture de Settings.
+ */
+export function resolveNextPurchaseRequestNumber(
+  settings: { nextPurchaseRequestNumber: number; purchaseRequestNumberYear: number },
+  year: number = currentBusinessYear(),
+): { year: number; number: number } {
+  const number = settings.purchaseRequestNumberYear === year ? settings.nextPurchaseRequestNumber : 1;
+  return { year, number };
+}
+
+export function formatPurchaseRequestDisplayId(year: number, number: number): string {
+  return `DA-${year}-${String(number).padStart(5, "0")}`;
+}
+
 export interface ShortlistLineInput {
   description: string;
   supplier?: string;
@@ -91,12 +124,12 @@ export async function createPurchaseShortlist(
   return prisma.$transaction(async (tx) => {
     const settings = await tx.settings.findFirst();
     if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
-    let nextNumber = settings.nextPurchaseRequestNumber;
-    const year = new Date().getFullYear();
+    const { year, number: startNumber } = resolveNextPurchaseRequestNumber(settings);
+    let nextNumber = startNumber;
     const created: PurchaseRequest[] = [];
 
     for (const line of lines) {
-      const displayId = `DA-${year}-${String(nextNumber).padStart(4, "0")}`;
+      const displayId = formatPurchaseRequestDisplayId(year, nextNumber);
       nextNumber += 1;
       const row = await tx.purchaseRequest.create({
         data: {
@@ -114,7 +147,7 @@ export async function createPurchaseShortlist(
       created.push(row);
     }
 
-    await tx.settings.update({ where: { id: settings.id }, data: { nextPurchaseRequestNumber: nextNumber } });
+    await tx.settings.update({ where: { id: settings.id }, data: { nextPurchaseRequestNumber: nextNumber, purchaseRequestNumberYear: year } });
     return created;
   });
 }
@@ -154,8 +187,8 @@ export async function createPurchaseRequest(requesterId: string, input: CreatePu
   return prisma.$transaction(async (tx) => {
     const settings = await tx.settings.findFirst();
     if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
-    const year = new Date().getFullYear();
-    const displayId = `DA-${year}-${String(settings.nextPurchaseRequestNumber).padStart(4, "0")}`;
+    const { year, number } = resolveNextPurchaseRequestNumber(settings);
+    const displayId = formatPurchaseRequestDisplayId(year, number);
     const row = await tx.purchaseRequest.create({
       data: {
         displayId,
@@ -171,7 +204,7 @@ export async function createPurchaseRequest(requesterId: string, input: CreatePu
         status: "owner_pending",
       },
     });
-    await tx.settings.update({ where: { id: settings.id }, data: { nextPurchaseRequestNumber: settings.nextPurchaseRequestNumber + 1 } });
+    await tx.settings.update({ where: { id: settings.id }, data: { nextPurchaseRequestNumber: number + 1, purchaseRequestNumberYear: year } });
     return row;
   });
 }

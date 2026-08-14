@@ -807,7 +807,13 @@ model Settings {
   defaultBillingSplit          Json // voir billing.ts DEFAULT_BILLING_SPLIT
   projectNumberPrefix          String   @default("PRJ")
   nextProjectNumber            Int      @default(1)
-  nextPurchaseRequestNumber    Int      @default(1) // format DA-AAAA-NNNN
+  nextPurchaseRequestNumber    Int      @default(1) // format DA-AAAA-NNNNN (5 chiffres, confirmé le 14 août 2026)
+  // Année d'affaires (heure de l'Est/Québec, pas le fuseau du serveur) à
+  // laquelle nextPurchaseRequestNumber ci-dessus s'applique — confirmé le
+  // 14 août 2026 : remise à zéro automatique de la séquence chaque nouvelle
+  // année, à la frontière réelle du 31 décembre 23h59 heure du Québec, pas
+  // minuit UTC. Voir resolveNextPurchaseRequestNumber, purchases/service.ts.
+  purchaseRequestNumberYear    Int      @default(2026)
   nextClientRequestNumber      Int      @default(1) // format DC-AAAA-NNNN
   nextBudgetNumber             Int      @default(1) // format BG-AAAA-NNNN
   servicePartsDefaultMarginPct Decimal  @default(20) @db.Decimal(5, 2)
