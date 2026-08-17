@@ -1,4 +1,7 @@
 import { apiFetch } from "../../lib/apiClient.js";
+import { FULFILLMENT_MODES, type FulfillmentMode } from "@gsc-pilot/business-rules";
+
+export type { FulfillmentMode };
 
 export type FinancialStatus = "conforme" | "at_risk" | "critical";
 
@@ -73,6 +76,61 @@ export interface ProjectDetail {
   financialStatus?: FinancialStatus;
   progressionPct?: number;
   comparatif: ProjectComparatifRow[];
+  productionCompleted: boolean;
+  fulfillmentMode: FulfillmentMode | null;
+  fulfillmentStatus: string | null;
+  fulfillmentAddress: string | null;
+  fulfillmentConfirmationNote: string | null;
+  billingReady: boolean;
+}
+
+export const FULFILLMENT_MODE_LABELS: Record<FulfillmentMode, string> = {
+  [FULFILLMENT_MODES.WAREHOUSE]: "Bon de livraison (magasinier)",
+  [FULFILLMENT_MODES.MANUAL]: "Livraison par un tiers",
+  [FULFILLMENT_MODES.PICKUP]: "Ramassage par le client",
+  [FULFILLMENT_MODES.INSTALLATION]: "Installation par GSC",
+};
+
+export const FULFILLMENT_STATUS_LABELS: Record<string, string> = {
+  planned: "Livraison planifiée — magasinier",
+  awaiting_confirmation: "En attente de confirmation",
+  installation_planned: "Installation en cours",
+  completed: "Confirmé",
+};
+
+export type InvoiceEntryStatus = "pending" | "sent" | "paid" | "on_hold" | "overdue";
+
+export const INVOICE_STATUS_LABELS: Record<InvoiceEntryStatus, string> = {
+  pending: "À venir",
+  sent: "Envoyée",
+  paid: "Payée",
+  on_hold: "En suspens",
+  overdue: "En retard",
+};
+
+export const INVOICE_STATUS_BADGE: Record<InvoiceEntryStatus, string> = {
+  pending: "badge-neutral",
+  sent: "badge-neutral",
+  paid: "badge-conforme",
+  on_hold: "badge-at_risk",
+  overdue: "badge-critical",
+};
+
+export interface InvoicePlanEntryDto {
+  id: string;
+  label: string;
+  pct: number;
+  amount: number;
+  status: InvoiceEntryStatus;
+  invoiceNumber: string | null;
+  dueDate: string | null;
+  paidAmount: number;
+  paidAt: string | null;
+  isExtra: boolean;
+  requestedById: string | null;
+  requestedAt: string | null;
+  processedById: string | null;
+  processedAt: string | null;
 }
 
 const currencyFormatter = new Intl.NumberFormat("fr-CA", { style: "currency", currency: "CAD" });
@@ -99,4 +157,47 @@ export function convertBudgetToProject(
 /** Numéro suggéré (plus grand existant + 1) pour préremplir le champ — jamais deviné côté interface. */
 export function fetchNextProjectNumber(): Promise<{ nextProjectNumber: number }> {
   return apiFetch("/api/projects/next-number");
+}
+
+// ---------------------------------------------------------------------------
+// Production et sortie + Cycle de facturation (Projet 2C, 17 août 2026).
+// ---------------------------------------------------------------------------
+
+export function markProductionComplete(id: string): Promise<void> {
+  return apiFetch(`/api/projects/${id}/mark-production-complete`, { method: "POST" });
+}
+
+export interface ChooseFulfillmentInput {
+  mode: FulfillmentMode;
+  address?: string;
+  scheduled?: string;
+}
+
+export function chooseFulfillmentMode(id: string, input: ChooseFulfillmentInput): Promise<void> {
+  return apiFetch(`/api/projects/${id}/fulfillment`, { method: "POST", body: JSON.stringify(input) });
+}
+
+export function confirmFulfillment(id: string, note?: string): Promise<void> {
+  return apiFetch(`/api/projects/${id}/fulfillment/confirm`, { method: "POST", body: JSON.stringify({ note }) });
+}
+
+export function fetchInvoicePlan(projectId: string): Promise<{ entries: InvoicePlanEntryDto[] }> {
+  return apiFetch(`/api/projects/${projectId}/invoice-plan`);
+}
+
+export function requestInvoice(entryId: string): Promise<{ entry: InvoicePlanEntryDto }> {
+  return apiFetch(`/api/invoice-plan/${entryId}/request`, { method: "POST" });
+}
+
+export interface RecordInvoiceInput {
+  invoiceNumber: string;
+  dueDate?: string;
+}
+
+export function recordInvoice(entryId: string, input: RecordInvoiceInput): Promise<{ entry: InvoicePlanEntryDto }> {
+  return apiFetch(`/api/invoice-plan/${entryId}/record`, { method: "POST", body: JSON.stringify(input) });
+}
+
+export function recordInvoicePayment(entryId: string, paidAmount: number): Promise<{ entry: InvoicePlanEntryDto }> {
+  return apiFetch(`/api/invoice-plan/${entryId}/payment`, { method: "PATCH", body: JSON.stringify({ paidAmount }) });
 }

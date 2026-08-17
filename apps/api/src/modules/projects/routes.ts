@@ -1,9 +1,31 @@
 import { Router } from "express";
 import { z } from "zod";
-import { canAccessProject, canConvertBudgetToProject, canCreateProjectDirectly } from "@gsc-pilot/business-rules";
+import {
+  canAccessProject,
+  canConvertBudgetToProject,
+  canCreateProjectDirectly,
+  canMarkProductionComplete,
+  canChooseFulfillmentMode,
+  canRequestInvoice,
+  canCreateInvoiceRecord,
+  canRecordPayment,
+  FULFILLMENT_MODES,
+  type FulfillmentMode,
+} from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import { prisma } from "../../db.js";
-import { listProjects, getProjectDetail, getNextProjectNumber } from "./service.js";
+import {
+  listProjects,
+  getProjectDetail,
+  getNextProjectNumber,
+  markProductionComplete,
+  chooseProjectFulfillmentMode,
+  confirmProjectFulfillment,
+  getInvoicePlan,
+  requestInvoice,
+  recordInvoice,
+  recordInvoicePayment,
+} from "./service.js";
 
 export const projectsRouter = Router();
 
@@ -43,3 +65,99 @@ projectsRouter.get("/projects/:id", requireAuth, requirePermission((persona) => 
   const project = await getProjectDetail(id, req.employee!.persona);
   res.json({ project });
 });
+
+// ---------------------------------------------------------------------------
+// Production et sortie (Projet 2C, 17 août 2026)
+// ---------------------------------------------------------------------------
+
+projectsRouter.post(
+  "/projects/:id/mark-production-complete",
+  requireAuth,
+  requirePermission((persona) => canMarkProductionComplete(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    await markProductionComplete(id);
+    res.status(204).end();
+  },
+);
+
+const fulfillmentModeSchema = z.object({
+  mode: z.enum(Object.values(FULFILLMENT_MODES) as [string, ...string[]]),
+  driverId: z.uuid().optional(),
+  address: z.string().optional(),
+  scheduled: z.iso.datetime().optional(),
+});
+projectsRouter.post(
+  "/projects/:id/fulfillment",
+  requireAuth,
+  requirePermission((persona) => canChooseFulfillmentMode(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const body = fulfillmentModeSchema.parse(req.body);
+    await chooseProjectFulfillmentMode(id, { ...body, mode: body.mode as FulfillmentMode });
+    res.status(204).end();
+  },
+);
+
+projectsRouter.post(
+  "/projects/:id/fulfillment/confirm",
+  requireAuth,
+  requirePermission((persona) => canChooseFulfillmentMode(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const { note } = z.object({ note: z.string().optional() }).parse(req.body ?? {});
+    await confirmProjectFulfillment(id, note);
+    res.status(204).end();
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Cycle de facturation (Projet 2C, 17 août 2026)
+// ---------------------------------------------------------------------------
+
+projectsRouter.get(
+  "/projects/:id/invoice-plan",
+  requireAuth,
+  requirePermission((persona) => canAccessProject(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const entries = await getInvoicePlan(id);
+    res.json({ entries });
+  },
+);
+
+projectsRouter.post(
+  "/invoice-plan/:entryId/request",
+  requireAuth,
+  requirePermission((persona) => canRequestInvoice(persona)),
+  async (req, res) => {
+    const entryId = z.uuid().parse(req.params.entryId);
+    const entry = await requestInvoice(entryId, req.employee!.id);
+    res.json({ entry });
+  },
+);
+
+const recordInvoiceSchema = z.object({ invoiceNumber: z.string().min(1), dueDate: z.iso.date().optional() });
+projectsRouter.post(
+  "/invoice-plan/:entryId/record",
+  requireAuth,
+  requirePermission((persona) => canCreateInvoiceRecord(persona)),
+  async (req, res) => {
+    const entryId = z.uuid().parse(req.params.entryId);
+    const body = recordInvoiceSchema.parse(req.body);
+    const entry = await recordInvoice(entryId, req.employee!.id, body);
+    res.json({ entry });
+  },
+);
+
+projectsRouter.patch(
+  "/invoice-plan/:entryId/payment",
+  requireAuth,
+  requirePermission((persona) => canRecordPayment(persona)),
+  async (req, res) => {
+    const entryId = z.uuid().parse(req.params.entryId);
+    const { paidAmount } = z.object({ paidAmount: z.number().nonnegative() }).parse(req.body);
+    const entry = await recordInvoicePayment(entryId, paidAmount);
+    res.json({ entry });
+  },
+);

@@ -127,6 +127,7 @@ a {
 }
 .num {
   text-align: right;
+  white-space: nowrap;
 }
 
 .modal-backdrop {

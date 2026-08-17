@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchProjectDetail, formatCurrency, FINANCIAL_STATUS_LABELS } from "./api.js";
 import { ProjectPurchaseEntries } from "./ProjectPurchaseEntries.js";
+import { ProjectFulfillment } from "./ProjectFulfillment.js";
+import { ProjectInvoicePlan } from "./ProjectInvoicePlan.js";
 
 interface ProjectDetailProps {
   id: string;
@@ -20,10 +22,11 @@ const FINANCIAL_BANNER_TEXT: Record<string, string> = {
 /**
  * Phase 2A (17 août 2026) : bandeau de statut financier, grille complète,
  * Progression du projet, Comparatif planifié vs réel, carte Budgétaire
- * archivé. Phase 2B : Achats réels (ProjectPurchaseEntries.tsx). Production
- * et sortie, Cycle de facturation et le menu Options viennent dans les
- * phases suivantes (2C/2D/2F) — voir CLAUDE.md, principe de construction
- * par phase confirmée.
+ * archivé. Phase 2B : Achats réels (ProjectPurchaseEntries.tsx). Phase 2C :
+ * Production et sortie (ProjectFulfillment.tsx), Cycle de facturation
+ * (ProjectInvoicePlan.tsx). Garantie, Post-mortem et le menu Options
+ * viennent dans les phases suivantes (2D/2E/2F) — voir CLAUDE.md, principe
+ * de construction par phase confirmée.
  */
 export function ProjectDetail({ id, onClose }: ProjectDetailProps) {
   const detailQuery = useQuery({ queryKey: ["project", id], queryFn: () => fetchProjectDetail(id) });
@@ -230,6 +233,10 @@ export function ProjectDetail({ id, onClose }: ProjectDetailProps) {
               )}
 
               <ProjectPurchaseEntries projectId={project.id} />
+
+              <ProjectFulfillment project={project} />
+
+              <ProjectInvoicePlan projectId={project.id} />
 
               {project.budgetDisplayId && (
                 <div className="card" style={{ background: "var(--gsc-color-blue-soft)", border: "none" }}>

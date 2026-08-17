@@ -379,6 +379,13 @@ model Project {
   fulfillmentDriverId  String?
   fulfillmentAddress   String?
   fulfillmentScheduled DateTime?
+  // Champs de fulfillment.ts (FulfillmentEntity) restés absents jusqu'ici —
+  // Phase 2C (17 août 2026). billingReady ne se met à true que pour les
+  // modes tiers/ramassage confirmés (confirmFulfillment) — jamais pour
+  // warehouse, dont la confirmation vient du Bon de livraison (Delivery)
+  // lui-même, pas de ce champ.
+  billingReady                Boolean   @default(false)
+  fulfillmentConfirmationNote String?
   closedAt             DateTime? // geste manuel séparé — jamais un effet de bord du mode de sortie
   createdById          String
   createdAt            DateTime       @default(now())
@@ -829,6 +836,7 @@ model Settings {
   purchaseRequestNumberYear    Int      @default(2026)
   nextClientRequestNumber      Int      @default(1) // format DC-AAAA-NNNN
   nextBudgetNumber             Int      @default(1) // format BG-AAAA-NNNN
+  nextDeliveryNumber           Int      @default(1) // format BL-AAAA-NNNN — même patron que nextBudgetNumber (année civile, pas d'année d'affaires)
   servicePartsDefaultMarginPct Decimal  @default(20) @db.Decimal(5, 2)
   punchRoundingMinutes         Int      @default(15)
   // Seuils du voyant de marge réelle (statut financier) — confirmé le 17

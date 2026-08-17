@@ -23,8 +23,14 @@ import {
   canSeeFinancialValues,
   BUDGET_CATEGORY_GROUP,
   BUDGET_CATEGORY_LABELS,
+  computeBillingPlan,
+  invoiceStatus,
+  FULFILLMENT_MODES,
+  chooseFulfillment as chooseFulfillmentPure,
+  confirmFulfillment as confirmFulfillmentPure,
   type BudgetCategorySlug,
   type FinancialStatus,
+  type FulfillmentMode,
   type Persona,
 } from "@gsc-pilot/business-rules";
 import { prisma } from "../../db.js";
@@ -131,6 +137,15 @@ export async function convertBudgetToProject(createdById: string, budgetId: stri
     });
 
     await tx.settings.update({ where: { id: settings.id }, data: { nextProjectNumber: nextAfter } });
+
+    // Cycle de facturation — confirmé le 8-9 août 2026 (billing.ts, jamais
+    // modifié) : plan créé une seule fois ici, au prix vendu final gelé.
+    // DEFAULT_BILLING_SPLIT seulement pour l'instant — billingSplitOverride
+    // (modifier la répartition après coup) reste hors de cette phase.
+    const plan = computeBillingPlan(totalSale);
+    await tx.invoicePlanEntry.createMany({
+      data: plan.map((step) => ({ projectId: project.id, label: step.label, pct: step.pct, amount: step.amount, status: step.status })),
+    });
 
     return project;
   });
@@ -283,6 +298,12 @@ export interface ProjectDetailDto {
   financialStatus?: FinancialStatus;
   progressionPct?: number;
   comparatif: ProjectComparatifRow[];
+  productionCompleted: boolean;
+  fulfillmentMode: string | null;
+  fulfillmentStatus: string | null;
+  fulfillmentAddress: string | null;
+  fulfillmentConfirmationNote: string | null;
+  billingReady: boolean;
 }
 
 /**
@@ -398,6 +419,12 @@ export async function getProjectDetail(id: string, viewerPersona: Persona): Prom
     installationPlannedHours: Number(project.installationPlannedHours),
     backupHours: Number(project.backupHours),
     comparatif,
+    productionCompleted: project.productionCompleted,
+    fulfillmentMode: project.fulfillmentMode,
+    fulfillmentStatus: project.fulfillmentStatus,
+    fulfillmentAddress: project.fulfillmentAddress,
+    fulfillmentConfirmationNote: project.fulfillmentConfirmationNote,
+    billingReady: project.billingReady,
     ...(showFinancials && {
       sold,
       plannedPurchases,
@@ -416,4 +443,223 @@ export async function getProjectDetail(id: string, viewerPersona: Persona): Prom
 
 function round2(value: number): number {
   return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
+
+// ---------------------------------------------------------------------------
+// Production et sortie — fulfillment.ts (Projet 2C, 17 août 2026). Réutilise
+// les fonctions pures telles quelles (jamais réimplémentées, voir CLAUDE.md)
+// — cette couche ne fait que lire/écrire Prisma autour d'elles.
+// ---------------------------------------------------------------------------
+
+/** fulfillment.ts lance des Error ordinaires (aucune notion HTTP dans business-rules) — reconverties ici en HttpError pour ne pas retomber sur "internal_error" générique côté client. */
+function runFulfillmentStep<T>(fn: () => T): T {
+  try {
+    return fn();
+  } catch (err) {
+    throw new HttpError(400, err instanceof Error ? err.message : "Erreur de validation.");
+  }
+}
+
+export async function markProductionComplete(projectId: string): Promise<void> {
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  if (!project) throw new HttpError(404, "Projet introuvable.");
+  if (project.productionCompleted) throw new HttpError(400, "La production est déjà marquée complétée.");
+  await prisma.project.update({ where: { id: projectId }, data: { productionCompleted: true } });
+}
+
+export interface ChooseFulfillmentInput {
+  mode: FulfillmentMode;
+  driverId?: string | null;
+  address?: string;
+  scheduled?: string | null;
+}
+
+export async function chooseProjectFulfillmentMode(projectId: string, input: ChooseFulfillmentInput): Promise<void> {
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  if (!project) throw new HttpError(404, "Projet introuvable.");
+  if (project.fulfillmentMode) throw new HttpError(400, "Le mode de sortie est déjà choisi pour ce projet.");
+
+  const updated = runFulfillmentStep(() =>
+    chooseFulfillmentPure(
+      {
+        productionCompleted: project.productionCompleted,
+        fulfillmentMode: (project.fulfillmentMode ?? undefined) as FulfillmentMode | undefined,
+        status: project.status,
+      },
+      input.mode,
+      { driverId: input.driverId ?? null, address: input.address ?? "", scheduled: input.scheduled ?? null },
+    ),
+  );
+
+  await prisma.$transaction(async (tx) => {
+    await tx.project.update({
+      where: { id: projectId },
+      data: {
+        fulfillmentMode: updated.fulfillmentMode,
+        fulfillmentScheduled: updated.fulfillmentScheduled ? new Date(updated.fulfillmentScheduled) : null,
+        fulfillmentDriverId: updated.fulfillmentDriver,
+        fulfillmentAddress: updated.fulfillmentAddress,
+        fulfillmentStatus: updated.fulfillmentStatus,
+      },
+    });
+
+    // Mode "Bon de livraison" — crée la livraison assignée au magasinier
+    // (fulfillment.ts : "jamais pour warehouse, qui se confirme via le Bon
+    // de livraison lui-même" — pas de confirmProjectFulfillment pour ce mode).
+    if (input.mode === FULFILLMENT_MODES.WAREHOUSE) {
+      const settings = await tx.settings.findFirst();
+      if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
+      const displayId = `BL-${new Date().getFullYear()}-${String(settings.nextDeliveryNumber).padStart(4, "0")}`;
+      await tx.delivery.create({
+        data: {
+          displayId,
+          type: "project",
+          projectId,
+          contactId: project.contactId,
+          address: input.address || null,
+          scheduledAt: input.scheduled ? new Date(input.scheduled) : null,
+          driverEmployeeId: input.driverId || null,
+          status: "planned",
+        },
+      });
+      await tx.settings.update({ where: { id: settings.id }, data: { nextDeliveryNumber: settings.nextDeliveryNumber + 1 } });
+    }
+  });
+}
+
+/** Confirmer un mode tiers/ramassage — jamais pour warehouse (voir chooseProjectFulfillmentMode). */
+export async function confirmProjectFulfillment(projectId: string, note?: string): Promise<void> {
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  if (!project) throw new HttpError(404, "Projet introuvable.");
+
+  const updated = runFulfillmentStep(() =>
+    confirmFulfillmentPure(
+      {
+        fulfillmentMode: (project.fulfillmentMode ?? undefined) as FulfillmentMode | undefined,
+        billingReady: project.billingReady,
+        fulfillmentStatus: project.fulfillmentStatus ?? undefined,
+        status: project.status,
+      },
+      note ?? "",
+    ),
+  );
+
+  await prisma.project.update({
+    where: { id: projectId },
+    data: {
+      billingReady: updated.billingReady,
+      fulfillmentStatus: updated.fulfillmentStatus,
+      fulfillmentConfirmationNote: updated.fulfillmentConfirmationNote,
+      status: updated.status,
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Cycle de facturation — billing.ts (Projet 2C, 17 août 2026). Le plan est
+// créé une seule fois à la conversion (voir convertBudgetToProject ci-dessus)
+// avec DEFAULT_BILLING_SPLIT — modifier la répartition après coup
+// (billingSplitOverride, canModifyBillingCycle) reste hors de cette phase.
+// Sage reste la source réelle de la facture (billing.ts) : on ne fait
+// qu'enregistrer manuellement ce qui a déjà été fait là-bas.
+// ---------------------------------------------------------------------------
+
+export interface InvoicePlanEntryDto {
+  id: string;
+  label: string;
+  pct: number;
+  amount: number;
+  status: "pending" | "sent" | "paid" | "on_hold" | "overdue";
+  invoiceNumber: string | null;
+  dueDate: string | null;
+  paidAmount: number;
+  paidAt: string | null;
+  isExtra: boolean;
+  requestedById: string | null;
+  requestedAt: string | null;
+  processedById: string | null;
+  processedAt: string | null;
+}
+
+function toInvoicePlanEntryDto(row: {
+  id: string;
+  label: string;
+  pct: unknown;
+  amount: unknown;
+  status: string;
+  invoiceNumber: string | null;
+  dueDate: Date | null;
+  paidAmount: unknown;
+  paidAt: Date | null;
+  isExtra: boolean;
+  requestedById: string | null;
+  requestedAt: Date | null;
+  processedById: string | null;
+  processedAt: Date | null;
+}): InvoicePlanEntryDto {
+  return {
+    id: row.id,
+    label: row.label,
+    pct: Number(row.pct),
+    amount: Number(row.amount),
+    status: invoiceStatus({
+      amount: Number(row.amount),
+      paid: Number(row.paidAmount),
+      status: row.status,
+      due: row.dueDate?.toISOString(),
+    }),
+    invoiceNumber: row.invoiceNumber,
+    dueDate: row.dueDate?.toISOString() ?? null,
+    paidAmount: Number(row.paidAmount),
+    paidAt: row.paidAt?.toISOString() ?? null,
+    isExtra: row.isExtra,
+    requestedById: row.requestedById,
+    requestedAt: row.requestedAt?.toISOString() ?? null,
+    processedById: row.processedById,
+    processedAt: row.processedAt?.toISOString() ?? null,
+  };
+}
+
+export async function getInvoicePlan(projectId: string): Promise<InvoicePlanEntryDto[]> {
+  const rows = await prisma.invoicePlanEntry.findMany({ where: { projectId }, orderBy: { createdAt: "asc" } });
+  return rows.map(toInvoicePlanEntryDto);
+}
+
+/** Fait apparaître la demande dans le centre d'actions d'Administration (Direction seulement, canRequestInvoice). */
+export async function requestInvoice(entryId: string, requestedById: string): Promise<InvoicePlanEntryDto> {
+  const entry = await prisma.invoicePlanEntry.findUnique({ where: { id: entryId } });
+  if (!entry) throw new HttpError(404, "Jalon de facturation introuvable.");
+  if (entry.requestedAt) throw new HttpError(400, "La facturation de ce jalon a déjà été demandée.");
+  const row = await prisma.invoicePlanEntry.update({ where: { id: entryId }, data: { requestedById, requestedAt: new Date() } });
+  return toInvoicePlanEntryDto(row);
+}
+
+export interface RecordInvoiceInput {
+  invoiceNumber: string;
+  dueDate?: string;
+}
+
+/** Enregistrer l'entrée de facture — directement, ou en traitant une demande (canCreateInvoiceRecord, jamais un préalable de "demander" d'abord). */
+export async function recordInvoice(entryId: string, processedById: string, input: RecordInvoiceInput): Promise<InvoicePlanEntryDto> {
+  const entry = await prisma.invoicePlanEntry.findUnique({ where: { id: entryId } });
+  if (!entry) throw new HttpError(404, "Jalon de facturation introuvable.");
+  const row = await prisma.invoicePlanEntry.update({
+    where: { id: entryId },
+    data: {
+      invoiceNumber: input.invoiceNumber,
+      dueDate: input.dueDate ? new Date(input.dueDate) : null,
+      status: "sent",
+      processedById,
+      processedAt: new Date(),
+    },
+  });
+  return toInvoicePlanEntryDto(row);
+}
+
+/** Montant payé À CE JOUR (pas un historique de paiements séparé — un seul champ, mis à jour à chaque versement). */
+export async function recordInvoicePayment(entryId: string, paidAmount: number): Promise<InvoicePlanEntryDto> {
+  const entry = await prisma.invoicePlanEntry.findUnique({ where: { id: entryId } });
+  if (!entry) throw new HttpError(404, "Jalon de facturation introuvable.");
+  const row = await prisma.invoicePlanEntry.update({ where: { id: entryId }, data: { paidAmount, paidAt: new Date() } });
+  return toInvoicePlanEntryDto(row);
 }
