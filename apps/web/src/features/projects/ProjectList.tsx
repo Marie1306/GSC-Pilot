@@ -1,8 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchProjects, formatCurrency, STATUS_LABELS } from "./api.js";
+import { fetchProjects, STATUS_LABELS, FINANCIAL_STATUS_LABELS } from "./api.js";
 
 interface ProjectListProps {
   onOpen: (id: string) => void;
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("fr-CA", { month: "short", day: "numeric" });
 }
 
 export function ProjectList({ onOpen }: ProjectListProps) {
@@ -10,36 +14,59 @@ export function ProjectList({ onOpen }: ProjectListProps) {
   const rows = listQuery.data?.projects ?? [];
 
   return (
-    <div className="card" style={{ marginTop: 20 }}>
-      <h2 style={{ marginTop: 0, fontSize: 16 }}>Projets</h2>
+    <div style={{ marginTop: 20 }}>
+      <h2 style={{ fontSize: 16 }}>Projets</h2>
       {rows.length === 0 && <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucun projet pour l'instant.</p>}
       {rows.length > 0 && (
-        <table className="shortlist-table">
-          <thead>
-            <tr>
-              <th>Projet</th>
-              <th>Client / contact</th>
-              <th>Statut</th>
-              <th className="num">Prix vendu</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="clickable-row" onClick={() => onOpen(row.id)}>
-                <td>
-                  <div>{row.projectNumber}</div>
-                  <div className="cell-sub">{row.name}</div>
-                </td>
-                <td>
-                  <div>{row.company ?? row.contactName}</div>
-                  <div className="cell-sub">{row.contactName}</div>
-                </td>
-                <td>{STATUS_LABELS[row.status] ?? row.status}</td>
-                <td className="num">{formatCurrency(row.sold)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="project-card-grid">
+          {rows.map((row) => (
+            <div key={row.id} className="project-card" onClick={() => onOpen(row.id)}>
+              <div className="project-card-header">
+                <span className="project-card-number">{row.projectNumber}</span>
+                {row.financialStatus && (
+                  <span className={`badge-pill badge-${row.financialStatus}`}>{FINANCIAL_STATUS_LABELS[row.financialStatus]}</span>
+                )}
+              </div>
+              <div className="project-card-name">{row.name}</div>
+              <div className="project-card-sub">
+                {row.company ?? row.contactName}
+                {row.deadline && <> · Échéance {formatDate(row.deadline)}</>}
+              </div>
+
+              <div className="project-card-stats">
+                <div className="stat-tile">
+                  <span className="stat-tile-label">Avancement</span>
+                  <span className="stat-tile-value">{row.progressionPct !== undefined ? `${row.progressionPct} %` : "—"}</span>
+                </div>
+                <div className="stat-tile">
+                  <span className="stat-tile-label">Heures réelles</span>
+                  <span className="stat-tile-value">{row.hoursUsedPct} %</span>
+                </div>
+                <div className="stat-tile">
+                  <span className="stat-tile-label">Marge réelle</span>
+                  <span className="stat-tile-value">{row.grossMarginPct !== undefined ? `${row.grossMarginPct} %` : "—"}</span>
+                </div>
+              </div>
+
+              {row.progressionPct !== undefined && (
+                <div style={{ marginBottom: 14 }}>
+                  <div className="progress-row">
+                    <span style={{ color: "var(--gsc-color-muted)" }}>Progression du projet</span>
+                    <strong>{row.progressionPct} %</strong>
+                  </div>
+                  <div className="progress-track">
+                    <div className="progress-fill" style={{ width: `${Math.min(100, Math.max(0, row.progressionPct))}%` }} />
+                  </div>
+                </div>
+              )}
+
+              <div className="project-card-footer">
+                <span>{STATUS_LABELS[row.status] ?? row.status}</span>
+                <span className="project-card-open">Ouvrir ›</span>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

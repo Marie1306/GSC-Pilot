@@ -1,5 +1,7 @@
 import { apiFetch } from "../../lib/apiClient.js";
 
+export type FinancialStatus = "conforme" | "at_risk" | "critical";
+
 export interface ProjectListItem {
   id: string;
   projectNumber: string;
@@ -7,7 +9,12 @@ export interface ProjectListItem {
   status: string;
   contactName: string;
   company: string | null;
-  sold: number;
+  deadline: string | null;
+  sold?: number;
+  hoursUsedPct: number;
+  progressionPct?: number;
+  grossMarginPct?: number;
+  financialStatus?: FinancialStatus;
 }
 
 export const STATUS_LABELS: Record<string, string> = {
@@ -16,10 +23,28 @@ export const STATUS_LABELS: Record<string, string> = {
   closed: "Terminé",
 };
 
+export const FINANCIAL_STATUS_LABELS: Record<FinancialStatus, string> = {
+  conforme: "Conforme",
+  at_risk: "À risque",
+  critical: "Critique",
+};
+
+export interface ProjectComparatifRow {
+  category: string;
+  categoryLabel: string;
+  plannedHours: number;
+  actualHours: number;
+  hoursDelta: number;
+  plannedCost?: number;
+  actualCost?: number;
+  costDelta?: number;
+}
+
 /**
- * Coup d'œil seulement (Phase 1, 12 août 2026) — la table de comparaison
- * planifié/réel par catégorie, le Gantt et le suivi des achats/heures réels
- * viennent dans une prochaine phase, leur détail exact restant à confirmer.
+ * Vue enrichie de la Phase 2A (17 août 2026). Les champs $ sont absents
+ * (pas juste à 0) pour Employé/Magasinier — voir canSeeFinancialValues côté
+ * serveur — donc tous optionnels ici plutôt que number avec une valeur par
+ * défaut trompeuse.
  */
 export interface ProjectDetail {
   id: string;
@@ -31,18 +56,23 @@ export interface ProjectDetail {
   budgetId: string | null;
   budgetDisplayId: string | null;
   createdAt: string;
-  sold: number;
+  sold?: number;
   plannedHours: number;
   actualHours: number;
   hoursUsedPct: number;
-  plannedPurchases: number;
-  actualPurchases: number;
+  plannedPurchases?: number;
+  actualPurchases?: number;
+  installationPlannedHours: number;
+  installationPlannedCost?: number;
   backupHours: number;
-  backupHoursCost: number;
-  projectBackupAmount: number;
-  grossMargin: number;
-  grossMarginPct: number;
-  targetMarginPct: number | null;
+  backupHoursCost?: number;
+  projectBackupAmount?: number;
+  grossMargin?: number;
+  grossMarginPct?: number;
+  targetMarginPct?: number | null;
+  financialStatus?: FinancialStatus;
+  progressionPct?: number;
+  comparatif: ProjectComparatifRow[];
 }
 
 const currencyFormatter = new Intl.NumberFormat("fr-CA", { style: "currency", currency: "CAD" });

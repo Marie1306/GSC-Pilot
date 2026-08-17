@@ -3,6 +3,7 @@ import { z } from "zod";
 import { canAccessSettings } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import { listPurchaseCategories, createPurchaseCategory, updatePurchaseCategory } from "./purchaseCategories.js";
+import { getMarginThresholds, updateMarginThresholds } from "./marginThresholds.js";
 
 // Monté sur /api/settings (voir app.ts) — jamais sur /api directement, pour
 // que le .use() ci-dessous ne gate QUE les routes de ce module, pas tout
@@ -39,4 +40,19 @@ settingsRouter.patch("/purchase-categories/:id", async (req, res) => {
   const body = updateSchema.parse(req.body);
   const category = await updatePurchaseCategory(id, body);
   res.json({ category });
+});
+
+settingsRouter.get("/margin-thresholds", async (_req, res) => {
+  const thresholds = await getMarginThresholds();
+  res.json({ thresholds });
+});
+
+const marginThresholdsSchema = z.object({
+  conformeThreshold: z.number().min(0).max(100),
+  atRiskThreshold: z.number().min(0).max(100),
+});
+settingsRouter.patch("/margin-thresholds", async (req, res) => {
+  const body = marginThresholdsSchema.parse(req.body);
+  const thresholds = await updateMarginThresholds(body);
+  res.json({ thresholds });
 });

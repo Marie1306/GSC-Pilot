@@ -62,3 +62,26 @@ export function projectMargin(sold: number, laborCost: number, purchases: number
   const grossMarginPct = soldNum ? (grossMargin / soldNum) * 100 : 0;
   return { grossMargin: round2(grossMargin), grossMarginPct };
 }
+
+export type FinancialStatus = "conforme" | "at_risk" | "critical";
+
+export interface MarginThresholds {
+  conformeThreshold: number;
+  atRiskThreshold: number;
+}
+
+/**
+ * Voyant de marge réelle — confirmé le 17 août 2026 : s'applique à
+ * projets, roulements et calls (même fonction partagée, jamais dupliquée
+ * par entité). Recalculé à la lecture à chaque punch/achat, jamais un
+ * champ figé. >= conformeThreshold → conforme; >= atRiskThreshold (mais
+ * < conformeThreshold) → à risque; en dessous → critique. Seuils
+ * modifiables par Direction seulement (Settings.marginConformeThreshold /
+ * marginAtRiskThreshold, défauts 30 / 25).
+ */
+export function financialStatus(marginPct: number, thresholds: MarginThresholds): FinancialStatus {
+  const pct = Number(marginPct || 0);
+  if (pct >= Number(thresholds.conformeThreshold)) return "conforme";
+  if (pct >= Number(thresholds.atRiskThreshold)) return "at_risk";
+  return "critical";
+}

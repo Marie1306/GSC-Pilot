@@ -22,3 +22,16 @@ export function updatePurchaseCategory(
 ): Promise<{ category: PurchaseCategoryDto }> {
   return apiFetch(`/api/settings/purchase-categories/${id}`, { method: "PATCH", body: JSON.stringify(update) });
 }
+
+export interface MarginThresholdsDto {
+  conformeThreshold: number;
+  atRiskThreshold: number;
+}
+
+export function fetchMarginThresholds(): Promise<{ thresholds: MarginThresholdsDto }> {
+  return apiFetch("/api/settings/margin-thresholds");
+}
+
+export function updateMarginThresholds(update: MarginThresholdsDto): Promise<{ thresholds: MarginThresholdsDto }> {
+  return apiFetch("/api/settings/margin-thresholds", { method: "PATCH", body: JSON.stringify(update) });
+}

@@ -10,8 +10,8 @@
  * (appliedToProjectAt non nul, jamais simplement "authorized" depuis le 13
  * août 2026) + ProjectPurchaseEntry approuvées pour ce projet (même esprit
  * que internal-stats.ts, qui filtre et somme plutôt que de dupliquer un
- * total). Pas encore construit — cette vue de synthèse viendra avec l'écran
- * projet (module Achats du menu Projet).
+ * total) — voir projectPurchasesActual ci-dessous, branché dans l'écran
+ * projet (Projet 2A, 17 août 2026).
  *
  * PurchaseCategory.thresholdAmount est copié dans
  * PurchaseRequest.thresholdAmountAtSubmission au moment de la création
@@ -27,6 +27,10 @@ import type { PurchaseRequest, Employee } from "../../generated/prisma/client.js
 
 export const FULFILLMENT_STATUSES = ["waiting", "ordered", "received"] as const;
 export type FulfillmentStatus = (typeof FULFILLMENT_STATUSES)[number];
+
+function round2(value: number): number {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
 
 /**
  * Année d'affaires courante — heure de l'Est/Québec (America/Toronto),
@@ -355,4 +359,19 @@ export async function rejectPurchaseRequest(id: string, rejectedReason?: string)
   }
   // Rejet final, jamais de re-soumission (canResubmitRejectedPurchase dans roles.ts) — statut terminal.
   return prisma.purchaseRequest.update({ where: { id }, data: { status: "rejected", rejectedReason: rejectedReason ?? null } });
+}
+
+/**
+ * Total des achats RÉELS d'un projet — implémente exactement la formule
+ * documentée en en-tête de fichier (17 août 2026, écran projet) : somme des
+ * PurchaseRequest APPLIQUÉES (appliedToProjectAt non nul) + des
+ * ProjectPurchaseEntry APPROUVÉES pour ce projet. Toujours calculé à la
+ * lecture, jamais un champ maintenu sur Project.
+ */
+export async function projectPurchasesActual(projectId: string): Promise<number> {
+  const [appliedRequests, approvedEntries] = await Promise.all([
+    prisma.purchaseRequest.aggregate({ where: { projectId, appliedToProjectAt: { not: null } }, _sum: { amount: true } }),
+    prisma.projectPurchaseEntry.aggregate({ where: { projectId, status: "approved" }, _sum: { amount: true } }),
+  ]);
+  return round2(Number(appliedRequests._sum.amount ?? 0) + Number(approvedEntries._sum.amount ?? 0));
 }

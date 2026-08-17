@@ -356,6 +356,14 @@ model Project {
   // projet v19, 12 août 2026). Gelée depuis Budget.projectBackupAmount au
   // moment de la conversion.
   projectBackupAmount  Decimal        @default(0) @db.Decimal(12, 2)
+  // Total heures + achats + frais divers des 3 catégories du groupe
+  // "installation" (installationLabor/installationStock/installationExpenses),
+  // AVANT marge — confirmé le 17 août 2026 : corrige la tuile "Livraison
+  // planifiée" de la référence v19 (erreur de libellé — ce n'est pas une
+  // catégorie du budgétaire). Gelé à la conversion, même esprit que
+  // plannedHours/plannedPurchases ci-dessus.
+  installationPlannedHours Decimal   @default(0) @db.Decimal(10, 2)
+  installationPlannedCost  Decimal   @default(0) @db.Decimal(12, 2)
   // Marge globale du budgétaire d'origine (prix vendu total vs coût total),
   // gelée une seule fois au moment de la conversion — ne change plus
   // jamais ensuite, même si un avenant fait varier la marge réelle
@@ -818,6 +826,13 @@ model Settings {
   nextBudgetNumber             Int      @default(1) // format BG-AAAA-NNNN
   servicePartsDefaultMarginPct Decimal  @default(20) @db.Decimal(5, 2)
   punchRoundingMinutes         Int      @default(15)
+  // Seuils du voyant de marge réelle (statut financier) — confirmé le 17
+  // août 2026 : s'appliquent à projets, roulements et calls (recalculé à la
+  // lecture à chaque punch/achat, jamais un champ figé sur l'entité).
+  // marge >= marginConformeThreshold → Conforme; entre les deux → À risque;
+  // < marginAtRiskThreshold → Critique. Modifiable par Direction seulement.
+  marginConformeThreshold      Decimal  @default(30) @db.Decimal(5, 2)
+  marginAtRiskThreshold        Decimal  @default(25) @db.Decimal(5, 2)
   updatedAt                    DateTime @updatedAt
 }
 

@@ -16,9 +16,21 @@
  * jamais modifié) — `plannedHours`/`actualHours` restent la référence figée
  * pour la comparaison, jamais touchés par un avenant.
  */
+import {
+  projectMargin,
+  financialStatus,
+  actualHoursByCategory,
+  canSeeFinancialValues,
+  BUDGET_CATEGORY_GROUP,
+  BUDGET_CATEGORY_LABELS,
+  type BudgetCategorySlug,
+  type FinancialStatus,
+  type Persona,
+} from "@gsc-pilot/business-rules";
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
 import { getBudgetDetail } from "../budgets/service.js";
+import { projectPurchasesActual } from "../purchases/service.js";
 import type { Project } from "../../generated/prisma/client.js";
 
 export interface ConvertBudgetToProjectInput {
@@ -50,6 +62,15 @@ export async function convertBudgetToProject(createdById: string, budgetId: stri
   const laborCost = laborSections.reduce((sum, section) => sum + section.baseCost, 0);
   const plannedPurchases = purchaseSections.reduce((sum, section) => sum + section.baseCost, 0);
 
+  // "Installation planifiée" (grille de la vue projet) : heures + achats +
+  // frais divers des 3 catégories du groupe "installation", avant marge —
+  // gelé ici même esprit que plannedHours/plannedPurchases ci-dessus.
+  const installationSections = detail.sections.filter(
+    (section) => BUDGET_CATEGORY_GROUP[section.category as BudgetCategorySlug] === "installation",
+  );
+  const installationPlannedHours = installationSections.reduce((sum, section) => sum + section.hours, 0);
+  const installationPlannedCost = installationSections.reduce((sum, section) => sum + section.baseCost, 0);
+
   const totalSale = detail.totals.totalSale;
   const totalBaseCost = detail.totals.totalBaseCost;
   const targetMarginPct = totalSale > 0 ? Math.round(((totalSale - totalBaseCost) / totalSale) * 100 * 100) / 100 : 0;
@@ -76,6 +97,8 @@ export async function convertBudgetToProject(createdById: string, budgetId: stri
         backupHoursCost: detail.backup.baseCost,
         backupHourlyRate: detail.backupHourlyRate,
         projectBackupAmount: detail.projectBackup.baseCost,
+        installationPlannedHours,
+        installationPlannedCost,
         targetMarginPct,
         createdById,
       },
@@ -94,23 +117,117 @@ export interface ProjectListItemDto {
   status: string;
   contactName: string;
   company: string | null;
-  sold: number;
+  deadline: string | null;
+  sold?: number;
+  hoursUsedPct: number;
+  progressionPct?: number;
+  grossMarginPct?: number;
+  financialStatus?: FinancialStatus;
 }
 
-export async function listProjects(): Promise<ProjectListItemDto[]> {
+/**
+ * Carte de la liste Projets (17 août 2026) : mêmes calculs que
+ * getProjectDetail (progression, marge réelle, statut financier), mais en
+ * lot pour toute la liste plutôt qu'un aller-retour DB par projet — un seul
+ * fetch TimeEntry/PurchaseRequest/ProjectPurchaseEntry, regroupé en JS par
+ * projectId (même raison qu'ailleurs : le coût réel est un produit
+ * heures × costRate par ligne, pas une colonne agrégeable directement en
+ * SQL — voir project-actuals.ts).
+ */
+export async function listProjects(viewerPersona: Persona): Promise<ProjectListItemDto[]> {
+  const showFinancials = canSeeFinancialValues(viewerPersona);
   const projects = await prisma.project.findMany({
+    where: { closedAt: null },
     include: { contact: { select: { name: true, company: true } } },
     orderBy: { projectNumber: "asc" },
   });
-  return projects.map((project) => ({
-    id: project.id,
-    projectNumber: project.projectNumber,
-    name: project.name,
-    status: project.status,
-    contactName: project.contact.name,
-    company: project.contact.company,
-    sold: Number(project.sold),
-  }));
+  const ids = projects.map((project) => project.id);
+
+  const [timeEntries, appliedRequests, approvedEntries, settings] = await Promise.all([
+    prisma.timeEntry.findMany({
+      where: { projectId: { in: ids }, status: "approved" },
+      select: { projectId: true, category: true, status: true, roundedMinutes: true, costRate: true },
+    }),
+    prisma.purchaseRequest.findMany({
+      where: { projectId: { in: ids }, appliedToProjectAt: { not: null } },
+      select: { projectId: true, amount: true },
+    }),
+    prisma.projectPurchaseEntry.findMany({
+      where: { projectId: { in: ids }, status: "approved" },
+      select: { projectId: true, amount: true },
+    }),
+    prisma.settings.findFirst(),
+  ]);
+  if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
+
+  const timeEntriesByProject = new Map<string, typeof timeEntries>();
+  for (const entry of timeEntries) {
+    if (!entry.projectId) continue;
+    const list = timeEntriesByProject.get(entry.projectId) ?? [];
+    list.push(entry);
+    timeEntriesByProject.set(entry.projectId, list);
+  }
+  const purchasesByProject = new Map<string, number>();
+  for (const request of appliedRequests) {
+    if (!request.projectId) continue;
+    purchasesByProject.set(request.projectId, round2((purchasesByProject.get(request.projectId) ?? 0) + Number(request.amount ?? 0)));
+  }
+  for (const entry of approvedEntries) {
+    purchasesByProject.set(entry.projectId, round2((purchasesByProject.get(entry.projectId) ?? 0) + Number(entry.amount)));
+  }
+
+  const thresholds = {
+    conformeThreshold: Number(settings.marginConformeThreshold),
+    atRiskThreshold: Number(settings.marginAtRiskThreshold),
+  };
+
+  return projects.map((project) => {
+    const actualByCategory = actualHoursByCategory(
+      (timeEntriesByProject.get(project.id) ?? []).map((entry) => ({
+        category: entry.category,
+        status: entry.status,
+        roundedMinutes: entry.roundedMinutes,
+        costRate: Number(entry.costRate),
+      })),
+    );
+    const actualHours = round2(actualByCategory.reduce((sum, row) => sum + row.hours, 0));
+    const actualLaborCost = round2(actualByCategory.reduce((sum, row) => sum + row.cost, 0));
+    const purchasesActual = purchasesByProject.get(project.id) ?? 0;
+    const sold = Number(project.sold);
+    const plannedHours = Number(project.plannedHours);
+    const grossMarginPct = round2(projectMargin(sold, actualLaborCost, purchasesActual).grossMarginPct);
+    const backupRate = project.backupHourlyRate !== null ? Number(project.backupHourlyRate) : 0;
+    const plannedBase = plannedHours * backupRate + Number(project.plannedPurchases);
+    const actualBase = actualHours * backupRate + purchasesActual;
+
+    return {
+      id: project.id,
+      projectNumber: project.projectNumber,
+      name: project.name,
+      status: project.status,
+      contactName: project.contact.name,
+      company: project.contact.company,
+      deadline: project.deadline?.toISOString() ?? null,
+      hoursUsedPct: plannedHours > 0 ? round2((actualHours / plannedHours) * 100) : 0,
+      ...(showFinancials && {
+        sold,
+        progressionPct: plannedBase > 0 ? round2((actualBase / plannedBase) * 100) : 0,
+        grossMarginPct,
+        financialStatus: financialStatus(grossMarginPct, thresholds),
+      }),
+    };
+  });
+}
+
+export interface ProjectComparatifRow {
+  category: string;
+  categoryLabel: string;
+  plannedHours: number;
+  actualHours: number;
+  hoursDelta: number;
+  plannedCost?: number;
+  actualCost?: number;
+  costDelta?: number;
 }
 
 export interface ProjectDetailDto {
@@ -123,44 +240,121 @@ export interface ProjectDetailDto {
   budgetId: string | null;
   budgetDisplayId: string | null;
   createdAt: string;
-  // Coup d'œil (capture d'écran v19, 12 août 2026) — le détail par catégorie
-  // (table planifié/réel), le Gantt et le suivi des achats/heures réels
-  // viennent dans une phase suivante.
-  sold: number;
+  sold?: number;
   plannedHours: number;
   actualHours: number;
   hoursUsedPct: number;
-  plannedPurchases: number;
-  actualPurchases: number;
+  plannedPurchases?: number;
+  actualPurchases?: number;
+  installationPlannedHours: number;
+  installationPlannedCost?: number;
   backupHours: number;
-  backupHoursCost: number;
-  projectBackupAmount: number;
-  grossMargin: number;
-  grossMarginPct: number;
-  targetMarginPct: number | null;
+  backupHoursCost?: number;
+  projectBackupAmount?: number;
+  grossMargin?: number;
+  grossMarginPct?: number;
+  targetMarginPct?: number | null;
+  financialStatus?: FinancialStatus;
+  progressionPct?: number;
+  comparatif: ProjectComparatifRow[];
 }
 
-export async function getProjectDetail(id: string): Promise<ProjectDetailDto> {
+/**
+ * Vue enrichie de la Phase 2A (17 août 2026) : bandeau de statut financier,
+ * grille complète, Progression du projet, Comparatif planifié vs réel.
+ * actualHours/actualPurchases ne sont jamais lus depuis les colonnes
+ * Project.actualHours/actualPurchases (restées à 0 depuis la Phase 1,
+ * TimeEntry/ProjectPurchaseEntry n'y étaient pas branchés) — toujours
+ * recalculés ici à la lecture, même esprit que projectPurchasesActual
+ * (purchases/service.ts) : jamais un total dupliqué/périmé.
+ *
+ * showFinancials (canSeeFinancialValues, roles.ts) : Employé et Magasinier
+ * ne voient jamais de $ ni de marge — principe transversal confirmé le 7
+ * août 2026, vérifié ici comme dans chaque autre vue. Progression % est
+ * gelée sous ce même interrupteur : son calcul convertit des heures en $
+ * (voir plus bas), donc la valeur elle-même reste financière même affichée
+ * en pourcentage.
+ */
+export async function getProjectDetail(id: string, viewerPersona: Persona): Promise<ProjectDetailDto> {
   const project = await prisma.project.findUnique({
     where: { id },
     include: { contact: { select: { name: true, company: true } }, budget: { select: { displayId: true } } },
   });
   if (!project) throw new HttpError(404, "Projet introuvable.");
 
-  // Confirmé le 12 août 2026 : le back-up d'heures ET le back-up projet
-  // sont déjà inclus, avec leur propre marge, dans "sold" (le prix vendu
-  // total du budgétaire au moment de la conversion) — jamais un coût à
-  // soustraire une deuxième fois ici. La marge réelle ne baisse que quand
-  // un coût ADDITIONNEL survient après coup : un vrai punch ou un achat
-  // réellement autorisé. Tant qu'aucun des deux n'existe (TimeEntry /
-  // ProjectPurchaseEntry pas encore branchés en Phase 1), sold - 0 = sold,
-  // donc 100 % — normal et attendu, pas une approximation.
+  const showFinancials = canSeeFinancialValues(viewerPersona);
+
+  const [timeEntries, purchasesActual, settings] = await Promise.all([
+    prisma.timeEntry.findMany({
+      where: { projectId: id, status: "approved" },
+      select: { category: true, status: true, roundedMinutes: true, costRate: true },
+    }),
+    projectPurchasesActual(id),
+    prisma.settings.findFirst(),
+  ]);
+  if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
+
+  const actualByCategory = actualHoursByCategory(
+    timeEntries.map((entry) => ({
+      category: entry.category,
+      status: entry.status,
+      roundedMinutes: entry.roundedMinutes,
+      costRate: Number(entry.costRate),
+    })),
+  );
+  const actualHours = round2(actualByCategory.reduce((sum, row) => sum + row.hours, 0));
+  const actualLaborCost = round2(actualByCategory.reduce((sum, row) => sum + row.cost, 0));
+
   const sold = Number(project.sold);
-  const actualCost = Number(project.actualPurchases);
-  const grossMargin = round2(sold - actualCost);
-  const grossMarginPct = sold > 0 ? round2((grossMargin / sold) * 100) : 0;
   const plannedHours = Number(project.plannedHours);
-  const actualHours = Number(project.actualHours);
+  const marginResult = projectMargin(sold, actualLaborCost, purchasesActual);
+  const grossMargin = marginResult.grossMargin;
+  const grossMarginPct = round2(marginResult.grossMarginPct);
+  const status = financialStatus(grossMarginPct, {
+    conformeThreshold: Number(settings.marginConformeThreshold),
+    atRiskThreshold: Number(settings.marginAtRiskThreshold),
+  });
+
+  // Progression du projet — confirmé le 17 août 2026 : tout converti en $
+  // avec Project.backupHourlyRate (taux gelé du budgétaire d'origine, PAS
+  // le coût réel par employé ni le taux de chaque ligne budgétaire — ceux-là
+  // servent à la marge réelle ci-dessus, un calcul volontairement distinct).
+  // Achats = mêmes achats réels/planifiés que les tuiles (appliquées au
+  // projet, jamais simplement "authorized").
+  const backupRate = project.backupHourlyRate !== null ? Number(project.backupHourlyRate) : 0;
+  const plannedPurchases = Number(project.plannedPurchases);
+  const plannedBase = plannedHours * backupRate + plannedPurchases;
+  const actualBase = actualHours * backupRate + purchasesActual;
+  const progressionPct = plannedBase > 0 ? round2((actualBase / plannedBase) * 100) : 0;
+
+  // Comparatif planifié vs réel — regroupé par CATÉGORIE seulement (pas par
+  // sous-tâche : TimeEntry.taskId/PunchableTask existent au schéma mais ne
+  // sont peuplés nulle part, voir project-actuals.ts). Vide si le projet
+  // n'a pas de budgétaire d'origine (création directe).
+  let comparatif: ProjectComparatifRow[] = [];
+  if (project.budgetId) {
+    const budgetDetail = await getBudgetDetail(project.budgetId);
+    const actualByCategoryMap = new Map(actualByCategory.map((row) => [row.category, row]));
+    comparatif = budgetDetail.sections
+      .filter((section) => section.kind === "labor")
+      .map((section) => {
+        const actual = actualByCategoryMap.get(section.category);
+        const rowActualHours = actual?.hours ?? 0;
+        const rowActualCost = round2(actual?.cost ?? 0);
+        return {
+          category: section.category,
+          categoryLabel: BUDGET_CATEGORY_LABELS[section.category as BudgetCategorySlug] ?? section.category,
+          plannedHours: section.hours,
+          actualHours: rowActualHours,
+          hoursDelta: round2(rowActualHours - section.hours),
+          ...(showFinancials && {
+            plannedCost: section.baseCost,
+            actualCost: rowActualCost,
+            costDelta: round2(rowActualCost - section.baseCost),
+          }),
+        };
+      });
+  }
 
   return {
     id: project.id,
@@ -172,18 +366,25 @@ export async function getProjectDetail(id: string): Promise<ProjectDetailDto> {
     budgetId: project.budgetId,
     budgetDisplayId: project.budget?.displayId ?? null,
     createdAt: project.createdAt.toISOString(),
-    sold,
     plannedHours,
     actualHours,
     hoursUsedPct: plannedHours > 0 ? round2((actualHours / plannedHours) * 100) : 0,
-    plannedPurchases: Number(project.plannedPurchases),
-    actualPurchases: Number(project.actualPurchases),
+    installationPlannedHours: Number(project.installationPlannedHours),
     backupHours: Number(project.backupHours),
-    backupHoursCost: Number(project.backupHoursCost),
-    projectBackupAmount: Number(project.projectBackupAmount),
-    grossMargin,
-    grossMarginPct,
-    targetMarginPct: project.targetMarginPct !== null ? Number(project.targetMarginPct) : null,
+    comparatif,
+    ...(showFinancials && {
+      sold,
+      plannedPurchases,
+      actualPurchases: purchasesActual,
+      installationPlannedCost: Number(project.installationPlannedCost),
+      backupHoursCost: Number(project.backupHoursCost),
+      projectBackupAmount: Number(project.projectBackupAmount),
+      grossMargin,
+      grossMarginPct,
+      targetMarginPct: project.targetMarginPct !== null ? Number(project.targetMarginPct) : null,
+      financialStatus: status,
+      progressionPct,
+    }),
   };
 }
 

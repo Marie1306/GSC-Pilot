@@ -22,13 +22,13 @@ projectsRouter.get("/projects", requireAuth, async (_req, res) => {
 });
 
 /** Liste complète (financière) — Phase 1 du module Projet, 12 août 2026. */
-projectsRouter.get("/projects/full", requireAuth, requirePermission((persona) => canAccessProject(persona)), async (_req, res) => {
-  const projects = await listProjects();
+projectsRouter.get("/projects/full", requireAuth, requirePermission((persona) => canAccessProject(persona)), async (req, res) => {
+  const projects = await listProjects(req.employee!.persona);
   res.json({ projects });
 });
 
 projectsRouter.get("/projects/:id", requireAuth, requirePermission((persona) => canAccessProject(persona)), async (req, res) => {
   const id = z.uuid().parse(req.params.id);
-  const project = await getProjectDetail(id);
+  const project = await getProjectDetail(id, req.employee!.persona);
   res.json({ project });
 });

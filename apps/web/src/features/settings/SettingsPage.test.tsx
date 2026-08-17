@@ -14,6 +14,9 @@ describe("SettingsPage", () => {
             { status: 200 },
           );
         }
+        if (url.includes("/api/settings/margin-thresholds")) {
+          return new Response(JSON.stringify({ thresholds: { conformeThreshold: 30, atRiskThreshold: 25 } }), { status: 200 });
+        }
         return new Response("{}", { status: 200 });
       }),
     );

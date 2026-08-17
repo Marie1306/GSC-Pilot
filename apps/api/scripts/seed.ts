@@ -185,6 +185,8 @@ async function seedSettings() {
         nextProjectNumber: 1,
         servicePartsDefaultMarginPct: 20,
         punchRoundingMinutes: 15,
+        marginConformeThreshold: 30,
+        marginAtRiskThreshold: 25,
       },
     });
   }

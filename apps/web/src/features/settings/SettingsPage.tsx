@@ -1,4 +1,5 @@
 import { PurchaseCategoriesCard } from "./PurchaseCategoriesCard.js";
+import { MarginThresholdsCard } from "./MarginThresholdsCard.js";
 
 /** Direction seulement (voir canAccessSettings, déjà appliqué au niveau de la route dans App.tsx). */
 export function SettingsPage() {
@@ -11,6 +12,7 @@ export function SettingsPage() {
         </p>
       </div>
       <PurchaseCategoriesCard />
+      <MarginThresholdsCard />
     </div>
   );
 }

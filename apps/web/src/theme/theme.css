@@ -284,3 +284,210 @@ a {
   color: var(--gsc-color-muted);
   font-size: 14px;
 }
+
+/* Voyant de marge réelle (Conforme/À risque/Critique) — partagé entre
+   projets, roulements et calls (financialStatus, business-rules/margin.ts). */
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.badge-pill::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+.badge-conforme {
+  background: var(--gsc-color-green-soft);
+  color: var(--gsc-color-green);
+}
+.badge-at_risk {
+  background: var(--gsc-color-amber-soft);
+  color: var(--gsc-color-amber);
+}
+.badge-critical {
+  background: var(--gsc-color-danger-soft);
+  color: var(--gsc-color-danger);
+}
+.badge-neutral {
+  background: var(--gsc-color-blue-soft);
+  color: var(--gsc-color-blue);
+}
+
+.financial-banner {
+  border-radius: var(--gsc-radius-base);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+.financial-banner strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+.financial-banner strong::before {
+  content: "●";
+  font-size: 11px;
+}
+.financial-banner p {
+  margin: 0;
+  color: var(--gsc-color-ink);
+  font-weight: 400;
+}
+.financial-banner-conforme {
+  background: var(--gsc-color-green-soft);
+  color: var(--gsc-color-green);
+}
+.financial-banner-at_risk {
+  background: var(--gsc-color-amber-soft);
+  color: var(--gsc-color-amber);
+}
+.financial-banner-critical {
+  background: var(--gsc-color-danger-soft);
+  color: var(--gsc-color-danger);
+}
+
+.stat-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.stat-tile {
+  background: var(--gsc-color-surface2);
+  border-radius: var(--gsc-radius-base);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stat-tile-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--gsc-color-muted);
+}
+.stat-tile-value {
+  font-size: 16px;
+  font-weight: 750;
+}
+
+.progress-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--gsc-color-surface3);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--gsc-color-green);
+  border-radius: 999px;
+}
+
+.comparatif-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.comparatif-table th {
+  text-align: right;
+  color: var(--gsc-color-muted);
+  font-weight: 600;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--gsc-color-line);
+  white-space: nowrap;
+}
+.comparatif-table th:first-child,
+.comparatif-table th:nth-child(2) {
+  text-align: left;
+}
+.comparatif-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--gsc-color-line);
+  text-align: right;
+  white-space: nowrap;
+}
+.comparatif-table td:first-child,
+.comparatif-table td:nth-child(2) {
+  text-align: left;
+}
+.comparatif-table td.over-budget {
+  color: var(--gsc-color-danger);
+  font-weight: 700;
+}
+
+.project-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+.project-card {
+  background: var(--gsc-color-surface);
+  border: 1px solid var(--gsc-color-line);
+  border-radius: var(--gsc-radius-base);
+  box-shadow: var(--gsc-shadow-sm);
+  padding: 18px;
+  cursor: pointer;
+}
+.project-card:hover {
+  border-color: var(--gsc-color-line-strong);
+}
+.project-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+.project-card-number {
+  color: var(--gsc-color-brand);
+  font-weight: 750;
+  font-size: 13px;
+}
+.project-card-name {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 2px 0;
+}
+.project-card-sub {
+  color: var(--gsc-color-muted);
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+.project-card-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.project-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--gsc-color-muted);
+  padding-top: 10px;
+  border-top: 1px solid var(--gsc-color-line);
+}
+.project-card-open {
+  color: var(--gsc-color-brand);
+  font-weight: 700;
+}
