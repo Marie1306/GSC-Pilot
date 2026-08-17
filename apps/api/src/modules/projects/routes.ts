@@ -10,6 +10,9 @@ import {
   canCreateInvoiceRecord,
   canRecordPayment,
   canManageWarranty,
+  canManageProject,
+  canArchiveProject,
+  canDeleteProject,
   FULFILLMENT_MODES,
   type FulfillmentMode,
 } from "@gsc-pilot/business-rules";
@@ -29,6 +32,10 @@ import {
   setWarrantyExpected,
   activateOrUpdateWarranty,
   getWarrantyHistory,
+  updateProjectInfo,
+  setProjectArchived,
+  deleteProject,
+  getProjectHistory,
 } from "./service.js";
 
 export const projectsRouter = Router();
@@ -212,5 +219,56 @@ projectsRouter.post(
     const body = activateWarrantySchema.parse(req.body);
     const entry = await activateOrUpdateWarranty(id, body, req.employee!.id);
     res.json({ entry });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Menu Options du projet (Projet 2F, 17 août 2026)
+// ---------------------------------------------------------------------------
+
+const updateProjectInfoSchema = z.object({ name: z.string().min(1).optional(), deadline: z.iso.date().nullable().optional() });
+projectsRouter.patch(
+  "/projects/:id",
+  requireAuth,
+  requirePermission((persona) => canManageProject(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const body = updateProjectInfoSchema.parse(req.body);
+    await updateProjectInfo(id, body);
+    res.status(204).end();
+  },
+);
+
+projectsRouter.patch(
+  "/projects/:id/archived",
+  requireAuth,
+  requirePermission((persona) => canArchiveProject(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const { archived } = z.object({ archived: z.boolean() }).parse(req.body);
+    await setProjectArchived(id, archived);
+    res.status(204).end();
+  },
+);
+
+projectsRouter.delete(
+  "/projects/:id",
+  requireAuth,
+  requirePermission((persona) => canDeleteProject(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    await deleteProject(id);
+    res.status(204).end();
+  },
+);
+
+projectsRouter.get(
+  "/projects/:id/history",
+  requireAuth,
+  requirePermission((persona) => canAccessProject(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const events = await getProjectHistory(id);
+    res.json({ events });
   },
 );

@@ -94,6 +94,9 @@ export interface ProjectDetail {
   warrantyExpected: boolean;
   warrantyEndsAt: string | null;
   lifecycleTab: ProjectLifecycleTab;
+  deadline: string | null;
+  archivedAt: string | null;
+  deletedAt: string | null;
 }
 
 export const FULFILLMENT_MODE_LABELS: Record<FulfillmentMode, string> = {
@@ -245,4 +248,35 @@ export interface ActivateWarrantyInput {
 
 export function activateWarranty(id: string, input: ActivateWarrantyInput): Promise<{ entry: WarrantyHistoryEntryDto }> {
   return apiFetch(`/api/projects/${id}/warranty`, { method: "POST", body: JSON.stringify(input) });
+}
+
+// ---------------------------------------------------------------------------
+// Menu Options du projet (Projet 2F, 17 août 2026).
+// ---------------------------------------------------------------------------
+
+export interface UpdateProjectInfoInput {
+  name?: string;
+  deadline?: string | null;
+}
+
+export function updateProjectInfo(id: string, input: UpdateProjectInfoInput): Promise<void> {
+  return apiFetch(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify(input) });
+}
+
+export function setProjectArchived(id: string, archived: boolean): Promise<void> {
+  return apiFetch(`/api/projects/${id}/archived`, { method: "PATCH", body: JSON.stringify({ archived }) });
+}
+
+export function deleteProject(id: string): Promise<void> {
+  return apiFetch(`/api/projects/${id}`, { method: "DELETE" });
+}
+
+export interface HistoryEventDto {
+  at: string;
+  label: string;
+  actorName?: string;
+}
+
+export function fetchProjectHistory(id: string): Promise<{ events: HistoryEventDto[] }> {
+  return apiFetch(`/api/projects/${id}/history`);
 }

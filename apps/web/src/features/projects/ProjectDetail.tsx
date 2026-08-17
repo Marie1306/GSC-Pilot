@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchProjectDetail, formatCurrency, FINANCIAL_STATUS_LABELS } from "./api.js";
 import { ProjectPurchaseEntries } from "./ProjectPurchaseEntries.js";
 import { ProjectFulfillment } from "./ProjectFulfillment.js";
 import { ProjectInvoicePlan } from "./ProjectInvoicePlan.js";
 import { ProjectWarranty } from "./ProjectWarranty.js";
+import { ProjectOptionsMenu } from "./ProjectOptionsMenu.js";
 
 interface ProjectDetailProps {
   id: string;
@@ -26,12 +28,14 @@ const FINANCIAL_BANNER_TEXT: Record<string, string> = {
  * archivé. Phase 2B : Achats réels (ProjectPurchaseEntries.tsx). Phase 2C :
  * Production et sortie (ProjectFulfillment.tsx), Cycle de facturation
  * (ProjectInvoicePlan.tsx). Phase 2D : Garantie (ProjectWarranty.tsx).
- * Post-mortem et le menu Options viennent dans les phases suivantes
- * (2E/2F) — voir CLAUDE.md, principe de construction par phase confirmée.
+ * Phase 2F : menu Options (ProjectOptionsMenu.tsx). Post-mortem (2E) reste
+ * en attente du contenu réel — voir CLAUDE.md, jamais deviné depuis la
+ * référence v19.
  */
 export function ProjectDetail({ id, onClose }: ProjectDetailProps) {
   const detailQuery = useQuery({ queryKey: ["project", id], queryFn: () => fetchProjectDetail(id) });
   const project = detailQuery.data?.project;
+  const [optionsOpen, setOptionsOpen] = useState(false);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -46,13 +50,23 @@ export function ProjectDetail({ id, onClose }: ProjectDetailProps) {
               </p>
             )}
           </div>
-          <button type="button" className="modal-close" onClick={onClose} aria-label="Fermer">
-            ×
-          </button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {project && (
+              <button type="button" className="btn btn-secondary btn-small" onClick={() => setOptionsOpen((v) => !v)}>
+                ⚙ Options
+              </button>
+            )}
+            <button type="button" className="modal-close" onClick={onClose} aria-label="Fermer">
+              ×
+            </button>
+          </div>
         </div>
 
         <div className="modal-body">
           {!project && <p>Chargement…</p>}
+          {project && (
+            <ProjectOptionsMenu project={project} open={optionsOpen} onClose={() => setOptionsOpen(false)} onDeleted={onClose} />
+          )}
           {project && (
             <>
               {project.financialStatus && (

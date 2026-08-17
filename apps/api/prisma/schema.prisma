@@ -399,6 +399,15 @@ model Project {
   warrantyExpected Boolean   @default(false)
   warrantyEndsAt   DateTime?
   closedAt             DateTime? // geste manuel séparé — jamais un effet de bord du mode de sortie
+  // Menu Options du projet (Projet 2F, 17 août 2026) — deux gestes séparés
+  // de closedAt, confirmés par capture d'écran (section "Actions
+  // sensibles" du menu). archivedAt : reste pleinement accessible (lien
+  // direct, getProjectDetail), seulement sorti des listes actives — même
+  // esprit que le Budgétaire archivé. deletedAt : mécanisme de corbeille
+  // seulement (masqué des listes) — l'écran de restauration 90 jours lui-
+  // même attend le module Paramètres complet (confirmé, pas construit ici).
+  archivedAt DateTime?
+  deletedAt  DateTime?
   createdById          String
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt

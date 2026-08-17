@@ -385,3 +385,25 @@ describe("Garantie (17 août 2026)", () => {
     expect(P.canManageWarranty(WAREHOUSE)).toBe(false);
   });
 });
+
+describe("Menu Options du projet (17 août 2026)", () => {
+  it("Direction et Administration modifient les informations courantes", () => {
+    expect(P.canManageProject(OWNER)).toBe(true);
+    expect(P.canManageProject(ADMIN)).toBe(true);
+  });
+  it("Propriétaire/Employé/Magasinier ne modifient pas les informations", () => {
+    expect(P.canManageProject(BOSS)).toBe(false);
+    expect(P.canManageProject(MEMBER)).toBe(false);
+    expect(P.canManageProject(WAREHOUSE)).toBe(false);
+  });
+  it("Direction seulement archive un projet", () => {
+    expect(P.canArchiveProject(OWNER)).toBe(true);
+    expect(P.canArchiveProject(ADMIN)).toBe(false);
+    expect(P.canArchiveProject(BOSS)).toBe(false);
+  });
+  it("Direction seulement supprime un projet (corbeille)", () => {
+    expect(P.canDeleteProject(OWNER)).toBe(true);
+    expect(P.canDeleteProject(ADMIN)).toBe(false);
+    expect(P.canDeleteProject(BOSS)).toBe(false);
+  });
+});

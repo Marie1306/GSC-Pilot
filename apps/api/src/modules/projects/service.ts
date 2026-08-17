@@ -38,7 +38,7 @@ import {
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
 import { getBudgetDetail } from "../budgets/service.js";
-import { projectPurchasesActual } from "../purchases/service.js";
+import { projectPurchasesActual, listProjectPurchaseEntries } from "../purchases/service.js";
 import type { Project } from "../../generated/prisma/client.js";
 
 export interface ConvertBudgetToProjectInput {
@@ -189,6 +189,7 @@ export interface ProjectListItemDto {
 export async function listProjects(viewerPersona: Persona): Promise<ProjectListItemDto[]> {
   const showFinancials = canSeeFinancialValues(viewerPersona);
   const projects = await prisma.project.findMany({
+    where: { archivedAt: null, deletedAt: null },
     include: { contact: { select: { name: true, company: true } } },
     orderBy: { projectNumber: "asc" },
   });
@@ -320,6 +321,9 @@ export interface ProjectDetailDto {
   warrantyExpected: boolean;
   warrantyEndsAt: string | null;
   lifecycleTab: ProjectLifecycleTab;
+  deadline: string | null;
+  archivedAt: string | null;
+  deletedAt: string | null;
 }
 
 /**
@@ -444,6 +448,9 @@ export async function getProjectDetail(id: string, viewerPersona: Persona): Prom
     warrantyExpected: project.warrantyExpected,
     warrantyEndsAt: project.warrantyEndsAt?.toISOString() ?? null,
     lifecycleTab: projectLifecycleTab(project),
+    deadline: project.deadline?.toISOString() ?? null,
+    archivedAt: project.archivedAt?.toISOString() ?? null,
+    deletedAt: project.deletedAt?.toISOString() ?? null,
     ...(showFinancials && {
       sold,
       plannedPurchases,
@@ -778,4 +785,96 @@ export async function activateOrUpdateWarranty(
   ]);
   const nameById = await warrantyHistoryNamesById([row]);
   return toWarrantyHistoryEntryDto(row, nameById);
+}
+
+// ---------------------------------------------------------------------------
+// Menu Options du projet (Projet 2F, 17 août 2026) — confirmé par capture
+// d'écran du menu (« Modifier les informations » / « Renommer » / « Modifier
+// la date d'échéance » regroupés ici en une seule action ; « Actions
+// sensibles » = archiver/supprimer, Direction seulement). Gantt, avenants,
+// punch d'heures et le module Appels de service restent hors de cette phase
+// (modules pas encore construits, ou explicitement une phase séparée).
+// ---------------------------------------------------------------------------
+
+export interface UpdateProjectInfoInput {
+  name?: string;
+  deadline?: string | null;
+}
+
+export async function updateProjectInfo(projectId: string, input: UpdateProjectInfoInput): Promise<void> {
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  if (!project) throw new HttpError(404, "Projet introuvable.");
+  await prisma.project.update({
+    where: { id: projectId },
+    data: {
+      ...(input.name !== undefined && { name: input.name }),
+      ...(input.deadline !== undefined && { deadline: input.deadline ? new Date(input.deadline) : null }),
+    },
+  });
+}
+
+/** Archiver/désarchiver — distinct de Fermer (closedAt) : reste pleinement accessible par lien direct, seulement sorti des listes actives (listProjects). */
+export async function setProjectArchived(projectId: string, archived: boolean): Promise<void> {
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  if (!project) throw new HttpError(404, "Projet introuvable.");
+  await prisma.project.update({ where: { id: projectId }, data: { archivedAt: archived ? new Date() : null } });
+}
+
+/** Corbeille — mécanisme seulement (deletedAt, masqué des listes actives). L'écran de restauration 90 jours attend le module Paramètres complet (confirmé, hors de cette phase). */
+export async function deleteProject(projectId: string): Promise<void> {
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  if (!project) throw new HttpError(404, "Projet introuvable.");
+  if (project.deletedAt) throw new HttpError(400, "Ce projet est déjà dans la corbeille.");
+  await prisma.project.update({ where: { id: projectId }, data: { deletedAt: new Date() } });
+}
+
+export interface HistoryEventDto {
+  at: string;
+  label: string;
+  actorName?: string;
+}
+
+/**
+ * Historique complet — première version, agrégée à la lecture à partir des
+ * tables déjà horodatées (garantie, cycle de facturation, achats réels)
+ * plutôt qu'un nouveau journal d'audit générique à écrire dans chaque action
+ * existante déjà testée (risque de régression pour un simple menu). Les
+ * demandes/enregistrements de facturation n'ont pas encore de nom résolu
+ * (seulement l'id) — acceptable pour une première version, jamais deviné.
+ */
+export async function getProjectHistory(projectId: string): Promise<HistoryEventDto[]> {
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { createdAt: true, createdById: true } });
+  if (!project) throw new HttpError(404, "Projet introuvable.");
+
+  const [warrantyHistory, invoiceEntries, purchaseEntries, creator] = await Promise.all([
+    getWarrantyHistory(projectId),
+    getInvoicePlan(projectId),
+    listProjectPurchaseEntries(projectId),
+    prisma.employee.findUnique({ where: { id: project.createdById }, select: { name: true } }),
+  ]);
+
+  const events: HistoryEventDto[] = [{ at: project.createdAt.toISOString(), label: "Projet créé", actorName: creator?.name }];
+
+  for (const entry of warrantyHistory) {
+    events.push({
+      at: entry.changedAt,
+      label: entry.previousEndsAt
+        ? `Garantie modifiée — nouvelle fin : ${entry.newEndsAt.slice(0, 10)}`
+        : `Garantie activée — fin : ${entry.newEndsAt.slice(0, 10)}`,
+      actorName: entry.changedByName,
+    });
+  }
+
+  for (const entry of invoiceEntries) {
+    if (entry.requestedAt) events.push({ at: entry.requestedAt, label: `Facturation demandée — ${entry.label}` });
+    if (entry.processedAt) events.push({ at: entry.processedAt, label: `Facture enregistrée — ${entry.label}${entry.invoiceNumber ? ` (${entry.invoiceNumber})` : ""}` });
+    if (entry.paidAt) events.push({ at: entry.paidAt, label: `Paiement enregistré — ${entry.label}` });
+  }
+
+  for (const entry of purchaseEntries) {
+    events.push({ at: entry.createdAt, label: `Achat ajouté — ${entry.description}`, actorName: entry.enteredByName });
+    if (entry.approvedAt) events.push({ at: entry.approvedAt, label: `Achat approuvé — ${entry.description}`, actorName: entry.approvedByName ?? undefined });
+  }
+
+  return events.sort((a, b) => (a.at < b.at ? 1 : -1));
 }

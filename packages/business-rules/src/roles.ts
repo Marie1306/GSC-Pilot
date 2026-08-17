@@ -423,6 +423,31 @@ export function canManageWarranty(persona: Persona): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Menu Options du projet
+// ---------------------------------------------------------------------------
+
+/** Modifier les informations courantes (nom, échéance) : Direction et
+ * Administration — même palier que les autres actions de gestion courante
+ * du projet (fulfillment, facturation). */
+export function canManageProject(persona: Persona): boolean {
+  assertRole(persona);
+  return ([ROLES.OWNER, ROLES.ADMIN] as Persona[]).includes(persona);
+}
+
+/** Archiver/désarchiver, supprimer (corbeille) : Direction seulement — la
+ * capture d'écran du menu Options les regroupe elle-même sous "Actions
+ * sensibles", même palier que les autres actions les plus sensibles du
+ * projet (marquer la production complétée, demander la facturation). */
+export function canArchiveProject(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}
+export function canDeleteProject(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}
+
+// ---------------------------------------------------------------------------
 // Tableau de bord / Rapports / Contacts / Demandes clients / Appels de service
 // Confirmé : tout le monde sauf Employé et Magasinier peut créer une
 // demande client ou un appel de service (cohérent avec la règle de
