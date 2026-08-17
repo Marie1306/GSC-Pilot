@@ -10,7 +10,7 @@ import {
 } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
-import { convertBudgetToProject } from "../projects/api.js";
+import { convertBudgetToProject, fetchNextProjectNumber } from "../projects/api.js";
 import {
   fetchBudgetDetail,
   updateRow,
@@ -292,6 +292,18 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
   const [error, setError] = useState<string | null>(null);
   const [showConvertForm, setShowConvertForm] = useState(false);
   const [projectName, setProjectName] = useState("");
+  // Numéro suggéré (plus grand + 1) préaffiché mais modifiable — pour
+  // reprendre un numéro hérité de l'ancien système (confirmé 17 août 2026).
+  // Pas de useEffect pour copier la suggestion serveur : nul tant que
+  // Direction n'a rien tapé, comme projectName mais avec une valeur par
+  // défaut dérivée à l'affichage (même patron que MarginThresholdsCard).
+  const [projectNumberOverride, setProjectNumberOverride] = useState<string | null>(null);
+  const nextProjectNumberQuery = useQuery({
+    queryKey: ["next-project-number"],
+    queryFn: fetchNextProjectNumber,
+    enabled: showConvertForm,
+  });
+  const projectNumber = projectNumberOverride ?? String(nextProjectNumberQuery.data?.nextProjectNumber ?? "");
 
   const invalidate = () => {
     setError(null);
@@ -350,7 +362,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
     onError: onMutationError,
   });
   const convertMutation = useMutation({
-    mutationFn: () => convertBudgetToProject(id, projectName.trim()),
+    mutationFn: () => convertBudgetToProject(id, projectName.trim(), projectNumber.trim()),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
       navigate("/projets");
@@ -778,18 +790,30 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       className="budget-add-row-form"
                       onSubmit={(event: FormEvent) => {
                         event.preventDefault();
-                        if (!projectName.trim()) return;
+                        if (!projectName.trim() || !projectNumber.trim()) return;
                         convertMutation.mutate();
                       }}
                     >
                       <input placeholder="Nom du projet" value={projectName} onChange={(e) => setProjectName(e.target.value)} autoFocus />
-                      <button type="submit" className="btn btn-small" disabled={!projectName.trim() || busy}>
+                      <input
+                        placeholder="Numéro"
+                        style={{ width: 100 }}
+                        value={projectNumber}
+                        onChange={(e) => setProjectNumberOverride(e.target.value)}
+                        title="Préaffiché automatiquement (plus grand numéro + 1) — modifiable pour reprendre un numéro hérité de l'ancien système."
+                      />
+                      <button type="submit" className="btn btn-small" disabled={!projectName.trim() || !projectNumber.trim() || busy}>
                         {convertMutation.isPending ? "Conversion…" : "Confirmer"}
                       </button>
                       <button type="button" className="btn btn-secondary btn-small" onClick={() => setShowConvertForm(false)}>
                         Annuler
                       </button>
                     </form>
+                  )}
+                  {convertMutation.isError && (
+                    <p className="form-error" style={{ marginTop: 8 }}>
+                      {convertMutation.error instanceof ApiError ? convertMutation.error.message : "Une erreur est survenue — réessayez."}
+                    </p>
                   )}
                 </div>
               )}

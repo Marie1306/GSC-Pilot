@@ -236,7 +236,7 @@ budgetsRouter.post(
   requirePermission((persona) => canConvertBudgetToProject(persona)),
   async (req, res) => {
     const id = z.uuid().parse(req.params.id);
-    const body = z.object({ name: z.string().min(1) }).parse(req.body);
+    const body = z.object({ name: z.string().min(1), projectNumber: z.string().optional() }).parse(req.body);
     const project = await convertBudgetToProject(req.employee!.id, id, body);
     res.status(201).json({ id: project.id, projectNumber: project.projectNumber });
   },

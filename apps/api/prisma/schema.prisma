@@ -813,7 +813,12 @@ model Settings {
   lunchRate                    Decimal  @default(0) @db.Decimal(10, 2)
   dinnerRate                   Decimal  @default(0) @db.Decimal(10, 2)
   defaultBillingSplit          Json // voir billing.ts DEFAULT_BILLING_SPLIT
-  projectNumberPrefix          String   @default("PRJ")
+  // Numéro de projet : nombre brut, jamais de préfixe ni de zéros devant
+  // (confirmé le 17 août 2026 — contrairement à BG-AAAA-NNNN, DA-AAAA-NNNNN,
+  // etc.). Modifiable à la conversion pour reprendre les numéros hérités de
+  // l'ancien système (ex. 2267) — voir getNextProjectNumber/
+  // convertBudgetToProject, projects/service.ts : toujours mis à jour au
+  // maximum utilisé, jamais simplement incrémenté à l'aveugle.
   nextProjectNumber            Int      @default(1)
   nextPurchaseRequestNumber    Int      @default(1) // format DA-AAAA-NNNNN (5 chiffres, confirmé le 14 août 2026)
   // Année d'affaires (heure de l'Est/Québec, pas le fuseau du serveur) à

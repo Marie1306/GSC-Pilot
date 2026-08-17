@@ -35,11 +35,36 @@ import type { Project } from "../../generated/prisma/client.js";
 
 export interface ConvertBudgetToProjectInput {
   name: string;
+  /**
+   * Optionnel — reprendre un numéro hérité de l'ancien système (ex. 2267).
+   * Nombre brut, jamais de préfixe ni de zéros devant (confirmé le 17 août
+   * 2026, contrairement à BG-AAAA-NNNN etc.). Absent = numéro automatique
+   * (settings.nextProjectNumber). Dans les deux cas, le compteur est mis à
+   * jour au MAXIMUM utilisé — jamais simplement incrémenté à l'aveugle —
+   * pour que l'automatique reprenne correctement après un numéro manuel.
+   */
+  projectNumber?: string;
+}
+
+/** Numéro suggéré pour préremplir le champ du formulaire — jamais deviné côté interface. */
+export async function getNextProjectNumber(): Promise<number> {
+  const settings = await prisma.settings.findFirst();
+  if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
+  return settings.nextProjectNumber;
 }
 
 export async function convertBudgetToProject(createdById: string, budgetId: string, input: ConvertBudgetToProjectInput): Promise<Project> {
   const name = input.name?.trim();
   if (!name) throw new HttpError(400, "Le nom du projet est requis.");
+
+  const requestedNumber = input.projectNumber?.trim();
+  if (requestedNumber !== undefined && requestedNumber !== "" && !/^\d+$/.test(requestedNumber)) {
+    throw new HttpError(400, "Le numéro de projet doit être composé uniquement de chiffres.");
+  }
+  if (requestedNumber) {
+    const taken = await prisma.project.findUnique({ where: { projectNumber: requestedNumber } });
+    if (taken) throw new HttpError(409, `Le numéro ${requestedNumber} est déjà utilisé par un autre projet.`);
+  }
 
   const budget = await prisma.budget.findUnique({ where: { id: budgetId } });
   if (!budget) throw new HttpError(404, "Budgétaire introuvable.");
@@ -78,7 +103,8 @@ export async function convertBudgetToProject(createdById: string, budgetId: stri
   return prisma.$transaction(async (tx) => {
     const settings = await tx.settings.findFirst();
     if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
-    const projectNumber = `${settings.projectNumberPrefix}-${String(settings.nextProjectNumber).padStart(4, "0")}`;
+    const projectNumber = requestedNumber || String(settings.nextProjectNumber);
+    const nextAfter = Math.max(settings.nextProjectNumber, Number(projectNumber) + 1);
 
     const project = await tx.project.create({
       data: {
@@ -104,7 +130,7 @@ export async function convertBudgetToProject(createdById: string, budgetId: stri
       },
     });
 
-    await tx.settings.update({ where: { id: settings.id }, data: { nextProjectNumber: settings.nextProjectNumber + 1 } });
+    await tx.settings.update({ where: { id: settings.id }, data: { nextProjectNumber: nextAfter } });
 
     return project;
   });

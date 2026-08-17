@@ -181,7 +181,6 @@ async function seedSettings() {
         lunchRate: 20,
         dinnerRate: 25,
         defaultBillingSplit,
-        projectNumberPrefix: "PRJ",
         nextProjectNumber: 1,
         servicePartsDefaultMarginPct: 20,
         punchRoundingMinutes: 15,

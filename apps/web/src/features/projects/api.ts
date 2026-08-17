@@ -88,6 +88,15 @@ export function fetchProjectDetail(id: string): Promise<{ project: ProjectDetail
   return apiFetch(`/api/projects/${id}`);
 }
 
-export function convertBudgetToProject(budgetId: string, name: string): Promise<{ id: string; projectNumber: string }> {
-  return apiFetch(`/api/budgets/${budgetId}/convert-to-project`, { method: "POST", body: JSON.stringify({ name }) });
+export function convertBudgetToProject(
+  budgetId: string,
+  name: string,
+  projectNumber?: string,
+): Promise<{ id: string; projectNumber: string }> {
+  return apiFetch(`/api/budgets/${budgetId}/convert-to-project`, { method: "POST", body: JSON.stringify({ name, projectNumber }) });
+}
+
+/** Numéro suggéré (plus grand existant + 1) pour préremplir le champ — jamais deviné côté interface. */
+export function fetchNextProjectNumber(): Promise<{ nextProjectNumber: number }> {
+  return apiFetch("/api/projects/next-number");
 }

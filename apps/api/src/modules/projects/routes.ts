@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
-import { canAccessProject } from "@gsc-pilot/business-rules";
+import { canAccessProject, canConvertBudgetToProject, canCreateProjectDirectly } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import { prisma } from "../../db.js";
-import { listProjects, getProjectDetail } from "./service.js";
+import { listProjects, getProjectDetail, getNextProjectNumber } from "./service.js";
 
 export const projectsRouter = Router();
 
@@ -20,6 +20,17 @@ projectsRouter.get("/projects", requireAuth, async (_req, res) => {
   });
   res.json({ projects });
 });
+
+/** Numéro suggéré pour préremplir le formulaire de conversion/création — Direction ou Propriétaire (mêmes rôles qui créent un projet). */
+projectsRouter.get(
+  "/projects/next-number",
+  requireAuth,
+  requirePermission((persona) => canConvertBudgetToProject(persona) || canCreateProjectDirectly(persona)),
+  async (_req, res) => {
+    const nextProjectNumber = await getNextProjectNumber();
+    res.json({ nextProjectNumber });
+  },
+);
 
 /** Liste complète (financière) — Phase 1 du module Projet, 12 août 2026. */
 projectsRouter.get("/projects/full", requireAuth, requirePermission((persona) => canAccessProject(persona)), async (req, res) => {
