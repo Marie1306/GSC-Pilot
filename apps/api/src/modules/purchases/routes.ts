@@ -4,6 +4,9 @@ import {
   canSubmitPurchaseRequest,
   canApprovePurchaseRequest,
   canManagePurchaseFulfillment,
+  canEnterProjectPurchase,
+  canApproveProjectPurchase,
+  canAccessProject,
   buildFrozenPurchaseThresholdsMap,
   type Persona,
 } from "@gsc-pilot/business-rules";
@@ -24,6 +27,11 @@ import {
   applyPurchaseRequestToProject,
   FULFILLMENT_STATUSES,
   type FulfillmentStatus,
+  listProjectPurchaseEntries,
+  createProjectPurchaseEntry,
+  updateProjectPurchaseEntryAmount,
+  deleteProjectPurchaseEntry,
+  approveProjectPurchaseEntry,
 } from "./service.js";
 
 export const purchasesRouter = Router();
@@ -225,3 +233,72 @@ async function assertCanActOnRequest(
     throw new HttpError(403, "forbidden");
   }
 }
+
+// ---------------------------------------------------------------------------
+// ProjectPurchaseEntry — mécanisme simple (Projet 2B, 17 août 2026).
+// ---------------------------------------------------------------------------
+
+purchasesRouter.get(
+  "/projects/:projectId/purchase-entries",
+  requireAuth,
+  requirePermission((persona) => canAccessProject(persona)),
+  async (req, res) => {
+    const projectId = z.uuid().parse(req.params.projectId);
+    const entries = await listProjectPurchaseEntries(projectId);
+    res.json({ entries });
+  },
+);
+
+const createEntrySchema = z.object({
+  date: z.iso.date(),
+  category: z.string().min(1, "La catégorie est requise."),
+  supplier: z.string().optional(),
+  description: z.string().min(1, "La description est requise."),
+  amount: z.number().positive("Le montant doit être positif."),
+  note: z.string().optional(),
+});
+purchasesRouter.post(
+  "/projects/:projectId/purchase-entries",
+  requireAuth,
+  requirePermission((persona) => canEnterProjectPurchase(persona)),
+  async (req, res) => {
+    const projectId = z.uuid().parse(req.params.projectId);
+    const body = createEntrySchema.parse(req.body);
+    const entry = await createProjectPurchaseEntry(projectId, req.employee!.id, body);
+    res.status(201).json({ entry });
+  },
+);
+
+purchasesRouter.patch(
+  "/purchase-entries/:id/amount",
+  requireAuth,
+  requirePermission((persona) => canEnterProjectPurchase(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const { amount } = z.object({ amount: z.number().positive("Le montant doit être positif.") }).parse(req.body);
+    const entry = await updateProjectPurchaseEntryAmount(id, amount);
+    res.json({ entry });
+  },
+);
+
+purchasesRouter.delete(
+  "/purchase-entries/:id",
+  requireAuth,
+  requirePermission((persona) => canEnterProjectPurchase(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    await deleteProjectPurchaseEntry(id);
+    res.status(204).end();
+  },
+);
+
+purchasesRouter.post(
+  "/purchase-entries/:id/approve",
+  requireAuth,
+  requirePermissionWithDelegation((settings, persona) => canApproveProjectPurchase(settings, persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const entry = await approveProjectPurchaseEntry(id, req.employee!.id);
+    res.json({ entry });
+  },
+);

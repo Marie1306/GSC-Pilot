@@ -127,3 +127,58 @@ export function setFulfillmentStatus(id: string, status: FulfillmentStatus): Pro
 export function applyPurchaseRequestToProject(id: string): Promise<{ id: string; appliedToProjectAt: string | null }> {
   return apiFetch(`/api/purchase-requests/${id}/apply-to-project`, { method: "POST" });
 }
+
+// ---------------------------------------------------------------------------
+// ProjectPurchaseEntry — mécanisme simple (Projet 2B, 17 août 2026). Distinct
+// des PurchaseRequest ci-dessus — voir purchases/service.ts (API).
+// ---------------------------------------------------------------------------
+
+export interface ProjectPurchaseEntryDto {
+  id: string;
+  projectId: string;
+  date: string;
+  category: string;
+  supplier: string | null;
+  description: string;
+  amount: number;
+  enteredById: string;
+  enteredByName: string;
+  status: string;
+  approvedById: string | null;
+  approvedByName: string | null;
+  approvedAt: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface NewProjectPurchaseEntryInput {
+  date: string;
+  category: string;
+  supplier?: string;
+  description: string;
+  amount: number;
+  note?: string;
+}
+
+export function fetchProjectPurchaseEntries(projectId: string): Promise<{ entries: ProjectPurchaseEntryDto[] }> {
+  return apiFetch(`/api/projects/${projectId}/purchase-entries`);
+}
+
+export function createProjectPurchaseEntry(
+  projectId: string,
+  input: NewProjectPurchaseEntryInput,
+): Promise<{ entry: ProjectPurchaseEntryDto }> {
+  return apiFetch(`/api/projects/${projectId}/purchase-entries`, { method: "POST", body: JSON.stringify(input) });
+}
+
+export function updateProjectPurchaseEntryAmount(id: string, amount: number): Promise<{ entry: ProjectPurchaseEntryDto }> {
+  return apiFetch(`/api/purchase-entries/${id}/amount`, { method: "PATCH", body: JSON.stringify({ amount }) });
+}
+
+export function deleteProjectPurchaseEntry(id: string): Promise<void> {
+  return apiFetch(`/api/purchase-entries/${id}`, { method: "DELETE" });
+}
+
+export function approveProjectPurchaseEntry(id: string): Promise<{ entry: ProjectPurchaseEntryDto }> {
+  return apiFetch(`/api/purchase-entries/${id}/approve`, { method: "POST" });
+}

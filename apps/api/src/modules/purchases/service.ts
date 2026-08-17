@@ -23,7 +23,7 @@
 import { canSeeFinancialValues, type Persona } from "@gsc-pilot/business-rules";
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
-import type { PurchaseRequest, Employee } from "../../generated/prisma/client.js";
+import type { PurchaseRequest, ProjectPurchaseEntry, Employee } from "../../generated/prisma/client.js";
 
 export const FULFILLMENT_STATUSES = ["waiting", "ordered", "received"] as const;
 export type FulfillmentStatus = (typeof FULFILLMENT_STATUSES)[number];
@@ -374,4 +374,132 @@ export async function projectPurchasesActual(projectId: string): Promise<number>
     prisma.projectPurchaseEntry.aggregate({ where: { projectId, status: "approved" }, _sum: { amount: true } }),
   ]);
   return round2(Number(appliedRequests._sum.amount ?? 0) + Number(approvedEntries._sum.amount ?? 0));
+}
+
+// ---------------------------------------------------------------------------
+// ProjectPurchaseEntry — mécanisme simple (Projet 2B, 17 août 2026). Saisie
+// Administration/Direction, approbation Direction seulement (canEnterProjectPurchase/
+// canApproveProjectPurchase, roles.ts) — jamais de seuil, jamais de double
+// autorisation du Propriétaire (voir schema.prisma). Deux états seulement :
+// pending | approved. Correction/suppression permises tant que pending
+// seulement, jamais après approbation (confirmé le 17 août 2026) — pas de
+// statut "rejeté" : une entrée erronée se supprime, elle ne se rejette pas.
+// ---------------------------------------------------------------------------
+
+export interface ProjectPurchaseEntryDto {
+  id: string;
+  projectId: string;
+  date: string;
+  category: string;
+  supplier: string | null;
+  description: string;
+  amount: number;
+  enteredById: string;
+  enteredByName: string;
+  status: string;
+  approvedById: string | null;
+  approvedByName: string | null;
+  approvedAt: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+// enteredById/approvedById sont des colonnes brutes, pas des relations Prisma
+// (voir schema.prisma) — noms résolus via un lookup séparé plutôt qu'un
+// `include`, même esprit que namesByEmployeeId (budgets/service.ts).
+async function projectPurchaseEntryNamesById(entries: ProjectPurchaseEntry[]): Promise<Map<string, string>> {
+  const ids = [...new Set(entries.flatMap((entry) => [entry.enteredById, entry.approvedById]).filter((id): id is string => id !== null))];
+  const employees = await prisma.employee.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
+  return new Map(employees.map((employee) => [employee.id, employee.name]));
+}
+
+function toProjectPurchaseEntryDto(row: ProjectPurchaseEntry, nameById: Map<string, string>): ProjectPurchaseEntryDto {
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    date: row.date.toISOString(),
+    category: row.category,
+    supplier: row.supplier,
+    description: row.description,
+    amount: Number(row.amount),
+    enteredById: row.enteredById,
+    enteredByName: nameById.get(row.enteredById) ?? "—",
+    status: row.status,
+    approvedById: row.approvedById,
+    approvedByName: row.approvedById ? (nameById.get(row.approvedById) ?? "—") : null,
+    approvedAt: row.approvedAt?.toISOString() ?? null,
+    note: row.note,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+export async function listProjectPurchaseEntries(projectId: string): Promise<ProjectPurchaseEntryDto[]> {
+  const rows = await prisma.projectPurchaseEntry.findMany({ where: { projectId }, orderBy: { createdAt: "desc" } });
+  const nameById = await projectPurchaseEntryNamesById(rows);
+  return rows.map((row) => toProjectPurchaseEntryDto(row, nameById));
+}
+
+export interface CreateProjectPurchaseEntryInput {
+  date: string;
+  category: string;
+  supplier?: string;
+  description: string;
+  amount: number;
+  note?: string;
+}
+
+export async function createProjectPurchaseEntry(
+  projectId: string,
+  enteredById: string,
+  input: CreateProjectPurchaseEntryInput,
+): Promise<ProjectPurchaseEntryDto> {
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
+  if (!project) throw new HttpError(404, "Projet introuvable.");
+  const row = await prisma.projectPurchaseEntry.create({
+    data: {
+      projectId,
+      date: new Date(input.date),
+      category: input.category,
+      supplier: input.supplier || null,
+      description: input.description,
+      amount: input.amount,
+      enteredById,
+      note: input.note || null,
+    },
+  });
+  const nameById = await projectPurchaseEntryNamesById([row]);
+  return toProjectPurchaseEntryDto(row, nameById);
+}
+
+async function loadPendingEntryOrThrow(id: string) {
+  const entry = await prisma.projectPurchaseEntry.findUnique({ where: { id } });
+  if (!entry) throw new HttpError(404, "Achat introuvable.");
+  if (entry.status !== "pending") throw new HttpError(400, "Cet achat est déjà approuvé — plus modifiable ni supprimable.");
+  return entry;
+}
+
+/** Correction du montant — confirmé le 17 août 2026, tant que l'achat est encore en attente. */
+export async function updateProjectPurchaseEntryAmount(id: string, amount: number): Promise<ProjectPurchaseEntryDto> {
+  await loadPendingEntryOrThrow(id);
+  const row = await prisma.projectPurchaseEntry.update({ where: { id }, data: { amount } });
+  const nameById = await projectPurchaseEntryNamesById([row]);
+  return toProjectPurchaseEntryDto(row, nameById);
+}
+
+/** Suppression d'une entrée erronée — confirmé le 17 août 2026, tant qu'en attente seulement (jamais après approbation). */
+export async function deleteProjectPurchaseEntry(id: string): Promise<void> {
+  await loadPendingEntryOrThrow(id);
+  await prisma.projectPurchaseEntry.delete({ where: { id } });
+}
+
+export async function approveProjectPurchaseEntry(id: string, approvedById: string): Promise<ProjectPurchaseEntryDto> {
+  const entry = await prisma.projectPurchaseEntry.findUnique({ where: { id } });
+  if (!entry) throw new HttpError(404, "Achat introuvable.");
+  if (entry.status !== "pending") throw new HttpError(400, "Cet achat n'est plus en attente.");
+  const row = await prisma.projectPurchaseEntry.update({
+    where: { id },
+    data: { status: "approved", approvedById, approvedAt: new Date() },
+  });
+  const nameById = await projectPurchaseEntryNamesById([row]);
+  return toProjectPurchaseEntryDto(row, nameById);
 }
