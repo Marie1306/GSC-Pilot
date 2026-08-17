@@ -9,6 +9,7 @@ import {
   canRequestInvoice,
   canCreateInvoiceRecord,
   canRecordPayment,
+  canManageWarranty,
   FULFILLMENT_MODES,
   type FulfillmentMode,
 } from "@gsc-pilot/business-rules";
@@ -25,6 +26,9 @@ import {
   requestInvoice,
   recordInvoice,
   recordInvoicePayment,
+  setWarrantyExpected,
+  activateOrUpdateWarranty,
+  getWarrantyHistory,
 } from "./service.js";
 
 export const projectsRouter = Router();
@@ -33,10 +37,15 @@ export const projectsRouter = Router();
  * Liste minimale (id/numéro/nom) — pour l'instant seulement pour peupler
  * le sélecteur de projet de la liste rapide d'achats. L'écran Projets
  * complet (avec le résumé financier) vient dans une prochaine phase.
+ *
+ * Inclut les projets fermés en garantie active depuis la Phase 2D (17 août
+ * 2026) : un projet fermé ET en garantie reste ouvert aux achats — ça ne
+ * dépend pas du statut du projet (confirmé), un projet fermé sans garantie
+ * active reste exclu.
  */
 projectsRouter.get("/projects", requireAuth, async (_req, res) => {
   const projects = await prisma.project.findMany({
-    where: { closedAt: null },
+    where: { OR: [{ closedAt: null }, { warrantyEndsAt: { gt: new Date() } }] },
     select: { id: true, projectNumber: true, name: true },
     orderBy: { projectNumber: "asc" },
   });
@@ -158,6 +167,50 @@ projectsRouter.patch(
     const entryId = z.uuid().parse(req.params.entryId);
     const { paidAmount } = z.object({ paidAmount: z.number().nonnegative() }).parse(req.body);
     const entry = await recordInvoicePayment(entryId, paidAmount);
+    res.json({ entry });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Garantie (Projet 2D, 17 août 2026)
+// ---------------------------------------------------------------------------
+
+projectsRouter.patch(
+  "/projects/:id/warranty-expected",
+  requireAuth,
+  requirePermission((persona) => canManageWarranty(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const { expected } = z.object({ expected: z.boolean() }).parse(req.body);
+    await setWarrantyExpected(id, expected);
+    res.status(204).end();
+  },
+);
+
+projectsRouter.get(
+  "/projects/:id/warranty-history",
+  requireAuth,
+  requirePermission((persona) => canAccessProject(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const entries = await getWarrantyHistory(id);
+    res.json({ entries });
+  },
+);
+
+const activateWarrantySchema = z.object({
+  endsAt: z.iso.date(),
+  reason: z.string().optional(),
+  invoiceReference: z.string().optional(),
+});
+projectsRouter.post(
+  "/projects/:id/warranty",
+  requireAuth,
+  requirePermission((persona) => canManageWarranty(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const body = activateWarrantySchema.parse(req.body);
+    const entry = await activateOrUpdateWarranty(id, body, req.employee!.id);
     res.json({ entry });
   },
 );

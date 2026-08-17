@@ -1,7 +1,13 @@
 import { apiFetch } from "../../lib/apiClient.js";
-import { FULFILLMENT_MODES, type FulfillmentMode } from "@gsc-pilot/business-rules";
+import { FULFILLMENT_MODES, type FulfillmentMode, type ProjectLifecycleTab } from "@gsc-pilot/business-rules";
 
-export type { FulfillmentMode };
+export type { FulfillmentMode, ProjectLifecycleTab };
+
+export const LIFECYCLE_TAB_LABELS: Record<ProjectLifecycleTab, string> = {
+  active: "Actifs",
+  warranty: "Garantie",
+  closed: "Fermés",
+};
 
 export type FinancialStatus = "conforme" | "at_risk" | "critical";
 
@@ -18,6 +24,9 @@ export interface ProjectListItem {
   progressionPct?: number;
   grossMarginPct?: number;
   financialStatus?: FinancialStatus;
+  warrantyExpected: boolean;
+  warrantyEndsAt: string | null;
+  lifecycleTab: ProjectLifecycleTab;
 }
 
 export const STATUS_LABELS: Record<string, string> = {
@@ -82,6 +91,9 @@ export interface ProjectDetail {
   fulfillmentAddress: string | null;
   fulfillmentConfirmationNote: string | null;
   billingReady: boolean;
+  warrantyExpected: boolean;
+  warrantyEndsAt: string | null;
+  lifecycleTab: ProjectLifecycleTab;
 }
 
 export const FULFILLMENT_MODE_LABELS: Record<FulfillmentMode, string> = {
@@ -200,4 +212,37 @@ export function recordInvoice(entryId: string, input: RecordInvoiceInput): Promi
 
 export function recordInvoicePayment(entryId: string, paidAmount: number): Promise<{ entry: InvoicePlanEntryDto }> {
   return apiFetch(`/api/invoice-plan/${entryId}/payment`, { method: "PATCH", body: JSON.stringify({ paidAmount }) });
+}
+
+// ---------------------------------------------------------------------------
+// Garantie (Projet 2D, 17 août 2026).
+// ---------------------------------------------------------------------------
+
+export interface WarrantyHistoryEntryDto {
+  id: string;
+  previousEndsAt: string | null;
+  newEndsAt: string;
+  reason: string | null;
+  invoiceReference: string | null;
+  changedById: string;
+  changedByName: string;
+  changedAt: string;
+}
+
+export function setWarrantyExpected(id: string, expected: boolean): Promise<void> {
+  return apiFetch(`/api/projects/${id}/warranty-expected`, { method: "PATCH", body: JSON.stringify({ expected }) });
+}
+
+export function fetchWarrantyHistory(projectId: string): Promise<{ entries: WarrantyHistoryEntryDto[] }> {
+  return apiFetch(`/api/projects/${projectId}/warranty-history`);
+}
+
+export interface ActivateWarrantyInput {
+  endsAt: string;
+  reason?: string;
+  invoiceReference?: string;
+}
+
+export function activateWarranty(id: string, input: ActivateWarrantyInput): Promise<{ entry: WarrantyHistoryEntryDto }> {
+  return apiFetch(`/api/projects/${id}/warranty`, { method: "POST", body: JSON.stringify(input) });
 }

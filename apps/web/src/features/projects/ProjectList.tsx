@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchProjects, STATUS_LABELS, FINANCIAL_STATUS_LABELS } from "./api.js";
+import { fetchProjects, STATUS_LABELS, FINANCIAL_STATUS_LABELS, LIFECYCLE_TAB_LABELS, type ProjectLifecycleTab } from "./api.js";
 
 interface ProjectListProps {
   onOpen: (id: string) => void;
@@ -9,14 +10,35 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("fr-CA", { month: "short", day: "numeric" });
 }
 
+const TABS: ProjectLifecycleTab[] = ["active", "warranty", "closed"];
+
+/**
+ * Onglets Actifs/Garantie/Fermés (Projet 2D, 17 août 2026) — dérivés côté
+ * serveur (lifecycleTab, warranty.ts), jamais un filtre par requête séparée
+ * : la liste complète est chargée une fois, filtrée ici par onglet.
+ */
 export function ProjectList({ onOpen }: ProjectListProps) {
   const listQuery = useQuery({ queryKey: ["projects"], queryFn: fetchProjects });
-  const rows = listQuery.data?.projects ?? [];
+  const allRows = listQuery.data?.projects ?? [];
+  const [tab, setTab] = useState<ProjectLifecycleTab>("active");
+  const rows = allRows.filter((row) => row.lifecycleTab === tab);
 
   return (
     <div style={{ marginTop: 20 }}>
       <h2 style={{ fontSize: 16 }}>Projets</h2>
-      {rows.length === 0 && <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucun projet pour l'instant.</p>}
+      <div style={{ display: "flex", gap: 8, margin: "12px 0 16px" }}>
+        {TABS.map((t) => (
+          <button
+            key={t}
+            type="button"
+            className={`btn btn-small ${tab === t ? "" : "btn-secondary"}`}
+            onClick={() => setTab(t)}
+          >
+            {LIFECYCLE_TAB_LABELS[t]} ({allRows.filter((row) => row.lifecycleTab === t).length})
+          </button>
+        ))}
+      </div>
+      {rows.length === 0 && <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucun projet dans cet onglet.</p>}
       {rows.length > 0 && (
         <div className="project-card-grid">
           {rows.map((row) => (
@@ -31,6 +53,7 @@ export function ProjectList({ onOpen }: ProjectListProps) {
               <div className="project-card-sub">
                 {row.company ?? row.contactName}
                 {row.deadline && <> · Échéance {formatDate(row.deadline)}</>}
+                {row.lifecycleTab === "warranty" && row.warrantyEndsAt && <> · Fin de garantie {formatDate(row.warrantyEndsAt)}</>}
               </div>
 
               <div className="project-card-stats">

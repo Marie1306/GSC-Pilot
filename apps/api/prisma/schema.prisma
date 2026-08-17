@@ -386,6 +386,18 @@ model Project {
   // lui-même, pas de ce champ.
   billingReady                Boolean   @default(false)
   fulfillmentConfirmationNote String?
+  // Garantie (Projet 2D, 17 août 2026) — deux données indépendantes,
+  // confirmées par Q&R avec l'utilisatrice. warrantyExpected : coché dès la
+  // création si on sait déjà que ce projet ira en garantie, mais pas
+  // encore quand — purement informatif, n'active rien seul. warrantyEndsAt :
+  // le vrai interrupteur (nul = pas en garantie, rempli = en garantie
+  // jusqu'à cette date). Un projet peut être fermé (closedAt) ET en
+  // garantie active en même temps — pas une contradiction, ça ne dépend
+  // pas du statut du projet (confirmé). Onglet "Garantie" dérivé de
+  // warrantyEndsAt à la lecture (voir warranty.ts), jamais un nouveau
+  // statut stocké — expire tout seul, sans job ni geste manuel.
+  warrantyExpected Boolean   @default(false)
+  warrantyEndsAt   DateTime?
   closedAt             DateTime? // geste manuel séparé — jamais un effet de bord du mode de sortie
   createdById          String
   createdAt            DateTime       @default(now())
@@ -400,8 +412,32 @@ model Project {
   subassemblies    Subassembly[]
   amendments       Amendment[]
   deliveries       Delivery[]
+  warrantyHistory  WarrantyHistoryEntry[]
 
   @@index([status])
+}
+
+/**
+ * Historique des changements de date de fin de garantie (Projet 2D, 17 août
+ * 2026) — un projet peut passer de 1 an à 2 ans, etc. changedById reste un
+ * scalaire simple (pas de relation Prisma), même patron que
+ * ProjectPurchaseEntry.enteredById/approvedById — nom résolu via une
+ * recherche groupée séparée, jamais une nouvelle relation. invoiceReference
+ * : référence libre (texte) vers une facture existante, quand applicable —
+ * rare en pratique (confirmé), jamais une facture générée automatiquement.
+ */
+model WarrantyHistoryEntry {
+  id               String    @id @default(uuid())
+  projectId        String
+  project          Project   @relation(fields: [projectId], references: [id])
+  previousEndsAt   DateTime? // nul pour la toute première activation
+  newEndsAt        DateTime
+  reason           String?
+  invoiceReference String?
+  changedById      String
+  changedAt        DateTime  @default(now())
+
+  @@index([projectId])
 }
 
 model ProjectTeamMember {

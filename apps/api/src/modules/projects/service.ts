@@ -28,10 +28,12 @@ import {
   FULFILLMENT_MODES,
   chooseFulfillment as chooseFulfillmentPure,
   confirmFulfillment as confirmFulfillmentPure,
+  projectLifecycleTab,
   type BudgetCategorySlug,
   type FinancialStatus,
   type FulfillmentMode,
   type Persona,
+  type ProjectLifecycleTab,
 } from "@gsc-pilot/business-rules";
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
@@ -164,6 +166,9 @@ export interface ProjectListItemDto {
   progressionPct?: number;
   grossMarginPct?: number;
   financialStatus?: FinancialStatus;
+  warrantyExpected: boolean;
+  warrantyEndsAt: string | null;
+  lifecycleTab: ProjectLifecycleTab;
 }
 
 /**
@@ -174,11 +179,16 @@ export interface ProjectListItemDto {
  * projectId (même raison qu'ailleurs : le coût réel est un produit
  * heures × costRate par ligne, pas une colonne agrégeable directement en
  * SQL — voir project-actuals.ts).
+ *
+ * Plus de filtre `closedAt: null` depuis la Phase 2D (Garantie, 17 août
+ * 2026) : les 3 onglets (Actifs/Garantie/Fermés) sont dérivés de la liste
+ * complète côté interface via `lifecycleTab` (warranty.ts) — jamais un
+ * filtre serveur séparé par onglet, pour rester cohérent avec la dérivation
+ * "jamais un nouveau statut stocké" confirmée pour la garantie.
  */
 export async function listProjects(viewerPersona: Persona): Promise<ProjectListItemDto[]> {
   const showFinancials = canSeeFinancialValues(viewerPersona);
   const projects = await prisma.project.findMany({
-    where: { closedAt: null },
     include: { contact: { select: { name: true, company: true } } },
     orderBy: { projectNumber: "asc" },
   });
@@ -250,6 +260,9 @@ export async function listProjects(viewerPersona: Persona): Promise<ProjectListI
       company: project.contact.company,
       deadline: project.deadline?.toISOString() ?? null,
       hoursUsedPct: plannedHours > 0 ? round2((actualHours / plannedHours) * 100) : 0,
+      warrantyExpected: project.warrantyExpected,
+      warrantyEndsAt: project.warrantyEndsAt?.toISOString() ?? null,
+      lifecycleTab: projectLifecycleTab(project),
       ...(showFinancials && {
         sold,
         progressionPct: plannedBase > 0 ? round2((actualBase / plannedBase) * 100) : 0,
@@ -304,6 +317,9 @@ export interface ProjectDetailDto {
   fulfillmentAddress: string | null;
   fulfillmentConfirmationNote: string | null;
   billingReady: boolean;
+  warrantyExpected: boolean;
+  warrantyEndsAt: string | null;
+  lifecycleTab: ProjectLifecycleTab;
 }
 
 /**
@@ -425,6 +441,9 @@ export async function getProjectDetail(id: string, viewerPersona: Persona): Prom
     fulfillmentAddress: project.fulfillmentAddress,
     fulfillmentConfirmationNote: project.fulfillmentConfirmationNote,
     billingReady: project.billingReady,
+    warrantyExpected: project.warrantyExpected,
+    warrantyEndsAt: project.warrantyEndsAt?.toISOString() ?? null,
+    lifecycleTab: projectLifecycleTab(project),
     ...(showFinancials && {
       sold,
       plannedPurchases,
@@ -662,4 +681,101 @@ export async function recordInvoicePayment(entryId: string, paidAmount: number):
   if (!entry) throw new HttpError(404, "Jalon de facturation introuvable.");
   const row = await prisma.invoicePlanEntry.update({ where: { id: entryId }, data: { paidAmount, paidAt: new Date() } });
   return toInvoicePlanEntryDto(row);
+}
+
+// ---------------------------------------------------------------------------
+// Garantie — warranty.ts (Projet 2D, 17 août 2026). warrantyExpected est une
+// simple case informative (pas d'historique — n'active rien seule).
+// warrantyEndsAt est le vrai interrupteur, modifiable n'importe quand
+// (Direction seulement, canManageWarranty) — chaque changement crée une
+// ligne d'historique. Régler une nouvelle fin dans le passé désactive la
+// garantie immédiatement (isUnderWarranty compare à "maintenant") — pas de
+// bouton "annuler" séparé, le même mécanisme suffit.
+// ---------------------------------------------------------------------------
+
+export async function setWarrantyExpected(projectId: string, expected: boolean): Promise<void> {
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  if (!project) throw new HttpError(404, "Projet introuvable.");
+  await prisma.project.update({ where: { id: projectId }, data: { warrantyExpected: expected } });
+}
+
+export interface WarrantyHistoryEntryDto {
+  id: string;
+  previousEndsAt: string | null;
+  newEndsAt: string;
+  reason: string | null;
+  invoiceReference: string | null;
+  changedById: string;
+  changedByName: string;
+  changedAt: string;
+}
+
+// changedById reste un scalaire simple (pas de relation Prisma), même
+// patron que ProjectPurchaseEntry.enteredById/approvedById — nom résolu via
+// une recherche groupée séparée plutôt qu'un `include`.
+async function warrantyHistoryNamesById(entries: { changedById: string }[]): Promise<Map<string, string>> {
+  const ids = [...new Set(entries.map((entry) => entry.changedById))];
+  const employees = await prisma.employee.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
+  return new Map(employees.map((employee) => [employee.id, employee.name]));
+}
+
+function toWarrantyHistoryEntryDto(
+  row: {
+    id: string;
+    previousEndsAt: Date | null;
+    newEndsAt: Date;
+    reason: string | null;
+    invoiceReference: string | null;
+    changedById: string;
+    changedAt: Date;
+  },
+  nameById: Map<string, string>,
+): WarrantyHistoryEntryDto {
+  return {
+    id: row.id,
+    previousEndsAt: row.previousEndsAt?.toISOString() ?? null,
+    newEndsAt: row.newEndsAt.toISOString(),
+    reason: row.reason,
+    invoiceReference: row.invoiceReference,
+    changedById: row.changedById,
+    changedByName: nameById.get(row.changedById) ?? "—",
+    changedAt: row.changedAt.toISOString(),
+  };
+}
+
+export async function getWarrantyHistory(projectId: string): Promise<WarrantyHistoryEntryDto[]> {
+  const rows = await prisma.warrantyHistoryEntry.findMany({ where: { projectId }, orderBy: { changedAt: "desc" } });
+  const nameById = await warrantyHistoryNamesById(rows);
+  return rows.map((row) => toWarrantyHistoryEntryDto(row, nameById));
+}
+
+export interface ActivateWarrantyInput {
+  endsAt: string;
+  reason?: string;
+  invoiceReference?: string;
+}
+
+export async function activateOrUpdateWarranty(
+  projectId: string,
+  input: ActivateWarrantyInput,
+  changedById: string,
+): Promise<WarrantyHistoryEntryDto> {
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  if (!project) throw new HttpError(404, "Projet introuvable.");
+
+  const [, row] = await prisma.$transaction([
+    prisma.project.update({ where: { id: projectId }, data: { warrantyEndsAt: new Date(input.endsAt) } }),
+    prisma.warrantyHistoryEntry.create({
+      data: {
+        projectId,
+        previousEndsAt: project.warrantyEndsAt,
+        newEndsAt: new Date(input.endsAt),
+        reason: input.reason || null,
+        invoiceReference: input.invoiceReference || null,
+        changedById,
+      },
+    }),
+  ]);
+  const nameById = await warrantyHistoryNamesById([row]);
+  return toWarrantyHistoryEntryDto(row, nameById);
 }

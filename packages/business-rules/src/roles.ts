@@ -411,6 +411,18 @@ export function canHoldInvoice(persona: Persona): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Garantie
+// ---------------------------------------------------------------------------
+
+/** Activer/modifier la garantie (case "prévue", date de fin, historique) :
+ * Direction seulement — n'importe quand, aucun préalable de production/
+ * sortie (confirmé le 17 août 2026). */
+export function canManageWarranty(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}
+
+// ---------------------------------------------------------------------------
 // Tableau de bord / Rapports / Contacts / Demandes clients / Appels de service
 // Confirmé : tout le monde sauf Employé et Magasinier peut créer une
 // demande client ou un appel de service (cohérent avec la règle de

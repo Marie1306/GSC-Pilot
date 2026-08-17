@@ -371,3 +371,17 @@ describe("Suivi de commande et application au projet (13 août 2026)", () => {
     expect(P.canManagePurchaseFulfillment({}, WAREHOUSE)).toBe(false);
   });
 });
+
+describe("Garantie (17 août 2026)", () => {
+  it("Direction gère la garantie", () => {
+    expect(P.canManageWarranty(OWNER)).toBe(true);
+  });
+  it("Propriétaire ne gère pas la garantie", () => {
+    expect(P.canManageWarranty(BOSS)).toBe(false);
+  });
+  it("Administration/Employé/Magasinier ne gèrent pas la garantie", () => {
+    expect(P.canManageWarranty(ADMIN)).toBe(false);
+    expect(P.canManageWarranty(MEMBER)).toBe(false);
+    expect(P.canManageWarranty(WAREHOUSE)).toBe(false);
+  });
+});

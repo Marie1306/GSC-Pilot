@@ -3,6 +3,7 @@ import { fetchProjectDetail, formatCurrency, FINANCIAL_STATUS_LABELS } from "./a
 import { ProjectPurchaseEntries } from "./ProjectPurchaseEntries.js";
 import { ProjectFulfillment } from "./ProjectFulfillment.js";
 import { ProjectInvoicePlan } from "./ProjectInvoicePlan.js";
+import { ProjectWarranty } from "./ProjectWarranty.js";
 
 interface ProjectDetailProps {
   id: string;
@@ -24,9 +25,9 @@ const FINANCIAL_BANNER_TEXT: Record<string, string> = {
  * Progression du projet, Comparatif planifié vs réel, carte Budgétaire
  * archivé. Phase 2B : Achats réels (ProjectPurchaseEntries.tsx). Phase 2C :
  * Production et sortie (ProjectFulfillment.tsx), Cycle de facturation
- * (ProjectInvoicePlan.tsx). Garantie, Post-mortem et le menu Options
- * viennent dans les phases suivantes (2D/2E/2F) — voir CLAUDE.md, principe
- * de construction par phase confirmée.
+ * (ProjectInvoicePlan.tsx). Phase 2D : Garantie (ProjectWarranty.tsx).
+ * Post-mortem et le menu Options viennent dans les phases suivantes
+ * (2E/2F) — voir CLAUDE.md, principe de construction par phase confirmée.
  */
 export function ProjectDetail({ id, onClose }: ProjectDetailProps) {
   const detailQuery = useQuery({ queryKey: ["project", id], queryFn: () => fetchProjectDetail(id) });
@@ -237,6 +238,8 @@ export function ProjectDetail({ id, onClose }: ProjectDetailProps) {
               <ProjectFulfillment project={project} />
 
               <ProjectInvoicePlan projectId={project.id} />
+
+              <ProjectWarranty project={project} />
 
               {project.budgetDisplayId && (
                 <div className="card" style={{ background: "var(--gsc-color-blue-soft)", border: "none" }}>
