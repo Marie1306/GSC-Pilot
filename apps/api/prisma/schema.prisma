@@ -408,6 +408,17 @@ model Project {
   // même attend le module Paramètres complet (confirmé, pas construit ici).
   archivedAt DateTime?
   deletedAt  DateTime?
+  // Post-mortem — « Analyse finale » (Projet 2E, 17 août 2026) — seule
+  // vraie nouvelle donnée du Post-mortem, tout le reste de l'écran
+  // réutilise des chiffres déjà calculés ailleurs (comparatif, achats,
+  // réserves, marge). Direction seulement (canManagePostMortem),
+  // modifiable n'importe quand — pas de préalable de fermeture, même
+  // esprit que la Garantie. Le comparatif détaillé par sous-tâche reste
+  // hors de cette étape — confirmé complexe, spécification à venir de
+  // l'utilisatrice avant de construire le lien punch → tâche.
+  postMortemDepassements   String?
+  postMortemAmeliorations  String?
+  postMortemRecommandation String?
   createdById          String
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt

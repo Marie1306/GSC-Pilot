@@ -5,6 +5,7 @@ import { canManageProject, canArchiveProject, canDeleteProject } from "@gsc-pilo
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { updateProjectInfo, setProjectArchived, deleteProject, fetchProjectHistory, type ProjectDetail } from "./api.js";
+import { ProjectPostMortem } from "./ProjectPostMortem.js";
 
 interface ProjectOptionsMenuProps {
   project: ProjectDetail;
@@ -63,10 +64,12 @@ function OptionSection({ title, children }: { title: string; children: ReactNode
  * emplacement/couleur du bouton déclencheur calqués sur la référence v19
  * telle quelle (confirmé le 17 août 2026), section par section. Les lignes
  * dont le module cible n'existe pas encore (Gantt, avenants, punch
- * d'heures, Code QR, Appels de service, Post-mortem, Contacts — toutes
- * confirmées comme des squelettes vides ailleurs dans l'appli) restent
- * visibles mais inertes plutôt que masquées, pour ne jamais donner
- * l'impression d'un menu incomplet. Garantie reste une section toujours
+ * d'heures, Code QR, Appels de service, Contacts — toutes confirmées comme
+ * des squelettes vides ailleurs dans l'appli) restent visibles mais
+ * inertes plutôt que masquées, pour ne jamais donner l'impression d'un
+ * menu incomplet. Post-mortem (Projet 2E) ouvre maintenant ProjectPostMortem.tsx —
+ * le comparatif main-d'oeuvre y reste au niveau catégorie en attendant la
+ * spécification du détail par sous-tâche. Garantie reste une section toujours
  * visible sur la page plutôt que cachée ici (déjà construite ainsi en 2D) —
  * écart par rapport à la liste v19 confirmé avec l'utilisatrice le 17 août
  * 2026 (« Je préfère sur la vue projet comme tu l'as mis »), pas juste une
@@ -80,6 +83,7 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted }: Projec
   const [name, setName] = useState(project.name);
   const [deadline, setDeadline] = useState(project.deadline?.slice(0, 10) ?? "");
   const [showHistory, setShowHistory] = useState(false);
+  const [showPostMortem, setShowPostMortem] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -190,7 +194,7 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted }: Projec
 
           <OptionSection title="Documents et suivi">
             <OptionRow icon="⬜" label="Code QR" disabled disabledNote="Module Scan QR pas encore construit." />
-            <OptionRow icon="📄" label="Post-mortem" disabled disabledNote="Contenu pas encore reçu — voir CLAUDE.md." />
+            <OptionRow icon="📄" label="Post-mortem" onClick={() => setShowPostMortem(true)} />
             <OptionRow icon="🕒" label={showHistory ? "Masquer l'historique" : "Historique complet"} onClick={() => setShowHistory((v) => !v)} />
           </OptionSection>
 
@@ -278,6 +282,8 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted }: Projec
           )}
         </div>
       )}
+
+      {showPostMortem && <ProjectPostMortem projectId={project.id} onClose={() => setShowPostMortem(false)} />}
     </div>
   );
 }

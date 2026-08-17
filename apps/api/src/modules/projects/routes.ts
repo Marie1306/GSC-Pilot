@@ -13,6 +13,8 @@ import {
   canManageProject,
   canArchiveProject,
   canDeleteProject,
+  canManagePostMortem,
+  canSeeFinancialValues,
   FULFILLMENT_MODES,
   type FulfillmentMode,
 } from "@gsc-pilot/business-rules";
@@ -36,6 +38,9 @@ import {
   setProjectArchived,
   deleteProject,
   getProjectHistory,
+  getPostMortem,
+  updatePostMortemAnalysis,
+  getApprovedTimeEntries,
 } from "./service.js";
 
 export const projectsRouter = Router();
@@ -270,5 +275,48 @@ projectsRouter.get(
     const id = z.uuid().parse(req.params.id);
     const events = await getProjectHistory(id);
     res.json({ events });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Post-mortem (Projet 2E, 17 août 2026)
+// ---------------------------------------------------------------------------
+
+projectsRouter.get(
+  "/projects/:id/post-mortem",
+  requireAuth,
+  requirePermission((persona) => canAccessProject(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const postMortem = await getPostMortem(id, req.employee!.persona);
+    res.json({ postMortem });
+  },
+);
+
+const updatePostMortemSchema = z.object({
+  depassements: z.string().optional(),
+  ameliorations: z.string().optional(),
+  recommandation: z.string().optional(),
+});
+projectsRouter.patch(
+  "/projects/:id/post-mortem",
+  requireAuth,
+  requirePermission((persona) => canManagePostMortem(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const body = updatePostMortemSchema.parse(req.body);
+    await updatePostMortemAnalysis(id, body);
+    res.status(204).end();
+  },
+);
+
+projectsRouter.get(
+  "/projects/:id/approved-hours",
+  requireAuth,
+  requirePermission((persona) => canAccessProject(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const entries = await getApprovedTimeEntries(id, canSeeFinancialValues(req.employee!.persona));
+    res.json({ entries });
   },
 );

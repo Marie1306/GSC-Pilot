@@ -448,6 +448,20 @@ export function canDeleteProject(persona: Persona): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Post-mortem
+// ---------------------------------------------------------------------------
+
+/** Écrire l'« Analyse finale » du Post-mortem (dépassements, améliorations,
+ * recommandation) : Direction seulement — n'importe quand, aucun préalable
+ * de fermeture (confirmé le 17 août 2026). Le reste de l'écran (chiffres
+ * déjà calculés) suit canAccessProject/canSeeFinancialValues, comme
+ * partout ailleurs dans le module Projet. */
+export function canManagePostMortem(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}
+
+// ---------------------------------------------------------------------------
 // Tableau de bord / Rapports / Contacts / Demandes clients / Appels de service
 // Confirmé : tout le monde sauf Employé et Magasinier peut créer une
 // demande client ou un appel de service (cohérent avec la règle de

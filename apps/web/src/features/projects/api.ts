@@ -281,3 +281,65 @@ export interface HistoryEventDto {
 export function fetchProjectHistory(id: string): Promise<{ events: HistoryEventDto[] }> {
   return apiFetch(`/api/projects/${id}/history`);
 }
+
+// ---------------------------------------------------------------------------
+// Post-mortem (Projet 2E, 17 août 2026). Le Comparatif main-d'oeuvre reste au
+// niveau catégorie pour l'instant — le détail par sous-tâche demande le lien
+// punch → tâche (TimeEntry.taskId, actuellement inutilisé), spécification à
+// venir de l'utilisatrice.
+// ---------------------------------------------------------------------------
+
+export interface PostMortemCostRow {
+  label: string;
+  planned: number;
+  actual: number;
+}
+
+export interface PostMortemDto {
+  id: string;
+  projectNumber: string;
+  name: string;
+  plannedHours: number;
+  actualHours: number;
+  backupHours: number;
+  comparatif: ProjectComparatifRow[];
+  sold?: number;
+  plannedPurchases?: number;
+  actualPurchases?: number;
+  backupHoursCost?: number;
+  projectBackupAmount?: number;
+  grossMargin?: number;
+  grossMarginPct?: number;
+  financialStatus?: FinancialStatus;
+  costBreakdown?: PostMortemCostRow[];
+  postMortemDepassements: string | null;
+  postMortemAmeliorations: string | null;
+  postMortemRecommandation: string | null;
+}
+
+export function fetchPostMortem(id: string): Promise<{ postMortem: PostMortemDto }> {
+  return apiFetch(`/api/projects/${id}/post-mortem`);
+}
+
+export interface UpdatePostMortemInput {
+  depassements?: string;
+  ameliorations?: string;
+  recommandation?: string;
+}
+
+export function updatePostMortemAnalysis(id: string, input: UpdatePostMortemInput): Promise<void> {
+  return apiFetch(`/api/projects/${id}/post-mortem`, { method: "PATCH", body: JSON.stringify(input) });
+}
+
+export interface ApprovedTimeEntryDto {
+  id: string;
+  date: string;
+  employeeName: string;
+  category: string;
+  hours: number;
+  cost?: number;
+}
+
+export function fetchApprovedTimeEntries(id: string): Promise<{ entries: ApprovedTimeEntryDto[] }> {
+  return apiFetch(`/api/projects/${id}/approved-hours`);
+}

@@ -407,3 +407,15 @@ describe("Menu Options du projet (17 août 2026)", () => {
     expect(P.canDeleteProject(BOSS)).toBe(false);
   });
 });
+
+describe("Post-mortem (17 août 2026)", () => {
+  it("Direction seulement écrit l'analyse finale", () => {
+    expect(P.canManagePostMortem(OWNER)).toBe(true);
+  });
+  it("Administration/Propriétaire/Employé/Magasinier ne peuvent pas", () => {
+    expect(P.canManagePostMortem(ADMIN)).toBe(false);
+    expect(P.canManagePostMortem(BOSS)).toBe(false);
+    expect(P.canManagePostMortem(MEMBER)).toBe(false);
+    expect(P.canManagePostMortem(WAREHOUSE)).toBe(false);
+  });
+});
