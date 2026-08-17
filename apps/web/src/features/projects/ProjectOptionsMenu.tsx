@@ -67,9 +67,10 @@ function OptionSection({ title, children }: { title: string; children: ReactNode
  * confirmées comme des squelettes vides ailleurs dans l'appli) restent
  * visibles mais inertes plutôt que masquées, pour ne jamais donner
  * l'impression d'un menu incomplet. Garantie reste une section toujours
- * visible sur la page plutôt que cachée ici (déjà construite ainsi en 2D,
- * plus accessible qu'un clic de plus) — seul écart volontaire par rapport
- * à la liste v19, signalé explicitement plutôt que deviné en silence.
+ * visible sur la page plutôt que cachée ici (déjà construite ainsi en 2D) —
+ * écart par rapport à la liste v19 confirmé avec l'utilisatrice le 17 août
+ * 2026 (« Je préfère sur la vue projet comme tu l'as mis »), pas juste une
+ * supposition.
  */
 export function ProjectOptionsMenu({ project, open, onClose, onDeleted }: ProjectOptionsMenuProps) {
   const { employee } = useAuth();
