@@ -294,6 +294,7 @@ export interface ProjectDetailDto {
   company: string | null;
   budgetId: string | null;
   budgetDisplayId: string | null;
+  clientRequestId: string | null;
   createdAt: string;
   sold?: number;
   plannedHours: number;
@@ -432,6 +433,7 @@ export async function getProjectDetail(id: string, viewerPersona: Persona): Prom
     company: project.contact.company,
     budgetId: project.budgetId,
     budgetDisplayId: project.budget?.displayId ?? null,
+    clientRequestId: project.clientRequestId,
     createdAt: project.createdAt.toISOString(),
     plannedHours,
     actualHours,

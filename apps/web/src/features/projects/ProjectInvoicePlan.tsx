@@ -66,7 +66,26 @@ export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
   const canRecord = canCreateInvoiceRecord(employee.persona);
   const canPay = canRecordPayment(employee.persona);
   const entries = planQuery.data?.entries ?? [];
-  if (entries.length === 0) return null;
+
+  // Ne jamais disparaître en silence : un projet converti avant la Phase 2C
+  // (17 août 2026, computeBillingPlan à la conversion) n'a légitimement
+  // aucun jalon — mais un vrai échec de chargement doit rester visible,
+  // pas se confondre avec "pas de plan".
+  if (entries.length === 0) {
+    if (planQuery.isError) {
+      return (
+        <p className="form-error">
+          {planQuery.error instanceof ApiError ? planQuery.error.message : "Impossible de charger le cycle de facturation."}
+        </p>
+      );
+    }
+    if (planQuery.isLoading) return null;
+    return (
+      <p style={{ margin: "0 0 20px", fontSize: 13, color: "var(--gsc-color-muted)" }}>
+        Aucun cycle de facturation enregistré pour ce projet (converti avant l'activation du cycle automatique le 17 août 2026).
+      </p>
+    );
+  }
 
   function openRecord(entry: InvoicePlanEntryDto) {
     setExpanded({ id: entry.id, type: "record" });

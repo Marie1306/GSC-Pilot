@@ -67,6 +67,7 @@ export interface ProjectDetail {
   company: string | null;
   budgetId: string | null;
   budgetDisplayId: string | null;
+  clientRequestId: string | null;
   createdAt: string;
   sold?: number;
   plannedHours: number;

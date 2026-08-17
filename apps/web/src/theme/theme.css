@@ -211,6 +211,62 @@ a {
   margin: 0 24px 12px;
 }
 
+/* Menu Options du projet (Projet 2F, 17 août 2026) — structure calquée sur la référence v19. */
+.options-section {
+  margin-top: 14px;
+}
+.options-section-title {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--gsc-color-muted);
+}
+.options-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 8px;
+  border: none;
+  background: none;
+  border-radius: var(--gsc-radius-sm);
+  cursor: pointer;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gsc-color-ink);
+}
+.options-row:hover:not(:disabled) {
+  background: var(--gsc-color-surface3);
+}
+.options-row:disabled {
+  cursor: not-allowed;
+  color: var(--gsc-color-muted);
+}
+.options-row-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--gsc-radius-sm);
+  background: var(--gsc-color-surface3);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.options-row-label {
+  flex: 1;
+}
+.options-row-soon {
+  font-weight: 400;
+  color: var(--gsc-color-muted);
+}
+.options-row-chevron {
+  color: var(--gsc-color-muted2);
+}
+
 .detail-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

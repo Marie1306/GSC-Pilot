@@ -50,16 +50,9 @@ export function ProjectDetail({ id, onClose }: ProjectDetailProps) {
               </p>
             )}
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {project && (
-              <button type="button" className="btn btn-secondary btn-small" onClick={() => setOptionsOpen((v) => !v)}>
-                ⚙ Options
-              </button>
-            )}
-            <button type="button" className="modal-close" onClick={onClose} aria-label="Fermer">
-              ×
-            </button>
-          </div>
+          <button type="button" className="modal-close" onClick={onClose} aria-label="Fermer">
+            ×
+          </button>
         </div>
 
         <div className="modal-body">
@@ -271,6 +264,11 @@ export function ProjectDetail({ id, onClose }: ProjectDetailProps) {
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Fermer
           </button>
+          {project && (
+            <button type="button" className="btn" onClick={() => setOptionsOpen((v) => !v)}>
+              ⚙ Options
+            </button>
+          )}
         </div>
       </div>
     </div>
