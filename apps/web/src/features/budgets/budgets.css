@@ -162,3 +162,79 @@
   color: var(--gsc-color-muted);
   font-size: 13px;
 }
+
+/* Vue d'export PDF (18 août 2026) — page autonome, hors AppShell, imprimée via window.print(). */
+.budget-export {
+  min-height: 100vh;
+  background: var(--gsc-color-bg);
+}
+.budget-export-page {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 32px 40px 60px;
+  background: var(--gsc-color-surface);
+}
+.budget-export-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--gsc-color-brand);
+}
+.budget-export-brand {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--gsc-color-brand);
+  margin-bottom: 4px;
+}
+.budget-export-header h1 {
+  margin: 0;
+  font-size: 20px;
+}
+.budget-export-status {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: var(--gsc-radius-sm);
+  background: var(--gsc-color-surface3);
+  white-space: nowrap;
+}
+.budget-export-section {
+  margin-bottom: 24px;
+  break-inside: avoid;
+}
+.budget-export-section h2 {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--gsc-color-muted);
+  margin: 0 0 12px;
+}
+.budget-export-footer {
+  margin-top: 32px;
+  padding-top: 12px;
+  border-top: 1px solid var(--gsc-color-line);
+  font-size: 12px;
+  color: var(--gsc-color-muted);
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body,
+  .budget-export {
+    background: #fff;
+  }
+  .budget-export-page {
+    max-width: none;
+    padding: 0;
+  }
+  @page {
+    margin: 16mm;
+  }
+}

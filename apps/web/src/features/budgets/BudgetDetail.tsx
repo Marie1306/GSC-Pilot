@@ -7,12 +7,11 @@ import {
   canApproveBudgetForSending,
   canRecordBudgetOutcome,
   canConvertBudgetToProject,
-  canDeleteBudget,
-  canResetBudget,
 } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { convertBudgetToProject, fetchNextProjectNumber } from "../projects/api.js";
+import { BudgetOptionsMenu } from "./BudgetOptionsMenu.js";
 import {
   fetchBudgetDetail,
   updateRow,
@@ -26,8 +25,6 @@ import {
   markBudgetSent,
   markBudgetWon,
   markBudgetDeclined,
-  deleteBudget,
-  resetBudgetContent,
   formatCurrency,
   computeDetailedSummary,
   STATUS_LABELS,
@@ -294,8 +291,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
   const queryClient = useQueryClient();
   const detailQuery = useQuery({ queryKey: ["budget", id], queryFn: () => fetchBudgetDetail(id) });
   const [error, setError] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [confirmReset, setConfirmReset] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const [showConvertForm, setShowConvertForm] = useState(false);
   const [projectName, setProjectName] = useState("");
   // Numéro suggéré (plus grand + 1) préaffiché mais modifiable — pour
@@ -375,23 +371,6 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
     },
     onError: onMutationError,
   });
-  const deleteMutation = useMutation({
-    mutationFn: () => deleteBudget(id),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["budgets"] });
-      void queryClient.invalidateQueries({ queryKey: ["client-requests"] });
-      onClose();
-    },
-    onError: onMutationError,
-  });
-  const resetMutation = useMutation({
-    mutationFn: () => resetBudgetContent(id),
-    onSuccess: () => {
-      setConfirmReset(false);
-      invalidate();
-    },
-    onError: onMutationError,
-  });
 
   if (!employee) return null;
 
@@ -401,8 +380,6 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
   const canApprove = canApproveBudgetForSending(employee.persona);
   const canOutcome = canRecordBudgetOutcome(employee.persona);
   const canConvert = canConvertBudgetToProject(employee.persona);
-  const canDelete = canDeleteBudget(employee.persona);
-  const canReset = canResetBudget(employee.persona);
   const busy =
     rowMutation.isPending ||
     addRowMutation.isPending ||
@@ -412,9 +389,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
     projectBackupMutation.isPending ||
     metaMutation.isPending ||
     statusMutation.isPending ||
-    convertMutation.isPending ||
-    deleteMutation.isPending ||
-    resetMutation.isPending;
+    convertMutation.isPending;
   // Busy du tableau de lignes SEULEMENT — exclut volontairement rowMutation
   // (voir savingRowId ci-dessous) et les mutations d'autres cartes
   // (méta/back-up), sans rapport avec la saisie de lignes. Corrige le 13
@@ -844,48 +819,6 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                   )}
                 </div>
               )}
-
-              {(canDelete || canReset) && (
-                <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--gsc-color-line)" }}>
-                  <p style={{ margin: "0 0 10px", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.04, color: "var(--gsc-color-muted)" }}>
-                    Actions sensibles
-                  </p>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                    {canReset &&
-                      (!confirmReset ? (
-                        <button type="button" className="btn btn-secondary btn-small" disabled={busy} onClick={() => setConfirmReset(true)}>
-                          Réinitialiser le contenu
-                        </button>
-                      ) : (
-                        <>
-                          <span style={{ fontSize: 13 }}>Effacer toutes les valeurs saisies — recommencer à neuf ?</span>
-                          <button type="button" className="btn btn-small" disabled={resetMutation.isPending} onClick={() => resetMutation.mutate()}>
-                            {resetMutation.isPending ? "…" : "Confirmer la réinitialisation"}
-                          </button>
-                          <button type="button" className="btn btn-secondary btn-small" onClick={() => setConfirmReset(false)}>
-                            Annuler
-                          </button>
-                        </>
-                      ))}
-                    {canDelete &&
-                      (!confirmDelete ? (
-                        <button type="button" className="btn btn-secondary btn-small" disabled={busy} onClick={() => setConfirmDelete(true)}>
-                          Supprimer le budgétaire
-                        </button>
-                      ) : (
-                        <>
-                          <span style={{ fontSize: 13 }}>Envoyer à la corbeille — confirmer ?</span>
-                          <button type="button" className="btn btn-small" disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate()}>
-                            {deleteMutation.isPending ? "…" : "Confirmer la suppression"}
-                          </button>
-                          <button type="button" className="btn btn-secondary btn-small" onClick={() => setConfirmDelete(false)}>
-                            Annuler
-                          </button>
-                        </>
-                      ))}
-                  </div>
-                </div>
-              )}
             </>
           )}
         </div>
@@ -894,8 +827,15 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Fermer
           </button>
+          {budget && (
+            <button type="button" className="btn" onClick={() => setOptionsOpen((v) => !v)}>
+              ⚙ Options
+            </button>
+          )}
         </div>
       </div>
+
+      {budget && <BudgetOptionsMenu budget={budget} open={optionsOpen} onClose={() => setOptionsOpen(false)} onDeleted={onClose} />}
     </div>
   );
 }

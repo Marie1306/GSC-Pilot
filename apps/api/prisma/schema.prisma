@@ -264,7 +264,16 @@ enum BudgetCategory {
 model Budget {
   id                      String    @id @default(uuid())
   displayId               String    @unique // format BG-AAAA-NNNN
-  clientRequestId         String?   @unique // nullable — confirmé : un budgétaire peut aussi être créé directement (voir spec/plan)
+  // Nullable — confirmé : un budgétaire peut aussi être créé directement
+  // (voir spec/plan). PAS @unique (retiré le 18 août 2026) : miroir simple
+  // (pas de @relation dessus — voir service.ts), gardé volontairement
+  // NON vidé quand un budgétaire est supprimé ou refusé, pour rester la
+  // seule trace de son client d'origine — donc plusieurs budgétaires
+  // (un ancien refusé/supprimé + un nouveau) peuvent légitimement pointer
+  // vers la même demande au fil du temps. La relation vraiment gérée
+  // (un SEUL budgétaire actif par demande) vit sur ClientRequest.budgetId,
+  // @unique celui-là.
+  clientRequestId         String?
   status                  String    @default("draft")
   // Back-up D'HEURES — réserve calculée automatiquement depuis les heures
   // admissibles (Fab+Prog+Assemblage), voir backup.ts. Gelé au premier calcul.

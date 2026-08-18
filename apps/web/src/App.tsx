@@ -1,9 +1,11 @@
 import type { ComponentType } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { canAccessBudget } from "@gsc-pilot/business-rules";
 import { AuthProvider } from "./lib/auth/AuthProvider.js";
 import { RequireRole } from "./lib/auth/RequireRole.js";
 import { AppShell } from "./components/AppShell.js";
 import { LoginPage } from "./features/auth/LoginPage.js";
+import { BudgetExportView } from "./features/budgets/BudgetExportView.js";
 import { NAV_ITEMS } from "./lib/nav.js";
 import { DashboardPage } from "./features/dashboard/DashboardPage.js";
 import { ClientRequestsPage } from "./features/clientRequests/ClientRequestsPage.js";
@@ -45,6 +47,14 @@ export function App() {
       <AuthProvider>
         <Routes>
           <Route path="/connexion" element={<LoginPage />} />
+          <Route
+            path="/budgetaire/:id/export"
+            element={
+              <RequireRole allow={canAccessBudget}>
+                <BudgetExportView />
+              </RequireRole>
+            }
+          />
           <Route
             element={
               <RequireRole allow={() => true}>

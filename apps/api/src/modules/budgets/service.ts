@@ -341,9 +341,19 @@ async function namesByEmployeeId(ids: string[]): Promise<Map<string, string>> {
 export async function getBudgetDetail(id: string): Promise<BudgetDetailDto> {
   const budget = await prisma.budget.findUnique({
     where: { id },
-    include: { sections: { include: { rows: { orderBy: { sortOrder: "asc" } } } }, clientRequest: true },
+    include: { sections: { include: { rows: { orderBy: { sortOrder: "asc" } } } } },
   });
   if (!budget) throw new HttpError(404, "Budgétaire introuvable.");
+
+  // Lu explicitement via Budget.clientRequestId, jamais via la relation
+  // gérée ClientRequest.budgetId (include: { clientRequest: true }) — cette
+  // dernière suit le budgétaire ACTIF courant de la demande, qui change de
+  // cible dès qu'un nouveau budgétaire est créé après un refus/suppression.
+  // Budget.clientRequestId reste la seule trace fiable du client D'ORIGINE
+  // de CE budgétaire précis (voir le commentaire du champ, schema.prisma).
+  const clientRequest = budget.clientRequestId
+    ? await prisma.clientRequest.findUnique({ where: { id: budget.clientRequestId } })
+    : null;
 
   const sections = budget.sections as SectionWithRows[];
   const sectionSummaries = sections.map(toSectionSummary);
@@ -356,8 +366,8 @@ export async function getBudgetDetail(id: string): Promise<BudgetDetailDto> {
     id: budget.id,
     displayId: budget.displayId,
     status: budget.status,
-    contactName: budget.clientRequest?.contactName ?? "—",
-    company: budget.clientRequest?.company ?? null,
+    contactName: clientRequest?.contactName ?? "—",
+    company: clientRequest?.company ?? null,
     createdByName: nameById.get(budget.createdById) ?? "—",
     createdAt: budget.createdAt.toISOString(),
     totalSale: totals.totalSale,
@@ -372,12 +382,12 @@ export async function getBudgetDetail(id: string): Promise<BudgetDetailDto> {
     summary: budget.summary,
     riskSummary: budget.riskSummary,
     clientRequestId: budget.clientRequestId,
-    clientRequestDisplayId: budget.clientRequest?.displayId ?? null,
-    requestType: budget.clientRequest?.requestType ?? null,
-    email: budget.clientRequest?.email ?? null,
-    phone: budget.clientRequest?.phone ?? null,
-    requestCreatedAt: budget.clientRequest?.createdAt.toISOString() ?? null,
-    requestSummary: budget.clientRequest?.summary ?? null,
+    clientRequestDisplayId: clientRequest?.displayId ?? null,
+    requestType: clientRequest?.requestType ?? null,
+    email: clientRequest?.email ?? null,
+    phone: clientRequest?.phone ?? null,
+    requestCreatedAt: clientRequest?.createdAt.toISOString() ?? null,
+    requestSummary: clientRequest?.summary ?? null,
     sentAt: budget.sentAt?.toISOString() ?? null,
     contractWonAt: budget.contractWonAt?.toISOString() ?? null,
     sections: sections
@@ -395,21 +405,27 @@ export async function getBudgetDetail(id: string): Promise<BudgetDetailDto> {
 }
 
 /**
- * Budgétaires déjà convertis en projet ou roulement exclus (18 août 2026,
- * confirmé — même principe que les demandes clients converties), tout
- * comme la corbeille (deletedAt). Les deux restent consultables
+ * Budgétaires déjà convertis en projet ou roulement, refusés, ou dans la
+ * corbeille exclus (18 août 2026, confirmé — même principe que les
+ * demandes clients converties : un budgétaire refusé décroche sa demande
+ * d'origine, voir markBudgetDeclined). Tous restent consultables
  * individuellement (getBudgetDetail non filtré), seulement sortis de cette
  * liste active.
  */
 export async function listBudgets(): Promise<BudgetListItemDto[]> {
   const budgets = await prisma.budget.findMany({
-    where: { project: null, rolling: null, deletedAt: null },
-    include: { sections: { include: { rows: { orderBy: { sortOrder: "asc" } } } }, clientRequest: true },
+    where: { project: null, rolling: null, deletedAt: null, status: { not: "declined" } },
+    include: { sections: { include: { rows: { orderBy: { sortOrder: "asc" } } } } },
     orderBy: { createdAt: "desc" },
   });
   const nameById = await namesByEmployeeId(budgets.map((budget) => budget.createdById));
+  // Lu explicitement via Budget.clientRequestId — voir le commentaire dans getBudgetDetail ci-dessus (même raison).
+  const clientRequestIds = [...new Set(budgets.map((budget) => budget.clientRequestId).filter((id): id is string => !!id))];
+  const clientRequests = await prisma.clientRequest.findMany({ where: { id: { in: clientRequestIds } } });
+  const clientRequestById = new Map(clientRequests.map((request) => [request.id, request]));
 
   return budgets.map((budget) => {
+    const clientRequest = budget.clientRequestId ? clientRequestById.get(budget.clientRequestId) : undefined;
     const sections = budget.sections as SectionWithRows[];
     const sectionSummaries = sections.map(toSectionSummary);
     const backup = toBackupSummary(budget, sections);
@@ -419,8 +435,8 @@ export async function listBudgets(): Promise<BudgetListItemDto[]> {
       id: budget.id,
       displayId: budget.displayId,
       status: budget.status,
-      contactName: budget.clientRequest?.contactName ?? "—",
-      company: budget.clientRequest?.company ?? null,
+      contactName: clientRequest?.contactName ?? "—",
+      company: clientRequest?.company ?? null,
       createdByName: nameById.get(budget.createdById) ?? "—",
       createdAt: budget.createdAt.toISOString(),
       totalSale: totals.totalSale,
@@ -458,7 +474,18 @@ async function assertBudgetNotConverted(id: string): Promise<Budget> {
   return budget;
 }
 
-/** Corbeille — même mécanisme que Project.deletedAt/ClientRequest.deletedAt. Décroche la demande client liée le cas échéant, pour qu'elle redevienne disponible pour un nouveau budgétaire. */
+/**
+ * Corbeille — même mécanisme que Project.deletedAt/ClientRequest.deletedAt.
+ * Décroche la demande client liée le cas échéant (ClientRequest.budgetId
+ * remis à nul) pour qu'elle redevienne disponible pour un nouveau
+ * budgétaire — mais Budget.clientRequestId (le miroir simple, voir le
+ * commentaire d'en-tête de fichier sur cette relation) N'EST PAS vidé :
+ * c'est la seule trace qui reste de "pour quel client ce budgétaire
+ * était-il" une fois la relation gérée (ClientRequest.budgetId) reprise
+ * par un budgétaire plus récent. Sans @unique sur Budget.clientRequestId
+ * (retiré le 18 août 2026 pour cette même raison), plusieurs budgétaires
+ * peuvent légitimement partager la même demande d'origine au fil du temps.
+ */
 export async function deleteBudget(id: string): Promise<void> {
   const budget = await assertBudgetNotConverted(id);
   await prisma.$transaction(async (tx) => {
@@ -699,8 +726,15 @@ export async function markBudgetWon(id: string): Promise<Budget> {
   return prisma.budget.update({ where: { id }, data: { status: "won", contractWonAt: new Date() } });
 }
 
+/** Décroche la demande client liée (même geste et même raison que deleteBudget ci-dessus, 18 août 2026, confirmé) : rien ne viendra plus de ce budgétaire, la demande redevient disponible pour en refaire un nouveau. Budget.clientRequestId n'est PAS vidé — voir le commentaire de deleteBudget. */
 export async function markBudgetDeclined(id: string): Promise<Budget> {
   const budget = await assertBudgetExists(id);
   if (budget.status !== "sent") throw new HttpError(400, "Seul un budgétaire envoyé peut être marqué refusé.");
-  return prisma.budget.update({ where: { id }, data: { status: "declined" } });
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.budget.update({ where: { id }, data: { status: "declined" } });
+    if (budget.clientRequestId) {
+      await tx.clientRequest.update({ where: { id: budget.clientRequestId }, data: { budgetId: null, status: "in_progress" } });
+    }
+    return updated;
+  });
 }
