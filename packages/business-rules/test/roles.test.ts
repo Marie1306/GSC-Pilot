@@ -278,6 +278,13 @@ describe("Création de demandes clients et d'appels de service (règle confirmé
       expect(P.canManageClientRequest(persona)).toBe(false);
     }
   });
+  it("Supprimer une demande client (corbeille) : Direction seulement", () => {
+    expect(P.canDeleteClientRequest(OWNER)).toBe(true);
+    expect(P.canDeleteClientRequest(ADMIN)).toBe(false);
+    expect(P.canDeleteClientRequest(BOSS)).toBe(false);
+    expect(P.canDeleteClientRequest(MEMBER)).toBe(false);
+    expect(P.canDeleteClientRequest(WAREHOUSE)).toBe(false);
+  });
 });
 
 // Règle confirmée directement avec l'utilisateur (12 août 2026, pas dans roles.js d'origine) —

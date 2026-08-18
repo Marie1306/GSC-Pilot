@@ -497,3 +497,9 @@ export function canManageClientRequest(persona: Persona): boolean {
   assertRole(persona);
   return ([ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS] as Persona[]).includes(persona);
 }
+
+/** Supprimer une demande client (corbeille) : Direction seulement — même palier que canDeleteProject (18 août 2026). */
+export function canDeleteClientRequest(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}

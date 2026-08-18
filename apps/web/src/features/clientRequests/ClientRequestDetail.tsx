@@ -9,13 +9,15 @@ import {
   STATUS_LABELS,
   type SettableStatus,
 } from "./api.js";
+import { ClientRequestOptionsMenu } from "./ClientRequestOptionsMenu.js";
 
 interface ClientRequestDetailProps {
   id: string;
   onClose: () => void;
 }
 
-const SETTABLE_STATUSES: SettableStatus[] = ["new", "in_progress", "lost"];
+/** "Perdue" retirée des pastilles (18 août 2026) — devient une action dédiée dans le menu Options, voir ClientRequestOptionsMenu.tsx. */
+const SETTABLE_STATUSES: SettableStatus[] = ["new", "in_progress"];
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" });
@@ -25,8 +27,7 @@ export function ClientRequestDetail({ id, onClose }: ClientRequestDetailProps) {
   const queryClient = useQueryClient();
   const detailQuery = useQuery({ queryKey: ["client-request", id], queryFn: () => fetchClientRequestDetail(id) });
   const [noteBody, setNoteBody] = useState("");
-  const [lostReason, setLostReason] = useState("");
-  const [pendingLostReason, setPendingLostReason] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["client-request", id] });
@@ -42,21 +43,9 @@ export function ClientRequestDetail({ id, onClose }: ClientRequestDetailProps) {
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ status, reason }: { status: SettableStatus; reason?: string }) => updateClientRequestStatus(id, status, reason),
-    onSuccess: () => {
-      setPendingLostReason(false);
-      setLostReason("");
-      invalidate();
-    },
+    mutationFn: (status: SettableStatus) => updateClientRequestStatus(id, status),
+    onSuccess: invalidate,
   });
-
-  function handleStatusChange(status: SettableStatus) {
-    if (status === "lost") {
-      setPendingLostReason(true);
-      return;
-    }
-    statusMutation.mutate({ status });
-  }
 
   const request = detailQuery.data?.clientRequest;
 
@@ -120,35 +109,21 @@ export function ClientRequestDetail({ id, onClose }: ClientRequestDetailProps) {
               <div className="status-row">
                 <span className="detail-label">Statut</span>
                 <div className="status-actions">
-                  {SETTABLE_STATUSES.map((status) => (
-                    <button
-                      key={status}
-                      type="button"
-                      className={`btn btn-secondary status-btn ${request.status === status ? "status-btn-active" : ""}`}
-                      disabled={statusMutation.isPending || request.status === status}
-                      onClick={() => handleStatusChange(status)}
-                    >
-                      {STATUS_LABELS[status]}
-                    </button>
-                  ))}
+                  {(request.status === "new" || request.status === "in_progress") &&
+                    SETTABLE_STATUSES.map((status) => (
+                      <button
+                        key={status}
+                        type="button"
+                        className={`btn btn-secondary status-btn ${request.status === status ? "status-btn-active" : ""}`}
+                        disabled={statusMutation.isPending || request.status === status}
+                        onClick={() => statusMutation.mutate(status)}
+                      >
+                        {STATUS_LABELS[status]}
+                      </button>
+                    ))}
                   {request.status === "converted" && <span className="status-btn status-btn-active">{STATUS_LABELS.converted}</span>}
+                  {request.status === "lost" && <span className="status-btn status-btn-active">{STATUS_LABELS.lost}</span>}
                 </div>
-                {pendingLostReason && (
-                  <div className="lost-reason-row">
-                    <input
-                      placeholder="Raison (facultatif)"
-                      value={lostReason}
-                      onChange={(e) => setLostReason(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() => statusMutation.mutate({ status: "lost", reason: lostReason })}
-                    >
-                      Confirmer perdue
-                    </button>
-                  </div>
-                )}
                 {request.status === "lost" && request.lostReason && <p className="lost-reason-text">Raison : {request.lostReason}</p>}
               </div>
 
@@ -190,8 +165,15 @@ export function ClientRequestDetail({ id, onClose }: ClientRequestDetailProps) {
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Fermer
           </button>
+          {request && (
+            <button type="button" className="btn" onClick={() => setOptionsOpen((v) => !v)}>
+              ⚙ Options
+            </button>
+          )}
         </div>
       </div>
+
+      {request && <ClientRequestOptionsMenu request={request} open={optionsOpen} onClose={() => setOptionsOpen(false)} onDeleted={onClose} />}
     </div>
   );
 }

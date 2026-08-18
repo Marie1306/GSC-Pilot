@@ -152,6 +152,10 @@ model ClientRequest {
   convertedRollingId   String?
   lostReason           String?
   nextFollowUp         DateTime?
+  // Corbeille — même mécanisme que Project.deletedAt (18 août 2026) :
+  // masqué des listes actives, jamais une suppression physique. Bloqué si
+  // budgetId est déjà lié (voir deleteClientRequest, service.ts).
+  deletedAt            DateTime?
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 

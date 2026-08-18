@@ -214,9 +214,10 @@ async function namesByEmployeeId(ids: string[]): Promise<Map<string, string>> {
   return new Map(employees.map((employee) => [employee.id, employee.name]));
 }
 
-/** Visibilité : identique pour Direction/Administration/Propriétaire, aucun filtrage — confirmé le 12 août 2026. */
+/** Visibilité : identique pour Direction/Administration/Propriétaire, aucun filtrage — confirmé le 12 août 2026. Corbeille (deletedAt) exclue, même patron que listProjects. */
 export async function listClientRequests(): Promise<ClientRequestListItemDto[]> {
   const rows = await prisma.clientRequest.findMany({
+    where: { deletedAt: null },
     include: { salesChannel: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
   });
@@ -240,6 +241,8 @@ export interface ClientRequestDetailDto extends ClientRequestListItemDto {
   sourceDetail: string | null;
   lostReason: string | null;
   notes: ClientRequestNoteDto[];
+  transmittedToOwnerAt: string | null;
+  deletedAt: string | null;
 }
 
 export async function getClientRequestDetail(id: string): Promise<ClientRequestDetailDto> {
@@ -266,6 +269,8 @@ export async function getClientRequestDetail(id: string): Promise<ClientRequestD
       body: note.body,
       createdAt: note.createdAt.toISOString(),
     })),
+    transmittedToOwnerAt: row.transmittedToOwnerAt?.toISOString() ?? null,
+    deletedAt: row.deletedAt?.toISOString() ?? null,
   };
 }
 
@@ -285,4 +290,32 @@ export async function updateClientRequestStatus(id: string, status: SettableStat
     where: { id },
     data: { status, lostReason: status === "lost" ? lostReason?.trim() || null : request.lostReason },
   });
+}
+
+// ---------------------------------------------------------------------------
+// Transfert au Propriétaire / relance / corbeille (18 août 2026) — champs
+// réservés au schéma depuis le 12 août, reportés jusqu'à maintenant (confirmé
+// avec l'utilisatrice : « reste un suivi actif, pas oublié »).
+// ---------------------------------------------------------------------------
+
+/** transmittedToOwnerAt : visibilité seulement, jamais une porte de permission (voir schema.prisma) — simple horodatage, pas de retour en arrière prévu (aucun besoin exprimé). */
+export async function transferClientRequestToOwner(id: string): Promise<void> {
+  const request = await prisma.clientRequest.findUnique({ where: { id }, select: { id: true } });
+  if (!request) throw new HttpError(404, "Demande client introuvable.");
+  await prisma.clientRequest.update({ where: { id }, data: { transmittedToOwnerAt: new Date() } });
+}
+
+export async function updateClientRequestFollowUp(id: string, nextFollowUp: Date | null): Promise<void> {
+  const request = await prisma.clientRequest.findUnique({ where: { id }, select: { id: true } });
+  if (!request) throw new HttpError(404, "Demande client introuvable.");
+  await prisma.clientRequest.update({ where: { id }, data: { nextFollowUp } });
+}
+
+/** Corbeille — même mécanisme que Project.deletedAt (masqué des listes actives, jamais une suppression physique). Bloqué une fois convertie en budgétaire — l'historique de la conversion doit rester intact. */
+export async function deleteClientRequest(id: string): Promise<void> {
+  const request = await prisma.clientRequest.findUnique({ where: { id } });
+  if (!request) throw new HttpError(404, "Demande client introuvable.");
+  if (request.deletedAt) throw new HttpError(400, "Cette demande est déjà dans la corbeille.");
+  if (request.budgetId) throw new HttpError(400, "Cette demande a déjà un budgétaire — elle ne peut plus être supprimée.");
+  await prisma.clientRequest.update({ where: { id }, data: { deletedAt: new Date() } });
 }

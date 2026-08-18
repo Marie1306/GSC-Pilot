@@ -1,9 +1,10 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { canManageProject, canArchiveProject, canDeleteProject } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
+import { OptionsDrawer, OptionRow, OptionSection } from "../../components/OptionsDrawer.js";
 import { updateProjectInfo, setProjectArchived, deleteProject, fetchProjectHistory, type ProjectDetail } from "./api.js";
 import { ProjectPostMortem } from "./ProjectPostMortem.js";
 
@@ -16,41 +17,6 @@ interface ProjectOptionsMenuProps {
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString("fr-CA", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-}
-
-interface OptionRowProps {
-  icon: string;
-  label: string;
-  onClick?: () => void;
-  disabled?: boolean;
-  disabledNote?: string;
-}
-
-/** Une ligne du menu Options — même structure que la référence v19 (icône, libellé, chevron), qu'elle soit réelle ou en attente d'un module pas encore construit. */
-function OptionRow({ icon, label, onClick, disabled, disabledNote }: OptionRowProps) {
-  return (
-    <button type="button" className="options-row" disabled={disabled} onClick={onClick} title={disabled ? disabledNote : undefined}>
-      <span className="options-row-icon" aria-hidden="true">
-        {icon}
-      </span>
-      <span className="options-row-label">
-        {label}
-        {disabled && <span className="options-row-soon"> (bientôt)</span>}
-      </span>
-      <span className="options-row-chevron" aria-hidden="true">
-        ›
-      </span>
-    </button>
-  );
-}
-
-function OptionSection({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="options-section">
-      <p className="options-section-title">{title}</p>
-      {children}
-    </div>
-  );
 }
 
 /**
@@ -126,24 +92,11 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted }: Projec
   const isArchived = !!project.archivedAt;
 
   return (
-    <div className="drawer-backdrop" onClick={onClose}>
-      <div className="drawer" onClick={(event) => event.stopPropagation()}>
-        <div className="drawer-header">
-          <div>
-            <p className="drawer-eyebrow">Options du projet</p>
-            <h2>
-              {project.projectNumber} — {project.name}
-            </h2>
-          </div>
-          <button type="button" className="modal-close" onClick={onClose} aria-label="Fermer">
-            ×
-          </button>
-        </div>
+    <>
+      <OptionsDrawer eyebrow="Options du projet" title={`${project.projectNumber} — ${project.name}`} onClose={onClose}>
+        {error && <p className="form-error">{error}</p>}
 
-        <div className="drawer-body">
-          {error && <p className="form-error">{error}</p>}
-
-          {editForm ? (
+        {editForm ? (
             <form
               className="form-grid"
               style={{ marginTop: 14 }}
@@ -281,10 +234,9 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted }: Projec
               )}
             </div>
           )}
-        </div>
-      </div>
+      </OptionsDrawer>
 
       {showPostMortem && <ProjectPostMortem projectId={project.id} onClose={() => setShowPostMortem(false)} />}
-    </div>
+    </>
   );
 }

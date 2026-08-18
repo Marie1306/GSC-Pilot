@@ -6,6 +6,8 @@ import { fetchClientRequests, fetchSalesChannels, createBudget, URGENCY_LABELS, 
 interface BudgetFormProps {
   onClose: () => void;
   onCreated: (id: string) => void;
+  /** Pré-sélection depuis "Créer le budgétaire" du menu Options d'une demande client (18 août 2026). */
+  initialRequestId?: string;
 }
 
 type NewRequestType = NewClientRequestForBudget["requestType"];
@@ -36,11 +38,11 @@ const EMPTY_NEW_REQUEST: NewClientRequestForBudget = {
  * l'application créer le contact et la demande client automatiquement — pas
  * deux mécanismes séparés.
  */
-export function BudgetForm({ onClose, onCreated }: BudgetFormProps) {
+export function BudgetForm({ onClose, onCreated, initialRequestId }: BudgetFormProps) {
   const queryClient = useQueryClient();
   const requestsQuery = useQuery({ queryKey: ["client-requests"], queryFn: fetchClientRequests });
   const channelsQuery = useQuery({ queryKey: ["sales-channels"], queryFn: fetchSalesChannels });
-  const [selectedRequestId, setSelectedRequestId] = useState("");
+  const [selectedRequestId, setSelectedRequestId] = useState(initialRequestId ?? "");
   const [newRequest, setNewRequest] = useState<NewClientRequestForBudget>(EMPTY_NEW_REQUEST);
   const [error, setError] = useState<string | null>(null);
 

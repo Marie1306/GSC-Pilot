@@ -46,6 +46,7 @@ export interface ClientRequestListItem {
   createdByName: string;
   createdAt: string;
   nextFollowUp: string | null;
+  budgetId: string | null;
 }
 
 export interface ClientRequestNote {
@@ -64,6 +65,8 @@ export interface ClientRequestDetail extends ClientRequestListItem {
   sourceDetail: string | null;
   lostReason: string | null;
   notes: ClientRequestNote[];
+  transmittedToOwnerAt: string | null;
+  deletedAt: string | null;
 }
 
 export interface CreateClientRequestInput {
@@ -107,4 +110,16 @@ export function updateClientRequestStatus(
   lostReason?: string,
 ): Promise<{ id: string; status: string }> {
   return apiFetch(`/api/client-requests/${id}/status`, { method: "PATCH", body: JSON.stringify({ status, lostReason }) });
+}
+
+export function transferClientRequestToOwner(id: string): Promise<void> {
+  return apiFetch(`/api/client-requests/${id}/transfer-to-owner`, { method: "POST" });
+}
+
+export function updateClientRequestFollowUp(id: string, nextFollowUp: string | null): Promise<void> {
+  return apiFetch(`/api/client-requests/${id}/follow-up`, { method: "PATCH", body: JSON.stringify({ nextFollowUp }) });
+}
+
+export function deleteClientRequest(id: string): Promise<void> {
+  return apiFetch(`/api/client-requests/${id}`, { method: "DELETE" });
 }

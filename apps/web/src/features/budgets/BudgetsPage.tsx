@@ -9,11 +9,16 @@ import "./budgets.css";
 
 /** "Accéder au Budgétaire" depuis le menu Options d'un projet (Projet 2F,
  * 17 août 2026) navigue vers /budgetaire?open=<id> — lu une seule fois au
- * montage, même patron que l'ouverture depuis la liste. */
+ * montage, même patron que l'ouverture depuis la liste. "Créer le
+ * budgétaire" depuis le menu Options d'une demande client (18 août 2026)
+ * navigue vers /budgetaire?newFromRequest=<id> — ouvre le formulaire avec
+ * cette demande déjà présélectionnée plutôt que de la faire rechercher dans
+ * la liste déroulante. */
 export function BudgetsPage() {
   const { employee } = useAuth();
   const [searchParams] = useSearchParams();
-  const [showForm, setShowForm] = useState(false);
+  const [newFromRequestId] = useState<string | null>(() => searchParams.get("newFromRequest"));
+  const [showForm, setShowForm] = useState(() => !!newFromRequestId);
   const [openId, setOpenId] = useState<string | null>(() => searchParams.get("open"));
 
   if (!employee) return null;
@@ -30,6 +35,7 @@ export function BudgetsPage() {
 
       {showForm && (
         <BudgetForm
+          initialRequestId={newFromRequestId ?? undefined}
           onClose={() => setShowForm(false)}
           onCreated={(id) => {
             setShowForm(false);

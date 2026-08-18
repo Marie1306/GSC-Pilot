@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { canCreateClientRequest, canViewClientRequests, canManageClientRequest } from "@gsc-pilot/business-rules";
+import { canCreateClientRequest, canViewClientRequests, canManageClientRequest, canDeleteClientRequest } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import { prisma } from "../../db.js";
 import {
@@ -9,6 +9,9 @@ import {
   getClientRequestDetail,
   addClientRequestNote,
   updateClientRequestStatus,
+  transferClientRequestToOwner,
+  updateClientRequestFollowUp,
+  deleteClientRequest,
   REQUEST_TYPES,
   URGENCIES,
   SETTABLE_STATUSES,
@@ -104,5 +107,40 @@ clientRequestsRouter.patch(
     const { status, lostReason } = statusSchema.parse(req.body);
     const updated = await updateClientRequestStatus(id, status, lostReason);
     res.json({ id: updated.id, status: updated.status });
+  },
+);
+
+clientRequestsRouter.post(
+  "/client-requests/:id/transfer-to-owner",
+  requireAuth,
+  requirePermission((persona) => canManageClientRequest(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    await transferClientRequestToOwner(id);
+    res.status(204).end();
+  },
+);
+
+const followUpSchema = z.object({ nextFollowUp: z.iso.date().nullable() });
+clientRequestsRouter.patch(
+  "/client-requests/:id/follow-up",
+  requireAuth,
+  requirePermission((persona) => canManageClientRequest(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const { nextFollowUp } = followUpSchema.parse(req.body);
+    await updateClientRequestFollowUp(id, nextFollowUp ? new Date(nextFollowUp) : null);
+    res.status(204).end();
+  },
+);
+
+clientRequestsRouter.delete(
+  "/client-requests/:id",
+  requireAuth,
+  requirePermission((persona) => canDeleteClientRequest(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    await deleteClientRequest(id);
+    res.status(204).end();
   },
 );
