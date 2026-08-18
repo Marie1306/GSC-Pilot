@@ -1,0 +1,76 @@
+.punch-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 20px;
+  text-align: center;
+}
+.punch-hero-state {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gsc-color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.punch-hero-display {
+  font-size: 40px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  color: var(--gsc-color-ink);
+}
+.punch-hero-task {
+  font-size: 14px;
+  color: var(--gsc-color-muted);
+}
+.punch-hero-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.punch-rules-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--gsc-color-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.punch-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 13px;
+}
+.punch-table th {
+  text-align: left;
+  color: var(--gsc-color-muted);
+  font-weight: 600;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--gsc-color-line);
+  white-space: nowrap;
+}
+.punch-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--gsc-color-line);
+  vertical-align: middle;
+}
+.punch-table .cell-sub {
+  color: var(--gsc-color-muted);
+  font-size: 12px;
+}
+.punch-table .actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.punch-btn-small {
+  font-size: 12px;
+  padding: 5px 10px;
+  min-height: unset;
+}

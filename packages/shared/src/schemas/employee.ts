@@ -20,7 +20,10 @@ export const employeeSchema = z.object({
   skills: z.array(z.string()).default([]),
   skillEfficiencies: z.record(z.string(), z.number().min(0).max(200)).default({}),
   costRate: z.number().nonnegative(),
-  techLevelId: z.uuid().nullable().default(null),
+  // Classes facturables en service applicables à cet employé (plusieurs
+  // possibles — confirmé le 18 août 2026, voir modules/timeEntries). Remplace
+  // l'ancien techLevelId (1:1, jamais utilisé par un vrai consommateur).
+  techLevelIds: z.array(z.uuid()).default([]),
   active: z.boolean().default(true),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),

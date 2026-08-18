@@ -278,6 +278,36 @@ async function seedBudgetModel() {
   }
 }
 
+// Tâches punchables SANS ligne de modèle de budgétaire (budgetModelRowId
+// nul) — « Interne — Amélioration GSC » (exemples cités dans la
+// spécification confirmée, 8 août 2026 : formation, réparations internes,
+// ménage, organisation) + une tâche générique pour les calls de service
+// (le module Appels de service lui-même n'est pas encore construit — voir
+// CLAUDE.md, ordre des modules). Ajouté le 18 août 2026 avec le punch
+// d'heures — pas de taux propre à ces tâches : le coût se gèle au punch
+// depuis Employee.costRate (interne) ou TechLevel[rateType] (service).
+const INTERNAL_TASKS = ["Formation", "Réparations internes", "Ménage", "Organisation"];
+const SERVICE_TASKS = ["Intervention de service"];
+
+async function seedNonBudgetPunchableTasks() {
+  for (const [sortOrder, label] of INTERNAL_TASKS.entries()) {
+    const existing = await prisma.punchableTask.findFirst({ where: { category: "internal", label } });
+    if (existing) {
+      await prisma.punchableTask.update({ where: { id: existing.id }, data: { sortOrder, active: true } });
+    } else {
+      await prisma.punchableTask.create({ data: { category: "internal", label, sortOrder } });
+    }
+  }
+  for (const [sortOrder, label] of SERVICE_TASKS.entries()) {
+    const existing = await prisma.punchableTask.findFirst({ where: { category: "service", label } });
+    if (existing) {
+      await prisma.punchableTask.update({ where: { id: existing.id }, data: { sortOrder, active: true } });
+    } else {
+      await prisma.punchableTask.create({ data: { category: "service", label, sortOrder } });
+    }
+  }
+}
+
 async function seedPurchaseCategories() {
   for (const [sortOrder, category] of PURCHASE_CATEGORIES.entries()) {
     await prisma.purchaseCategory.upsert({
@@ -343,6 +373,8 @@ async function main() {
   await seedSettings();
   console.log("Modèle de budgétaire...");
   await seedBudgetModel();
+  console.log("Tâches punchables hors budget (interne, service)...");
+  await seedNonBudgetPunchableTasks();
   console.log("Catégories d'achat...");
   await seedPurchaseCategories();
   console.log("Canaux de vente...");

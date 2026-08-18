@@ -45,8 +45,14 @@ model Employee {
   skills            String[]   @default([])
   skillEfficiencies Json       @default("{}") // {[skill]: pct} — Gantt seulement, jamais le budgétaire/heures/post-mortem
   costRate          Decimal    @default(0) @db.Decimal(10, 2)
-  techLevelId       String?
-  techLevel         TechLevel? @relation(fields: [techLevelId], references: [id])
+  // Classes facturables en service (plusieurs choix permis — confirmé par
+  // l'utilisatrice le 18 août 2026) : un même employé peut avoir plusieurs
+  // classes applicables (ex. programmeur ET technicien senior). La classe
+  // réellement facturée se choisit AU PUNCH selon ce que la job demande,
+  // jamais fixée une fois pour toutes ici — voir TimeEntry.techLevelId.
+  // Remplace l'ancien lien 1:1 techLevelId, qui n'avait aucun consommateur
+  // réel avant ce changement (vérifié avant de le retirer).
+  techLevels        TechLevel[]
   active            Boolean    @default(true)
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
@@ -55,15 +61,26 @@ model Employee {
   delegationsHeld      DelegationGrant[] @relation("DelegationDelegate")
   auditLogEntries      AuditLogEntry[]
   purchaseRequestsMade PurchaseRequest[] @relation("PurchaseRequestRequester")
+  timeEntries          TimeEntry[]
 
   @@index([persona])
 }
 
+// Classes facturables en service (ex. Technicien, Technicien senior,
+// Programmeur) — gérées par Direction en Paramètres, jamais codées en dur.
+// Trois taux distincts par classe (régulier/temps supplémentaire/extra),
+// choisis au punch selon le type de temps réel. Remplace l'ancien billRate
+// unique (jamais utilisé par un vrai consommateur avant ce changement).
 model TechLevel {
-  id        String     @id @default(uuid())
-  label     String // ex. "Technicien niveau 1/2/expert"
-  billRate  Decimal    @db.Decimal(10, 2)
-  employees Employee[]
+  id           String      @id @default(uuid())
+  label        String // ex. "Technicien niveau 1/2/expert"
+  regularRate  Decimal     @db.Decimal(10, 2)
+  overtimeRate Decimal     @db.Decimal(10, 2)
+  extraRate    Decimal     @db.Decimal(10, 2)
+  active       Boolean     @default(true)
+  sortOrder    Int         @default(0)
+  employees    Employee[]
+  timeEntries  TimeEntry[]
 }
 
 /// Délégation d'approbation — table réelle avec historique (amélioration sur le blob unique de la v19),
@@ -707,6 +724,7 @@ model TimeEntry {
   id             String         @id @default(uuid())
   date           DateTime       @db.Date
   employeeId     String
+  employee       Employee       @relation(fields: [employeeId], references: [id])
   projectType    String // project | service | internal
   projectId      String?
   project        Project?       @relation(fields: [projectId], references: [id])
@@ -722,6 +740,15 @@ model TimeEntry {
   note           String?
   status         String         @default("submitted") // submitted | approved
   costRate       Decimal        @db.Decimal(10, 2) // gelé au moment du punch
+  // Classe + type de temps choisis au punch — seulement pour projectType
+  // === "service" (call de service), confirmé par l'utilisatrice le 18 août
+  // 2026 : le choix se fait à chaque punch, jamais fixé une fois pour
+  // toutes sur l'employé (voir Employee.techLevels — plusieurs classes
+  // possibles par personne, celle qui s'applique dépend de la job). Nul
+  // pour un punch projet/interne.
+  techLevelId    String?
+  techLevel      TechLevel?     @relation(fields: [techLevelId], references: [id])
+  rateType       String? // regular | overtime | extra — nul si non applicable
   blockageNote   String?
   createdAt      DateTime       @default(now())
 

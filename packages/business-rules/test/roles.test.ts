@@ -174,6 +174,22 @@ describe("Punchs", () => {
   it("Employé ne peut plus corriger après approbation", () => {
     expect(P.canEditOwnPunch(MEMBER, { employee: "emp-1", status: "approved" }, "emp-1")).toBe(false);
   });
+  it("Employé ne peut puncher que sur un call qui lui est assigné", () => {
+    expect(P.canPunchServiceCall(MEMBER, { assignedEmployeeId: "emp-1" }, "emp-1")).toBe(true);
+    expect(P.canPunchServiceCall(MEMBER, { assignedEmployeeId: "emp-2" }, "emp-1")).toBe(false);
+  });
+  it("Direction/Administration/Propriétaire ne sont pas limités à leurs calls assignés", () => {
+    expect(P.canPunchServiceCall(OWNER, { assignedEmployeeId: "emp-2" }, "emp-1")).toBe(true);
+    expect(P.canPunchServiceCall(ADMIN, { assignedEmployeeId: "emp-2" }, "emp-1")).toBe(true);
+    expect(P.canPunchServiceCall(BOSS, { assignedEmployeeId: "emp-2" }, "emp-1")).toBe(true);
+  });
+  it("Direction/Administration/Propriétaire peuvent puncher pour un autre employé", () => {
+    expect(P.canPunchForOtherEmployee(OWNER)).toBe(true);
+    expect(P.canPunchForOtherEmployee(ADMIN)).toBe(true);
+    expect(P.canPunchForOtherEmployee(BOSS)).toBe(true);
+    expect(P.canPunchForOtherEmployee(MEMBER)).toBe(false);
+    expect(P.canPunchForOtherEmployee(WAREHOUSE)).toBe(false);
+  });
 });
 
 describe("Facturation", () => {

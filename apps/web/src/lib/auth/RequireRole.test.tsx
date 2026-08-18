@@ -16,7 +16,7 @@ const baseEmployee: Employee = {
   skills: [],
   skillEfficiencies: {},
   costRate: 0,
-  techLevelId: null,
+  techLevelIds: [],
   active: true,
   createdAt: "2026-08-11T00:00:00.000Z",
   updatedAt: "2026-08-11T00:00:00.000Z",

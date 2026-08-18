@@ -4,6 +4,7 @@ import { canAccessSettings } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import { listPurchaseCategories, createPurchaseCategory, updatePurchaseCategory } from "./purchaseCategories.js";
 import { getMarginThresholds, updateMarginThresholds } from "./marginThresholds.js";
+import { listTechLevels, createTechLevel, updateTechLevel } from "./techLevels.js";
 
 // Monté sur /api/settings (voir app.ts) — jamais sur /api directement, pour
 // que le .use() ci-dessous ne gate QUE les routes de ce module, pas tout
@@ -55,4 +56,35 @@ settingsRouter.patch("/margin-thresholds", async (req, res) => {
   const body = marginThresholdsSchema.parse(req.body);
   const thresholds = await updateMarginThresholds(body);
   res.json({ thresholds });
+});
+
+settingsRouter.get("/tech-levels", async (_req, res) => {
+  const techLevels = await listTechLevels();
+  res.json({ techLevels });
+});
+
+const createTechLevelSchema = z.object({
+  label: z.string().min(1, "Le nom est requis."),
+  regularRate: z.number().nonnegative(),
+  overtimeRate: z.number().nonnegative(),
+  extraRate: z.number().nonnegative(),
+});
+settingsRouter.post("/tech-levels", async (req, res) => {
+  const body = createTechLevelSchema.parse(req.body);
+  const techLevel = await createTechLevel(body);
+  res.status(201).json({ techLevel });
+});
+
+const updateTechLevelSchema = z.object({
+  label: z.string().min(1).optional(),
+  regularRate: z.number().nonnegative().optional(),
+  overtimeRate: z.number().nonnegative().optional(),
+  extraRate: z.number().nonnegative().optional(),
+  active: z.boolean().optional(),
+});
+settingsRouter.patch("/tech-levels/:id", async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  const body = updateTechLevelSchema.parse(req.body);
+  const techLevel = await updateTechLevel(id, body);
+  res.json({ techLevel });
 });
