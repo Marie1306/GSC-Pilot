@@ -219,6 +219,12 @@ model BudgetModelRow {
   autoPct       Decimal?           @db.Decimal(5, 2)
   active        Boolean            @default(true) // retrait = désactivation, jamais une suppression physique
   sortOrder     Int                @default(0)
+  // Lien direct vers la tâche punchable correspondante (18 août 2026,
+  // confirmé par l'utilisatrice) — voir PunchableTask.budgetModelRowId
+  // ci-dessous pour le raisonnement complet. Nul pour les lignes de type
+  // "purchase" (jamais punchables) et pour les lignes auto-calculées
+  // (autoFromRowId non nul, ex. « Conception plus 10 % »).
+  punchableTask PunchableTask?
 
   @@unique([sectionId, slug])
 }
@@ -650,6 +656,25 @@ model PunchableTask {
   label     String
   active    Boolean @default(true)
   sortOrder Int     @default(0)
+  // Lien direct vers la ligne du modèle de budgétaire "labor" correspondante
+  // — même tâche, utilisée à la fois pour planifier (budgétaire) et pour
+  // puncher. Confirmé par l'utilisatrice le 18 août 2026 : elle veut un
+  // vrai lien, pas un simple appariement par libellé — ajouter/renommer/
+  // retirer une tâche doit se refléter des deux côtés. Pour l'instant, ce
+  // lien est maintenu par seedBudgetModel() (scripts/seed.ts) : les deux
+  // catalogues sont dérivés de la MÊME entrée CATEGORY_ROWS à chaque
+  // re-seed, donc toujours en accord par construction. Nul pour une tâche
+  // punchable SANS ligne budgétaire (ex. futures tâches
+  // "Interne — Amélioration GSC", spec 8 août 2026, hors budget de projet).
+  // L'interface Paramètres pour ajouter/modifier une tâche en dehors du
+  // seed n'existe pas encore — choix de portée de cette passe (18 août
+  // 2026, pas confirmé mot pour mot avec l'utilisatrice) : ni PunchableTask
+  // ni BudgetModelRow n'ont de consommateur réel aujourd'hui (punch
+  // d'heures = squelette, modèle de budgétaire = seed seulement) — cette
+  // passe pose donc le lien réel/vérifié d'abord; la gestion Direction-
+  // facing (ajouter une tâche depuis l'interface) est la suite logique.
+  budgetModelRowId String?         @unique
+  budgetModelRow   BudgetModelRow? @relation(fields: [budgetModelRowId], references: [id])
 
   timeEntries TimeEntry[]
 }

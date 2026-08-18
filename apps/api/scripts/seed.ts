@@ -233,11 +233,34 @@ async function seedBudgetModel() {
         },
       });
       rowIdBySlug.set(`${category}:${row.slug}`, created.id);
+
+      // Unification PunchableTask ↔ BudgetModelRow (18 août 2026, voir
+      // schema.prisma) : chaque ligne "labor" non auto-calculée est aussi
+      // une tâche punchable, les deux dérivées de la même entrée
+      // CATEGORY_ROWS ci-dessus — toujours en accord par construction,
+      // jamais un appariement par libellé maintenu à la main. Les lignes
+      // "purchase" et les lignes auto-calculées (ex. « Conception plus
+      // 10 % ») ne sont jamais punchables.
+      if (kind === "labor" && !row.autoFromSlug) {
+        await prisma.punchableTask.upsert({
+          where: { budgetModelRowId: created.id },
+          update: { category, label: row.label, sortOrder: rowOrder, active: true },
+          create: { category, label: row.label, sortOrder: rowOrder, budgetModelRowId: created.id },
+        });
+      }
     }
 
     // Retrait = désactivation (jamais une suppression physique, voir schema.prisma).
-    await prisma.budgetModelRow.updateMany({
+    const removedRows = await prisma.budgetModelRow.findMany({
       where: { sectionId: section.id, slug: { notIn: CATEGORY_ROWS[category].map((row) => row.slug) } },
+      select: { id: true },
+    });
+    await prisma.budgetModelRow.updateMany({
+      where: { id: { in: removedRows.map((row) => row.id) } },
+      data: { active: false },
+    });
+    await prisma.punchableTask.updateMany({
+      where: { budgetModelRowId: { in: removedRows.map((row) => row.id) } },
       data: { active: false },
     });
   }
