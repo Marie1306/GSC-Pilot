@@ -214,10 +214,17 @@ async function namesByEmployeeId(ids: string[]): Promise<Map<string, string>> {
   return new Map(employees.map((employee) => [employee.id, employee.name]));
 }
 
-/** Visibilité : identique pour Direction/Administration/Propriétaire, aucun filtrage — confirmé le 12 août 2026. Corbeille (deletedAt) exclue, même patron que listProjects. */
+/**
+ * Visibilité : identique pour Direction/Administration/Propriétaire, aucun
+ * filtrage par créateur — confirmé le 12 août 2026. Corbeille (deletedAt)
+ * exclue, même patron que listProjects. Demandes converties (statut
+ * "converted", posé automatiquement dans createBudget) exclues aussi
+ * (18 août 2026, confirmé) — restent consultables individuellement via
+ * getClientRequestDetail, seulement sorties de cette liste active.
+ */
 export async function listClientRequests(): Promise<ClientRequestListItemDto[]> {
   const rows = await prisma.clientRequest.findMany({
-    where: { deletedAt: null },
+    where: { deletedAt: null, status: { not: "converted" } },
     include: { salesChannel: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
   });

@@ -197,7 +197,11 @@ export async function createBudget(createdById: string, input: CreateBudgetInput
       ),
     });
 
-    await tx.clientRequest.update({ where: { id: clientRequestId }, data: { budgetId: budget.id } });
+    // Statut "converted" posé automatiquement ici (18 août 2026, confirmé
+    // avec l'utilisatrice) — jamais un choix manuel (voir SETTABLE_STATUSES,
+    // clientRequests/service.ts) : la demande sort de la liste active dès
+    // qu'un budgétaire existe pour elle.
+    await tx.clientRequest.update({ where: { id: clientRequestId }, data: { budgetId: budget.id, status: "converted" } });
     await tx.settings.update({ where: { id: settings.id }, data: { nextBudgetNumber: settings.nextBudgetNumber + 1 } });
 
     return budget;
@@ -390,8 +394,10 @@ export async function getBudgetDetail(id: string): Promise<BudgetDetailDto> {
   };
 }
 
+/** Budgétaires déjà convertis en projet ou roulement exclus (18 août 2026, confirmé — même principe que les demandes clients converties) : restent consultables individuellement, seulement sortis de cette liste active. */
 export async function listBudgets(): Promise<BudgetListItemDto[]> {
   const budgets = await prisma.budget.findMany({
+    where: { project: null, rolling: null },
     include: { sections: { include: { rows: { orderBy: { sortOrder: "asc" } } } }, clientRequest: true },
     orderBy: { createdAt: "desc" },
   });
