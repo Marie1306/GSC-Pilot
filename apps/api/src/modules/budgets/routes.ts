@@ -8,6 +8,8 @@ import {
   canApproveBudgetForSending,
   canRecordBudgetOutcome,
   canConvertBudgetToProject,
+  canDeleteBudget,
+  canResetBudget,
 } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import {
@@ -25,6 +27,8 @@ import {
   markBudgetSent,
   markBudgetWon,
   markBudgetDeclined,
+  deleteBudget,
+  resetBudgetContent,
 } from "./service.js";
 import { convertBudgetToProject } from "../projects/service.js";
 
@@ -73,6 +77,18 @@ budgetsRouter.get("/budgets/:id", requireAuth, requirePermission((persona) => ca
   const id = z.uuid().parse(req.params.id);
   const budget = await getBudgetDetail(id);
   res.json({ budget });
+});
+
+budgetsRouter.delete("/budgets/:id", requireAuth, requirePermission((persona) => canDeleteBudget(persona)), async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  await deleteBudget(id);
+  res.status(204).end();
+});
+
+budgetsRouter.post("/budgets/:id/reset", requireAuth, requirePermission((persona) => canResetBudget(persona)), async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  await resetBudgetContent(id);
+  res.status(204).end();
 });
 
 budgetsRouter.patch(

@@ -151,6 +151,14 @@ describe("Conversion Budgétaire → Projet (confirmé le 12 août 2026)", () =>
     expect(P.canAccessProject(WAREHOUSE)).toBe(false);
     expect(P.canAccessProject(OWNER)).toBe(true);
   });
+  it("Supprimer ou réinitialiser un budgétaire : Direction seulement", () => {
+    expect(P.canDeleteBudget(OWNER)).toBe(true);
+    expect(P.canDeleteBudget(ADMIN)).toBe(false);
+    expect(P.canDeleteBudget(BOSS)).toBe(false);
+    expect(P.canResetBudget(OWNER)).toBe(true);
+    expect(P.canResetBudget(ADMIN)).toBe(false);
+    expect(P.canResetBudget(BOSS)).toBe(false);
+  });
 });
 
 describe("Punchs", () => {

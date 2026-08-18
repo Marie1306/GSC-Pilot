@@ -298,6 +298,18 @@ export function canConvertBudgetToProject(persona: Persona): boolean {
   return persona === ROLES.OWNER;
 }
 
+/** Supprimer un budgétaire (corbeille) : Direction seulement — même palier que canDeleteProject/canDeleteClientRequest (18 août 2026). */
+export function canDeleteBudget(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}
+
+/** Réinitialiser le contenu d'un budgétaire (recommencer) : Direction seulement, même palier que canModifyBudget (18 août 2026). */
+export function canResetBudget(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}
+
 /** Voir le détail financier d'un projet — mêmes rôles que le budgétaire (Employé/Magasinier jamais). */
 export function canAccessProject(persona: Persona): boolean {
   assertRole(persona);

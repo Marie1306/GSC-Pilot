@@ -297,3 +297,11 @@ export function markBudgetWon(id: string): Promise<{ id: string; status: string 
 export function markBudgetDeclined(id: string): Promise<{ id: string; status: string }> {
   return apiFetch(`/api/budgets/${id}/mark-declined`, { method: "POST" });
 }
+
+export function deleteBudget(id: string): Promise<void> {
+  return apiFetch(`/api/budgets/${id}`, { method: "DELETE" });
+}
+
+export function resetBudgetContent(id: string): Promise<void> {
+  return apiFetch(`/api/budgets/${id}/reset`, { method: "POST" });
+}

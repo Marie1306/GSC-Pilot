@@ -394,10 +394,16 @@ export async function getBudgetDetail(id: string): Promise<BudgetDetailDto> {
   };
 }
 
-/** Budgétaires déjà convertis en projet ou roulement exclus (18 août 2026, confirmé — même principe que les demandes clients converties) : restent consultables individuellement, seulement sortis de cette liste active. */
+/**
+ * Budgétaires déjà convertis en projet ou roulement exclus (18 août 2026,
+ * confirmé — même principe que les demandes clients converties), tout
+ * comme la corbeille (deletedAt). Les deux restent consultables
+ * individuellement (getBudgetDetail non filtré), seulement sortis de cette
+ * liste active.
+ */
 export async function listBudgets(): Promise<BudgetListItemDto[]> {
   const budgets = await prisma.budget.findMany({
-    where: { project: null, rolling: null },
+    where: { project: null, rolling: null, deletedAt: null },
     include: { sections: { include: { rows: { orderBy: { sortOrder: "asc" } } } }, clientRequest: true },
     orderBy: { createdAt: "desc" },
   });
@@ -432,6 +438,97 @@ async function assertSectionOfBudget(budgetId: string, sectionId: string): Promi
   const section = await prisma.budgetSection.findUnique({ where: { id: sectionId } });
   if (!section || section.budgetId !== budgetId) throw new HttpError(404, "Section introuvable pour ce budgétaire.");
   return section;
+}
+
+/**
+ * Suppression et réinitialisation (18 août 2026, confirmé — la vue
+ * budgétaire n'offrait aucune option). Les deux exigent qu'aucun projet ni
+ * roulement n'ait déjà été créé à partir de ce budgétaire : leurs propres
+ * calculs (comparatif, post-mortem) dépendent des sections/lignes gelées
+ * de ce budgétaire pour rester exacts — les modifier après coup les
+ * corromprait silencieusement.
+ */
+async function assertBudgetNotConverted(id: string): Promise<Budget> {
+  const budget = await prisma.budget.findUnique({ where: { id }, include: { project: true, rolling: true } });
+  if (!budget) throw new HttpError(404, "Budgétaire introuvable.");
+  if (budget.deletedAt) throw new HttpError(400, "Ce budgétaire est déjà dans la corbeille.");
+  if (budget.project || budget.rolling) {
+    throw new HttpError(400, "Ce budgétaire a déjà été converti en projet ou en roulement — il ne peut plus être modifié de cette façon.");
+  }
+  return budget;
+}
+
+/** Corbeille — même mécanisme que Project.deletedAt/ClientRequest.deletedAt. Décroche la demande client liée le cas échéant, pour qu'elle redevienne disponible pour un nouveau budgétaire. */
+export async function deleteBudget(id: string): Promise<void> {
+  const budget = await assertBudgetNotConverted(id);
+  await prisma.$transaction(async (tx) => {
+    await tx.budget.update({ where: { id }, data: { deletedAt: new Date() } });
+    if (budget.clientRequestId) {
+      await tx.clientRequest.update({ where: { id: budget.clientRequestId }, data: { budgetId: null, status: "in_progress" } });
+    }
+  });
+}
+
+/**
+ * Réinitialise le contenu d'un budgétaire "comme pour recommencer" : lignes
+ * ré-héritées du modèle courant (même logique que createBudget — taux/prix/
+ * permissions gelés à nouveau, comme si le budgétaire était créé
+ * aujourd'hui), complexité/méta/back-up remis à zéro. Le budgétaire
+ * lui-même (displayId, demande client liée, statut) n'est PAS touché —
+ * seulement son contenu chiffrable.
+ */
+export async function resetBudgetContent(id: string): Promise<void> {
+  await assertBudgetNotConverted(id);
+  const sections = await prisma.budgetSection.findMany({ where: { budgetId: id } });
+  const model = await prisma.budgetModel.findFirst({
+    include: { sections: { include: { rows: { where: { active: true }, orderBy: { sortOrder: "asc" } } } } },
+  });
+  if (!model) throw new HttpError(500, "Modèle de budgétaire non initialisé — lancer le seed.");
+  const modelSectionByCategory = new Map(model.sections.map((section) => [section.category, section]));
+
+  await prisma.$transaction(async (tx) => {
+    await tx.budgetRow.deleteMany({ where: { section: { budgetId: id } } });
+
+    for (const section of sections) {
+      const modelSection = modelSectionByCategory.get(section.category);
+      if (!modelSection) continue;
+      await tx.budgetSection.update({ where: { id: section.id }, data: { kind: modelSection.kind, complexity: 0 } });
+
+      const rowIdByModelRowId = new Map(modelSection.rows.map((modelRow) => [modelRow.id, randomUUID()]));
+      await tx.budgetRow.createMany({
+        data: modelSection.rows.map((modelRow) => ({
+          id: rowIdByModelRowId.get(modelRow.id)!,
+          sectionId: section.id,
+          modelRowId: modelRow.id,
+          label: modelRow.label,
+          hourlyRate: modelRow.hourlyRate,
+          unitPrice: modelRow.unitPrice,
+          directionOnly: modelRow.directionOnly,
+          hours: 0,
+          qty: 0,
+          autoFromRowId: modelRow.autoFromRowId ? (rowIdByModelRowId.get(modelRow.autoFromRowId) ?? null) : null,
+          autoPct: modelRow.autoPct,
+          sortOrder: modelRow.sortOrder,
+        })),
+      });
+    }
+
+    await tx.budget.update({
+      where: { id },
+      data: {
+        poNumber: null,
+        quantity: 1,
+        validUntil: null,
+        summary: null,
+        riskSummary: null,
+        backupHourlyRate: model.backupHourlyRate,
+        backupHoursPct: model.backupDefaultPct,
+        backupHoursComplexity: 0,
+        projectBackupAmount: 0,
+        projectBackupComplexity: 0,
+      },
+    });
+  });
 }
 
 /**
