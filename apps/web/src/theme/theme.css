@@ -197,6 +197,63 @@ a {
   border-top: 1px solid var(--gsc-color-line);
 }
 
+/* Tiroir latéral (menu Options du projet, 18 août 2026 — remplace la carte
+   inline d'origine, jugée peu efficace car elle poussait le contenu de la
+   page vers le bas; calqué sur la référence v19, capture fournie). Nichée à
+   l'intérieur du modal-backdrop de ProjectDetail (z-index 100) : z-index plus
+   élevé pour toujours passer par-dessus. */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 24, 30, 0.45);
+  z-index: 110;
+  display: flex;
+  justify-content: flex-end;
+}
+.drawer {
+  background: var(--gsc-color-surface);
+  box-shadow: var(--gsc-shadow-lg);
+  width: 100%;
+  max-width: 440px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  animation: drawer-slide-in 0.18s ease-out;
+}
+@keyframes drawer-slide-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 20px 14px;
+  border-bottom: 1px solid var(--gsc-color-line);
+  flex: none;
+}
+.drawer-eyebrow {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--gsc-color-muted);
+}
+.drawer-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.drawer-body {
+  padding: 16px 20px 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

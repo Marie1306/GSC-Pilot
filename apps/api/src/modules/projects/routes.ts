@@ -41,6 +41,7 @@ import {
   getPostMortem,
   updatePostMortemAnalysis,
   getApprovedTimeEntries,
+  getApprovedPurchaseEntries,
 } from "./service.js";
 
 export const projectsRouter = Router();
@@ -317,6 +318,17 @@ projectsRouter.get(
   async (req, res) => {
     const id = z.uuid().parse(req.params.id);
     const entries = await getApprovedTimeEntries(id, canSeeFinancialValues(req.employee!.persona));
+    res.json({ entries });
+  },
+);
+
+projectsRouter.get(
+  "/projects/:id/approved-purchases",
+  requireAuth,
+  requirePermission((persona) => canAccessProject(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const entries = await getApprovedPurchaseEntries(id, canSeeFinancialValues(req.employee!.persona));
     res.json({ entries });
   },
 );

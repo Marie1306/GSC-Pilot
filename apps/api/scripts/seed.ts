@@ -64,8 +64,8 @@ const CATEGORY_ROWS: Record<BudgetCategorySlug, RowSeed[]> = {
   ],
   fabrication: [
     { slug: "fabrication-plasma", label: "Plasma", hourlyRate: 116 },
-    { slug: "fabrication-usinage", label: "Usinage", hourlyRate: 113 },
     { slug: "fabrication-pliage", label: "Pliage", hourlyRate: 113 },
+    { slug: "fabrication-usinage", label: "Usinage", hourlyRate: 113 },
     { slug: "fabrication-soudage", label: "Soudage / Montage", hourlyRate: 110 },
     { slug: "fabrication-peinture", label: "Peinture", hourlyRate: 107 },
   ],
@@ -100,17 +100,17 @@ const CATEGORY_ROWS: Record<BudgetCategorySlug, RowSeed[]> = {
   subcontracting: blankPurchaseRows(10),
   installationStock: blankPurchaseRows(10),
   installationExpenses: [
-    { slug: "expenses-formation", label: "Formation (heures × techniciens)", unitPrice: 112, directionOnly: true },
-    { slug: "expenses-hebergement", label: "Hébergement (nuits × techniciens)", unitPrice: 250, directionOnly: true },
-    { slug: "expenses-kilometrage", label: "Kilométrage (distance × déplacements)", unitPrice: 0.97, directionOnly: true },
     { slug: "expenses-transport", label: "Temps de transport (heures × technicien)", unitPrice: 112, directionOnly: true },
+    { slug: "expenses-kilometrage", label: "Kilométrage (distance × déplacements)", unitPrice: 0.97, directionOnly: true },
+    { slug: "expenses-hebergement", label: "Hébergement (nuits × techniciens)", unitPrice: 250, directionOnly: true },
+    { slug: "expenses-formation", label: "Formation (heures × techniciens)", unitPrice: 112, directionOnly: true },
     { slug: "expenses-dejeuner", label: "Frais repas — Déjeuner", unitPrice: 17.9, directionOnly: true },
     { slug: "expenses-diner", label: "Frais repas — Dîner", unitPrice: 26.9, directionOnly: true },
     { slug: "expenses-souper", label: "Frais repas — Souper", unitPrice: 37.65, directionOnly: true },
-    { slug: "expenses-avion", label: "Avion", unitPrice: 0, directionOnly: true },
-    { slug: "expenses-location", label: "Location transport / outils / machinerie", unitPrice: 0, directionOnly: false },
-    { slug: "expenses-manutention", label: "Frais de manutention", unitPrice: 0, directionOnly: false },
     { slug: "expenses-livraison", label: "Frais de livraison / service", unitPrice: 0, directionOnly: false },
+    { slug: "expenses-manutention", label: "Frais de manutention", unitPrice: 0, directionOnly: false },
+    { slug: "expenses-location", label: "Location transport / outils / machinerie", unitPrice: 0, directionOnly: false },
+    { slug: "expenses-avion", label: "Avion", unitPrice: 0, directionOnly: true },
   ],
 };
 
@@ -209,9 +209,19 @@ async function seedBudgetModel() {
     });
 
     for (const [rowOrder, row] of CATEGORY_ROWS[category].entries()) {
+      // update non vide (pas juste create) — sinon relancer le seed après avoir
+      // corrigé CATEGORY_ROWS (ex. réordonner Fabrication/Frais divers, 17 août
+      // 2026) n'a aucun effet sur les lignes déjà seedées : upsert ne touche que
+      // les lignes réellement nouvelles.
       const created = await prisma.budgetModelRow.upsert({
         where: { sectionId_slug: { sectionId: section.id, slug: row.slug } },
-        update: {},
+        update: {
+          label: row.label,
+          hourlyRate: row.hourlyRate ?? 0,
+          unitPrice: row.unitPrice ?? 0,
+          directionOnly: row.directionOnly ?? kind === "labor",
+          sortOrder: rowOrder,
+        },
         create: {
           sectionId: section.id,
           slug: row.slug,

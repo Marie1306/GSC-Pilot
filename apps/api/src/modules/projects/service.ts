@@ -1056,3 +1056,63 @@ export async function getApprovedTimeEntries(projectId: string, showFinancials: 
     };
   });
 }
+
+export interface ApprovedPurchaseEntryDto {
+  id: string;
+  date: string;
+  source: string;
+  category: string;
+  description: string;
+  supplier: string | null;
+  amount?: number;
+}
+
+/**
+ * « Détail des achats approuvés » — drill-down des deux sources combinées
+ * dans purchasesActual (projectPurchasesActual, purchases/service.ts),
+ * mêmes deux requêtes, jamais un total recalculé différemment. Ajouté à la
+ * demande de l'utilisatrice le 17 août 2026, même esprit que
+ * getApprovedTimeEntries ci-dessus.
+ */
+export async function getApprovedPurchaseEntries(projectId: string, showFinancials: boolean): Promise<ApprovedPurchaseEntryDto[]> {
+  const [requests, entries] = await Promise.all([
+    prisma.purchaseRequest.findMany({
+      where: { projectId, appliedToProjectAt: { not: null } },
+      select: {
+        id: true,
+        appliedToProjectAt: true,
+        description: true,
+        supplier: true,
+        amount: true,
+        category: { select: { name: true } },
+      },
+    }),
+    prisma.projectPurchaseEntry.findMany({
+      where: { projectId, status: "approved" },
+      select: { id: true, date: true, category: true, description: true, supplier: true, amount: true },
+    }),
+  ]);
+
+  const rows: ApprovedPurchaseEntryDto[] = [
+    ...requests.map((request) => ({
+      id: request.id,
+      date: (request.appliedToProjectAt as Date).toISOString(),
+      source: "Demande d'achat",
+      category: request.category?.name ?? "Sans catégorie",
+      description: request.description,
+      supplier: request.supplier,
+      ...(showFinancials && { amount: round2(Number(request.amount ?? 0)) }),
+    })),
+    ...entries.map((entry) => ({
+      id: entry.id,
+      date: entry.date.toISOString(),
+      source: "Achat direct",
+      category: entry.category,
+      description: entry.description,
+      supplier: entry.supplier,
+      ...(showFinancials && { amount: round2(Number(entry.amount)) }),
+    })),
+  ];
+
+  return rows.sort((a, b) => (a.date < b.date ? 1 : -1));
+}

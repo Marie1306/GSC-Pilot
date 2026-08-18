@@ -3,7 +3,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { canManagePostMortem } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
-import { fetchPostMortem, updatePostMortemAnalysis, fetchApprovedTimeEntries, formatCurrency, FINANCIAL_STATUS_LABELS } from "./api.js";
+import {
+  fetchPostMortem,
+  updatePostMortemAnalysis,
+  fetchApprovedTimeEntries,
+  fetchApprovedPurchaseEntries,
+  formatCurrency,
+  FINANCIAL_STATUS_LABELS,
+} from "./api.js";
 
 interface ProjectPostMortemProps {
   projectId: string;
@@ -39,6 +46,13 @@ export function ProjectPostMortem({ projectId, onClose }: ProjectPostMortemProps
     queryKey: ["approved-hours", projectId],
     queryFn: () => fetchApprovedTimeEntries(projectId),
     enabled: showHoursDrilldown,
+  });
+
+  const [showPurchasesDrilldown, setShowPurchasesDrilldown] = useState(false);
+  const purchasesQuery = useQuery({
+    queryKey: ["approved-purchases", projectId],
+    queryFn: () => fetchApprovedPurchaseEntries(projectId),
+    enabled: showPurchasesDrilldown,
   });
 
   const [depassements, setDepassements] = useState<string | null>(null);
@@ -174,6 +188,44 @@ export function ProjectPostMortem({ projectId, onClose }: ProjectPostMortemProps
                 </div>
               )}
 
+              <div style={{ marginTop: 4, marginBottom: showHoursDrilldown ? 12 : 20 }}>
+                <button type="button" className="btn btn-secondary btn-small" onClick={() => setShowHoursDrilldown((v) => !v)}>
+                  🕒 {showHoursDrilldown ? "Masquer le détail des heures" : "Détail des heures approuvées"}
+                </button>
+              </div>
+              {showHoursDrilldown && (
+                <div style={{ overflowX: "auto", marginBottom: 20 }}>
+                  {hoursQuery.isLoading && <p style={{ fontSize: 13, color: "var(--gsc-color-muted)" }}>Chargement…</p>}
+                  {hoursQuery.data && hoursQuery.data.entries.length === 0 && (
+                    <p style={{ fontSize: 13, color: "var(--gsc-color-muted)" }}>Aucune heure approuvée.</p>
+                  )}
+                  {hoursQuery.data && hoursQuery.data.entries.length > 0 && (
+                    <table className="shortlist-table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Employé</th>
+                          <th>Catégorie</th>
+                          <th className="num">Heures</th>
+                          {hoursQuery.data.entries[0]?.cost !== undefined && <th className="num">Coût</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {hoursQuery.data.entries.map((entry) => (
+                          <tr key={entry.id}>
+                            <td>{formatDate(entry.date)}</td>
+                            <td>{entry.employeeName}</td>
+                            <td>{entry.category}</td>
+                            <td className="num">{entry.hours} h</td>
+                            {entry.cost !== undefined && <td className="num">{formatCurrency(entry.cost)}</td>}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
                 <div className="card">
                   <strong>Réserves budgétaires</strong>
@@ -211,9 +263,53 @@ export function ProjectPostMortem({ projectId, onClose }: ProjectPostMortemProps
                         <span className="stat-tile-value">{formatCurrency(postMortem.actualPurchases)}</span>
                       </div>
                     </div>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-small"
+                      style={{ marginTop: 10 }}
+                      onClick={() => setShowPurchasesDrilldown((v) => !v)}
+                    >
+                      🛒 {showPurchasesDrilldown ? "Masquer le détail des achats" : "Voir le détail des achats approuvés"}
+                    </button>
                   </div>
                 )}
               </div>
+
+              {showPurchasesDrilldown && (
+                <div style={{ overflowX: "auto", marginBottom: 20 }}>
+                  {purchasesQuery.isLoading && <p style={{ fontSize: 13, color: "var(--gsc-color-muted)" }}>Chargement…</p>}
+                  {purchasesQuery.data && purchasesQuery.data.entries.length === 0 && (
+                    <p style={{ fontSize: 13, color: "var(--gsc-color-muted)" }}>Aucun achat approuvé.</p>
+                  )}
+                  {purchasesQuery.data && purchasesQuery.data.entries.length > 0 && (
+                    <table className="shortlist-table">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Source</th>
+                          <th>Catégorie</th>
+                          <th>Description / fournisseur</th>
+                          {purchasesQuery.data.entries[0]?.amount !== undefined && <th className="num">Montant</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {purchasesQuery.data.entries.map((entry) => (
+                          <tr key={entry.id}>
+                            <td>{formatDate(entry.date)}</td>
+                            <td>{entry.source}</td>
+                            <td>{entry.category}</td>
+                            <td>
+                              {entry.description}
+                              {entry.supplier && <div className="cell-sub">{entry.supplier}</div>}
+                            </td>
+                            {entry.amount !== undefined && <td className="num">{formatCurrency(entry.amount)}</td>}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
 
               {postMortem.costBreakdown && (
                 <div style={{ marginBottom: 20, overflowX: "auto" }}>
@@ -310,44 +406,6 @@ export function ProjectPostMortem({ projectId, onClose }: ProjectPostMortemProps
                   </button>
                 )}
               </div>
-
-              <div style={{ marginBottom: showHoursDrilldown ? 12 : 0 }}>
-                <button type="button" className="btn btn-secondary btn-small" onClick={() => setShowHoursDrilldown((v) => !v)}>
-                  🕒 {showHoursDrilldown ? "Masquer le détail des heures" : "Détail des heures approuvées"}
-                </button>
-              </div>
-              {showHoursDrilldown && (
-                <div style={{ overflowX: "auto", marginBottom: 20 }}>
-                  {hoursQuery.isLoading && <p style={{ fontSize: 13, color: "var(--gsc-color-muted)" }}>Chargement…</p>}
-                  {hoursQuery.data && hoursQuery.data.entries.length === 0 && (
-                    <p style={{ fontSize: 13, color: "var(--gsc-color-muted)" }}>Aucune heure approuvée.</p>
-                  )}
-                  {hoursQuery.data && hoursQuery.data.entries.length > 0 && (
-                    <table className="shortlist-table">
-                      <thead>
-                        <tr>
-                          <th>Date</th>
-                          <th>Employé</th>
-                          <th>Catégorie</th>
-                          <th className="num">Heures</th>
-                          {hoursQuery.data.entries[0]?.cost !== undefined && <th className="num">Coût</th>}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {hoursQuery.data.entries.map((entry) => (
-                          <tr key={entry.id}>
-                            <td>{formatDate(entry.date)}</td>
-                            <td>{entry.employeeName}</td>
-                            <td>{entry.category}</td>
-                            <td className="num">{entry.hours} h</td>
-                            {entry.cost !== undefined && <td className="num">{formatCurrency(entry.cost)}</td>}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              )}
             </>
           )}
         </div>

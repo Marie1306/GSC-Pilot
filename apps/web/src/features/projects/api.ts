@@ -343,3 +343,17 @@ export interface ApprovedTimeEntryDto {
 export function fetchApprovedTimeEntries(id: string): Promise<{ entries: ApprovedTimeEntryDto[] }> {
   return apiFetch(`/api/projects/${id}/approved-hours`);
 }
+
+export interface ApprovedPurchaseEntryDto {
+  id: string;
+  date: string;
+  source: string;
+  category: string;
+  description: string;
+  supplier: string | null;
+  amount?: number;
+}
+
+export function fetchApprovedPurchaseEntries(id: string): Promise<{ entries: ApprovedPurchaseEntryDto[] }> {
+  return apiFetch(`/api/projects/${id}/approved-purchases`);
+}

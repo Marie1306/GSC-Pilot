@@ -488,6 +488,14 @@ export async function addBudgetRow(persona: Persona, budgetId: string, sectionId
   }
   // Toutes les sections modulables sont de type "purchase", éditables par Direction et Propriétaire.
   if (!canModifyBudgetPurchaseLine(persona)) throw new HttpError(403, "Vous n'avez pas la permission d'ajouter une ligne.");
+  // sortOrder explicite — sans lui, le défaut de schéma (0) entre en
+  // collision avec la première ligne existante (déjà à 0), et Postgres ne
+  // garantit alors plus aucun ordre stable pour les lignes à égalité : une
+  // ligne peut sembler "sauter" ailleurs dans la liste au prochain rendu.
+  // Même bug que celui déjà corrigé le 13 août 2026 pour les lignes du
+  // modèle (sortOrder figé), mais pour ce chemin-ci (ajout manuel), jamais
+  // couvert — signalé de nouveau par l'utilisatrice le 17 août 2026.
+  const lastRow = await prisma.budgetRow.findFirst({ where: { sectionId }, orderBy: { sortOrder: "desc" } });
   const row = await prisma.budgetRow.create({
     data: {
       sectionId,
@@ -495,6 +503,7 @@ export async function addBudgetRow(persona: Persona, budgetId: string, sectionId
       label: input.label.trim(),
       unitPrice: input.unitPrice ?? 0,
       directionOnly: false,
+      sortOrder: (lastRow?.sortOrder ?? -1) + 1,
     },
   });
   return { id: row.id };
