@@ -180,26 +180,66 @@ export function BudgetExportView() {
           <p>{budget.summary || "—"}</p>
           <strong>Risques</strong>
           <p>{budget.riskSummary || "—"}</p>
-          <strong>Back-up financier non punchable</strong>
-          <p>{formatCurrency(budget.projectBackup.baseCost)}</p>
-        </div>
-
-        <div className="budget-export-notes">
           <strong>Type prévu</strong>
           <p>{(budget.requestType && REQUEST_TYPE_LABELS[budget.requestType as RequestType]) ?? budget.requestType ?? "—"}</p>
           <strong>Courriel / Téléphone</strong>
           <p>
             {budget.email ?? "—"} · {budget.phone ?? "—"}
           </p>
-          <strong>Back-up d'heures</strong>
-          <p>
-            {budget.backup.hours} h · {formatCurrency(budget.backup.baseCost)}
-          </p>
         </div>
 
         {budget.sections.map((section) => (
           <BudgetExportSection key={section.id} section={section} />
         ))}
+
+        {/* Réserves — deux sections distinctes, même traitement que les 13 catégories ci-dessus (elles ont chacune leur propre coût/marge/prix de vente, voir sections.ts). */}
+        <section className="budget-export-cat">
+          <h2>Back-up d'heures</h2>
+          <p>Réserve calculée automatiquement sur Fabrication + Panneau &amp; Programmation + Assemblage &amp; Test — non punchable.</p>
+          <table>
+            <thead>
+              <tr>
+                <th className="num">Heures</th>
+                <th className="num">Complexité</th>
+                <th className="num">Majoration</th>
+                <th className="num">Coût planifié</th>
+                <th className="num">Prix de vente</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="num">{budget.backup.hours} h</td>
+                <td className="num">{budget.backupHoursComplexity}</td>
+                <td className="num">{budget.backup.margin} %</td>
+                <td className="num">{formatCurrency(budget.backup.baseCost)}</td>
+                <td className="num">{formatCurrency(budget.backup.sale)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section className="budget-export-cat">
+          <h2>Back-up projet</h2>
+          <p>Réserve distincte du back-up d'heures ci-dessus — montant saisi à la main, non punchable, la complexité détermine seulement la marge.</p>
+          <table>
+            <thead>
+              <tr>
+                <th className="num">Complexité</th>
+                <th className="num">Majoration</th>
+                <th className="num">Coût planifié</th>
+                <th className="num">Prix de vente</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="num">{budget.projectBackupComplexity}</td>
+                <td className="num">{budget.projectBackup.margin} %</td>
+                <td className="num">{formatCurrency(budget.projectBackup.baseCost)}</td>
+                <td className="num">{formatCurrency(budget.projectBackup.sale)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
 
         <footer className="budget-export-footer">
           Exporté le {formatDate(new Date().toISOString())}
