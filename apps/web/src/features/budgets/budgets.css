@@ -163,37 +163,42 @@
   font-size: 13px;
 }
 
-/* Vue d'export PDF (18 août 2026) — page autonome, hors AppShell, imprimée via window.print(). */
+/**
+ * Vue d'export PDF (18 août 2026, reconstruite le même jour — portrait
+ * complet ligne par ligne des 13 catégories, voir BudgetExportView.tsx)
+ * — page autonome, hors AppShell, imprimée via window.print(). Mise en
+ * page/tableaux calqués sur l'exemple HTML fourni par l'utilisatrice.
+ */
 .budget-export {
   min-height: 100vh;
   background: var(--gsc-color-bg);
 }
 .budget-export-page {
-  max-width: 820px;
+  max-width: 900px;
   margin: 0 auto;
   padding: 32px 40px 60px;
   background: var(--gsc-color-surface);
+  font-size: 13px;
+  line-height: 1.35;
 }
 .budget-export-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 16px;
-  padding-bottom: 16px;
-  margin-bottom: 20px;
-  border-bottom: 2px solid var(--gsc-color-brand);
+  padding-bottom: 14px;
+  margin-bottom: 22px;
+  border-bottom: 4px solid var(--gsc-color-brand);
 }
 .budget-export-brand {
-  font-size: 13px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--gsc-color-brand);
-  margin-bottom: 4px;
+  margin: 0 0 4px;
+  font-size: 19px;
+  font-weight: 750;
+  color: var(--gsc-color-ink);
 }
-.budget-export-header h1 {
-  margin: 0;
-  font-size: 20px;
+.budget-export-header p {
+  margin: 4px 0;
+  font-size: 13px;
 }
 .budget-export-status {
   font-size: 13px;
@@ -203,17 +208,79 @@
   background: var(--gsc-color-surface3);
   white-space: nowrap;
 }
-.budget-export-section {
-  margin-bottom: 24px;
+
+.budget-export-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 18px 0;
+}
+.budget-export-box {
+  border: 1px solid var(--gsc-color-line-strong);
+  border-radius: var(--gsc-radius-sm);
+  padding: 10px;
+}
+.budget-export-box span {
+  display: block;
+  color: var(--gsc-color-muted);
+  font-size: 11px;
+}
+.budget-export-box strong {
+  font-size: 16px;
+}
+
+.budget-export-notes {
+  border: 1px solid var(--gsc-color-line-strong);
+  border-radius: var(--gsc-radius-sm);
+  padding: 12px;
+  margin: 12px 0;
+}
+.budget-export-notes strong {
+  display: block;
+  font-size: 12px;
+  margin-top: 8px;
+}
+.budget-export-notes strong:first-child {
+  margin-top: 0;
+}
+.budget-export-notes p {
+  margin: 2px 0 0;
+}
+
+.budget-export-cat {
+  margin-top: 28px;
   break-inside: avoid;
 }
-.budget-export-section h2 {
-  font-size: 14px;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--gsc-color-muted);
-  margin: 0 0 12px;
+.budget-export-cat h2 {
+  font-size: 16px;
+  margin: 0 0 4px;
+  color: var(--gsc-color-brand);
 }
+.budget-export-cat > p {
+  margin: 0 0 10px;
+  color: var(--gsc-color-muted);
+  font-size: 12px;
+}
+.budget-export-cat table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.budget-export-cat th,
+.budget-export-cat td {
+  border: 1px solid var(--gsc-color-line-strong);
+  padding: 6px;
+  vertical-align: top;
+  text-align: left;
+}
+.budget-export-cat thead th {
+  background: var(--gsc-color-surface2);
+}
+.budget-export-cat tfoot th {
+  background: var(--gsc-color-surface3);
+  text-align: left;
+}
+
 .budget-export-footer {
   margin-top: 32px;
   padding-top: 12px;
