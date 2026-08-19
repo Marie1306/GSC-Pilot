@@ -402,8 +402,8 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
   const detailedSummary = budget ? computeDetailedSummary(budget) : null;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal budget-modal" onClick={(event) => event.stopPropagation()}>
+    <div className="modal-backdrop">
+      <div className="modal budget-modal">
         <div className="modal-header">
           <div>
             <h2>{budget ? `${budget.displayId} — ${budget.company ?? budget.contactName}` : "Budgétaire"}</h2>

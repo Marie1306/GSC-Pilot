@@ -69,8 +69,8 @@ export function StartTaskModal({ onClose }: StartTaskModalProps) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(event) => event.stopPropagation()}>
+    <div className="modal-backdrop">
+      <div className="modal">
         <div className="modal-header">
           <div>
             <h2>Débuter une tâche</h2>

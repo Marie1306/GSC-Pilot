@@ -97,8 +97,8 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
 
   if (!call || !employee) {
     return (
-      <div className="modal-backdrop" onClick={onClose}>
-        <div className="modal" onClick={(event) => event.stopPropagation()}>
+      <div className="modal-backdrop">
+        <div className="modal">
           <div className="modal-body">{detailQuery.isError ? "Call introuvable." : "Chargement…"}</div>
         </div>
       </div>
@@ -124,8 +124,8 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 860 }} onClick={(event) => event.stopPropagation()}>
+    <div className="modal-backdrop">
+      <div className="modal" style={{ maxWidth: 860 }}>
         <div className="modal-header">
           <div>
             <h2>

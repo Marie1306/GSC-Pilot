@@ -82,8 +82,8 @@ export function ProjectPostMortem({ projectId, onClose }: ProjectPostMortemProps
   const totalActual = postMortem?.costBreakdown?.reduce((sum, row) => sum + row.actual, 0) ?? 0;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 900 }} onClick={(event) => event.stopPropagation()}>
+    <div className="modal-backdrop">
+      <div className="modal" style={{ maxWidth: 900 }}>
         <div className="modal-header">
           <div>
             <h2>{postMortem ? `Post-mortem — ${postMortem.projectNumber}` : "Post-mortem"}</h2>

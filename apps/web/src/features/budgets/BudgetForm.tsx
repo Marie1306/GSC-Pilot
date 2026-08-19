@@ -97,8 +97,8 @@ export function BudgetForm({ onClose, onCreated, initialRequestId }: BudgetFormP
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal client-request-modal" onClick={(event) => event.stopPropagation()}>
+    <div className="modal-backdrop">
+      <div className="modal client-request-modal">
         <div className="modal-header">
           <div>
             <h2>Débuter un budgétaire</h2>

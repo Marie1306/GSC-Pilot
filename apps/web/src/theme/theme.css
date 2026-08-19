@@ -153,6 +153,19 @@ a {
   flex-direction: column;
 }
 
+/* La plupart des modales enveloppent modal-body + modal-footer dans un
+   <form>, lui-même enfant direct de .modal — sans ces deux règles, ce
+   <form> refuse de rétrécir (min-height auto, comportement flex par
+   défaut) et modal-body déborde silencieusement du cadre plutôt que de
+   défiler, invisible tant qu'un formulaire ne dépasse pas la hauteur de
+   l'écran (trouvé sur l'entrée manuelle en lot, 19 août 2026 — corrigé
+   ici pour toutes les modales, pas seulement celle-là). */
+.modal > form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .modal-header {
   display: flex;
   align-items: flex-start;
@@ -187,6 +200,8 @@ a {
 .modal-body {
   padding: 20px 24px;
   overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 .modal-footer {

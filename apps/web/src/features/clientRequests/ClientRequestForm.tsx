@@ -86,8 +86,8 @@ export function ClientRequestForm({ onClose }: ClientRequestFormProps) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal client-request-modal" onClick={(event) => event.stopPropagation()}>
+    <div className="modal-backdrop">
+      <div className="modal client-request-modal">
         <div className="modal-header">
           <div>
             <h2>Nouvelle demande client</h2>

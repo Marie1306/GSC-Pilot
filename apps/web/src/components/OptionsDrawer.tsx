@@ -17,8 +17,8 @@ interface OptionsDrawerProps {
  */
 export function OptionsDrawer({ eyebrow, title, onClose, children }: OptionsDrawerProps) {
   return (
-    <div className="drawer-backdrop" onClick={onClose}>
-      <div className="drawer" onClick={(event) => event.stopPropagation()}>
+    <div className="drawer-backdrop">
+      <div className="drawer">
         <div className="drawer-header">
           <div>
             <p className="drawer-eyebrow">{eyebrow}</p>

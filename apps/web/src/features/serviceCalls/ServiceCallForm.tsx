@@ -78,8 +78,8 @@ export function ServiceCallForm({ onClose }: ServiceCallFormProps) {
   const employees = employeesQuery.data?.employees ?? [];
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(event) => event.stopPropagation()}>
+    <div className="modal-backdrop">
+      <div className="modal">
         <div className="modal-header">
           <div>
             <h2>Nouvel appel de service</h2>

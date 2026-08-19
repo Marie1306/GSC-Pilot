@@ -39,8 +39,8 @@ export function ProjectDetail({ id, onClose }: ProjectDetailProps) {
   const [optionsOpen, setOptionsOpen] = useState(false);
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 860 }} onClick={(event) => event.stopPropagation()}>
+    <div className="modal-backdrop">
+      <div className="modal" style={{ maxWidth: 860 }}>
         <div className="modal-header">
           <div>
             <h2>{project ? `${project.projectNumber} — ${project.name}` : "Projet"}</h2>

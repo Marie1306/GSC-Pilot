@@ -50,8 +50,8 @@ export function ClientRequestDetail({ id, onClose }: ClientRequestDetailProps) {
   const request = detailQuery.data?.clientRequest;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal client-request-modal" onClick={(event) => event.stopPropagation()}>
+    <div className="modal-backdrop">
+      <div className="modal client-request-modal">
         <div className="modal-header">
           <div>
             <h2>{request ? `${request.displayId} — ${request.company ?? request.contactName}` : "Demande client"}</h2>

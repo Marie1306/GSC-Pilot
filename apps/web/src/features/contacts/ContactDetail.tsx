@@ -49,8 +49,8 @@ export function ContactDetail({ id, onClose }: ContactDetailProps) {
 
   if (!contact) {
     return (
-      <div className="modal-backdrop" onClick={onClose}>
-        <div className="modal" onClick={(event) => event.stopPropagation()}>
+      <div className="modal-backdrop">
+        <div className="modal">
           <div className="modal-body">{detailQuery.isError ? "Contact introuvable." : "Chargement…"}</div>
         </div>
       </div>
@@ -58,8 +58,8 @@ export function ContactDetail({ id, onClose }: ContactDetailProps) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 720 }} onClick={(event) => event.stopPropagation()}>
+    <div className="modal-backdrop">
+      <div className="modal" style={{ maxWidth: 720 }}>
         <div className="modal-header">
           <div>
             <h2>{contact.name}</h2>

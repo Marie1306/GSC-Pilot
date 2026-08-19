@@ -203,8 +203,8 @@ export function ManualEntryModal({ onClose, entry }: ManualEntryModalProps) {
   const showRate = employee ? canSeeFinancialValues(employee.persona) : false;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 720 }} onClick={(event) => event.stopPropagation()}>
+    <div className="modal-backdrop">
+      <div className="modal" style={{ maxWidth: 720 }}>
         <div className="modal-header">
           <div>
             <h2>{entry ? "Modifier le punch" : "Entrée manuelle"}</h2>
