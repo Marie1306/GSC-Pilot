@@ -226,6 +226,68 @@ export async function createProjectDirect(createdById: string, input: CreateProj
   });
 }
 
+export interface UpdateProjectPlanningInput {
+  sold?: number;
+  plannedHours?: number;
+  plannedPurchases?: number;
+  installationPlannedHours?: number;
+  installationPlannedCost?: number;
+}
+
+/**
+ * Remplir après coup les champs qu'un budgétaire aurait normalement fournis
+ * — demandé le 19 août 2026 : certaines soumissions se vendent seulement
+ * avec un montant global, sans détail d'heures par catégorie (compétition
+ * féroce, plusieurs soumissions envoyées en même temps). Chaque champ est
+ * indépendant, jamais dérivé d'un autre — remplir plannedHours ne
+ * recalcule jamais sold, et vice-versa (confirmé explicitement).
+ *
+ * Réservé aux projets SANS budgétaire d'origine (budgetId null) : sur un
+ * projet converti, ces mêmes champs sont gelés depuis la conversion — même
+ * principe que backupHourlyRate/targetMarginPct ailleurs dans ce fichier,
+ * jamais réécrits après coup.
+ *
+ * targetMarginPct reste volontairement absent d'ici : le schéma documente
+ * déjà qu'il doit rester nul pour un projet créé directement.
+ *
+ * Plan de facturation : généré une seule fois, la première fois que sold
+ * devient > 0 sur un projet qui n'a encore aucune entrée de plan — même
+ * mécanisme (computeBillingPlan) que convertBudgetToProject, jamais
+ * réimplémenté. Un sold déjà facturé n'est plus jamais retouché ici, mais
+ * reste modifiable (compteurs internes) — seul le plan déjà généré reste
+ * gelé, cohérent avec le principe déjà établi ailleurs dans ce module.
+ */
+export async function updateProjectPlanning(projectId: string, input: UpdateProjectPlanningInput): Promise<void> {
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  if (!project) throw new HttpError(404, "Projet introuvable.");
+  if (project.budgetId) {
+    throw new HttpError(400, "Ce projet a un budgétaire d'origine — ces champs sont gelés depuis la conversion.");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.project.update({
+      where: { id: projectId },
+      data: {
+        ...(input.sold !== undefined && { sold: input.sold }),
+        ...(input.plannedHours !== undefined && { plannedHours: input.plannedHours }),
+        ...(input.plannedPurchases !== undefined && { plannedPurchases: input.plannedPurchases }),
+        ...(input.installationPlannedHours !== undefined && { installationPlannedHours: input.installationPlannedHours }),
+        ...(input.installationPlannedCost !== undefined && { installationPlannedCost: input.installationPlannedCost }),
+      },
+    });
+
+    if (input.sold !== undefined && input.sold > 0) {
+      const existingPlan = await tx.invoicePlanEntry.count({ where: { projectId } });
+      if (existingPlan === 0) {
+        const plan = computeBillingPlan(input.sold);
+        await tx.invoicePlanEntry.createMany({
+          data: plan.map((step) => ({ projectId, label: step.label, pct: step.pct, amount: step.amount, status: step.status })),
+        });
+      }
+    }
+  });
+}
+
 export interface ProjectListItemDto {
   id: string;
   projectNumber: string;

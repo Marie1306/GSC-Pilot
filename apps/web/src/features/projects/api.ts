@@ -194,6 +194,25 @@ export function createProject(input: CreateProjectInput): Promise<{ id: string; 
   return apiFetch("/api/projects", { method: "POST", body: JSON.stringify(input) });
 }
 
+export interface UpdateProjectPlanningInput {
+  sold?: number;
+  plannedHours?: number;
+  plannedPurchases?: number;
+  installationPlannedHours?: number;
+  installationPlannedCost?: number;
+}
+
+/**
+ * Remplir après coup les champs qu'un budgétaire aurait fournis — projets
+ * sans budgétaire d'origine seulement, mêmes rôles que la création directe.
+ * Chaque champ est indépendant : en remplir un ne change jamais les autres
+ * (confirmé le 19 août 2026 — surtout, remplir les heures ne change jamais
+ * le prix vendu).
+ */
+export function updateProjectPlanning(id: string, input: UpdateProjectPlanningInput): Promise<void> {
+  return apiFetch(`/api/projects/${id}/planning`, { method: "PATCH", body: JSON.stringify(input) });
+}
+
 // ---------------------------------------------------------------------------
 // Production et sortie + Cycle de facturation (Projet 2C, 17 août 2026).
 // ---------------------------------------------------------------------------

@@ -25,6 +25,7 @@ import {
   getProjectDetail,
   getNextProjectNumber,
   createProjectDirect,
+  updateProjectPlanning,
   markProductionComplete,
   chooseProjectFulfillmentMode,
   confirmProjectFulfillment,
@@ -95,6 +96,31 @@ projectsRouter.post("/projects", requireAuth, requirePermission((persona) => can
   const project = await createProjectDirect(req.employee!.id, body);
   res.status(201).json({ id: project.id, projectNumber: project.projectNumber });
 });
+
+const updatePlanningSchema = z.object({
+  sold: z.number().nonnegative().optional(),
+  plannedHours: z.number().nonnegative().optional(),
+  plannedPurchases: z.number().nonnegative().optional(),
+  installationPlannedHours: z.number().nonnegative().optional(),
+  installationPlannedCost: z.number().nonnegative().optional(),
+});
+/**
+ * Remplir après coup les champs qu'un budgétaire aurait fournis — projets
+ * sans budgétaire d'origine seulement (confirmé le 19 août 2026), mêmes
+ * rôles que la création directe (canCreateProjectDirectly) : c'est la
+ * suite de la même donnée, pas une permission distincte.
+ */
+projectsRouter.patch(
+  "/projects/:id/planning",
+  requireAuth,
+  requirePermission((persona) => canCreateProjectDirectly(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const body = updatePlanningSchema.parse(req.body);
+    await updateProjectPlanning(id, body);
+    res.status(204).end();
+  },
+);
 
 /** Liste complète (financière) — Phase 1 du module Projet, 12 août 2026. */
 projectsRouter.get("/projects/full", requireAuth, requirePermission((persona) => canAccessProject(persona)), async (req, res) => {

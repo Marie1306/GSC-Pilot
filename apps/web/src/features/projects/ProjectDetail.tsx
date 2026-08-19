@@ -6,6 +6,7 @@ import { ProjectFulfillment } from "./ProjectFulfillment.js";
 import { ProjectInvoicePlan } from "./ProjectInvoicePlan.js";
 import { ProjectWarranty } from "./ProjectWarranty.js";
 import { ProjectOptionsMenu } from "./ProjectOptionsMenu.js";
+import { ProjectPlanningEditor } from "./ProjectPlanningEditor.js";
 
 interface ProjectDetailProps {
   id: string;
@@ -62,6 +63,8 @@ export function ProjectDetail({ id, onClose }: ProjectDetailProps) {
           )}
           {project && (
             <>
+              <ProjectPlanningEditor project={project} />
+
               {project.financialStatus && (
                 <div className={`financial-banner financial-banner-${project.financialStatus}`}>
                   <strong>{FINANCIAL_STATUS_LABELS[project.financialStatus]}</strong>
