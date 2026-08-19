@@ -175,6 +175,25 @@ export function fetchNextProjectNumber(): Promise<{ nextProjectNumber: number }>
   return apiFetch("/api/projects/next-number");
 }
 
+export interface NewProjectContactInput {
+  contactName: string;
+  company?: string;
+  contactRole?: string;
+  phone?: string;
+  email?: string;
+}
+
+export interface CreateProjectInput {
+  name: string;
+  projectNumber?: string;
+  newContact: NewProjectContactInput;
+}
+
+/** Création directe, hors conversion d'un budgétaire — Direction et Propriétaire seulement (canCreateProjectDirectly). */
+export function createProject(input: CreateProjectInput): Promise<{ id: string; projectNumber: string }> {
+  return apiFetch("/api/projects", { method: "POST", body: JSON.stringify(input) });
+}
+
 // ---------------------------------------------------------------------------
 // Production et sortie + Cycle de facturation (Projet 2C, 17 août 2026).
 // ---------------------------------------------------------------------------

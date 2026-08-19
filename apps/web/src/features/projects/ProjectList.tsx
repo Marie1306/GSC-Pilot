@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { canCreateProjectDirectly } from "@gsc-pilot/business-rules";
+import { useAuth } from "../../lib/auth/useAuth.js";
 import { fetchProjects, STATUS_LABELS, FINANCIAL_STATUS_LABELS, LIFECYCLE_TAB_LABELS, type ProjectLifecycleTab } from "./api.js";
 
 interface ProjectListProps {
   onOpen: (id: string) => void;
+  onCreate: () => void;
 }
 
 function formatDate(iso: string): string {
@@ -17,7 +20,8 @@ const TABS: ProjectLifecycleTab[] = ["active", "warranty", "closed"];
  * serveur (lifecycleTab, warranty.ts), jamais un filtre par requête séparée
  * : la liste complète est chargée une fois, filtrée ici par onglet.
  */
-export function ProjectList({ onOpen }: ProjectListProps) {
+export function ProjectList({ onOpen, onCreate }: ProjectListProps) {
+  const { employee } = useAuth();
   const listQuery = useQuery({ queryKey: ["projects"], queryFn: fetchProjects });
   const allRows = listQuery.data?.projects ?? [];
   const [tab, setTab] = useState<ProjectLifecycleTab>("active");
@@ -25,7 +29,14 @@ export function ProjectList({ onOpen }: ProjectListProps) {
 
   return (
     <div style={{ marginTop: 20 }}>
-      <h2 style={{ fontSize: 16 }}>Projets</h2>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+        <h2 style={{ fontSize: 16, margin: 0 }}>Projets</h2>
+        {employee && canCreateProjectDirectly(employee.persona) && (
+          <button type="button" className="btn" onClick={onCreate}>
+            + Nouveau projet
+          </button>
+        )}
+      </div>
       <div style={{ display: "flex", gap: 8, margin: "12px 0 16px" }}>
         {TABS.map((t) => (
           <button

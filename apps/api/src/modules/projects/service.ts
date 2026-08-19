@@ -38,6 +38,7 @@ import {
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
 import { getBudgetDetail } from "../budgets/service.js";
+import { ensureContactRow } from "../clientRequests/service.js";
 import { projectPurchasesActual, listProjectPurchaseEntries } from "../purchases/service.js";
 import type { Project } from "../../generated/prisma/client.js";
 
@@ -148,6 +149,78 @@ export async function convertBudgetToProject(createdById: string, budgetId: stri
     await tx.invoicePlanEntry.createMany({
       data: plan.map((step) => ({ projectId: project.id, label: step.label, pct: step.pct, amount: step.amount, status: step.status })),
     });
+
+    return project;
+  });
+}
+
+export interface NewProjectContactInput {
+  contactName: string;
+  company?: string;
+  contactRole?: string;
+  phone?: string;
+  email?: string;
+}
+
+export interface CreateProjectDirectInput {
+  name: string;
+  /** Même règle que ConvertBudgetToProjectInput.projectNumber ci-dessus. */
+  projectNumber?: string;
+  newContact: NewProjectContactInput;
+}
+
+/**
+ * Création directe, hors conversion d'un budgétaire (spécification confirmée,
+ * section « Projets — création directe », 9 août 2026) : Direction et
+ * Propriétaire seulement (canCreateProjectDirectly, déjà en place côté
+ * routes). Contact résolu via ensureContactRow — même mécanisme de
+ * déduplication/catégorisation ("Projet") que les demandes clients/
+ * budgétaires/appels de service, confirmé branché ici aussi par la
+ * spécification.
+ *
+ * Aucun budgétaire à l'origine : tous les champs $ (sold, plannedHours,
+ * targetMarginPct, etc.) restent à leur valeur par défaut du schéma —
+ * voir le commentaire sur Project.targetMarginPct ("absente pour un projet
+ * créé directement"). Pas de plan de facturation généré ici non plus,
+ * contrairement à convertBudgetToProject : rien de réel à répartir tant
+ * qu'aucun prix vendu n'est connu — l'édition de ces champs sur un projet
+ * direct reste hors de cette passe (pas d'écran « méta » pour le Projet,
+ * contrairement au Budgétaire).
+ */
+export async function createProjectDirect(createdById: string, input: CreateProjectDirectInput): Promise<Project> {
+  const name = input.name?.trim();
+  if (!name) throw new HttpError(400, "Le nom du projet est requis.");
+  if (!input.newContact?.contactName?.trim()) throw new HttpError(400, "Le nom du contact est requis.");
+
+  const requestedNumber = input.projectNumber?.trim();
+  if (requestedNumber !== undefined && requestedNumber !== "" && !/^\d+$/.test(requestedNumber)) {
+    throw new HttpError(400, "Le numéro de projet doit être composé uniquement de chiffres.");
+  }
+  if (requestedNumber) {
+    const taken = await prisma.project.findUnique({ where: { projectNumber: requestedNumber } });
+    if (taken) throw new HttpError(409, `Le numéro ${requestedNumber} est déjà utilisé par un autre projet.`);
+  }
+
+  // Résolu AVANT la transaction, même principe que createBudget/createServiceCall.
+  const contact = await ensureContactRow({ ...input.newContact, requestType: "project" });
+
+  return prisma.$transaction(async (tx) => {
+    const settings = await tx.settings.findFirst();
+    if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
+    const projectNumber = requestedNumber || String(settings.nextProjectNumber);
+    const nextAfter = Math.max(settings.nextProjectNumber, Number(projectNumber) + 1);
+
+    const project = await tx.project.create({
+      data: {
+        projectNumber,
+        name,
+        contactId: contact.id,
+        status: "active",
+        createdById,
+      },
+    });
+
+    await tx.settings.update({ where: { id: settings.id }, data: { nextProjectNumber: nextAfter } });
 
     return project;
   });

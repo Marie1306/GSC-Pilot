@@ -24,6 +24,7 @@ import {
   listProjects,
   getProjectDetail,
   getNextProjectNumber,
+  createProjectDirect,
   markProductionComplete,
   chooseProjectFulfillmentMode,
   confirmProjectFulfillment,
@@ -75,6 +76,25 @@ projectsRouter.get(
     res.json({ nextProjectNumber });
   },
 );
+
+const newProjectContactSchema = z.object({
+  contactName: z.string().min(1),
+  company: z.string().optional(),
+  contactRole: z.string().optional(),
+  phone: z.string().optional(),
+  email: z.email().optional(),
+});
+const createProjectSchema = z.object({
+  name: z.string().min(1),
+  projectNumber: z.string().optional(),
+  newContact: newProjectContactSchema,
+});
+/** Création directe, hors conversion d'un budgétaire — Direction et Propriétaire seulement (confirmé le 9 août 2026). */
+projectsRouter.post("/projects", requireAuth, requirePermission((persona) => canCreateProjectDirectly(persona)), async (req, res) => {
+  const body = createProjectSchema.parse(req.body);
+  const project = await createProjectDirect(req.employee!.id, body);
+  res.status(201).json({ id: project.id, projectNumber: project.projectNumber });
+});
 
 /** Liste complète (financière) — Phase 1 du module Projet, 12 août 2026. */
 projectsRouter.get("/projects/full", requireAuth, requirePermission((persona) => canAccessProject(persona)), async (req, res) => {
