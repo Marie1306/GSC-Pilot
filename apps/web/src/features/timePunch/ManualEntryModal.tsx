@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { canPunchForOtherEmployee, canSeeFinancialValues } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
+import { ApiError } from "../../lib/apiClient.js";
 import { fetchTechLevels } from "../settings/api.js";
 import {
   fetchPunchableTasks,
@@ -12,7 +13,7 @@ import {
   updateTimeEntry,
   type TimeEntryDto,
 } from "./api.js";
-import { ReferenceFields, type ReferenceValue } from "./ReferenceFields.js";
+import { ManualEntryRow, type ManualRowState } from "./ManualEntryRow.js";
 
 interface ManualEntryModalProps {
   onClose: () => void;
@@ -28,13 +29,32 @@ function minutesToHours(minutes: number | null): string {
   return minutes ? String(Math.round((minutes / 60) * 100) / 100) : "1";
 }
 
+function makeEmptyRow(key: number): ManualRowState {
+  return { key, value: { projectType: "internal", taskId: "" }, hours: "1", note: "", blockageNote: "" };
+}
+
+/** Échec en cours de lot — combien de lignes ont déjà été enregistrées avant l'erreur, pour ne jamais les resoumettre en double au prochain essai. */
+class ManualBatchError extends Error {
+  constructor(
+    public succeededCount: number,
+    public cause: unknown,
+  ) {
+    super("batch-partial-failure");
+  }
+}
+
 /**
  * Entrée manuelle — travail déjà terminé, saisi après coup (heures directes,
- * pas de chronomètre). Réutilisé pour la correction d'un punch existant
- * (mêmes champs référence/tâche/heures/note — voir spec « l'employé peut
- * corriger son propre punch avant approbation », Direction à tout moment) :
- * la personne et la date ne se réaffectent jamais ici, seulement la
- * référence/tâche/durée/notes.
+ * pas de chronomètre). Deux modes bien distincts :
+ * - Correction d'un punch existant (entry fourni) : une seule ligne, la
+ *   personne et la date ne se réaffectent jamais ici.
+ * - Création (entry absent) : plusieurs lignes possibles pour un même
+ *   employé/date en une seule fois (repris du prototype v19,
+ *   manualTimeBatchFormV06 — demandé le 19 août 2026) — chaque ligne
+ *   garde sa propre référence/tâche/heures/note/blocage, soumises une à
+ *   une (createManualEntry existant, jamais réimplémenté). En cas
+ *   d'échec en cours de route, les lignes déjà enregistrées sont
+ *   retirées du formulaire pour ne jamais les soumettre deux fois.
  */
 export function ManualEntryModal({ onClose, entry }: ManualEntryModalProps) {
   const { employee } = useAuth();
@@ -52,21 +72,25 @@ export function ManualEntryModal({ onClose, entry }: ManualEntryModalProps) {
 
   const [employeeId, setEmployeeId] = useState(entry?.employeeId ?? employee?.id ?? "");
   const [date] = useState(entry?.date ?? today());
-  const [hours, setHours] = useState(minutesToHours(entry?.roundedMinutes ?? null));
-  const [value, setValue] = useState<ReferenceValue>(
+  const nextRowKey = useRef(1);
+  const [rows, setRows] = useState<ManualRowState[]>(() => [
     entry
       ? {
-          projectType: entry.projectType,
-          projectId: entry.projectId ?? undefined,
-          serviceCallId: entry.serviceCallId ?? undefined,
-          taskId: entry.taskId ?? "",
-          techLevelId: entry.techLevelId ?? undefined,
-          rateType: entry.rateType ?? undefined,
+          key: 0,
+          value: {
+            projectType: entry.projectType,
+            projectId: entry.projectId ?? undefined,
+            serviceCallId: entry.serviceCallId ?? undefined,
+            taskId: entry.taskId ?? "",
+            techLevelId: entry.techLevelId ?? undefined,
+            rateType: entry.rateType ?? undefined,
+          },
+          hours: minutesToHours(entry.roundedMinutes ?? null),
+          note: entry.note ?? "",
+          blockageNote: entry.blockageNote ?? "",
         }
-      : { projectType: "internal", taskId: "" },
-  );
-  const [note, setNote] = useState(entry?.note ?? "");
-  const [blockageNote, setBlockageNote] = useState(entry?.blockageNote ?? "");
+      : makeEmptyRow(0),
+  ]);
   const [error, setError] = useState<string | null>(null);
 
   const tasks = tasksQuery.data?.tasks ?? [];
@@ -75,65 +99,119 @@ export function ManualEntryModal({ onClose, entry }: ManualEntryModalProps) {
   const techLevels = techLevelsQuery.data?.techLevels ?? [];
   const punchableEmployees = employeesQuery.data?.employees ?? [];
   const employeeTechLevelIds = canChooseEmployee
-    ? punchableEmployees.find((candidate) => candidate.id === employeeId)?.techLevelIds ?? []
-    : employee?.techLevelIds ?? [];
+    ? (punchableEmployees.find((candidate) => candidate.id === employeeId)?.techLevelIds ?? [])
+    : (employee?.techLevelIds ?? []);
 
-  const mutation = useMutation({
-    mutationFn: () =>
-      entry
-        ? updateTimeEntry(entry.id, {
-            projectType: value.projectType,
-            projectId: value.projectId,
-            serviceCallId: value.serviceCallId,
-            taskId: value.taskId,
-            hours: Number(hours),
-            note: note.trim() || undefined,
-            blockageNote: blockageNote.trim() || null,
-          })
-        : createManualEntry({
-            employeeId,
-            date,
-            hours: Number(hours),
-            projectType: value.projectType,
-            projectId: value.projectId,
-            serviceCallId: value.serviceCallId,
-            taskId: value.taskId,
-            techLevelId: value.techLevelId,
-            rateType: value.rateType,
-            note: note.trim() || undefined,
-            blockageNote: blockageNote.trim() || undefined,
-          }),
+  function updateRow(key: number, patch: Partial<Omit<ManualRowState, "key">>) {
+    setRows((current) => current.map((row) => (row.key === key ? { ...row, ...patch } : row)));
+  }
+
+  function addRow() {
+    setRows((current) => [...current, makeEmptyRow(nextRowKey.current++)]);
+  }
+
+  function removeRow(key: number) {
+    setRows((current) => (current.length > 1 ? current.filter((row) => row.key !== key) : current));
+  }
+
+  const invalidate = () => void queryClient.invalidateQueries({ queryKey: ["time-entries"] });
+
+  const editMutation = useMutation({
+    mutationFn: () => {
+      const row = rows[0]!;
+      return updateTimeEntry(entry!.id, {
+        projectType: row.value.projectType,
+        projectId: row.value.projectId,
+        serviceCallId: row.value.serviceCallId,
+        taskId: row.value.taskId,
+        hours: Number(row.hours),
+        note: row.note.trim() || undefined,
+        blockageNote: row.blockageNote.trim() || null,
+      });
+    },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["time-entries"] });
+      invalidate();
       onClose();
     },
-    onError: (err) => setError(err instanceof Error ? err.message : "Erreur — vérifiez les champs."),
+    onError: (err) => setError(err instanceof ApiError ? err.message : "Erreur — vérifiez les champs."),
   });
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      let succeededCount = 0;
+      try {
+        for (const row of rows) {
+          await createManualEntry({
+            employeeId,
+            date,
+            hours: Number(row.hours),
+            projectType: row.value.projectType,
+            projectId: row.value.projectId,
+            serviceCallId: row.value.serviceCallId,
+            taskId: row.value.taskId,
+            techLevelId: row.value.techLevelId,
+            rateType: row.value.rateType,
+            note: row.note.trim() || undefined,
+            blockageNote: row.blockageNote.trim() || undefined,
+          });
+          succeededCount++;
+        }
+      } catch (err) {
+        throw new ManualBatchError(succeededCount, err);
+      }
+    },
+    onSuccess: () => {
+      invalidate();
+      onClose();
+    },
+    onError: (err) => {
+      if (err instanceof ManualBatchError) {
+        if (err.succeededCount > 0) {
+          setRows((current) => current.slice(err.succeededCount));
+          invalidate();
+        }
+        const cause = err.cause instanceof ApiError ? err.cause.message : "Erreur — vérifiez les champs.";
+        setError(
+          err.succeededCount > 0
+            ? `Entrée ${err.succeededCount + 1} : ${cause} — les ${err.succeededCount} entrée(s) précédente(s) ont déjà été enregistrée(s).`
+            : `Entrée 1 : ${cause}`,
+        );
+      } else {
+        setError("Erreur — vérifiez les champs.");
+      }
+    },
+  });
+
+  const mutation = entry ? editMutation : createMutation;
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
-    if (!value.taskId) {
-      setError("Choisissez une tâche.");
-      return;
-    }
-    if (!(Number(hours) > 0)) {
-      setError("Le nombre d'heures doit être positif.");
-      return;
+    for (const [i, row] of rows.entries()) {
+      if (!row.value.taskId) {
+        setError(`Entrée ${i + 1} : choisissez une tâche.`);
+        return;
+      }
+      if (!(Number(row.hours) > 0)) {
+        setError(`Entrée ${i + 1} : le nombre d'heures doit être positif.`);
+        return;
+      }
     }
     mutation.mutate();
   }
 
+  const showRate = employee ? canSeeFinancialValues(employee.persona) : false;
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(event) => event.stopPropagation()}>
+      <div className="modal" style={{ maxWidth: 720 }} onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <div>
             <h2>{entry ? "Modifier le punch" : "Entrée manuelle"}</h2>
             <p className="modal-subtitle">
               {entry
                 ? "Correction avant approbation — la personne et la date ne changent jamais ici."
-                : "Pour du travail déjà terminé — heures exactes saisies directement."}
+                : "Pour du travail déjà terminé — un employé, une date, une ou plusieurs entrées."}
             </p>
           </div>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Fermer">
@@ -141,60 +219,49 @@ export function ManualEntryModal({ onClose, entry }: ManualEntryModalProps) {
           </button>
         </div>
         <form onSubmit={handleSubmit}>
-          <div className="modal-body form-grid">
-            {canChooseEmployee && (
-              <div className="field field-full">
-                <label htmlFor="manual-employee">Employé</label>
-                <select id="manual-employee" value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}>
-                  {punchableEmployees.map((candidate) => (
-                    <option key={candidate.id} value={candidate.id}>
-                      {candidate.name}
-                    </option>
-                  ))}
-                </select>
+          <div className="modal-body">
+            <div className="form-grid">
+              {canChooseEmployee && (
+                <div className="field field-full">
+                  <label htmlFor="manual-employee">Employé</label>
+                  <select id="manual-employee" value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}>
+                    {punchableEmployees.map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>
+                        {candidate.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div className="field">
+                <label htmlFor="manual-date">Date</label>
+                <input id="manual-date" type="date" required readOnly={!!entry} disabled={!!entry} value={date} onChange={() => {}} />
               </div>
+            </div>
+
+            {rows.map((row, index) => (
+              <ManualEntryRow
+                key={row.key}
+                row={row}
+                index={index}
+                onChange={(patch) => updateRow(row.key, patch)}
+                onRemove={!entry && rows.length > 1 ? () => removeRow(row.key) : undefined}
+                tasks={tasks}
+                projects={projects}
+                serviceCalls={serviceCalls}
+                employeeTechLevelIds={employeeTechLevelIds}
+                techLevels={techLevels}
+                showRate={showRate}
+              />
+            ))}
+
+            {!entry && (
+              <button type="button" className="btn btn-secondary btn-small" onClick={addRow} style={{ marginTop: 4 }}>
+                + Ajouter une entrée
+              </button>
             )}
-            <div className="field">
-              <label htmlFor="manual-date">Date</label>
-              <input id="manual-date" type="date" required readOnly={!!entry} disabled={!!entry} value={date} onChange={() => {}} />
-            </div>
-            <div className="field">
-              <label htmlFor="manual-hours">Heures exactes</label>
-              <input
-                id="manual-hours"
-                type="number"
-                min="0.01"
-                step="0.01"
-                required
-                value={hours}
-                onChange={(event) => setHours(event.target.value)}
-              />
-            </div>
-            <ReferenceFields
-              value={value}
-              onChange={(patch) => setValue((current) => ({ ...current, ...patch }))}
-              tasks={tasks}
-              projects={projects}
-              serviceCalls={serviceCalls}
-              employeeTechLevelIds={employeeTechLevelIds}
-              techLevels={techLevels}
-              showRate={employee ? canSeeFinancialValues(employee.persona) : false}
-            />
-            <div className="field field-full">
-              <label htmlFor="manual-note">Note (facultative)</label>
-              <input id="manual-note" value={note} onChange={(event) => setNote(event.target.value)} />
-            </div>
-            <div className="field field-full">
-              <label htmlFor="manual-blockage">Blocage signalé (facultatif)</label>
-              <input
-                id="manual-blockage"
-                placeholder="Ex. pièce manquante, en attente d'une information"
-                value={blockageNote}
-                onChange={(event) => setBlockageNote(event.target.value)}
-              />
-            </div>
           </div>
-          {error && <p className="form-error">{error}</p>}
+          {error && <p className="form-error" style={{ margin: "0 24px 16px" }}>{error}</p>}
           <div className="modal-footer">
             <button type="button" className="btn btn-secondary" onClick={onClose}>
               Annuler
