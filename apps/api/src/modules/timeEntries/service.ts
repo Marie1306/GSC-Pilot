@@ -39,7 +39,7 @@ import {
 import { prisma } from "../../db.js";
 import { loadDelegationSettings } from "../../auth/delegation.js";
 import { HttpError } from "../../middleware/errorHandler.js";
-import type { Prisma, PunchableTask, TechLevel } from "../../generated/prisma/client.js";
+import type { Prisma, PunchableTask } from "../../generated/prisma/client.js";
 
 const EXTRA_CATEGORY_LABELS: Record<string, string> = {
   internal: "Interne — Amélioration GSC",
@@ -48,13 +48,6 @@ const EXTRA_CATEGORY_LABELS: Record<string, string> = {
 
 function categoryLabel(category: string): string {
   return BUDGET_CATEGORY_LABELS[category as keyof typeof BUDGET_CATEGORY_LABELS] ?? EXTRA_CATEGORY_LABELS[category] ?? category;
-}
-
-/** Tarif facturé au client pour cette classe — jamais un coût (voir resolvePunchTarget). Réutilisé par modules/serviceCalls pour le prix de vente. */
-export function rateForType(techLevel: TechLevel, rateType: "regular" | "overtime" | "extra"): number {
-  if (rateType === "overtime") return Number(techLevel.overtimeRate);
-  if (rateType === "extra") return Number(techLevel.extraRate);
-  return Number(techLevel.regularRate);
 }
 
 async function resolveActingEmployeeId(actorEmployeeId: string, actorPersona: Persona, requestedEmployeeId: string): Promise<string> {

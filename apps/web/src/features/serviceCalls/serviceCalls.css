@@ -1,0 +1,75 @@
+.service-call-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 13px;
+}
+.service-call-table th {
+  text-align: left;
+  color: var(--gsc-color-muted);
+  font-weight: 600;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--gsc-color-line);
+  white-space: nowrap;
+}
+.service-call-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--gsc-color-line);
+  vertical-align: middle;
+}
+
+.service-call-info-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  font-size: 13px;
+}
+.service-call-info-label {
+  display: block;
+  color: var(--gsc-color-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+.service-call-totals-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+.service-call-totals-grid > div {
+  border: 1px solid var(--gsc-color-line-strong);
+  border-radius: var(--gsc-radius-sm);
+  padding: 10px;
+}
+.service-call-totals-grid span {
+  display: block;
+  color: var(--gsc-color-muted);
+  font-size: 11px;
+}
+.service-call-totals-grid strong {
+  font-size: 15px;
+}
+
+.service-call-btn-small {
+  font-size: 12px;
+  padding: 5px 10px;
+  min-height: unset;
+}
+
+.signature-pad-canvas {
+  border: 1px solid var(--gsc-color-line-strong);
+  border-radius: var(--gsc-radius-sm);
+  background: #fff;
+  touch-action: none;
+  cursor: crosshair;
+  max-width: 100%;
+}
+.signature-pad-preview {
+  max-width: 320px;
+  border: 1px solid var(--gsc-color-line-strong);
+  border-radius: var(--gsc-radius-sm);
+  background: #fff;
+}

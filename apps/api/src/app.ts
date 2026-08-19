@@ -16,6 +16,7 @@ import { settingsRouter } from "./modules/settings/routes.js";
 import { clientRequestsRouter } from "./modules/clientRequests/routes.js";
 import { budgetsRouter } from "./modules/budgets/routes.js";
 import { timeEntriesRouter } from "./modules/timeEntries/routes.js";
+import { serviceCallsRouter } from "./modules/serviceCalls/routes.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -58,6 +59,7 @@ export function createApp() {
   app.use("/api", clientRequestsRouter);
   app.use("/api", budgetsRouter);
   app.use("/api", timeEntriesRouter);
+  app.use("/api", serviceCallsRouter);
   app.use("/api/settings", settingsRouter);
 
   // En production, l'API sert aussi le build statique de apps/web (un seul

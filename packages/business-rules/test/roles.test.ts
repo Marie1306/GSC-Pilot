@@ -106,6 +106,15 @@ describe("Appels de service", () => {
   it("Magasinier hors de la portée des appels de service", () => {
     expect(P.canAccessServiceCalls(WAREHOUSE)).toBe(false);
   });
+  it("Seule la Direction approuve un call de service", () => {
+    expect(P.canApproveServiceCall(OWNER)).toBe(true);
+    expect(P.canApproveServiceCall(ADMIN)).toBe(false);
+    expect(P.canApproveServiceCall(BOSS)).toBe(false);
+  });
+  it("Seule la Direction envoie un call à l'administration", () => {
+    expect(P.canSendServiceCallToAdmin(OWNER)).toBe(true);
+    expect(P.canSendServiceCallToAdmin(ADMIN)).toBe(false);
+  });
 });
 
 describe("Budgétaire", () => {

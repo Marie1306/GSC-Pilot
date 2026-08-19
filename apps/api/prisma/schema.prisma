@@ -969,6 +969,7 @@ model Settings {
   nextClientRequestNumber      Int      @default(1) // format DC-AAAA-NNNN
   nextBudgetNumber             Int      @default(1) // format BG-AAAA-NNNN
   nextDeliveryNumber           Int      @default(1) // format BL-AAAA-NNNN — même patron que nextBudgetNumber (année civile, pas d'année d'affaires)
+  nextServiceCallNumber        Int      @default(1) // format CS-AAAA-NNNN — même patron que nextBudgetNumber/nextDeliveryNumber (année civile)
   servicePartsDefaultMarginPct Decimal  @default(20) @db.Decimal(5, 2)
   punchRoundingMinutes         Int      @default(15)
   // Seuils du voyant de marge réelle (statut financier) — confirmé le 17

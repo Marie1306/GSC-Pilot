@@ -241,6 +241,21 @@ export function canAccessServiceCalls(persona: Persona): boolean {
   assertRole(persona);
   return persona !== ROLES.WAREHOUSE;
 }
+/**
+ * Approuver un call de service (résumé + signature déjà requis avant) et
+ * l'envoyer à l'administration pour facturation — les deux touchent la
+ * file de facturation, même porte que canRequestInvoice (écart trouvé et
+ * corrigé le 9 août 2026 : ces deux actions n'avaient aucune vérification
+ * de rôle dans la v19 vérifiée).
+ */
+export function canApproveServiceCall(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}
+export function canSendServiceCallToAdmin(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}
 
 // ---------------------------------------------------------------------------
 // Budgétaire
