@@ -360,18 +360,23 @@ export function canEditOwnPunch(persona: Persona, punch: PunchLike, currentEmplo
 }
 
 export interface ServiceCallAssignmentLike {
-  assignedEmployeeId?: string | null;
+  assignedEmployees?: { id: string }[];
 }
 /**
  * Restriction reprise du prototype v19 (jamais contredite par la
  * spécification confirmée) : un Employé ne peut puncher que sur un call de
  * service qui lui est assigné. Les autres rôles (Direction, Administration,
- * Propriétaire) ne sont pas limités de cette façon.
+ * Propriétaire) ne sont pas limités de cette façon. Plusieurs employés
+ * peuvent être assignés au même call (confirmé le 19 août 2026 — « ils
+ * doivent parfois y aller à deux techniciens »). Magasinier n'a aucun rôle
+ * dans les appels de service (canAccessServiceCalls) — jamais autorisé ici
+ * non plus, assigné ou non (écart trouvé en vérifiant contre la base réelle).
  */
 export function canPunchServiceCall(persona: Persona, call: ServiceCallAssignmentLike, employeeId: string): boolean {
   assertRole(persona);
+  if (persona === ROLES.WAREHOUSE) return false;
   if (persona !== ROLES.MEMBER) return true;
-  return call?.assignedEmployeeId === employeeId;
+  return (call?.assignedEmployees ?? []).some((employee) => employee.id === employeeId);
 }
 
 /** Puncher pour un autre employé (backfill) — même patron que la création de demande/call. */

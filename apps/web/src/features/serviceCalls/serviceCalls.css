@@ -53,6 +53,19 @@
   font-size: 15px;
 }
 
+.service-call-employee-checklist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+}
+.service-call-employee-checklist label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 400;
+}
+
 .service-call-btn-small {
   font-size: 12px;
   padding: 5px 10px;

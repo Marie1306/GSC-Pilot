@@ -8,8 +8,9 @@
  * canSendServiceCallToAdmin, même porte que canRequestInvoice — écart
  * corrigé dans la vraie v19, jamais réintroduit ici).
  *
- * Un seul technicien assigné par call (assignedEmployeeId, tel quel dans le
- * schéma) — portée délibérément limitée à ça cette passe, voir CLAUDE.md.
+ * Plusieurs techniciens peuvent être assignés au même call (confirmé le
+ * 19 août 2026 par l'utilisatrice — « ils doivent parfois y aller à deux
+ * techniciens ») — ServiceCall.assignedEmployees, plusieurs-à-plusieurs.
  *
  * Pièces : coût réel = 0$ jusqu'à ce que la Direction tarife après coup
  * (texte libre saisi par le technicien) — confirmé, voir Rapports. Prix de
@@ -44,7 +45,7 @@ export interface CreateServiceCallInput {
   contactId?: string;
   newContact?: NewServiceCallContact;
   request: string;
-  assignedEmployeeId?: string;
+  assignedEmployeeIds?: string[];
   scheduledAt?: string;
 }
 
@@ -79,13 +80,18 @@ export async function createServiceCall(input: CreateServiceCallInput): Promise<
         displayId,
         contactId,
         request: input.request.trim(),
-        assignedEmployeeId: input.assignedEmployeeId || null,
+        assignedEmployees: input.assignedEmployeeIds?.length ? { connect: input.assignedEmployeeIds.map((id) => ({ id })) } : undefined,
         scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
       },
     });
     await tx.settings.update({ where: { id: settings.id }, data: { nextServiceCallNumber: settings.nextServiceCallNumber + 1 } });
     return call;
   });
+}
+
+export interface AssignedEmployeeDto {
+  id: string;
+  name: string;
 }
 
 export interface ServiceCallListItemDto {
@@ -95,21 +101,17 @@ export interface ServiceCallListItemDto {
   contactName: string;
   company: string | null;
   request: string;
-  assignedEmployeeId: string | null;
-  assignedEmployeeName: string | null;
+  assignedEmployees: AssignedEmployeeDto[];
   scheduledAt: string | null;
   createdAt: string;
 }
 
 export async function listServiceCalls(viewerPersona: Persona, viewerEmployeeId: string): Promise<ServiceCallListItemDto[]> {
   const calls = await prisma.serviceCall.findMany({
-    where: viewerPersona === "member" ? { assignedEmployeeId: viewerEmployeeId } : {},
-    include: { contact: { select: { name: true, company: true } } },
+    where: viewerPersona === "member" ? { assignedEmployees: { some: { id: viewerEmployeeId } } } : {},
+    include: { contact: { select: { name: true, company: true } }, assignedEmployees: { select: { id: true, name: true } } },
     orderBy: { createdAt: "desc" },
   });
-  const employeeIds = [...new Set(calls.map((call) => call.assignedEmployeeId).filter((id): id is string => !!id))];
-  const employees = await prisma.employee.findMany({ where: { id: { in: employeeIds } }, select: { id: true, name: true } });
-  const nameById = new Map(employees.map((employee) => [employee.id, employee.name]));
 
   return calls.map((call) => ({
     id: call.id,
@@ -118,8 +120,7 @@ export async function listServiceCalls(viewerPersona: Persona, viewerEmployeeId:
     contactName: call.contact.name,
     company: call.contact.company,
     request: call.request,
-    assignedEmployeeId: call.assignedEmployeeId,
-    assignedEmployeeName: call.assignedEmployeeId ? (nameById.get(call.assignedEmployeeId) ?? null) : null,
+    assignedEmployees: call.assignedEmployees,
     scheduledAt: call.scheduledAt?.toISOString() ?? null,
     createdAt: call.createdAt.toISOString(),
   }));
@@ -184,8 +185,7 @@ export interface ServiceCallDetailDto {
   contactPhone: string | null;
   contactEmail: string | null;
   request: string;
-  assignedEmployeeId: string | null;
-  assignedEmployeeName: string | null;
+  assignedEmployees: AssignedEmployeeDto[];
   scheduledAt: string | null;
   startAt: string | null;
   endAt: string | null;
@@ -211,6 +211,7 @@ async function loadServiceCallOrThrow(id: string) {
       contact: true,
       parts: true,
       photos: true,
+      assignedEmployees: { select: { id: true, name: true } },
       timeEntries: { include: { employee: true, task: true }, orderBy: { startAt: "desc" } },
     },
   });
@@ -222,10 +223,9 @@ export async function getServiceCallDetail(id: string, viewerPersona: Persona): 
   const call = await loadServiceCallOrThrow(id);
   const showFinancials = canSeeServicePricing(viewerPersona);
 
-  const [assignedEmployee, approvedByEmployee] = await Promise.all([
-    call.assignedEmployeeId ? prisma.employee.findUnique({ where: { id: call.assignedEmployeeId }, select: { name: true } }) : null,
-    call.ownerApprovedById ? prisma.employee.findUnique({ where: { id: call.ownerApprovedById }, select: { name: true } }) : null,
-  ]);
+  const approvedByEmployee = call.ownerApprovedById
+    ? await prisma.employee.findUnique({ where: { id: call.ownerApprovedById }, select: { name: true } })
+    : null;
 
   const totals: ServiceCallTotalsDto = { laborHours: 0 };
   if (showFinancials) {
@@ -283,8 +283,7 @@ export async function getServiceCallDetail(id: string, viewerPersona: Persona): 
     contactPhone: call.contact.phone,
     contactEmail: call.contact.email,
     request: call.request,
-    assignedEmployeeId: call.assignedEmployeeId,
-    assignedEmployeeName: assignedEmployee?.name ?? null,
+    assignedEmployees: call.assignedEmployees,
     scheduledAt: call.scheduledAt?.toISOString() ?? null,
     startAt: call.startAt?.toISOString() ?? null,
     endAt: call.endAt?.toISOString() ?? null,
@@ -317,7 +316,7 @@ export async function getServiceCallDetail(id: string, viewerPersona: Persona): 
 }
 
 export interface UpdateServiceCallInput {
-  assignedEmployeeId?: string | null;
+  assignedEmployeeIds?: string[];
   scheduledAt?: string | null;
   kmTraveled?: number | null;
   mealsClaimed?: string[];
@@ -327,7 +326,7 @@ export interface UpdateServiceCallInput {
 export async function updateServiceCall(id: string, patch: UpdateServiceCallInput): Promise<void> {
   await loadServiceCallOrThrow(id);
   const data: Prisma.ServiceCallUncheckedUpdateInput = {};
-  if (patch.assignedEmployeeId !== undefined) data.assignedEmployeeId = patch.assignedEmployeeId;
+  if (patch.assignedEmployeeIds !== undefined) data.assignedEmployees = { set: patch.assignedEmployeeIds.map((employeeId) => ({ id: employeeId })) };
   if (patch.scheduledAt !== undefined) data.scheduledAt = patch.scheduledAt ? new Date(patch.scheduledAt) : null;
   if (patch.kmTraveled !== undefined) data.kmTraveled = patch.kmTraveled;
   if (patch.mealsClaimed !== undefined) data.mealsClaimed = patch.mealsClaimed;

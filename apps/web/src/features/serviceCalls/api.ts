@@ -1,5 +1,10 @@
 import { apiFetch } from "../../lib/apiClient.js";
 
+export interface AssignedEmployeeDto {
+  id: string;
+  name: string;
+}
+
 export interface ServiceCallListItemDto {
   id: string;
   displayId: string;
@@ -7,8 +12,7 @@ export interface ServiceCallListItemDto {
   contactName: string;
   company: string | null;
   request: string;
-  assignedEmployeeId: string | null;
-  assignedEmployeeName: string | null;
+  assignedEmployees: AssignedEmployeeDto[];
   scheduledAt: string | null;
   createdAt: string;
 }
@@ -28,7 +32,7 @@ export interface NewServiceCallContact {
 export interface CreateServiceCallInput {
   newContact: NewServiceCallContact;
   request: string;
-  assignedEmployeeId?: string;
+  assignedEmployeeIds?: string[];
   scheduledAt?: string;
 }
 
@@ -83,8 +87,7 @@ export interface ServiceCallDetailDto {
   contactPhone: string | null;
   contactEmail: string | null;
   request: string;
-  assignedEmployeeId: string | null;
-  assignedEmployeeName: string | null;
+  assignedEmployees: AssignedEmployeeDto[];
   scheduledAt: string | null;
   startAt: string | null;
   endAt: string | null;
@@ -110,7 +113,7 @@ export function fetchServiceCallDetail(id: string): Promise<{ serviceCall: Servi
 export const MEAL_LABELS: Record<string, string> = { breakfast: "Déjeuner", lunch: "Dîner", dinner: "Souper" };
 
 export interface UpdateServiceCallInput {
-  assignedEmployeeId?: string | null;
+  assignedEmployeeIds?: string[];
   scheduledAt?: string | null;
   kmTraveled?: number | null;
   mealsClaimed?: string[];

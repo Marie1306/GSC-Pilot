@@ -184,13 +184,19 @@ describe("Punchs", () => {
     expect(P.canEditOwnPunch(MEMBER, { employee: "emp-1", status: "approved" }, "emp-1")).toBe(false);
   });
   it("Employé ne peut puncher que sur un call qui lui est assigné", () => {
-    expect(P.canPunchServiceCall(MEMBER, { assignedEmployeeId: "emp-1" }, "emp-1")).toBe(true);
-    expect(P.canPunchServiceCall(MEMBER, { assignedEmployeeId: "emp-2" }, "emp-1")).toBe(false);
+    expect(P.canPunchServiceCall(MEMBER, { assignedEmployees: [{ id: "emp-1" }] }, "emp-1")).toBe(true);
+    expect(P.canPunchServiceCall(MEMBER, { assignedEmployees: [{ id: "emp-2" }] }, "emp-1")).toBe(false);
+  });
+  it("plusieurs techniciens peuvent être assignés au même call (ex. deux personnes envoyées ensemble)", () => {
+    expect(P.canPunchServiceCall(MEMBER, { assignedEmployees: [{ id: "emp-1" }, { id: "emp-2" }] }, "emp-2")).toBe(true);
+  });
+  it("Magasinier ne peut jamais puncher sur un call de service, assigné ou non", () => {
+    expect(P.canPunchServiceCall(WAREHOUSE, { assignedEmployees: [{ id: "emp-1" }] }, "emp-1")).toBe(false);
   });
   it("Direction/Administration/Propriétaire ne sont pas limités à leurs calls assignés", () => {
-    expect(P.canPunchServiceCall(OWNER, { assignedEmployeeId: "emp-2" }, "emp-1")).toBe(true);
-    expect(P.canPunchServiceCall(ADMIN, { assignedEmployeeId: "emp-2" }, "emp-1")).toBe(true);
-    expect(P.canPunchServiceCall(BOSS, { assignedEmployeeId: "emp-2" }, "emp-1")).toBe(true);
+    expect(P.canPunchServiceCall(OWNER, { assignedEmployees: [{ id: "emp-2" }] }, "emp-1")).toBe(true);
+    expect(P.canPunchServiceCall(ADMIN, { assignedEmployees: [{ id: "emp-2" }] }, "emp-1")).toBe(true);
+    expect(P.canPunchServiceCall(BOSS, { assignedEmployees: [{ id: "emp-2" }] }, "emp-1")).toBe(true);
   });
   it("Direction/Administration/Propriétaire peuvent puncher pour un autre employé", () => {
     expect(P.canPunchForOtherEmployee(OWNER)).toBe(true);

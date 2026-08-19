@@ -80,7 +80,10 @@ async function resolvePunchTarget(
 ): Promise<ResolvedPunchTarget> {
   if (input.projectType === "service") {
     if (!input.serviceCallId) throw new HttpError(400, "Un call de service est requis.");
-    const call = await prisma.serviceCall.findUnique({ where: { id: input.serviceCallId } });
+    const call = await prisma.serviceCall.findUnique({
+      where: { id: input.serviceCallId },
+      include: { assignedEmployees: { select: { id: true } } },
+    });
     if (!call) throw new HttpError(404, "Call de service introuvable.");
     if (!canPunchServiceCall(actorPersona, call, employeeId)) {
       throw new HttpError(403, "Vous ne pouvez puncher que sur un call qui vous est assigné.");
@@ -501,7 +504,7 @@ export interface ServiceCallOptionDto {
 /** Vide tant que le module Appels de service n'est pas construit — voir CLAUDE.md, ordre des modules. */
 export async function listServiceCallOptions(employeeId: string, persona: Persona): Promise<ServiceCallOptionDto[]> {
   const rows = await prisma.serviceCall.findMany({
-    where: persona === "member" ? { assignedEmployeeId: employeeId } : {},
+    where: persona === "member" ? { assignedEmployees: { some: { id: employeeId } } } : {},
     select: { id: true, displayId: true, request: true },
   });
   return rows.map((row) => ({ id: row.id, label: `${row.displayId} — ${row.request}` }));

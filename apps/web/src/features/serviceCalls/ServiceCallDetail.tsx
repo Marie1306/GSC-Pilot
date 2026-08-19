@@ -148,21 +148,31 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
               <div>{call.contactEmail ?? "—"}</div>
             </div>
             <div>
-              <span className="service-call-info-label">Assigné à</span>
+              <span className="service-call-info-label">Techniciens assignés</span>
               {canReassign ? (
-                <select
-                  value={call.assignedEmployeeId ?? ""}
-                  onChange={(event) => updateMutation.mutate({ assignedEmployeeId: event.target.value || null })}
-                >
-                  <option value="">Non assigné</option>
-                  {employees.map((candidate) => (
-                    <option key={candidate.id} value={candidate.id}>
-                      {candidate.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="service-call-employee-checklist">
+                  {employees.map((candidate) => {
+                    const assignedIds = call.assignedEmployees.map((employee) => employee.id);
+                    return (
+                      <label key={candidate.id}>
+                        <input
+                          type="checkbox"
+                          checked={assignedIds.includes(candidate.id)}
+                          onChange={() =>
+                            updateMutation.mutate({
+                              assignedEmployeeIds: assignedIds.includes(candidate.id)
+                                ? assignedIds.filter((id) => id !== candidate.id)
+                                : [...assignedIds, candidate.id],
+                            })
+                          }
+                        />
+                        {candidate.name}
+                      </label>
+                    );
+                  })}
+                </div>
               ) : (
-                <div>{call.assignedEmployeeName ?? "—"}</div>
+                <div>{call.assignedEmployees.length > 0 ? call.assignedEmployees.map((employee) => employee.name).join(", ") : "—"}</div>
               )}
             </div>
             <div>

@@ -63,7 +63,7 @@ export function ServiceCallList({ onOpen, onCreate }: ServiceCallListProps) {
                   <td>{row.displayId}</td>
                   <td>{row.company ?? row.contactName}</td>
                   <td>{row.request}</td>
-                  <td>{row.assignedEmployeeName ?? "—"}</td>
+                  <td>{row.assignedEmployees.length > 0 ? row.assignedEmployees.map((employee) => employee.name).join(", ") : "—"}</td>
                   <td>{formatDate(row.scheduledAt)}</td>
                   <td>
                     <span className={`badge-pill ${row.status === "approved" ? "badge-conforme" : "badge-neutral"}`}>

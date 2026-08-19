@@ -62,6 +62,7 @@ model Employee {
   auditLogEntries      AuditLogEntry[]
   purchaseRequestsMade PurchaseRequest[] @relation("PurchaseRequestRequester")
   timeEntries          TimeEntry[]
+  assignedServiceCalls ServiceCall[]
 
   @@index([persona])
 }
@@ -766,7 +767,10 @@ model ServiceCall {
   contactId                    String
   contact                      Contact   @relation(fields: [contactId], references: [id])
   request                      String
-  assignedEmployeeId           String?
+  // Plusieurs techniciens possibles sur un même call (confirmé par
+  // l'utilisatrice le 19 août 2026 — "ils doivent parfois y aller à deux
+  // techniciens") — remplace l'ancien assignedEmployeeId singulier.
+  assignedEmployees            Employee[]
   techLevelId                  String?
   billRate                     Decimal?  @db.Decimal(10, 2) // gelé du TechLevel au moment de l'assignation
   scheduledAt                  DateTime?

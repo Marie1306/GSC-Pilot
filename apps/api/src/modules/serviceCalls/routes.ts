@@ -51,7 +51,7 @@ const createSchema = z.object({
   contactId: z.uuid().optional(),
   newContact: newContactSchema.optional(),
   request: z.string().min(1, "La description de la demande est requise."),
-  assignedEmployeeId: z.uuid().optional(),
+  assignedEmployeeIds: z.array(z.uuid()).optional(),
   scheduledAt: z.string().optional(),
 });
 serviceCallsRouter.post("/service-calls", requireAuth, requirePermission((persona) => canCreateServiceCall(persona)), async (req, res) => {
@@ -61,7 +61,7 @@ serviceCallsRouter.post("/service-calls", requireAuth, requirePermission((person
 });
 
 const updateSchema = z.object({
-  assignedEmployeeId: z.uuid().nullable().optional(),
+  assignedEmployeeIds: z.array(z.uuid()).optional(),
   scheduledAt: z.string().nullable().optional(),
   kmTraveled: z.number().nonnegative().nullable().optional(),
   mealsClaimed: z.array(z.enum(["breakfast", "lunch", "dinner"])).optional(),
@@ -70,7 +70,7 @@ const updateSchema = z.object({
 serviceCallsRouter.patch("/service-calls/:id", requireAuth, requirePermission((persona) => canAccessServiceCalls(persona)), async (req, res) => {
   const id = z.uuid().parse(req.params.id);
   const body = updateSchema.parse(req.body);
-  if (body.assignedEmployeeId !== undefined && !canReassignServiceCall(req.employee!.persona)) {
+  if (body.assignedEmployeeIds !== undefined && !canReassignServiceCall(req.employee!.persona)) {
     res.status(403).json({ error: "forbidden" });
     return;
   }

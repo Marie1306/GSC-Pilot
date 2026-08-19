@@ -10,7 +10,7 @@ interface ServiceCallFormProps {
 const EMPTY: CreateServiceCallInput = {
   newContact: { contactName: "", company: "", contactRole: "", phone: "", email: "" },
   request: "",
-  assignedEmployeeId: "",
+  assignedEmployeeIds: [],
   scheduledAt: "",
 };
 
@@ -32,7 +32,7 @@ export function ServiceCallForm({ onClose }: ServiceCallFormProps) {
           email: form.newContact.email?.trim() || undefined,
         },
         request: form.request.trim(),
-        assignedEmployeeId: form.assignedEmployeeId || undefined,
+        assignedEmployeeIds: form.assignedEmployeeIds,
         scheduledAt: form.scheduledAt || undefined,
       }),
     onSuccess: () => {
@@ -44,6 +44,13 @@ export function ServiceCallForm({ onClose }: ServiceCallFormProps) {
 
   function setContact<K extends keyof CreateServiceCallInput["newContact"]>(key: K, value: string) {
     setForm((current) => ({ ...current, newContact: { ...current.newContact, [key]: value } }));
+  }
+
+  function toggleEmployee(employeeId: string) {
+    setForm((current) => {
+      const ids = current.assignedEmployeeIds ?? [];
+      return { ...current, assignedEmployeeIds: ids.includes(employeeId) ? ids.filter((id) => id !== employeeId) : [...ids, employeeId] };
+    });
   }
 
   function handleSubmit(event: FormEvent) {
@@ -90,20 +97,20 @@ export function ServiceCallForm({ onClose }: ServiceCallFormProps) {
               <label htmlFor="sc-email">Courriel</label>
               <input id="sc-email" type="email" value={form.newContact.email} onChange={(event) => setContact("email", event.target.value)} />
             </div>
-            <div className="field">
-              <label htmlFor="sc-assigned">Employé assigné (facultatif)</label>
-              <select
-                id="sc-assigned"
-                value={form.assignedEmployeeId}
-                onChange={(event) => setForm((current) => ({ ...current, assignedEmployeeId: event.target.value }))}
-              >
-                <option value="">Non assigné</option>
+            <div className="field field-full">
+              <label>Techniciens assignés (facultatif, plusieurs possibles)</label>
+              <div className="service-call-employee-checklist">
                 {employees.map((employee) => (
-                  <option key={employee.id} value={employee.id}>
+                  <label key={employee.id}>
+                    <input
+                      type="checkbox"
+                      checked={(form.assignedEmployeeIds ?? []).includes(employee.id)}
+                      onChange={() => toggleEmployee(employee.id)}
+                    />
                     {employee.name}
-                  </option>
+                  </label>
                 ))}
-              </select>
+              </div>
             </div>
             <div className="field">
               <label htmlFor="sc-scheduled">Prévu le (facultatif)</label>
