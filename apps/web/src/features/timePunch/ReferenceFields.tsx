@@ -1,3 +1,4 @@
+import { BUDGET_CATEGORY_SLUGS } from "@gsc-pilot/business-rules";
 import type { PunchableTaskDto, ProjectOptionDto, ServiceCallOptionDto, PunchProjectType, RateType } from "./api.js";
 import { RATE_TYPE_LABELS } from "./api.js";
 import type { TechLevelDto } from "../settings/api.js";
@@ -51,6 +52,21 @@ export function ReferenceFields({
   const eligibleTechLevels = techLevels.filter((techLevel) => employeeTechLevelIds.includes(techLevel.id));
   const selectedTechLevel = eligibleTechLevels.find((techLevel) => techLevel.id === value.techLevelId);
 
+  // Catégorie → tâche en cascade (18-19 août 2026) : la tâche choisie porte
+  // déjà sa catégorie (PunchableTaskDto.category, dérivée serveur — jamais
+  // soumise séparément ici, purement un filtre d'affichage). Triée sur
+  // l'ordre canonique du budgétaire pour le scope "project" (Conception,
+  // Fabrication, Programmation, Assemblage, Installation, comme les
+  // sections du budgétaire) — internal/service n'ont qu'une seule
+  // catégorie chacun, l'ordre n'a alors aucun effet visible.
+  const canonicalOrder: readonly string[] = BUDGET_CATEGORY_SLUGS;
+  const categoriesForScope = Array.from(new Map(tasksForScope.map((task) => [task.category, task.categoryLabel])).entries())
+    .map(([category, categoryLabel]) => ({ category, categoryLabel }))
+    .sort((a, b) => canonicalOrder.indexOf(a.category) - canonicalOrder.indexOf(b.category));
+  const currentTask = tasksForScope.find((task) => task.id === value.taskId);
+  const selectedCategory = currentTask?.category ?? categoriesForScope[0]?.category ?? "";
+  const tasksForCategory = tasksForScope.filter((task) => task.category === selectedCategory);
+
   function handleProjectTypeChange(nextType: PunchProjectType) {
     const nextTasks = tasks.filter((task) => task.scope === nextType);
     onChange({
@@ -61,6 +77,11 @@ export function ReferenceFields({
       techLevelId: undefined,
       rateType: undefined,
     });
+  }
+
+  function handleCategoryChange(nextCategory: string) {
+    const firstTaskInCategory = tasksForScope.find((task) => task.category === nextCategory);
+    onChange({ taskId: firstTaskInCategory?.id ?? "" });
   }
 
   return (
@@ -116,12 +137,25 @@ export function ReferenceFields({
       )}
 
       <div className="field">
+        <label htmlFor="punch-category">Catégorie</label>
+        <select id="punch-category" required value={selectedCategory} onChange={(event) => handleCategoryChange(event.target.value)}>
+          <option value="" disabled>
+            {categoriesForScope.length ? "Sélectionner…" : "Aucune catégorie"}
+          </option>
+          {categoriesForScope.map((category) => (
+            <option key={category.category} value={category.category}>
+              {category.categoryLabel}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="field">
         <label htmlFor="punch-task">Tâche</label>
         <select id="punch-task" required value={value.taskId} onChange={(event) => onChange({ taskId: event.target.value })}>
           <option value="" disabled>
             Sélectionner…
           </option>
-          {tasksForScope.map((task) => (
+          {tasksForCategory.map((task) => (
             <option key={task.id} value={task.id}>
               {task.label}
             </option>
