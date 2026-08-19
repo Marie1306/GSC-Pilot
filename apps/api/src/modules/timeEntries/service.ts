@@ -237,7 +237,11 @@ export async function stopTimer(actorEmployeeId: string, actorPersona: Persona, 
   }
   const roundingMinutes = await requirePunchRoundingMinutes();
   const endAt = new Date();
-  const exactMinutes = Math.max(0, Math.round((endAt.getTime() - entry.startAt.getTime()) / 60000));
+  // Toujours vers le haut, jamais vers le bas (confirmé) — un punch de
+  // quelques secondes doit compter comme 1 minute exacte, pas 0 (Math.round
+  // aurait arrondi 0,08 minute à 0, faisant disparaître le punch de
+  // roundPunchMinutes aussi, puisque Math.ceil(0 / x) = 0).
+  const exactMinutes = Math.max(0, Math.ceil((endAt.getTime() - entry.startAt.getTime()) / 60000));
   const roundedMinutes = roundPunchMinutes(exactMinutes, roundingMinutes);
 
   const updated = await prisma.timeEntry.update({
@@ -269,7 +273,7 @@ export async function createManualEntry(actorEmployeeId: string, actorPersona: P
   const task = await requireActiveTask(input.taskId);
   const resolved = await resolvePunchTarget(actorPersona, employeeId, task, input);
   const roundingMinutes = await requirePunchRoundingMinutes();
-  const exactMinutes = Math.round(input.hours * 60);
+  const exactMinutes = Math.ceil(input.hours * 60);
   const roundedMinutes = roundPunchMinutes(exactMinutes, roundingMinutes);
   // Entrée manuelle = travail déjà terminé, saisi après coup — startAt/endAt
   // n'ont aucun sens en heure d'horloge réelle ici (contrairement au
@@ -402,7 +406,7 @@ export async function updateTimeEntry(
   if (patch.hours !== undefined) {
     if (!(patch.hours > 0)) throw new HttpError(400, "Le nombre d'heures doit être positif.");
     const roundingMinutes = await requirePunchRoundingMinutes();
-    const exactMinutes = Math.round(patch.hours * 60);
+    const exactMinutes = Math.ceil(patch.hours * 60);
     data.exactMinutes = exactMinutes;
     data.roundedMinutes = roundPunchMinutes(exactMinutes, roundingMinutes);
   }
