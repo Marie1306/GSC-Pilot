@@ -50,7 +50,8 @@ function categoryLabel(category: string): string {
   return BUDGET_CATEGORY_LABELS[category as keyof typeof BUDGET_CATEGORY_LABELS] ?? EXTRA_CATEGORY_LABELS[category] ?? category;
 }
 
-function rateForType(techLevel: TechLevel, rateType: "regular" | "overtime" | "extra"): number {
+/** Tarif facturé au client pour cette classe — jamais un coût (voir resolvePunchTarget). Réutilisé par modules/serviceCalls pour le prix de vente. */
+export function rateForType(techLevel: TechLevel, rateType: "regular" | "overtime" | "extra"): number {
   if (rateType === "overtime") return Number(techLevel.overtimeRate);
   if (rateType === "extra") return Number(techLevel.extraRate);
   return Number(techLevel.regularRate);
@@ -96,7 +97,11 @@ async function resolvePunchTarget(
     const eligible = employee.techLevels.find((level) => level.id === input.techLevelId);
     if (!eligible) throw new HttpError(400, "Classe facturable non applicable à cet employé.");
     const rateType = input.rateType === "overtime" || input.rateType === "extra" ? input.rateType : "regular";
-    return { category: task.category, costRate: rateForType(eligible, rateType), techLevelId: eligible.id, rateType };
+    // costRate = coût réel (Employee.costRate), cohérent avec project/internal —
+    // le taux de la classe (rateForType) est le tarif FACTURÉ AU CLIENT, jamais
+    // un coût; il reste dérivable via techLevelId+rateType (gelés ci-dessous)
+    // pour calculer le prix de vente d'un appel de service, séparément.
+    return { category: task.category, costRate: Number(employee.costRate), techLevelId: eligible.id, rateType };
   }
   if (input.projectType === "project") {
     if (!input.projectId) throw new HttpError(400, "Un projet est requis.");
