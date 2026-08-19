@@ -32,3 +32,51 @@
   letter-spacing: 0.04em;
   margin-bottom: 4px;
 }
+
+.contact-autocomplete {
+  position: relative;
+}
+.contact-autocomplete-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--gsc-color-surface);
+  border: 1px solid var(--gsc-color-line-strong);
+  border-radius: var(--gsc-radius-sm);
+  box-shadow: var(--gsc-shadow-lg);
+  max-height: 240px;
+  overflow-y: auto;
+}
+.contact-autocomplete-menu li {
+  display: block;
+}
+.contact-autocomplete-menu button {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px;
+  border: none;
+  background: none;
+  border-radius: var(--gsc-radius-sm);
+  cursor: pointer;
+  font: inherit;
+}
+.contact-autocomplete-menu button:hover,
+.contact-autocomplete-menu button:focus {
+  background: var(--gsc-color-surface2);
+  outline: none;
+}
+.contact-autocomplete-primary {
+  font-size: 13px;
+  font-weight: 600;
+}
+.contact-autocomplete-secondary {
+  font-size: 12px;
+  color: var(--gsc-color-muted);
+}

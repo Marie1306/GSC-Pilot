@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../lib/apiClient.js";
+import { ContactSearchField } from "../contacts/ContactAutocomplete.js";
+import type { ContactListItemDto } from "../contacts/api.js";
 import { fetchClientRequests, fetchSalesChannels, createBudget, URGENCY_LABELS, type NewClientRequestForBudget, type Urgency } from "./api.js";
 
 interface BudgetFormProps {
@@ -76,6 +78,18 @@ export function BudgetForm({ onClose, onCreated, initialRequestId }: BudgetFormP
     setNewRequest((current) => ({ ...current, [key]: value }));
   }
 
+  /** Sélection d'une suggestion — remplit les coordonnées comme si on les retapait depuis la fiche contact. */
+  function applyContact(contact: ContactListItemDto) {
+    setNewRequest((current) => ({
+      ...current,
+      company: contact.company ?? "",
+      contactName: contact.name,
+      contactRole: contact.role ?? "",
+      phone: contact.phone ?? "",
+      email: contact.email ?? "",
+    }));
+  }
+
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
@@ -113,14 +127,24 @@ export function BudgetForm({ onClose, onCreated, initialRequestId }: BudgetFormP
 
             {!selectedRequestId && (
               <>
-                <div className="field">
-                  <label htmlFor="bg-company">Entreprise</label>
-                  <input id="bg-company" required value={newRequest.company} onChange={(e) => set("company", e.target.value)} />
-                </div>
-                <div className="field">
-                  <label htmlFor="bg-contactName">Nom du contact</label>
-                  <input id="bg-contactName" required value={newRequest.contactName} onChange={(e) => set("contactName", e.target.value)} />
-                </div>
+                <ContactSearchField
+                  id="bg-company"
+                  label="Entreprise"
+                  field="company"
+                  required
+                  value={newRequest.company}
+                  onChange={(value) => set("company", value)}
+                  onSelect={applyContact}
+                />
+                <ContactSearchField
+                  id="bg-contactName"
+                  label="Nom du contact"
+                  field="name"
+                  required
+                  value={newRequest.contactName}
+                  onChange={(value) => set("contactName", value)}
+                  onSelect={applyContact}
+                />
 
                 <div className="field">
                   <label htmlFor="bg-contactRole">Rôle du contact (facultatif)</label>

@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchPunchableEmployees } from "../timePunch/api.js";
+import { ContactSearchField } from "../contacts/ContactAutocomplete.js";
+import type { ContactListItemDto } from "../contacts/api.js";
 import { createServiceCall, type CreateServiceCallInput } from "./api.js";
 
 interface ServiceCallFormProps {
@@ -46,6 +48,20 @@ export function ServiceCallForm({ onClose }: ServiceCallFormProps) {
     setForm((current) => ({ ...current, newContact: { ...current.newContact, [key]: value } }));
   }
 
+  /** Sélection d'une suggestion — remplit les coordonnées comme si on les retapait depuis la fiche contact. */
+  function applyContact(contact: ContactListItemDto) {
+    setForm((current) => ({
+      ...current,
+      newContact: {
+        contactName: contact.name,
+        company: contact.company ?? "",
+        contactRole: contact.role ?? "",
+        phone: contact.phone ?? "",
+        email: contact.email ?? "",
+      },
+    }));
+  }
+
   function toggleEmployee(employeeId: string) {
     setForm((current) => {
       const ids = current.assignedEmployeeIds ?? [];
@@ -76,19 +92,23 @@ export function ServiceCallForm({ onClose }: ServiceCallFormProps) {
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body form-grid">
-            <div className="field">
-              <label htmlFor="sc-company">Entreprise</label>
-              <input id="sc-company" value={form.newContact.company} onChange={(event) => setContact("company", event.target.value)} />
-            </div>
-            <div className="field">
-              <label htmlFor="sc-contactName">Nom du contact</label>
-              <input
-                id="sc-contactName"
-                required
-                value={form.newContact.contactName}
-                onChange={(event) => setContact("contactName", event.target.value)}
-              />
-            </div>
+            <ContactSearchField
+              id="sc-company"
+              label="Entreprise"
+              field="company"
+              value={form.newContact.company ?? ""}
+              onChange={(value) => setContact("company", value)}
+              onSelect={applyContact}
+            />
+            <ContactSearchField
+              id="sc-contactName"
+              label="Nom du contact"
+              field="name"
+              required
+              value={form.newContact.contactName}
+              onChange={(value) => setContact("contactName", value)}
+              onSelect={applyContact}
+            />
             <div className="field">
               <label htmlFor="sc-phone">Téléphone</label>
               <input id="sc-phone" value={form.newContact.phone} onChange={(event) => setContact("phone", event.target.value)} />

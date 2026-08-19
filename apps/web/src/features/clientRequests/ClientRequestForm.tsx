@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ContactSearchField } from "../contacts/ContactAutocomplete.js";
+import type { ContactListItemDto } from "../contacts/api.js";
 import {
   fetchSalesChannels,
   createClientRequest,
@@ -65,6 +67,18 @@ export function ClientRequestForm({ onClose }: ClientRequestFormProps) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  /** Sélection d'une suggestion — remplit les coordonnées comme si on les retapait depuis la fiche contact. */
+  function applyContact(contact: ContactListItemDto) {
+    setForm((current) => ({
+      ...current,
+      company: contact.company ?? "",
+      contactName: contact.name,
+      contactRole: contact.role ?? "",
+      phone: contact.phone ?? "",
+      email: contact.email ?? "",
+    }));
+  }
+
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
@@ -86,14 +100,24 @@ export function ClientRequestForm({ onClose }: ClientRequestFormProps) {
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body form-grid">
-            <div className="field">
-              <label htmlFor="cr-company">Entreprise</label>
-              <input id="cr-company" required value={form.company} onChange={(e) => set("company", e.target.value)} />
-            </div>
-            <div className="field">
-              <label htmlFor="cr-contactName">Nom du contact</label>
-              <input id="cr-contactName" required value={form.contactName} onChange={(e) => set("contactName", e.target.value)} />
-            </div>
+            <ContactSearchField
+              id="cr-company"
+              label="Entreprise"
+              field="company"
+              required
+              value={form.company}
+              onChange={(value) => set("company", value)}
+              onSelect={applyContact}
+            />
+            <ContactSearchField
+              id="cr-contactName"
+              label="Nom du contact"
+              field="name"
+              required
+              value={form.contactName}
+              onChange={(value) => set("contactName", value)}
+              onSelect={applyContact}
+            />
 
             <div className="field">
               <label htmlFor="cr-contactRole">Rôle du contact (facultatif)</label>
