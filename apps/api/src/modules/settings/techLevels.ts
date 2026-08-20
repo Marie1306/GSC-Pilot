@@ -38,6 +38,18 @@ export async function listTechLevels(): Promise<TechLevelDto[]> {
   return rows.map(toDto);
 }
 
+export type TechLevelSummaryDto = Omit<TechLevelDto, "regularRate" | "overtimeRate" | "extraRate">;
+
+/**
+ * Retire les 3 taux $/h — utilisé quand GET /tech-levels sert à Employé/
+ * Magasinier (voir routes.ts) : ils doivent voir le libellé de leurs
+ * propres classes pour choisir au punch, jamais les taux (canSeeFinancialValues,
+ * même principe transversal que partout ailleurs dans l'application).
+ */
+export function scrubTechLevelRates(techLevels: TechLevelDto[]): TechLevelSummaryDto[] {
+  return techLevels.map(({ regularRate: _regularRate, overtimeRate: _overtimeRate, extraRate: _extraRate, ...rest }) => rest);
+}
+
 export interface CreateTechLevelInput {
   label: string;
   regularRate: number;

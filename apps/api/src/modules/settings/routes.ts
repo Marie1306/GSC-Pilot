@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
-import { canAccessSettings } from "@gsc-pilot/business-rules";
+import { canAccessSettings, canSeeFinancialValues } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import { listPurchaseCategories, createPurchaseCategory, updatePurchaseCategory } from "./purchaseCategories.js";
 import { getMarginThresholds, updateMarginThresholds } from "./marginThresholds.js";
-import { listTechLevels, createTechLevel, updateTechLevel } from "./techLevels.js";
+import { listTechLevels, createTechLevel, updateTechLevel, scrubTechLevelRates } from "./techLevels.js";
 
 // Monté sur /api/settings (voir app.ts) — jamais sur /api directement, pour
 // que le .use() ci-dessous ne gate QUE les routes de ce module, pas tout
@@ -12,8 +12,28 @@ import { listTechLevels, createTechLevel, updateTechLevel } from "./techLevels.j
 // intercepterait aussi les requêtes vers des routes complètement différentes).
 export const settingsRouter = Router();
 
+/**
+ * Exception délibérée à la porte Direction seulement ci-dessous : chaque
+ * employé doit pouvoir lire le LIBELLÉ de ses propres classes facturables
+ * pour les choisir au punch (confirmé le 18-19 août 2026 — un employé peut
+ * avoir plusieurs classes, celle qui s'applique se choisit à chaque punch,
+ * pas seulement par Direction). Route déclarée AVANT le .use() ci-dessous
+ * pour échapper au blocage canAccessSettings — bogue réel trouvé en testant
+ * avec le compte Employé (19 août 2026) : la liste des classes n'apparaissait
+ * jamais, peu importe l'assignation faite côté Direction. Les taux $/h
+ * restent retirés pour Employé/Magasinier (canSeeFinancialValues, même
+ * principe transversal que partout ailleurs) — seul le libellé leur est
+ * nécessaire pour choisir la bonne classe.
+ */
+settingsRouter.get("/tech-levels", requireAuth, async (req, res) => {
+  const techLevels = await listTechLevels();
+  const showRates = canSeeFinancialValues(req.employee!.persona);
+  res.json({ techLevels: showRates ? techLevels : scrubTechLevelRates(techLevels) });
+});
+
 // Toute la section Paramètres est Direction seulement, sans exception (canAccessSettings, roles.ts) —
 // même porte appliquée uniformément à chaque route de ce module, pas seulement à l'affichage.
+// Exception unique : GET /tech-levels ci-dessus, déclarée avant cette porte.
 settingsRouter.use(requireAuth, requirePermission((persona) => canAccessSettings(persona)));
 
 settingsRouter.get("/purchase-categories", async (_req, res) => {
@@ -56,11 +76,6 @@ settingsRouter.patch("/margin-thresholds", async (req, res) => {
   const body = marginThresholdsSchema.parse(req.body);
   const thresholds = await updateMarginThresholds(body);
   res.json({ thresholds });
-});
-
-settingsRouter.get("/tech-levels", async (_req, res) => {
-  const techLevels = await listTechLevels();
-  res.json({ techLevels });
 });
 
 const createTechLevelSchema = z.object({

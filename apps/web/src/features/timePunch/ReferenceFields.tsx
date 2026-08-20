@@ -23,7 +23,8 @@ interface ReferenceFieldsProps {
   showRate: boolean;
 }
 
-function rateForType(techLevel: TechLevelDto, rateType: RateType): number {
+/** undefined pour Employé/Magasinier (voir TechLevelDto) — n'est de toute façon affiché que sous showRate. */
+function rateForType(techLevel: TechLevelDto, rateType: RateType): number | undefined {
   if (rateType === "overtime") return techLevel.overtimeRate;
   if (rateType === "extra") return techLevel.extraRate;
   return techLevel.regularRate;
@@ -201,7 +202,10 @@ export function ReferenceFields({
             <div className="field field-full">
               <label>Tarif appliqué</label>
               <p style={{ margin: 0, color: "var(--gsc-color-muted)" }}>
-                {selectedTechLevel ? `${rateForType(selectedTechLevel, value.rateType ?? "regular").toFixed(2)} $/h` : "—"}
+                {(() => {
+                  const rate = selectedTechLevel ? rateForType(selectedTechLevel, value.rateType ?? "regular") : undefined;
+                  return rate !== undefined ? `${rate.toFixed(2)} $/h` : "—";
+                })()}
               </p>
             </div>
           )}

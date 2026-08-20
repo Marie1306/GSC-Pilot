@@ -40,13 +40,19 @@ export function updateMarginThresholds(update: MarginThresholdsDto): Promise<{ t
  * Classes facturables en service (TechLevel), confirmé le 18 août 2026 —
  * trois taux distincts (régulier/temps supplémentaire/extra), la classe
  * réellement facturée se choisit au punch, pas fixée sur l'employé.
+ *
+ * Les 3 champs de taux sont absents (pas juste à 0) pour Employé/Magasinier
+ * — GET /tech-levels reste accessible à tout usager authentifié (chacun
+ * doit voir le LIBELLÉ de ses propres classes pour choisir au punch), mais
+ * les $/h restent retirés côté serveur pour qui ne voit jamais de valeurs
+ * financières (canSeeFinancialValues, même principe que partout ailleurs).
  */
 export interface TechLevelDto {
   id: string;
   label: string;
-  regularRate: number;
-  overtimeRate: number;
-  extraRate: number;
+  regularRate?: number;
+  overtimeRate?: number;
+  extraRate?: number;
   active: boolean;
   sortOrder: number;
 }
