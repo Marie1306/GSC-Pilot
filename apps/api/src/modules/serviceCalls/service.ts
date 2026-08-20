@@ -226,6 +226,63 @@ async function loadServiceCallOrThrow(id: string) {
   return call;
 }
 
+/**
+ * Totaux financiers réels d'un call — extrait de getServiceCallDetail (20 août
+ * 2026) pour être réutilisé tel quel par sendServiceCallToAdmin, qui doit
+ * connaître le vrai totalSale (peu importe le rôle de l'acteur) pour créer le
+ * jalon de facturation. Même calcul, jamais dupliqué ni réimplémenté.
+ */
+async function computeServiceCallFinancials(call: Awaited<ReturnType<typeof loadServiceCallOrThrow>>): Promise<{
+  laborHours: number;
+  laborCost: number;
+  laborSale: number;
+  partsCost: number;
+  partsSale: number;
+  expenses: number;
+  totalCost: number;
+  totalSale: number;
+}> {
+  const settings = await prisma.settings.findFirst();
+  if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
+  const techLevelIds = [...new Set(call.timeEntries.map((entry) => entry.techLevelId).filter((id): id is string => !!id))];
+  const techLevels = await prisma.techLevel.findMany({ where: { id: { in: techLevelIds } } });
+  const techLevelsById = Object.fromEntries(
+    techLevels.map((techLevel) => [
+      techLevel.id,
+      { regularRate: Number(techLevel.regularRate), overtimeRate: Number(techLevel.overtimeRate), extraRate: Number(techLevel.extraRate) },
+    ]),
+  );
+  const labor = serviceCallLaborTotals(
+    call.timeEntries.map((entry) => ({
+      status: entry.status,
+      roundedMinutes: entry.roundedMinutes,
+      costRate: Number(entry.costRate),
+      techLevelId: entry.techLevelId,
+      rateType: entry.rateType,
+    })),
+    techLevelsById,
+  );
+  const pricedParts = call.parts.filter((part) => part.costPerUnit !== null);
+  const partsCost = pricedParts.reduce((sum, part) => sum + Number(part.costPerUnit) * Number(part.qty), 0);
+  const partsSale = pricedParts.reduce((sum, part) => sum + Number(part.salePricePerUnit ?? 0) * Number(part.qty), 0);
+  const expenses = serviceCallExpenseTotal(call.kmTraveled ? Number(call.kmTraveled) : null, call.mealsClaimed, {
+    mileageRate: Number(settings.mileageRate),
+    breakfastRate: Number(settings.breakfastRate),
+    lunchRate: Number(settings.lunchRate),
+    dinnerRate: Number(settings.dinnerRate),
+  });
+  return {
+    laborHours: labor.hours,
+    laborCost: labor.cost,
+    laborSale: labor.sale,
+    partsCost: Math.round(partsCost * 100) / 100,
+    partsSale: Math.round(partsSale * 100) / 100,
+    expenses,
+    totalCost: Math.round((labor.cost + partsCost + expenses) * 100) / 100,
+    totalSale: Math.round((labor.sale + partsSale + expenses) * 100) / 100,
+  };
+}
+
 export async function getServiceCallDetail(id: string, viewerPersona: Persona): Promise<ServiceCallDetailDto> {
   const call = await loadServiceCallOrThrow(id);
   const showFinancials = canSeeServicePricing(viewerPersona);
@@ -236,43 +293,15 @@ export async function getServiceCallDetail(id: string, viewerPersona: Persona): 
 
   const totals: ServiceCallTotalsDto = { laborHours: 0 };
   if (showFinancials) {
-    const settings = await prisma.settings.findFirst();
-    if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
-    const techLevelIds = [...new Set(call.timeEntries.map((entry) => entry.techLevelId).filter((id): id is string => !!id))];
-    const techLevels = await prisma.techLevel.findMany({ where: { id: { in: techLevelIds } } });
-    const techLevelsById = Object.fromEntries(
-      techLevels.map((techLevel) => [
-        techLevel.id,
-        { regularRate: Number(techLevel.regularRate), overtimeRate: Number(techLevel.overtimeRate), extraRate: Number(techLevel.extraRate) },
-      ]),
-    );
-    const labor = serviceCallLaborTotals(
-      call.timeEntries.map((entry) => ({
-        status: entry.status,
-        roundedMinutes: entry.roundedMinutes,
-        costRate: Number(entry.costRate),
-        techLevelId: entry.techLevelId,
-        rateType: entry.rateType,
-      })),
-      techLevelsById,
-    );
-    const pricedParts = call.parts.filter((part) => part.costPerUnit !== null);
-    const partsCost = pricedParts.reduce((sum, part) => sum + Number(part.costPerUnit) * Number(part.qty), 0);
-    const partsSale = pricedParts.reduce((sum, part) => sum + Number(part.salePricePerUnit ?? 0) * Number(part.qty), 0);
-    const expenses = serviceCallExpenseTotal(call.kmTraveled ? Number(call.kmTraveled) : null, call.mealsClaimed, {
-      mileageRate: Number(settings.mileageRate),
-      breakfastRate: Number(settings.breakfastRate),
-      lunchRate: Number(settings.lunchRate),
-      dinnerRate: Number(settings.dinnerRate),
-    });
-    totals.laborHours = labor.hours;
-    totals.laborCost = labor.cost;
-    totals.laborSale = labor.sale;
-    totals.partsCost = Math.round(partsCost * 100) / 100;
-    totals.partsSale = Math.round(partsSale * 100) / 100;
-    totals.expenses = expenses;
-    totals.totalCost = Math.round((labor.cost + partsCost + expenses) * 100) / 100;
-    totals.totalSale = Math.round((labor.sale + partsSale + expenses) * 100) / 100;
+    const financials = await computeServiceCallFinancials(call);
+    totals.laborHours = financials.laborHours;
+    totals.laborCost = financials.laborCost;
+    totals.laborSale = financials.laborSale;
+    totals.partsCost = financials.partsCost;
+    totals.partsSale = financials.partsSale;
+    totals.expenses = financials.expenses;
+    totals.totalCost = financials.totalCost;
+    totals.totalSale = financials.totalSale;
   } else {
     totals.laborHours = serviceCallLaborTotals(
       call.timeEntries.map((entry) => ({ status: entry.status, roundedMinutes: entry.roundedMinutes })),
@@ -422,12 +451,33 @@ export async function approveServiceCall(id: string, approverId: string): Promis
   });
 }
 
-/** Direction seulement (canSendServiceCallToAdmin) — statut réel seulement, aucun courriel envoyé cette passe (voir en-tête). */
-export async function sendServiceCallToAdmin(id: string): Promise<void> {
+/**
+ * Direction seulement (canSendServiceCallToAdmin) — aucun courriel envoyé
+ * cette passe (voir en-tête). Crée aussi le jalon de facturation (20 août
+ * 2026, module Facturation) : un appel de service n'a pas de cycle à 4
+ * jalons comme un projet (computeBillingPlan), un seul jalon à 100 % du
+ * total réel suffit. requestedAt posé immédiatement (l'envoi EST la
+ * demande, pas de "Demander" séparé comme pour un projet) — c'est ce champ
+ * qui fait apparaître l'entrée dans la liste consolidée (voir invoicing/service.ts).
+ */
+export async function sendServiceCallToAdmin(id: string, actorId: string): Promise<void> {
   const call = await loadServiceCallOrThrow(id);
   if (!call.ownerApprovedAt) throw new HttpError(400, "Le call doit d'abord être approuvé par la Direction.");
   if (call.sentToAdminAt) throw new HttpError(409, "Déjà envoyé à l'administration.");
-  await prisma.serviceCall.update({ where: { id }, data: { sentToAdminAt: new Date() } });
+  const financials = await computeServiceCallFinancials(call);
+  await prisma.$transaction([
+    prisma.serviceCall.update({ where: { id }, data: { sentToAdminAt: new Date() } }),
+    prisma.invoicePlanEntry.create({
+      data: {
+        serviceCallId: id,
+        label: call.displayId,
+        pct: 100,
+        amount: financials.totalSale,
+        requestedById: actorId,
+        requestedAt: new Date(),
+      },
+    }),
+  ]);
 }
 
 /** Corbeille — même mécanisme que deleteClientRequest/deleteBudget/deleteProject (19 août 2026). */

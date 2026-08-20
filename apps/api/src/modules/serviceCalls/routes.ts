@@ -148,7 +148,7 @@ serviceCallsRouter.post(
   requirePermission((persona) => canSendServiceCallToAdmin(persona)),
   async (req, res) => {
     const id = z.uuid().parse(req.params.id);
-    await sendServiceCallToAdmin(id);
+    await sendServiceCallToAdmin(id, req.employee!.id);
     res.status(204).end();
   },
 );
