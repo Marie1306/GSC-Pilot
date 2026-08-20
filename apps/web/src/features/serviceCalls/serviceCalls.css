@@ -52,6 +52,16 @@
   margin-top: 4px;
 }
 
+.service-call-signature-declaration {
+  background: var(--gsc-color-danger-soft);
+  color: var(--gsc-color-danger);
+  border-left: 3px solid var(--gsc-color-danger);
+  border-radius: var(--gsc-radius-base);
+  padding: 12px 14px;
+  margin: 0 0 16px;
+  font-size: 13px;
+}
+
 .service-call-totals-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

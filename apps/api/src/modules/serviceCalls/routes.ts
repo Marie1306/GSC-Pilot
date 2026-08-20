@@ -118,15 +118,15 @@ serviceCallsRouter.patch(
   },
 );
 
-const signatureSchema = z.object({ dataUrl: z.string().min(1) });
+const signatureSchema = z.object({ dataUrl: z.string().min(1), signerName: z.string().min(1, "Le nom du signataire est requis.") });
 serviceCallsRouter.post(
   "/service-calls/:id/signature",
   requireAuth,
   requirePermission((persona) => canAccessServiceCalls(persona)),
   async (req, res) => {
     const id = z.uuid().parse(req.params.id);
-    const { dataUrl } = signatureSchema.parse(req.body);
-    await captureServiceCallSignature(id, dataUrl);
+    const { dataUrl, signerName } = signatureSchema.parse(req.body);
+    await captureServiceCallSignature(id, dataUrl, signerName);
     res.status(204).end();
   },
 );

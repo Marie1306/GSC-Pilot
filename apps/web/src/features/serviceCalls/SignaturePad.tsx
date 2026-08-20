@@ -1,19 +1,35 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useRef, useState, forwardRef, useImperativeHandle, type PointerEvent as ReactPointerEvent } from "react";
+
+export interface SignaturePadHandle {
+  getDataUrl: () => string | null;
+}
 
 interface SignaturePadProps {
-  onSave: (dataUrl: string) => void;
-  saving?: boolean;
+  onDrawnChange?: (hasDrawn: boolean) => void;
 }
 
 /**
  * Signature capturée directement en dataURL (canvas), enregistrée telle
  * quelle dans ServiceCall.signatureImageUrl — aucune infrastructure de
  * stockage de fichiers montée cette passe (portée, voir CLAUDE.md).
+ *
+ * Composant purement dessin (20 août 2026) — la confirmation (déclaration,
+ * nom du signataire, case à cocher) vit dans SignatureModal.tsx, qui lit
+ * le tracé via getDataUrl() au moment de son propre bouton "Confirmer".
  */
-export function SignaturePad({ onSave, saving }: SignaturePadProps) {
+export const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(function SignaturePad({ onDrawnChange }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawingRef = useRef(false);
   const [hasDrawn, setHasDrawn] = useState(false);
+
+  useImperativeHandle(ref, () => ({
+    getDataUrl: () => (hasDrawn && canvasRef.current ? canvasRef.current.toDataURL("image/png") : null),
+  }));
+
+  function markDrawn() {
+    setHasDrawn(true);
+    onDrawnChange?.(true);
+  }
 
   function pointerPos(event: ReactPointerEvent<HTMLCanvasElement>) {
     const rect = canvasRef.current!.getBoundingClientRect();
@@ -40,7 +56,7 @@ export function SignaturePad({ onSave, saving }: SignaturePadProps) {
     ctx.lineCap = "round";
     ctx.lineTo(x, y);
     ctx.stroke();
-    setHasDrawn(true);
+    markDrawn();
   }
 
   function handlePointerUp() {
@@ -53,12 +69,7 @@ export function SignaturePad({ onSave, saving }: SignaturePadProps) {
     if (!canvas || !ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     setHasDrawn(false);
-  }
-
-  function save() {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    onSave(canvas.toDataURL("image/png"));
+    onDrawnChange?.(false);
   }
 
   return (
@@ -73,14 +84,12 @@ export function SignaturePad({ onSave, saving }: SignaturePadProps) {
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
       />
-      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 8 }}>
+        <span style={{ fontSize: 13, color: "var(--gsc-color-muted)" }}>Utiliser le doigt ou la souris</span>
         <button type="button" className="btn btn-secondary" onClick={clear} disabled={!hasDrawn}>
           Effacer
-        </button>
-        <button type="button" className="btn" onClick={save} disabled={!hasDrawn || saving}>
-          {saving ? "Enregistrement…" : "Enregistrer la signature"}
         </button>
       </div>
     </div>
   );
-}
+});

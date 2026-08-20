@@ -200,6 +200,7 @@ export interface ServiceCallDetailDto {
   summary: string | null;
   signatureCaptured: boolean;
   signatureImageUrl: string | null;
+  signatureSignerName: string | null;
   ownerApprovedByName: string | null;
   ownerApprovedAt: string | null;
   sentToAdminAt: string | null;
@@ -299,6 +300,7 @@ export async function getServiceCallDetail(id: string, viewerPersona: Persona): 
     summary: call.summary,
     signatureCaptured: call.signatureCaptured,
     signatureImageUrl: call.signatureImageUrl,
+    signatureSignerName: call.signatureSignerName,
     ownerApprovedByName: approvedByEmployee?.name ?? null,
     ownerApprovedAt: call.ownerApprovedAt?.toISOString() ?? null,
     sentToAdminAt: call.sentToAdminAt?.toISOString() ?? null,
@@ -392,11 +394,20 @@ export async function priceServiceCallPart(partId: string, pricedById: string, i
   return toPartDto(updated);
 }
 
-/** Data URL (image/png;base64,...) — capturée à l'écran, aucun stockage de fichiers réel cette passe (voir en-tête). */
-export async function captureServiceCallSignature(id: string, dataUrl: string): Promise<void> {
+/**
+ * Data URL (image/png;base64,...) — capturée à l'écran, aucun stockage de
+ * fichiers réel cette passe (voir en-tête). Nom du signataire obligatoire
+ * (20 août 2026, sur demande de l'utilisatrice) — accompagne la déclaration
+ * affichée dans SignatureModal.tsx.
+ */
+export async function captureServiceCallSignature(id: string, dataUrl: string, signerName: string): Promise<void> {
   await loadServiceCallOrThrow(id);
   if (!dataUrl?.startsWith("data:image/")) throw new HttpError(400, "Signature invalide.");
-  await prisma.serviceCall.update({ where: { id }, data: { signatureCaptured: true, signatureImageUrl: dataUrl } });
+  if (!signerName?.trim()) throw new HttpError(400, "Le nom du signataire est requis.");
+  await prisma.serviceCall.update({
+    where: { id },
+    data: { signatureCaptured: true, signatureImageUrl: dataUrl, signatureSignerName: signerName.trim() },
+  });
 }
 
 /** Direction seulement (canApproveServiceCall) — exige résumé + signature déjà faits (cycle confirmé). */

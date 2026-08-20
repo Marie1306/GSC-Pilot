@@ -34,17 +34,17 @@ enum Persona {
 }
 
 model Employee {
-  id                String     @id @default(uuid())
-  authUserId        String?    @unique // lien vers auth.users de Supabase — nul tant que l'invitation n'est pas acceptée
+  id                String      @id @default(uuid())
+  authUserId        String?     @unique // lien vers auth.users de Supabase — nul tant que l'invitation n'est pas acceptée
   name              String
   initials          String
-  email             String     @unique
+  email             String      @unique
   phone             String?
   persona           Persona
   jobTitle          String? // ex. "Fabrication", "Technicien" — distinct de persona (permission)
-  skills            String[]   @default([])
-  skillEfficiencies Json       @default("{}") // {[skill]: pct} — Gantt seulement, jamais le budgétaire/heures/post-mortem
-  costRate          Decimal    @default(0) @db.Decimal(10, 2)
+  skills            String[]    @default([])
+  skillEfficiencies Json        @default("{}") // {[skill]: pct} — Gantt seulement, jamais le budgétaire/heures/post-mortem
+  costRate          Decimal     @default(0) @db.Decimal(10, 2)
   // Classes facturables en service (plusieurs choix permis — confirmé par
   // l'utilisatrice le 18 août 2026) : un même employé peut avoir plusieurs
   // classes applicables (ex. programmeur ET technicien senior). La classe
@@ -53,9 +53,9 @@ model Employee {
   // Remplace l'ancien lien 1:1 techLevelId, qui n'avait aucun consommateur
   // réel avant ce changement (vérifié avant de le retirer).
   techLevels        TechLevel[]
-  active            Boolean    @default(true)
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
+  active            Boolean     @default(true)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
   delegationsGranted   DelegationGrant[] @relation("DelegationGrantedBy")
   delegationsHeld      DelegationGrant[] @relation("DelegationDelegate")
@@ -377,62 +377,62 @@ model BudgetRow {
 // ---------------------------------------------------------------------------
 
 model Project {
-  id                   String         @id @default(uuid())
-  projectNumber        String         @unique
-  name                 String
-  contactId            String
-  contact              Contact        @relation(fields: [contactId], references: [id])
-  clientRequestId      String?        @unique
-  clientRequest        ClientRequest? @relation(fields: [clientRequestId], references: [id])
-  budgetId             String?        @unique // nullable — création directe possible, avec ou sans budgétaire (confirmé)
-  budget               Budget?        @relation(fields: [budgetId], references: [id])
-  status               String         @default("active")
-  priority             Int            @default(0)
-  sold                 Decimal        @default(0) @db.Decimal(12, 2)
-  plannedPurchases     Decimal        @default(0) @db.Decimal(12, 2)
-  actualPurchases      Decimal        @default(0) @db.Decimal(12, 2)
-  laborHours           Decimal        @default(0) @db.Decimal(10, 2)
-  laborCost            Decimal        @default(0) @db.Decimal(12, 2)
-  plannedHours         Decimal        @default(0) @db.Decimal(10, 2)
-  actualHours          Decimal        @default(0) @db.Decimal(10, 2)
-  backupHours          Decimal        @default(0) @db.Decimal(10, 2)
-  backupHoursCost      Decimal        @default(0) @db.Decimal(12, 2)
-  backupHourlyRate     Decimal?       @db.Decimal(10, 2) // taux gelé du budgétaire d'origine — utilisé par les avenants
+  id                          String         @id @default(uuid())
+  projectNumber               String         @unique
+  name                        String
+  contactId                   String
+  contact                     Contact        @relation(fields: [contactId], references: [id])
+  clientRequestId             String?        @unique
+  clientRequest               ClientRequest? @relation(fields: [clientRequestId], references: [id])
+  budgetId                    String?        @unique // nullable — création directe possible, avec ou sans budgétaire (confirmé)
+  budget                      Budget?        @relation(fields: [budgetId], references: [id])
+  status                      String         @default("active")
+  priority                    Int            @default(0)
+  sold                        Decimal        @default(0) @db.Decimal(12, 2)
+  plannedPurchases            Decimal        @default(0) @db.Decimal(12, 2)
+  actualPurchases             Decimal        @default(0) @db.Decimal(12, 2)
+  laborHours                  Decimal        @default(0) @db.Decimal(10, 2)
+  laborCost                   Decimal        @default(0) @db.Decimal(12, 2)
+  plannedHours                Decimal        @default(0) @db.Decimal(10, 2)
+  actualHours                 Decimal        @default(0) @db.Decimal(10, 2)
+  backupHours                 Decimal        @default(0) @db.Decimal(10, 2)
+  backupHoursCost             Decimal        @default(0) @db.Decimal(12, 2)
+  backupHourlyRate            Decimal?       @db.Decimal(10, 2) // taux gelé du budgétaire d'origine — utilisé par les avenants
   // Réserve monétaire liée au projet, distincte du back-up d'heures —
   // jamais alimentée par un achat ou un punch réel, mais entre dans le
   // calcul de la marge réelle (confirmé par capture d'écran de la vue
   // projet v19, 12 août 2026). Gelée depuis Budget.projectBackupAmount au
   // moment de la conversion.
-  projectBackupAmount  Decimal        @default(0) @db.Decimal(12, 2)
+  projectBackupAmount         Decimal        @default(0) @db.Decimal(12, 2)
   // Total heures + achats + frais divers des 3 catégories du groupe
   // "installation" (installationLabor/installationStock/installationExpenses),
   // AVANT marge — confirmé le 17 août 2026 : corrige la tuile "Livraison
   // planifiée" de la référence v19 (erreur de libellé — ce n'est pas une
   // catégorie du budgétaire). Gelé à la conversion, même esprit que
   // plannedHours/plannedPurchases ci-dessus.
-  installationPlannedHours Decimal   @default(0) @db.Decimal(10, 2)
-  installationPlannedCost  Decimal   @default(0) @db.Decimal(12, 2)
+  installationPlannedHours    Decimal        @default(0) @db.Decimal(10, 2)
+  installationPlannedCost     Decimal        @default(0) @db.Decimal(12, 2)
   // Marge globale du budgétaire d'origine (prix vendu total vs coût total),
   // gelée une seule fois au moment de la conversion — ne change plus
   // jamais ensuite, même si un avenant fait varier la marge réelle
   // ci-dessus. Absente pour un projet créé directement, sans budgétaire.
   // Nouvelle case demandée par l'utilisatrice, absente de la v19 elle-même.
-  targetMarginPct      Decimal?       @db.Decimal(5, 2)
-  billingSplitOverride Json?
-  deadline             DateTime?
-  desiredStart         DateTime?
-  productionCompleted  Boolean        @default(false)
-  fulfillmentMode      String?
-  fulfillmentStatus    String?
-  fulfillmentDriverId  String?
-  fulfillmentAddress   String?
-  fulfillmentScheduled DateTime?
+  targetMarginPct             Decimal?       @db.Decimal(5, 2)
+  billingSplitOverride        Json?
+  deadline                    DateTime?
+  desiredStart                DateTime?
+  productionCompleted         Boolean        @default(false)
+  fulfillmentMode             String?
+  fulfillmentStatus           String?
+  fulfillmentDriverId         String?
+  fulfillmentAddress          String?
+  fulfillmentScheduled        DateTime?
   // Champs de fulfillment.ts (FulfillmentEntity) restés absents jusqu'ici —
   // Phase 2C (17 août 2026). billingReady ne se met à true que pour les
   // modes tiers/ramassage confirmés (confirmFulfillment) — jamais pour
   // warehouse, dont la confirmation vient du Bon de livraison (Delivery)
   // lui-même, pas de ce champ.
-  billingReady                Boolean   @default(false)
+  billingReady                Boolean        @default(false)
   fulfillmentConfirmationNote String?
   // Garantie (Projet 2D, 17 août 2026) — deux données indépendantes,
   // confirmées par Q&R avec l'utilisatrice. warrantyExpected : coché dès la
@@ -444,9 +444,9 @@ model Project {
   // pas du statut du projet (confirmé). Onglet "Garantie" dérivé de
   // warrantyEndsAt à la lecture (voir warranty.ts), jamais un nouveau
   // statut stocké — expire tout seul, sans job ni geste manuel.
-  warrantyExpected Boolean   @default(false)
-  warrantyEndsAt   DateTime?
-  closedAt             DateTime? // geste manuel séparé — jamais un effet de bord du mode de sortie
+  warrantyExpected            Boolean        @default(false)
+  warrantyEndsAt              DateTime?
+  closedAt                    DateTime? // geste manuel séparé — jamais un effet de bord du mode de sortie
   // Menu Options du projet (Projet 2F, 17 août 2026) — deux gestes séparés
   // de closedAt, confirmés par capture d'écran (section "Actions
   // sensibles" du menu). archivedAt : reste pleinement accessible (lien
@@ -454,8 +454,8 @@ model Project {
   // esprit que le Budgétaire archivé. deletedAt : mécanisme de corbeille
   // seulement (masqué des listes) — l'écran de restauration 90 jours lui-
   // même attend le module Paramètres complet (confirmé, pas construit ici).
-  archivedAt DateTime?
-  deletedAt  DateTime?
+  archivedAt                  DateTime?
+  deletedAt                   DateTime?
   // Post-mortem — « Analyse finale » (Projet 2E, 17 août 2026) — seule
   // vraie nouvelle donnée du Post-mortem, tout le reste de l'écran
   // réutilise des chiffres déjà calculés ailleurs (comparatif, achats,
@@ -464,12 +464,12 @@ model Project {
   // esprit que la Garantie. Le comparatif détaillé par sous-tâche reste
   // hors de cette étape — confirmé complexe, spécification à venir de
   // l'utilisatrice avant de construire le lien punch → tâche.
-  postMortemDepassements   String?
-  postMortemAmeliorations  String?
-  postMortemRecommandation String?
-  createdById          String
-  createdAt            DateTime       @default(now())
-  updatedAt            DateTime       @updatedAt
+  postMortemDepassements      String?
+  postMortemAmeliorations     String?
+  postMortemRecommandation    String?
+  createdById                 String
+  createdAt                   DateTime       @default(now())
+  updatedAt                   DateTime       @updatedAt
 
   team             ProjectTeamMember[]
   tasks            ProjectTask[]
@@ -693,11 +693,11 @@ model PurchaseRequest {
 // ---------------------------------------------------------------------------
 
 model PunchableTask {
-  id        String  @id @default(uuid())
-  category  String
-  label     String
-  active    Boolean @default(true)
-  sortOrder Int     @default(0)
+  id               String          @id @default(uuid())
+  category         String
+  label            String
+  active           Boolean         @default(true)
+  sortOrder        Int             @default(0)
   // Lien direct vers la ligne du modèle de budgétaire "labor" correspondante
   // — même tâche, utilisée à la fois pour planifier (budgétaire) et pour
   // puncher. Confirmé par l'utilisatrice le 18 août 2026 : elle veut un
@@ -762,10 +762,10 @@ model TimeEntry {
 // ---------------------------------------------------------------------------
 
 model ServiceCall {
-  id                           String    @id @default(uuid())
-  displayId                    String    @unique // format CS-AAAA-NNNN
+  id                           String     @id @default(uuid())
+  displayId                    String     @unique // format CS-AAAA-NNNN
   contactId                    String
-  contact                      Contact   @relation(fields: [contactId], references: [id])
+  contact                      Contact    @relation(fields: [contactId], references: [id])
   request                      String
   // Snapshot au moment de la demande, comme ClientRequest.address — Contact
   // n'a volontairement pas de champ adresse (carnet simple, voir spec).
@@ -775,21 +775,24 @@ model ServiceCall {
   // techniciens") — remplace l'ancien assignedEmployeeId singulier.
   assignedEmployees            Employee[]
   techLevelId                  String?
-  billRate                     Decimal?  @db.Decimal(10, 2) // gelé du TechLevel au moment de l'assignation
+  billRate                     Decimal?   @db.Decimal(10, 2) // gelé du TechLevel au moment de l'assignation
   scheduledAt                  DateTime?
-  status                       String    @default("scheduled")
+  status                       String     @default("scheduled")
   startAt                      DateTime?
   endAt                        DateTime?
-  kmTraveled                   Decimal?  @db.Decimal(10, 2)
-  mealsClaimed                 String[]  @default([])
+  kmTraveled                   Decimal?   @db.Decimal(10, 2)
+  mealsClaimed                 String[]   @default([])
   summary                      String?
-  signatureCaptured            Boolean   @default(false)
+  signatureCaptured            Boolean    @default(false)
   signatureImageUrl            String?
+  // Déclaration + nom du signataire obligatoires à la capture (20 août 2026,
+  // sur demande de l'utilisatrice) — voir SignatureModal.tsx côté interface.
+  signatureSignerName          String?
   ownerApprovedById            String?
   ownerApprovedAt              DateTime?
-  partPricingMarginPctOverride Decimal?  @db.Decimal(5, 2)
+  partPricingMarginPctOverride Decimal?   @db.Decimal(5, 2)
   sentToAdminAt                DateTime?
-  createdAt                    DateTime  @default(now())
+  createdAt                    DateTime   @default(now())
   // Corbeille — même mécanisme que Project.deletedAt/ClientRequest.deletedAt/
   // Budget.deletedAt (19 août 2026) : Direction seulement (canDeleteServiceCall).
   deletedAt                    DateTime?

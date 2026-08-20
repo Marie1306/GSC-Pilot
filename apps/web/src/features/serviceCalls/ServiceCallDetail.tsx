@@ -90,7 +90,7 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
     onError: onMutationError,
   });
   const signatureMutation = useMutation({
-    mutationFn: (dataUrl: string) => captureServiceCallSignature(id, dataUrl),
+    mutationFn: ({ dataUrl, signerName }: { dataUrl: string; signerName: string }) => captureServiceCallSignature(id, dataUrl, signerName),
     onSuccess: () => {
       setSigning(false);
       invalidate();
@@ -404,6 +404,9 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
           {call.signatureCaptured && call.signatureImageUrl ? (
             <div>
               <img src={call.signatureImageUrl} alt="Signature du client" className="signature-pad-preview" />
+              {call.signatureSignerName && (
+                <p style={{ margin: "6px 0 0", fontSize: 13, color: "var(--gsc-color-muted)" }}>Signé par {call.signatureSignerName}.</p>
+              )}
               {call.status !== "approved" && (
                 <div style={{ marginTop: 8 }}>
                   <button type="button" className="btn btn-secondary service-call-btn-small" onClick={() => setSigning(true)}>
@@ -525,8 +528,9 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
       )}
       {signing && (
         <SignatureModal
+          displayId={call.displayId}
           onClose={() => setSigning(false)}
-          onSave={(dataUrl) => signatureMutation.mutate(dataUrl)}
+          onSave={(dataUrl, signerName) => signatureMutation.mutate({ dataUrl, signerName })}
           saving={signatureMutation.isPending}
         />
       )}

@@ -98,6 +98,7 @@ export interface ServiceCallDetailDto {
   summary: string | null;
   signatureCaptured: boolean;
   signatureImageUrl: string | null;
+  signatureSignerName: string | null;
   ownerApprovedByName: string | null;
   ownerApprovedAt: string | null;
   sentToAdminAt: string | null;
@@ -141,8 +142,8 @@ export function priceServiceCallPart(
   return apiFetch(`/api/service-calls/parts/${partId}/price`, { method: "PATCH", body: JSON.stringify(input) });
 }
 
-export function captureServiceCallSignature(id: string, dataUrl: string): Promise<void> {
-  return apiFetch(`/api/service-calls/${id}/signature`, { method: "POST", body: JSON.stringify({ dataUrl }) });
+export function captureServiceCallSignature(id: string, dataUrl: string, signerName: string): Promise<void> {
+  return apiFetch(`/api/service-calls/${id}/signature`, { method: "POST", body: JSON.stringify({ dataUrl, signerName }) });
 }
 
 export function approveServiceCall(id: string): Promise<void> {
