@@ -139,6 +139,7 @@ export function TechLevelsCard() {
                     type="number"
                     min={0}
                     step="0.01"
+                    style={{ maxWidth: 100 }}
                     value={draft.regularRate}
                     onChange={(event) => setDraft(techLevel, { regularRate: event.target.value })}
                   />
@@ -148,6 +149,7 @@ export function TechLevelsCard() {
                     type="number"
                     min={0}
                     step="0.01"
+                    style={{ maxWidth: 100 }}
                     value={draft.overtimeRate}
                     onChange={(event) => setDraft(techLevel, { overtimeRate: event.target.value })}
                   />
@@ -157,6 +159,7 @@ export function TechLevelsCard() {
                     type="number"
                     min={0}
                     step="0.01"
+                    style={{ maxWidth: 100 }}
                     value={draft.extraRate}
                     onChange={(event) => setDraft(techLevel, { extraRate: event.target.value })}
                   />
