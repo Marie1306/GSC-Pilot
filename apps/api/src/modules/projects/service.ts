@@ -298,6 +298,9 @@ export interface ProjectListItemDto {
   deadline: string | null;
   sold?: number;
   hoursUsedPct: number;
+  actualHours: number;
+  cost?: number;
+  grossMargin?: number;
   progressionPct?: number;
   grossMarginPct?: number;
   financialStatus?: FinancialStatus;
@@ -382,7 +385,8 @@ export async function listProjects(viewerPersona: Persona): Promise<ProjectListI
     const purchasesActual = purchasesByProject.get(project.id) ?? 0;
     const sold = Number(project.sold);
     const plannedHours = Number(project.plannedHours);
-    const grossMarginPct = round2(projectMargin(sold, actualLaborCost, purchasesActual).grossMarginPct);
+    const marginResult = projectMargin(sold, actualLaborCost, purchasesActual);
+    const grossMarginPct = round2(marginResult.grossMarginPct);
     const backupRate = project.backupHourlyRate !== null ? Number(project.backupHourlyRate) : 0;
     const plannedBase = plannedHours * backupRate + Number(project.plannedPurchases);
     const actualBase = actualHours * backupRate + purchasesActual;
@@ -396,11 +400,14 @@ export async function listProjects(viewerPersona: Persona): Promise<ProjectListI
       company: project.contact.company,
       deadline: project.deadline?.toISOString() ?? null,
       hoursUsedPct: plannedHours > 0 ? round2((actualHours / plannedHours) * 100) : 0,
+      actualHours,
       warrantyExpected: project.warrantyExpected,
       warrantyEndsAt: project.warrantyEndsAt?.toISOString() ?? null,
       lifecycleTab: projectLifecycleTab(project),
       ...(showFinancials && {
         sold,
+        cost: round2(actualLaborCost + purchasesActual),
+        grossMargin: marginResult.grossMargin,
         progressionPct: plannedBase > 0 ? round2((actualBase / plannedBase) * 100) : 0,
         grossMarginPct,
         financialStatus: financialStatus(grossMarginPct, thresholds),
