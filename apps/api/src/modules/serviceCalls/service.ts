@@ -219,7 +219,7 @@ async function loadServiceCallOrThrow(id: string) {
       parts: true,
       photos: true,
       assignedEmployees: { select: { id: true, name: true } },
-      timeEntries: { include: { employee: true, task: true }, orderBy: { startAt: "desc" } },
+      timeEntries: { where: { deletedAt: null }, include: { employee: true, task: true }, orderBy: { startAt: "desc" } },
     },
   });
   if (!call) throw new HttpError(404, "Call de service introuvable.");

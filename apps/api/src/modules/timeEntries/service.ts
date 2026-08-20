@@ -200,7 +200,7 @@ export interface StartTimerInput {
 
 export async function startTimer(actorEmployeeId: string, actorPersona: Persona, input: StartTimerInput): Promise<TimeEntryDto> {
   const employeeId = await resolveActingEmployeeId(actorEmployeeId, actorPersona, input.employeeId);
-  const running = await prisma.timeEntry.findFirst({ where: { employeeId, endAt: null } });
+  const running = await prisma.timeEntry.findFirst({ where: { employeeId, endAt: null, deletedAt: null } });
   if (running) throw new HttpError(409, "Un punch est déjà actif pour cet employé — arrêtez-le avant d'en débuter un autre.");
 
   const task = await requireActiveTask(input.taskId);
@@ -305,14 +305,18 @@ export async function createManualEntry(actorEmployeeId: string, actorPersona: P
 }
 
 export async function listMyTimeEntries(employeeId: string, viewerPersona: Persona): Promise<TimeEntryDto[]> {
-  const entries = await prisma.timeEntry.findMany({ where: { employeeId }, include: ENTRY_INCLUDE, orderBy: { startAt: "desc" } });
+  const entries = await prisma.timeEntry.findMany({
+    where: { employeeId, deletedAt: null },
+    include: ENTRY_INCLUDE,
+    orderBy: { startAt: "desc" },
+  });
   return entries.map((entry) => toDto(entry, viewerPersona));
 }
 
 /** File d'approbation — jamais un punch encore actif (endAt nul), voir approveTimeEntry. */
 export async function listTimeEntriesForApproval(viewerPersona: Persona): Promise<TimeEntryDto[]> {
   const entries = await prisma.timeEntry.findMany({
-    where: { status: "submitted", endAt: { not: null } },
+    where: { status: "submitted", endAt: { not: null }, deletedAt: null },
     include: ENTRY_INCLUDE,
     orderBy: { startAt: "asc" },
   });
@@ -321,8 +325,16 @@ export async function listTimeEntriesForApproval(viewerPersona: Persona): Promis
 
 /** Vue Direction — toutes les entrées, la plus récente d'abord. */
 export async function listAllTimeEntries(viewerPersona: Persona): Promise<TimeEntryDto[]> {
-  const entries = await prisma.timeEntry.findMany({ include: ENTRY_INCLUDE, orderBy: { startAt: "desc" } });
+  const entries = await prisma.timeEntry.findMany({ where: { deletedAt: null }, include: ENTRY_INCLUDE, orderBy: { startAt: "desc" } });
   return entries.map((entry) => toDto(entry, viewerPersona));
+}
+
+/** Corbeille — Direction seulement (canDeleteTimeEntry), pour corriger une erreur de punch. */
+export async function deleteTimeEntry(entryId: string): Promise<void> {
+  const entry = await prisma.timeEntry.findUnique({ where: { id: entryId } });
+  if (!entry) throw new HttpError(404, "Punch introuvable.");
+  if (entry.deletedAt) throw new HttpError(400, "Ce punch est déjà dans la corbeille.");
+  await prisma.timeEntry.update({ where: { id: entryId }, data: { deletedAt: new Date() } });
 }
 
 export async function approveTimeEntry(entryId: string, actorPersona: Persona): Promise<TimeEntryDto> {

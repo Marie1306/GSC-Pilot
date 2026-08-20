@@ -391,6 +391,12 @@ export function canPunchForOtherEmployee(persona: Persona): boolean {
   return ([ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
+/** Supprimer une entrée de temps (corbeille) : Direction seulement — même palier que canDeleteServiceCall/canDeleteBudget/canDeleteProject (20 août 2026). */
+export function canDeleteTimeEntry(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}
+
 // ---------------------------------------------------------------------------
 // Livraisons et roulements
 // ---------------------------------------------------------------------------

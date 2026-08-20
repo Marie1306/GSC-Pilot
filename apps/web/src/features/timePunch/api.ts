@@ -135,3 +135,7 @@ export interface UpdateTimeEntryInput {
 export function updateTimeEntry(id: string, patch: UpdateTimeEntryInput): Promise<{ timeEntry: TimeEntryDto }> {
   return apiFetch(`/api/time-entries/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
 }
+
+export function deleteTimeEntry(id: string): Promise<void> {
+  return apiFetch(`/api/time-entries/${id}`, { method: "DELETE" });
+}

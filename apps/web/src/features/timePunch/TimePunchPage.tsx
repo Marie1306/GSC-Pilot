@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { canApprovePunch, canEditOwnPunch, canPunchForOtherEmployee } from "@gsc-pilot/business-rules";
+import { canApprovePunch, canEditOwnPunch, canPunchForOtherEmployee, canDeleteTimeEntry } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
-import { fetchMyTimeEntries, fetchAllTimeEntries, stopTimer, approveTimeEntry, type TimeEntryDto } from "./api.js";
+import { fetchMyTimeEntries, fetchAllTimeEntries, stopTimer, approveTimeEntry, deleteTimeEntry, type TimeEntryDto } from "./api.js";
 import { StartTaskModal } from "./StartTaskModal.js";
 import { ManualEntryModal } from "./ManualEntryModal.js";
 import "./timePunch.css";
@@ -109,12 +109,22 @@ export function TimePunchPage() {
   const [startOpen, setStartOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<TimeEntryDto | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: ["time-entries"] });
   const stopMutation = useMutation({ mutationFn: stopTimer, onSuccess: invalidate });
   const approveMutation = useMutation({ mutationFn: approveTimeEntry, onSuccess: invalidate });
+  const deleteMutation = useMutation({
+    mutationFn: deleteTimeEntry,
+    onSuccess: () => {
+      setConfirmDeleteId(null);
+      invalidate();
+    },
+  });
 
   if (!employee) return null;
+
+  const canDelete = canDeleteTimeEntry(employee.persona);
 
   const myEntries = myEntriesQuery.data?.timeEntries ?? [];
   const activeEntry = myEntries.find((entry) => !entry.endAt);
@@ -220,20 +230,44 @@ export function TimePunchPage() {
                     </span>
                   </td>
                   <td className="actions">
-                    {canStopRow(entry) && (
-                      <button type="button" className="btn btn-secondary punch-btn-small" onClick={() => stopMutation.mutate(entry.id)}>
-                        Arrêter
-                      </button>
-                    )}
-                    {isDirection && entry.status === "submitted" && entry.endAt && (
-                      <button type="button" className="btn punch-btn-small" onClick={() => approveMutation.mutate(entry.id)}>
-                        Approuver
-                      </button>
-                    )}
-                    {canEditRow(entry) && (
-                      <button type="button" className="btn btn-secondary punch-btn-small" onClick={() => setEditingEntry(entry)}>
-                        Modifier
-                      </button>
+                    {confirmDeleteId === entry.id ? (
+                      <>
+                        <span style={{ fontSize: 12, color: "var(--gsc-color-muted)" }}>Supprimer ce punch ?</span>
+                        <button
+                          type="button"
+                          className="btn punch-btn-small"
+                          disabled={deleteMutation.isPending}
+                          onClick={() => deleteMutation.mutate(entry.id)}
+                        >
+                          {deleteMutation.isPending ? "…" : "Confirmer"}
+                        </button>
+                        <button type="button" className="btn btn-secondary punch-btn-small" onClick={() => setConfirmDeleteId(null)}>
+                          Annuler
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {canStopRow(entry) && (
+                          <button type="button" className="btn btn-secondary punch-btn-small" onClick={() => stopMutation.mutate(entry.id)}>
+                            Arrêter
+                          </button>
+                        )}
+                        {isDirection && entry.status === "submitted" && entry.endAt && (
+                          <button type="button" className="btn punch-btn-small" onClick={() => approveMutation.mutate(entry.id)}>
+                            Approuver
+                          </button>
+                        )}
+                        {canEditRow(entry) && (
+                          <button type="button" className="btn btn-secondary punch-btn-small" onClick={() => setEditingEntry(entry)}>
+                            Modifier
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button type="button" className="btn btn-secondary punch-btn-small" onClick={() => setConfirmDeleteId(entry.id)}>
+                            Supprimer
+                          </button>
+                        )}
+                      </>
                     )}
                   </td>
                 </tr>

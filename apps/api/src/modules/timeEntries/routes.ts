@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { canApprovePunch, canPunchForOtherEmployee } from "@gsc-pilot/business-rules";
+import { canApprovePunch, canPunchForOtherEmployee, canDeleteTimeEntry } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission, requirePermissionWithDelegation } from "../../auth/middleware.js";
 import {
   startTimer,
@@ -11,6 +11,7 @@ import {
   listAllTimeEntries,
   approveTimeEntry,
   updateTimeEntry,
+  deleteTimeEntry,
   listPunchableTasks,
   listProjectOptions,
   listServiceCallOptions,
@@ -128,5 +129,17 @@ timeEntriesRouter.post(
     const id = z.uuid().parse(req.params.id);
     const timeEntry = await approveTimeEntry(id, req.employee!.persona);
     res.json({ timeEntry });
+  },
+);
+
+/** Corbeille — Direction seulement (canDeleteTimeEntry), pour corriger une erreur de punch. */
+timeEntriesRouter.delete(
+  "/time-entries/:id",
+  requireAuth,
+  requirePermission((persona) => canDeleteTimeEntry(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    await deleteTimeEntry(id);
+    res.status(204).end();
   },
 );

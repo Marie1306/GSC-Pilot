@@ -332,7 +332,7 @@ export async function listProjects(viewerPersona: Persona): Promise<ProjectListI
 
   const [timeEntries, appliedRequests, approvedEntries, settings] = await Promise.all([
     prisma.timeEntry.findMany({
-      where: { projectId: { in: ids }, status: "approved" },
+      where: { projectId: { in: ids }, status: "approved", deletedAt: null },
       select: { projectId: true, category: true, status: true, roundedMinutes: true, costRate: true },
     }),
     prisma.purchaseRequest.findMany({
@@ -506,7 +506,7 @@ async function computeProjectFinancials(
 ): Promise<ProjectFinancials> {
   const [timeEntries, purchasesActual, settings] = await Promise.all([
     prisma.timeEntry.findMany({
-      where: { projectId, status: "approved" },
+      where: { projectId, status: "approved", deletedAt: null },
       select: { category: true, status: true, roundedMinutes: true, costRate: true },
     }),
     projectPurchasesActual(projectId),
@@ -1171,7 +1171,7 @@ export interface ApprovedTimeEntryDto {
 /** « Détail des heures approuvées » — drill-down des punchs individuels (confirmé le 17 août 2026). */
 export async function getApprovedTimeEntries(projectId: string, showFinancials: boolean): Promise<ApprovedTimeEntryDto[]> {
   const entries = await prisma.timeEntry.findMany({
-    where: { projectId, status: "approved" },
+    where: { projectId, status: "approved", deletedAt: null },
     select: { id: true, date: true, employeeId: true, category: true, roundedMinutes: true, costRate: true },
     orderBy: { date: "desc" },
   });

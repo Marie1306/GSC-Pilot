@@ -752,6 +752,10 @@ model TimeEntry {
   rateType       String? // regular | overtime | extra — nul si non applicable
   blockageNote   String?
   createdAt      DateTime       @default(now())
+  // Corbeille — même mécanisme que Project/Budget/ClientRequest/ServiceCall.deletedAt
+  // (20 août 2026) : Direction seulement (canDeleteTimeEntry), pour corriger une
+  // erreur de punch signalée à l'approbation.
+  deletedAt      DateTime?
 
   @@index([employeeId, date])
   @@index([status])
