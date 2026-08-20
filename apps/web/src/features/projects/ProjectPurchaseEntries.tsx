@@ -9,6 +9,7 @@ import {
   updateProjectPurchaseEntryAmount,
   deleteProjectPurchaseEntry,
   approveProjectPurchaseEntry,
+  fetchPurchaseCategories,
   formatCurrency,
   type ProjectPurchaseEntryDto,
 } from "../purchases/api.js";
@@ -36,6 +37,7 @@ export function ProjectPurchaseEntries({ projectId }: ProjectPurchaseEntriesProp
   const { employee } = useAuth();
   const queryClient = useQueryClient();
   const entriesQuery = useQuery({ queryKey: ["project-purchase-entries", projectId], queryFn: () => fetchProjectPurchaseEntries(projectId) });
+  const categoriesQuery = useQuery({ queryKey: ["purchase-categories"], queryFn: fetchPurchaseCategories });
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [amountDrafts, setAmountDrafts] = useState<Record<string, string>>({});
@@ -121,7 +123,16 @@ export function ProjectPurchaseEntries({ projectId }: ProjectPurchaseEntriesProp
             </div>
             <div className="field">
               <label>Catégorie</label>
-              <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="ex. Outillage" />
+              <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+                <option value="" disabled>
+                  Sélectionner…
+                </option>
+                {categoriesQuery.data?.categories.map((category) => (
+                  <option key={category.id} value={category.name}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="field">
               <label>Fournisseur</label>
