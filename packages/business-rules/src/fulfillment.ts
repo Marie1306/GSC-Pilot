@@ -92,3 +92,25 @@ export function confirmFulfillment(entity: FulfillmentEntity, note: string = "")
   }
   return entity;
 }
+
+/**
+ * Confirmer une livraison en mode "Bon de livraison" (magasinier) — jamais
+ * couvert par confirmFulfillment ci-dessus, réservée aux modes tiers/
+ * ramassage (voir en-tête : "warehouse ... se confirme via le Bon de
+ * livraison lui-même"). Ajouté le 20 août 2026 pour le module Livraisons —
+ * même transition finale que confirmFulfillment (billingReady, fermeture),
+ * déclenchée cette fois par le magasinier qui livre, pas par Direction/
+ * Administration depuis la fiche projet.
+ */
+export function confirmWarehouseDelivery(entity: FulfillmentEntity, note: string = ""): FulfillmentEntity {
+  if (entity.fulfillmentMode !== FULFILLMENT_MODES.WAREHOUSE) {
+    throw new Error("Cette confirmation ne s'applique qu'au mode Bon de livraison (magasinier).");
+  }
+  entity.billingReady = true;
+  entity.fulfillmentStatus = "completed";
+  entity.fulfillmentConfirmationNote = note;
+  if (fulfillmentClosesEntity(entity.fulfillmentMode as FulfillmentMode)) {
+    entity.status = "ready_invoice";
+  }
+  return entity;
+}

@@ -1,9 +1,9 @@
 import {
-  ROLES,
   canAccessBudget,
   canAccessServiceCalls,
   canAccessSettings,
   canAccessOverviewViews,
+  canAccessDeliveries,
   canCreateInvoiceRecord,
   canCreateRollingDirectly,
   canViewClientRequests,
@@ -30,9 +30,6 @@ const everyone = () => true;
  */
 const backOfficeOnly = canAccessOverviewViews; // owner/admin/boss
 
-/** Toute l'équipe sauf Employé — le Magasinier livre, donc a besoin de voir cette section. Provisoire, voir note ci-dessus. */
-const notMemberOnly = (persona: Persona) => persona !== ROLES.MEMBER;
-
 export const NAV_ITEMS: NavItem[] = [
   { key: "dashboard", label: "Tableau de bord", path: "/", allow: everyone },
   { key: "client-requests", label: "Demandes clients", path: "/demandes", allow: canViewClientRequests },
@@ -44,7 +41,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "time-punch", label: "Temps", path: "/temps", allow: everyone },
   { key: "qr-scan", label: "Scan QR", path: "/scan", allow: everyone },
   { key: "service-calls", label: "Appels de service", path: "/appels-service", allow: canAccessServiceCalls },
-  { key: "fulfillment", label: "Livraisons", path: "/livraisons", allow: notMemberOnly },
+  { key: "fulfillment", label: "Livraisons", path: "/livraisons", allow: canAccessDeliveries },
   // Roulements : Direction/Propriétaire créent, Administration garde l'accès à la page sans le bouton de création (spec confirmée).
   { key: "rollings", label: "Roulements", path: "/roulements", allow: (p) => backOfficeOnly(p) || canCreateRollingDirectly(p) },
   { key: "gantt", label: "Sous-assemblages / Gantt", path: "/gantt", allow: backOfficeOnly },

@@ -1,6 +1,13 @@
 // Porté 1-pour-1 depuis docs/handoff/03-modules-v01/fulfillment.test.js (11 assertions).
 import { describe, it, expect } from "vitest";
-import { FULFILLMENT_MODES, fulfillmentClosesEntity, chooseFulfillment, confirmFulfillment, type FulfillmentEntity } from "../src/fulfillment.js";
+import {
+  FULFILLMENT_MODES,
+  fulfillmentClosesEntity,
+  chooseFulfillment,
+  confirmFulfillment,
+  confirmWarehouseDelivery,
+  type FulfillmentEntity,
+} from "../src/fulfillment.js";
 
 describe("Quels modes ferment l'entité", () => {
   it("Bon de livraison ferme", () => expect(fulfillmentClosesEntity(FULFILLMENT_MODES.WAREHOUSE)).toBe(true));
@@ -37,5 +44,19 @@ describe("Confirmer un ramassage/tiers", () => {
   it("Refuse de 'confirmer' un mode installation (ne se ferme pas ainsi)", () => {
     const entity: FulfillmentEntity = { productionCompleted: true, fulfillmentMode: FULFILLMENT_MODES.INSTALLATION };
     expect(() => confirmFulfillment(entity)).toThrow();
+  });
+});
+
+describe("Confirmer une livraison magasinier (module Livraisons, 20 août 2026)", () => {
+  it("billingReady activé et statut ready_invoice", () => {
+    const entity: FulfillmentEntity = { productionCompleted: true, fulfillmentMode: FULFILLMENT_MODES.WAREHOUSE };
+    confirmWarehouseDelivery(entity, "Reçu par le client, aucun dommage");
+    expect(entity.billingReady).toBe(true);
+    expect(entity.status).toBe("ready_invoice");
+    expect(entity.fulfillmentStatus).toBe("completed");
+  });
+  it("Refuse pour un mode autre que Bon de livraison", () => {
+    const entity: FulfillmentEntity = { productionCompleted: true, fulfillmentMode: FULFILLMENT_MODES.PICKUP };
+    expect(() => confirmWarehouseDelivery(entity)).toThrow();
   });
 });

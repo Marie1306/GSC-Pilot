@@ -223,6 +223,7 @@ export function markProductionComplete(id: string): Promise<void> {
 
 export interface ChooseFulfillmentInput {
   mode: FulfillmentMode;
+  driverId?: string;
   address?: string;
   scheduled?: string;
 }

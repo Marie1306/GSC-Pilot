@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { canMarkProductionComplete, canChooseFulfillmentMode, FULFILLMENT_MODES } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
+import { fetchPunchableEmployees } from "../timePunch/api.js";
 import {
   markProductionComplete,
   chooseFulfillmentMode,
@@ -29,10 +30,12 @@ export function ProjectFulfillment({ project }: ProjectFulfillmentProps) {
   const queryClient = useQueryClient();
   const [modeForm, setModeForm] = useState(false);
   const [mode, setMode] = useState<FulfillmentMode>(FULFILLMENT_MODES.WAREHOUSE);
+  const [driverId, setDriverId] = useState("");
   const [address, setAddress] = useState("");
   const [scheduled, setScheduled] = useState("");
   const [confirmNote, setConfirmNote] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const employeesQuery = useQuery({ queryKey: ["time-entries", "employees"], queryFn: fetchPunchableEmployees, enabled: modeForm });
 
   const invalidate = () => {
     setError(null);
@@ -47,7 +50,13 @@ export function ProjectFulfillment({ project }: ProjectFulfillmentProps) {
     onError: onMutationError,
   });
   const chooseModeMutation = useMutation({
-    mutationFn: () => chooseFulfillmentMode(project.id, { mode, address: address.trim() || undefined, scheduled: scheduled || undefined }),
+    mutationFn: () =>
+      chooseFulfillmentMode(project.id, {
+        mode,
+        driverId: mode === FULFILLMENT_MODES.WAREHOUSE ? driverId || undefined : undefined,
+        address: address.trim() || undefined,
+        scheduled: scheduled || undefined,
+      }),
     onSuccess: () => {
       setModeForm(false);
       invalidate();
@@ -143,6 +152,17 @@ export function ProjectFulfillment({ project }: ProjectFulfillmentProps) {
           </div>
           {mode === FULFILLMENT_MODES.WAREHOUSE && (
             <>
+              <div className="field">
+                <label>Magasinier</label>
+                <select value={driverId} onChange={(e) => setDriverId(e.target.value)}>
+                  <option value="">Non assigné</option>
+                  {employeesQuery.data?.employees.map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>
+                      {candidate.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="field">
                 <label>Adresse de livraison</label>
                 <input value={address} onChange={(e) => setAddress(e.target.value)} />

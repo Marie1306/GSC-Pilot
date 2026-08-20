@@ -153,7 +153,10 @@ const fulfillmentModeSchema = z.object({
   mode: z.enum(Object.values(FULFILLMENT_MODES) as [string, ...string[]]),
   driverId: z.uuid().optional(),
   address: z.string().optional(),
-  scheduled: z.iso.datetime().optional(),
+  // Champ <input type="date"> côté interface (AAAA-MM-JJ) — jamais un
+  // datetime complet, corrigé en même temps que le module Livraisons
+  // (20 août 2026) puisque personne n'avait encore testé une date planifiée.
+  scheduled: z.iso.date().optional(),
 });
 projectsRouter.post(
   "/projects/:id/fulfillment",
