@@ -126,6 +126,7 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
   const canDelete = canDeleteServiceCall(employee.persona);
   const employees = employeesQuery.data?.employees ?? [];
   const totalMinutes = call.timeEntries.reduce((sum, entry) => sum + (entry.roundedMinutes ?? 0), 0);
+  const pendingTimeEntryCount = call.timeEntries.filter((entry) => entry.status !== "approved").length;
 
   const summary = summaryDraft ?? call.summary ?? "";
   const km = kmDraft ?? (call.kmTraveled !== null ? String(call.kmTraveled) : "");
@@ -426,6 +427,12 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
               <div className="section-heading" style={{ marginTop: 20 }}>
                 <div>
                   <h3>Totaux</h3>
+                  {pendingTimeEntryCount > 0 && (
+                    <p>
+                      {pendingTimeEntryCount} punch{pendingTimeEntryCount > 1 ? "s" : ""} en attente d'approbation — pas encore compté
+                      {pendingTimeEntryCount > 1 ? "s" : ""} dans la main-d'œuvre ci-dessous.
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="service-call-totals-grid">
