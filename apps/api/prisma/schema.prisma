@@ -717,6 +717,12 @@ model PunchableTask {
   // facing (ajouter une tâche depuis l'interface) est la suite logique.
   budgetModelRowId String?         @unique
   budgetModelRow   BudgetModelRow? @relation(fields: [budgetModelRowId], references: [id])
+  // Tarif fixe ($/h) qui remplace le taux de la classe facturable choisie au
+  // punch (TimeEntry.techLevelId/rateType) pour CETTE tâche précise — utile
+  // seulement pour une tâche de catégorie "service" (ex. Recherche à un tarif
+  // fixe peu importe qui la fait). Nul = comportement inchangé, le taux de la
+  // classe s'applique (confirmé par l'utilisatrice le 20 août 2026).
+  specificServiceRate Decimal? @db.Decimal(10, 2)
 
   timeEntries TimeEntry[]
 }
@@ -968,7 +974,13 @@ model Settings {
   breakfastRate                Decimal  @default(0) @db.Decimal(10, 2)
   lunchRate                    Decimal  @default(0) @db.Decimal(10, 2)
   dinnerRate                   Decimal  @default(0) @db.Decimal(10, 2)
-  defaultBillingSplit          Json // voir billing.ts DEFAULT_BILLING_SPLIT
+  // Stocké mais jamais automatiquement additionné nulle part (aucun
+  // indicateur "call urgent" n'existe sur ServiceCall) — seule la valeur du
+  // taux est gérée ici pour l'instant, confirmé le 20 août 2026 : appliquer
+  // ce frais reste une décision manuelle de Direction, pas une règle
+  // automatique à deviner.
+  urgencyFee                   Decimal  @default(0) @db.Decimal(10, 2)
+  defaultBillingSplit          Json // voir billing.ts DEFAULT_BILLING_SPLIT — lu par convertBudgetToProject/updateProjectPlanning (projects/service.ts)
   // Numéro de projet : nombre brut, jamais de préfixe ni de zéros devant
   // (confirmé le 17 août 2026 — contrairement à BG-AAAA-NNNN, DA-AAAA-NNNNN,
   // etc.). Modifiable à la conversion pour reprendre les numéros hérités de

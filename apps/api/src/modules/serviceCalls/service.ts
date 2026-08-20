@@ -259,6 +259,9 @@ async function computeServiceCallFinancials(call: Awaited<ReturnType<typeof load
       costRate: Number(entry.costRate),
       techLevelId: entry.techLevelId,
       rateType: entry.rateType,
+      specificRate: entry.task?.specificServiceRate !== null && entry.task?.specificServiceRate !== undefined
+        ? Number(entry.task.specificServiceRate)
+        : null,
     })),
     techLevelsById,
   );

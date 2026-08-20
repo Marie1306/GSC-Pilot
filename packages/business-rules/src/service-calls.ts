@@ -44,6 +44,11 @@ export interface ServiceCallTimeEntryLike {
   costRate?: number;
   techLevelId?: string | null;
   rateType?: string | null;
+  // Tarif fixe de la tâche punchable (PunchableTask.specificServiceRate),
+  // confirmé le 20 août 2026 — remplace le taux de la classe pour cette
+  // entrée quand renseigné. Coût réel (ci-dessus) n'est jamais affecté :
+  // seul le prix facturé au client change.
+  specificRate?: number | null;
 }
 
 export interface ServiceCallLaborTotals {
@@ -65,9 +70,13 @@ export function serviceCallLaborTotals(
     const entryHours = Number(entry.roundedMinutes || 0) / 60;
     hours += entryHours;
     cost += entryHours * Number(entry.costRate || 0);
-    const techLevel = entry.techLevelId ? techLevelsById[entry.techLevelId] : undefined;
-    if (techLevel && (entry.rateType === "regular" || entry.rateType === "overtime" || entry.rateType === "extra")) {
-      sale += entryHours * rateForType(techLevel, entry.rateType);
+    if (entry.specificRate !== null && entry.specificRate !== undefined) {
+      sale += entryHours * entry.specificRate;
+    } else {
+      const techLevel = entry.techLevelId ? techLevelsById[entry.techLevelId] : undefined;
+      if (techLevel && (entry.rateType === "regular" || entry.rateType === "overtime" || entry.rateType === "extra")) {
+        sale += entryHours * rateForType(techLevel, entry.rateType);
+      }
     }
   }
   return { hours: round2(hours), cost: round2(cost), sale: round2(sale) };

@@ -24,6 +24,25 @@ describe("Totaux main-d'œuvre d'un appel de service", () => {
   it("tableau vide sans punchs", () => expect(serviceCallLaborTotals([], {}).hours).toBe(0));
 });
 
+describe("Tarif spécifique par tâche (20 août 2026)", () => {
+  const techLevelsById = { tl1: senior };
+
+  it("remplace le taux de la classe quand renseigné", () => {
+    const entries = [{ status: "approved", roundedMinutes: 60, costRate: 28, techLevelId: "tl1", rateType: "regular", specificRate: 112.75 }];
+    expect(serviceCallLaborTotals(entries, techLevelsById).sale).toBe(112.75);
+  });
+
+  it("coût réel reste basé sur costRate, jamais affecté par le tarif spécifique", () => {
+    const entries = [{ status: "approved", roundedMinutes: 60, costRate: 28, techLevelId: "tl1", rateType: "regular", specificRate: 112.75 }];
+    expect(serviceCallLaborTotals(entries, techLevelsById).cost).toBe(28);
+  });
+
+  it("retombe sur le taux de la classe quand nul", () => {
+    const entries = [{ status: "approved", roundedMinutes: 60, costRate: 28, techLevelId: "tl1", rateType: "regular", specificRate: null }];
+    expect(serviceCallLaborTotals(entries, techLevelsById).sale).toBe(128.12);
+  });
+});
+
 describe("Frais de déplacement et repas", () => {
   const rates = { mileageRate: 0.68, breakfastRate: 15, lunchRate: 20, dinnerRate: 25 };
   it("kilométrage seul", () => expect(serviceCallExpenseTotal(100, [], rates)).toBe(68));

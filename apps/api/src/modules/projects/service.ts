@@ -40,6 +40,7 @@ import { HttpError } from "../../middleware/errorHandler.js";
 import { getBudgetDetail } from "../budgets/service.js";
 import { ensureContactRow } from "../clientRequests/service.js";
 import { projectPurchasesActual, listProjectPurchaseEntries } from "../purchases/service.js";
+import { parseBillingSplit } from "../settings/billingSplit.js";
 import type { Project } from "../../generated/prisma/client.js";
 
 export interface ConvertBudgetToProjectInput {
@@ -143,9 +144,11 @@ export async function convertBudgetToProject(createdById: string, budgetId: stri
 
     // Cycle de facturation — confirmé le 8-9 août 2026 (billing.ts, jamais
     // modifié) : plan créé une seule fois ici, au prix vendu final gelé.
-    // DEFAULT_BILLING_SPLIT seulement pour l'instant — billingSplitOverride
-    // (modifier la répartition après coup) reste hors de cette phase.
-    const plan = computeBillingPlan(totalSale);
+    // Répartition = Settings.defaultBillingSplit (Paramètres, 20 août 2026),
+    // jamais un DEFAULT_BILLING_SPLIT codé en dur — billingSplitOverride
+    // (modifier la répartition après coup, par projet) reste hors de cette
+    // phase.
+    const plan = computeBillingPlan(totalSale, parseBillingSplit(settings.defaultBillingSplit));
     await tx.invoicePlanEntry.createMany({
       data: plan.map((step) => ({ projectId: project.id, label: step.label, pct: step.pct, amount: step.amount, status: step.status })),
     });
@@ -279,7 +282,9 @@ export async function updateProjectPlanning(projectId: string, input: UpdateProj
     if (input.sold !== undefined && input.sold > 0) {
       const existingPlan = await tx.invoicePlanEntry.count({ where: { projectId } });
       if (existingPlan === 0) {
-        const plan = computeBillingPlan(input.sold);
+        const settings = await tx.settings.findFirst();
+        if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
+        const plan = computeBillingPlan(input.sold, parseBillingSplit(settings.defaultBillingSplit));
         await tx.invoicePlanEntry.createMany({
           data: plan.map((step) => ({ projectId, label: step.label, pct: step.pct, amount: step.amount, status: step.status })),
         });

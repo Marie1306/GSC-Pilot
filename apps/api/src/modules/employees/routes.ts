@@ -1,10 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
-import { canAccessSettings } from "@gsc-pilot/business-rules";
+import { canAccessSettings, ROLES } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
-import { toEmployeeDto } from "./service.js";
+import { toEmployeeDto, createEmployee, updateEmployee } from "./service.js";
+
+const PERSONAS = [ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS, ROLES.MEMBER, ROLES.WAREHOUSE] as const;
 
 export const employeesRouter = Router();
 
@@ -32,6 +34,42 @@ employeesRouter.get("/employees", requireAuth, requirePermission((persona) => ca
       toEmployeeDto(employee, req.employee!.persona, employee.techLevels.map((techLevel) => techLevel.id)),
     ),
   });
+});
+
+const createEmployeeSchema = z.object({
+  name: z.string().min(1, "Le nom est requis."),
+  initials: z.string().min(1, "Les initiales sont requises."),
+  email: z.email("Courriel invalide."),
+  persona: z.enum(PERSONAS),
+  phone: z.string().optional(),
+  jobTitle: z.string().optional(),
+  costRate: z.number().nonnegative().optional(),
+});
+/**
+ * Création + invitation Supabase (voir createEmployee, service.ts) — Direction
+ * seulement, même porte que le reste de Paramètres.
+ */
+employeesRouter.post("/employees", requireAuth, requirePermission((persona) => canAccessSettings(persona)), async (req, res) => {
+  const body = createEmployeeSchema.parse(req.body);
+  const employee = await createEmployee(body, req.employee!.persona);
+  res.status(201).json({ employee });
+});
+
+const updateEmployeeSchema = z.object({
+  name: z.string().min(1).optional(),
+  jobTitle: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  skills: z.array(z.string()).optional(),
+  skillEfficiencies: z.record(z.string(), z.number()).optional(),
+  costRate: z.number().nonnegative().optional(),
+  persona: z.enum(PERSONAS).optional(),
+  active: z.boolean().optional(),
+});
+employeesRouter.patch("/employees/:id", requireAuth, requirePermission((persona) => canAccessSettings(persona)), async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  const body = updateEmployeeSchema.parse(req.body);
+  const employee = await updateEmployee(id, body, req.employee!.persona);
+  res.json({ employee });
 });
 
 const techLevelsSchema = z.object({ techLevelIds: z.array(z.uuid()) });

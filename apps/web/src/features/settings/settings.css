@@ -30,3 +30,28 @@
 .settings-row-inactive {
   opacity: 0.55;
 }
+
+.btn-small {
+  font-size: 13px;
+  padding: 6px 12px;
+  min-height: unset;
+}
+
+.audit-log-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 13px;
+}
+.audit-log-table th {
+  text-align: left;
+  color: var(--gsc-color-muted);
+  font-weight: 600;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--gsc-color-line);
+}
+.audit-log-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--gsc-color-line);
+  vertical-align: top;
+}

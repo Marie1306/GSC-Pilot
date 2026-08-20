@@ -5,6 +5,12 @@ import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import { listPurchaseCategories, createPurchaseCategory, updatePurchaseCategory } from "./purchaseCategories.js";
 import { getMarginThresholds, updateMarginThresholds } from "./marginThresholds.js";
 import { listTechLevels, createTechLevel, updateTechLevel, scrubTechLevelRates } from "./techLevels.js";
+import { listSalesChannels, createSalesChannel, updateSalesChannel, moveSalesChannel } from "./salesChannels.js";
+import { listPunchableTasks, createPunchableTask, updatePunchableTask, movePunchableTask } from "./punchableTasks.js";
+import { getServiceRates, updateServiceRates } from "./serviceRates.js";
+import { getBillingSplit, updateBillingSplit } from "./billingSplit.js";
+import { getBackupHourlyRate, updateBackupHourlyRate } from "./budgetModel.js";
+import { listAuditLog } from "./auditLog.js";
 
 // Monté sur /api/settings (voir app.ts) — jamais sur /api directement, pour
 // que le .use() ci-dessous ne gate QUE les routes de ce module, pas tout
@@ -102,4 +108,137 @@ settingsRouter.patch("/tech-levels/:id", async (req, res) => {
   const body = updateTechLevelSchema.parse(req.body);
   const techLevel = await updateTechLevel(id, body);
   res.json({ techLevel });
+});
+
+// ---------------------------------------------------------------------------
+// Canaux d'entrée des demandes clients (SalesChannel)
+// ---------------------------------------------------------------------------
+
+settingsRouter.get("/sales-channels", async (_req, res) => {
+  const salesChannels = await listSalesChannels();
+  res.json({ salesChannels });
+});
+
+const createSalesChannelSchema = z.object({ name: z.string().min(1, "Le nom est requis.") });
+settingsRouter.post("/sales-channels", async (req, res) => {
+  const { name } = createSalesChannelSchema.parse(req.body);
+  const salesChannel = await createSalesChannel(name);
+  res.status(201).json({ salesChannel });
+});
+
+const updateSalesChannelSchema = z.object({ name: z.string().min(1).optional(), active: z.boolean().optional() });
+settingsRouter.patch("/sales-channels/:id", async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  const body = updateSalesChannelSchema.parse(req.body);
+  const salesChannel = await updateSalesChannel(id, body);
+  res.json({ salesChannel });
+});
+
+const moveSchema = z.object({ direction: z.enum(["up", "down"]) });
+settingsRouter.post("/sales-channels/:id/move", async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  const { direction } = moveSchema.parse(req.body);
+  const salesChannels = await moveSalesChannel(id, direction);
+  res.json({ salesChannels });
+});
+
+// ---------------------------------------------------------------------------
+// Tâches punchables par catégorie (PunchableTask)
+// ---------------------------------------------------------------------------
+
+settingsRouter.get("/punchable-tasks", async (_req, res) => {
+  const tasks = await listPunchableTasks();
+  res.json({ tasks });
+});
+
+const createTaskSchema = z.object({ category: z.string().min(1), label: z.string().min(1, "Le nom est requis.") });
+settingsRouter.post("/punchable-tasks", async (req, res) => {
+  const body = createTaskSchema.parse(req.body);
+  const task = await createPunchableTask(body.category, body.label);
+  res.status(201).json({ task });
+});
+
+const updateTaskSchema = z.object({
+  label: z.string().min(1).optional(),
+  active: z.boolean().optional(),
+  specificServiceRate: z.number().nonnegative().nullable().optional(),
+});
+settingsRouter.patch("/punchable-tasks/:id", async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  const body = updateTaskSchema.parse(req.body);
+  const task = await updatePunchableTask(id, body);
+  res.json({ task });
+});
+
+settingsRouter.post("/punchable-tasks/:id/move", async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  const { direction } = moveSchema.parse(req.body);
+  const tasks = await movePunchableTask(id, direction);
+  res.json({ tasks });
+});
+
+// ---------------------------------------------------------------------------
+// Tarifs de calls de service et pièces (complète tech-levels ci-dessus)
+// ---------------------------------------------------------------------------
+
+settingsRouter.get("/service-rates", async (_req, res) => {
+  const rates = await getServiceRates();
+  res.json({ rates });
+});
+
+const serviceRatesSchema = z.object({
+  mileageRate: z.number().nonnegative().optional(),
+  breakfastRate: z.number().nonnegative().optional(),
+  lunchRate: z.number().nonnegative().optional(),
+  dinnerRate: z.number().nonnegative().optional(),
+  servicePartsDefaultMarginPct: z.number().min(0).max(100).optional(),
+  urgencyFee: z.number().nonnegative().optional(),
+});
+settingsRouter.patch("/service-rates", async (req, res) => {
+  const body = serviceRatesSchema.parse(req.body);
+  const rates = await updateServiceRates(body);
+  res.json({ rates });
+});
+
+// ---------------------------------------------------------------------------
+// Cycle de facturation par défaut des projets (Settings.defaultBillingSplit)
+// ---------------------------------------------------------------------------
+
+settingsRouter.get("/billing-split", async (_req, res) => {
+  const steps = await getBillingSplit();
+  res.json({ steps });
+});
+
+const billingSplitSchema = z.object({
+  steps: z.array(z.object({ label: z.string().min(1), pct: z.number().min(0).max(100) })).min(1),
+});
+settingsRouter.patch("/billing-split", async (req, res) => {
+  const { steps } = billingSplitSchema.parse(req.body);
+  const updated = await updateBillingSplit(steps);
+  res.json({ steps: updated });
+});
+
+// ---------------------------------------------------------------------------
+// Taux par défaut du back-up d'heures (BudgetModel.backupHourlyRate)
+// ---------------------------------------------------------------------------
+
+settingsRouter.get("/budget-model-rate", async (_req, res) => {
+  const backupHourlyRate = await getBackupHourlyRate();
+  res.json({ backupHourlyRate });
+});
+
+const budgetModelRateSchema = z.object({ backupHourlyRate: z.number().nonnegative() });
+settingsRouter.patch("/budget-model-rate", async (req, res) => {
+  const { backupHourlyRate: rate } = budgetModelRateSchema.parse(req.body);
+  const backupHourlyRate = await updateBackupHourlyRate(rate, req.employee!.id);
+  res.json({ backupHourlyRate });
+});
+
+// ---------------------------------------------------------------------------
+// Journal d'audit (lecture seule)
+// ---------------------------------------------------------------------------
+
+settingsRouter.get("/audit-log", async (_req, res) => {
+  const entries = await listAuditLog();
+  res.json({ entries });
 });
