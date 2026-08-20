@@ -257,6 +257,12 @@ export function canSendServiceCallToAdmin(persona: Persona): boolean {
   return persona === ROLES.OWNER;
 }
 
+/** Supprimer un appel de service (corbeille) : Direction seulement — même palier que canDeleteBudget/canDeleteProject/canDeleteClientRequest (19 août 2026). */
+export function canDeleteServiceCall(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}
+
 // ---------------------------------------------------------------------------
 // Budgétaire
 // ---------------------------------------------------------------------------

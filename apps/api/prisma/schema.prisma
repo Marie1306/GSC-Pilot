@@ -767,6 +767,9 @@ model ServiceCall {
   contactId                    String
   contact                      Contact   @relation(fields: [contactId], references: [id])
   request                      String
+  // Snapshot au moment de la demande, comme ClientRequest.address — Contact
+  // n'a volontairement pas de champ adresse (carnet simple, voir spec).
+  address                      String?
   // Plusieurs techniciens possibles sur un même call (confirmé par
   // l'utilisatrice le 19 août 2026 — "ils doivent parfois y aller à deux
   // techniciens") — remplace l'ancien assignedEmployeeId singulier.
@@ -787,6 +790,9 @@ model ServiceCall {
   partPricingMarginPctOverride Decimal?  @db.Decimal(5, 2)
   sentToAdminAt                DateTime?
   createdAt                    DateTime  @default(now())
+  // Corbeille — même mécanisme que Project.deletedAt/ClientRequest.deletedAt/
+  // Budget.deletedAt (19 août 2026) : Direction seulement (canDeleteServiceCall).
+  deletedAt                    DateTime?
 
   parts          ServiceCallPart[]
   photos         ServiceCallPhoto[]

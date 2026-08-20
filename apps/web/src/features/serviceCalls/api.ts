@@ -32,6 +32,7 @@ export interface NewServiceCallContact {
 export interface CreateServiceCallInput {
   newContact: NewServiceCallContact;
   request: string;
+  address?: string;
   assignedEmployeeIds?: string[];
   scheduledAt?: string;
 }
@@ -87,6 +88,7 @@ export interface ServiceCallDetailDto {
   contactPhone: string | null;
   contactEmail: string | null;
   request: string;
+  address: string | null;
   assignedEmployees: AssignedEmployeeDto[];
   scheduledAt: string | null;
   startAt: string | null;
@@ -149,4 +151,8 @@ export function approveServiceCall(id: string): Promise<void> {
 
 export function sendServiceCallToAdmin(id: string): Promise<void> {
   return apiFetch(`/api/service-calls/${id}/send-to-admin`, { method: "POST" });
+}
+
+export function deleteServiceCall(id: string): Promise<void> {
+  return apiFetch(`/api/service-calls/${id}`, { method: "DELETE" });
 }

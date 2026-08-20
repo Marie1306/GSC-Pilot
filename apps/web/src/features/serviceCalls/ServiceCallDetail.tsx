@@ -6,9 +6,11 @@ import {
   canApproveServiceCall,
   canSendServiceCallToAdmin,
   canSeeServicePricing,
+  canDeleteServiceCall,
 } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { fetchPunchableEmployees } from "../timePunch/api.js";
+import { StartTaskModal } from "../timePunch/StartTaskModal.js";
 import {
   fetchServiceCallDetail,
   updateServiceCall,
@@ -18,10 +20,11 @@ import {
   captureServiceCallSignature,
   approveServiceCall,
   sendServiceCallToAdmin,
+  deleteServiceCall,
   MEAL_LABELS,
   type ServiceCallPartDto,
 } from "./api.js";
-import { SignaturePad } from "./SignaturePad.js";
+import { SignatureModal } from "./SignatureModal.js";
 import "./serviceCalls.css";
 
 interface ServiceCallDetailProps {
@@ -55,7 +58,9 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
   const [newPartName, setNewPartName] = useState("");
   const [newPartQty, setNewPartQty] = useState("1");
   const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
-  const [resigning, setResigning] = useState(false);
+  const [signing, setSigning] = useState(false);
+  const [punching, setPunching] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const invalidate = () => {
@@ -87,13 +92,21 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
   const signatureMutation = useMutation({
     mutationFn: (dataUrl: string) => captureServiceCallSignature(id, dataUrl),
     onSuccess: () => {
-      setResigning(false);
+      setSigning(false);
       invalidate();
     },
     onError: onMutationError,
   });
   const approveMutation = useMutation({ mutationFn: () => approveServiceCall(id), onSuccess: invalidate, onError: onMutationError });
   const sendMutation = useMutation({ mutationFn: () => sendServiceCallToAdmin(id), onSuccess: invalidate, onError: onMutationError });
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteServiceCall(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["service-calls"] });
+      onClose();
+    },
+    onError: onMutationError,
+  });
 
   if (!call || !employee) {
     return (
@@ -110,7 +123,9 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
   const canPrice = canPriceServiceParts(employee.persona);
   const canApprove = canApproveServiceCall(employee.persona);
   const canSend = canSendServiceCallToAdmin(employee.persona);
+  const canDelete = canDeleteServiceCall(employee.persona);
   const employees = employeesQuery.data?.employees ?? [];
+  const totalMinutes = call.timeEntries.reduce((sum, entry) => sum + (entry.roundedMinutes ?? 0), 0);
 
   const summary = summaryDraft ?? call.summary ?? "";
   const km = kmDraft ?? (call.kmTraveled !== null ? String(call.kmTraveled) : "");
@@ -141,12 +156,45 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
         </div>
 
         <div className="modal-body">
-          <div className="service-call-info-grid">
-            <div>
-              <span className="service-call-info-label">Contact</span>
-              <div>{call.contactPhone ?? "—"}</div>
-              <div>{call.contactEmail ?? "—"}</div>
+          <div className="stat-tile-grid">
+            <div className="stat-tile">
+              <span className="stat-tile-label">Techniciens actifs</span>
+              <span className="stat-tile-value">{call.assignedEmployees.length}</span>
             </div>
+            <div className="stat-tile">
+              <span className="stat-tile-label">Temps comptabilisé</span>
+              <span className="stat-tile-value">{formatHours(totalMinutes)}</span>
+            </div>
+            <div className="stat-tile">
+              <span className="stat-tile-label">Kilométrage</span>
+              <span className="stat-tile-value">{call.kmTraveled !== null ? `${call.kmTraveled} km` : "—"}</span>
+            </div>
+            <div className="stat-tile">
+              <span className="stat-tile-label">État</span>
+              <span className={`badge-pill ${call.status === "approved" ? "badge-conforme" : "badge-neutral"}`}>
+                {call.status === "approved" ? "Approuvé" : "Planifié"}
+              </span>
+            </div>
+          </div>
+
+          <div className="section-heading" style={{ marginTop: 20 }}>
+            <div>
+              <h3>Demande et coordonnées</h3>
+            </div>
+          </div>
+          <div className="service-call-contact-card">
+            <strong>
+              {call.contactName}
+              {call.company ? ` — ${call.company}` : ""}
+            </strong>
+            <p className="service-call-contact-request">{call.request}</p>
+            <div className="service-call-contact-line">📍 {call.address ?? "—"}</div>
+            <div className="service-call-contact-line">
+              📞 {call.contactPhone ?? "—"} · ✉ {call.contactEmail ?? "—"}
+            </div>
+          </div>
+
+          <div className="service-call-info-grid">
             <div>
               <span className="service-call-info-label">Techniciens assignés</span>
               {canReassign ? (
@@ -179,19 +227,16 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
               <span className="service-call-info-label">Prévu le</span>
               <div>{formatDate(call.scheduledAt)}</div>
             </div>
-            <div>
-              <span className="service-call-info-label">Statut</span>
-              <span className={`badge-pill ${call.status === "approved" ? "badge-conforme" : "badge-neutral"}`}>
-                {call.status === "approved" ? "Approuvé" : "Planifié"}
-              </span>
-            </div>
           </div>
 
-          <div className="section-heading" style={{ marginTop: 20 }}>
+          <div className="section-heading" style={{ marginTop: 20, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
             <div>
               <h3>Punchs</h3>
-              <p>Le punch se fait depuis l'écran Temps — affiché ici en lecture seule.</p>
+              <p>Punchez directement sur ce call, ou depuis l'écran Temps.</p>
             </div>
+            <button type="button" className="btn btn-secondary service-call-btn-small" onClick={() => setPunching(true)}>
+              Puncher sur ce call
+            </button>
           </div>
           <table className="service-call-table">
             <thead>
@@ -339,6 +384,16 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
             onChange={(event) => setSummaryDraft(event.target.value)}
             onBlur={() => summaryDraft !== null && updateMutation.mutate({ summary: summaryDraft.trim() || null })}
           />
+          <div style={{ marginTop: 10 }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={updateMutation.isPending}
+              onClick={() => updateMutation.mutate({ summary: summary.trim() || null, kmTraveled: km ? Number(km) : null, mealsClaimed: meals })}
+            >
+              {updateMutation.isPending ? "Enregistrement…" : "Enregistrer les données terrain"}
+            </button>
+          </div>
 
           <div className="section-heading" style={{ marginTop: 20 }}>
             <div>
@@ -346,19 +401,21 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
               <p>Obligatoire avant l'approbation.</p>
             </div>
           </div>
-          {call.signatureCaptured && call.signatureImageUrl && !resigning ? (
+          {call.signatureCaptured && call.signatureImageUrl ? (
             <div>
               <img src={call.signatureImageUrl} alt="Signature du client" className="signature-pad-preview" />
               {call.status !== "approved" && (
                 <div style={{ marginTop: 8 }}>
-                  <button type="button" className="btn btn-secondary service-call-btn-small" onClick={() => setResigning(true)}>
+                  <button type="button" className="btn btn-secondary service-call-btn-small" onClick={() => setSigning(true)}>
                     Recapturer
                   </button>
                 </div>
               )}
             </div>
           ) : (
-            <SignaturePad onSave={(dataUrl) => signatureMutation.mutate(dataUrl)} saving={signatureMutation.isPending} />
+            <button type="button" className="btn btn-secondary" onClick={() => setSigning(true)}>
+              Faire signer le client
+            </button>
           )}
 
           {showFinancials && (
@@ -412,6 +469,30 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
         </div>
 
         <div className="modal-footer">
+          {canDelete && (
+            <div style={{ marginRight: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+              {!confirmDelete ? (
+                <button type="button" className="btn btn-secondary service-call-btn-small" onClick={() => setConfirmDelete(true)}>
+                  Supprimer la demande
+                </button>
+              ) : (
+                <>
+                  <span style={{ fontSize: 13 }}>Envoyer à la corbeille — confirmer ?</span>
+                  <button
+                    type="button"
+                    className="btn service-call-btn-small"
+                    disabled={deleteMutation.isPending}
+                    onClick={() => deleteMutation.mutate()}
+                  >
+                    {deleteMutation.isPending ? "…" : "Confirmer la suppression"}
+                  </button>
+                  <button type="button" className="btn btn-secondary service-call-btn-small" onClick={() => setConfirmDelete(false)}>
+                    Annuler
+                  </button>
+                </>
+              )}
+            </div>
+          )}
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Fermer
           </button>
@@ -432,6 +513,23 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
           )}
         </div>
       </div>
+
+      {punching && (
+        <StartTaskModal
+          onClose={() => {
+            setPunching(false);
+            invalidate();
+          }}
+          initialValue={{ projectType: "service", serviceCallId: call.id, taskId: "" }}
+        />
+      )}
+      {signing && (
+        <SignatureModal
+          onClose={() => setSigning(false)}
+          onSave={(dataUrl) => signatureMutation.mutate(dataUrl)}
+          saving={signatureMutation.isPending}
+        />
+      )}
     </div>
   );
 }

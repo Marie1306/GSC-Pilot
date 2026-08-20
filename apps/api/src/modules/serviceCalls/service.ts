@@ -45,6 +45,7 @@ export interface CreateServiceCallInput {
   contactId?: string;
   newContact?: NewServiceCallContact;
   request: string;
+  address?: string;
   assignedEmployeeIds?: string[];
   scheduledAt?: string;
 }
@@ -80,6 +81,7 @@ export async function createServiceCall(input: CreateServiceCallInput): Promise<
         displayId,
         contactId,
         request: input.request.trim(),
+        address: input.address?.trim() || null,
         assignedEmployees: input.assignedEmployeeIds?.length ? { connect: input.assignedEmployeeIds.map((id) => ({ id })) } : undefined,
         scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
       },
@@ -108,7 +110,10 @@ export interface ServiceCallListItemDto {
 
 export async function listServiceCalls(viewerPersona: Persona, viewerEmployeeId: string): Promise<ServiceCallListItemDto[]> {
   const calls = await prisma.serviceCall.findMany({
-    where: viewerPersona === "member" ? { assignedEmployees: { some: { id: viewerEmployeeId } } } : {},
+    where: {
+      deletedAt: null,
+      ...(viewerPersona === "member" ? { assignedEmployees: { some: { id: viewerEmployeeId } } } : {}),
+    },
     include: { contact: { select: { name: true, company: true } }, assignedEmployees: { select: { id: true, name: true } } },
     orderBy: { createdAt: "desc" },
   });
@@ -185,6 +190,7 @@ export interface ServiceCallDetailDto {
   contactPhone: string | null;
   contactEmail: string | null;
   request: string;
+  address: string | null;
   assignedEmployees: AssignedEmployeeDto[];
   scheduledAt: string | null;
   startAt: string | null;
@@ -283,6 +289,7 @@ export async function getServiceCallDetail(id: string, viewerPersona: Persona): 
     contactPhone: call.contact.phone,
     contactEmail: call.contact.email,
     request: call.request,
+    address: call.address,
     assignedEmployees: call.assignedEmployees,
     scheduledAt: call.scheduledAt?.toISOString() ?? null,
     startAt: call.startAt?.toISOString() ?? null,
@@ -410,4 +417,12 @@ export async function sendServiceCallToAdmin(id: string): Promise<void> {
   if (!call.ownerApprovedAt) throw new HttpError(400, "Le call doit d'abord être approuvé par la Direction.");
   if (call.sentToAdminAt) throw new HttpError(409, "Déjà envoyé à l'administration.");
   await prisma.serviceCall.update({ where: { id }, data: { sentToAdminAt: new Date() } });
+}
+
+/** Corbeille — même mécanisme que deleteClientRequest/deleteBudget/deleteProject (19 août 2026). */
+export async function deleteServiceCall(id: string): Promise<void> {
+  const call = await prisma.serviceCall.findUnique({ where: { id } });
+  if (!call) throw new HttpError(404, "Appel de service introuvable.");
+  if (call.deletedAt) throw new HttpError(400, "Cet appel de service est déjà dans la corbeille.");
+  await prisma.serviceCall.update({ where: { id }, data: { deletedAt: new Date() } });
 }

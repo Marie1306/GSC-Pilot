@@ -20,7 +20,7 @@
 
 .service-call-info-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 16px;
   font-size: 13px;
 }
@@ -31,6 +31,25 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin-bottom: 4px;
+}
+
+.service-call-contact-card {
+  background: var(--gsc-color-surface2);
+  border: 1px solid var(--gsc-color-line-strong);
+  border-radius: var(--gsc-radius-base);
+  padding: 14px 16px;
+  margin: 10px 0 20px;
+  font-size: 13px;
+}
+.service-call-contact-card strong {
+  font-size: 15px;
+}
+.service-call-contact-request {
+  margin: 6px 0 10px;
+  color: var(--gsc-color-muted);
+}
+.service-call-contact-line {
+  margin-top: 4px;
 }
 
 .service-call-totals-grid {

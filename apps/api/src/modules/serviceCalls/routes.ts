@@ -7,6 +7,7 @@ import {
   canPriceServiceParts,
   canApproveServiceCall,
   canSendServiceCallToAdmin,
+  canDeleteServiceCall,
 } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import {
@@ -20,6 +21,7 @@ import {
   captureServiceCallSignature,
   approveServiceCall,
   sendServiceCallToAdmin,
+  deleteServiceCall,
 } from "./service.js";
 
 // Monté sur /api directement (voir app.ts, comme budgetsRouter/purchasesRouter)
@@ -51,6 +53,7 @@ const createSchema = z.object({
   contactId: z.uuid().optional(),
   newContact: newContactSchema.optional(),
   request: z.string().min(1, "La description de la demande est requise."),
+  address: z.string().optional(),
   assignedEmployeeIds: z.array(z.uuid()).optional(),
   scheduledAt: z.string().optional(),
 });
@@ -146,6 +149,18 @@ serviceCallsRouter.post(
   async (req, res) => {
     const id = z.uuid().parse(req.params.id);
     await sendServiceCallToAdmin(id);
+    res.status(204).end();
+  },
+);
+
+/** Corbeille — Direction seulement (canDeleteServiceCall, même palier que budgétaire/projet/demande client). */
+serviceCallsRouter.delete(
+  "/service-calls/:id",
+  requireAuth,
+  requirePermission((persona) => canDeleteServiceCall(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    await deleteServiceCall(id);
     res.status(204).end();
   },
 );

@@ -12,6 +12,7 @@ interface ServiceCallFormProps {
 const EMPTY: CreateServiceCallInput = {
   newContact: { contactName: "", company: "", contactRole: "", phone: "", email: "" },
   request: "",
+  address: "",
   assignedEmployeeIds: [],
   scheduledAt: "",
 };
@@ -34,6 +35,7 @@ export function ServiceCallForm({ onClose }: ServiceCallFormProps) {
           email: form.newContact.email?.trim() || undefined,
         },
         request: form.request.trim(),
+        address: form.address?.trim() || undefined,
         assignedEmployeeIds: form.assignedEmployeeIds,
         scheduledAt: form.scheduledAt || undefined,
       }),
@@ -116,6 +118,14 @@ export function ServiceCallForm({ onClose }: ServiceCallFormProps) {
             <div className="field">
               <label htmlFor="sc-email">Courriel</label>
               <input id="sc-email" type="email" value={form.newContact.email} onChange={(event) => setContact("email", event.target.value)} />
+            </div>
+            <div className="field field-full">
+              <label htmlFor="sc-address">Adresse (facultative)</label>
+              <input
+                id="sc-address"
+                value={form.address ?? ""}
+                onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))}
+              />
             </div>
             <div className="field field-full">
               <label>Techniciens assignés (facultatif, plusieurs possibles)</label>

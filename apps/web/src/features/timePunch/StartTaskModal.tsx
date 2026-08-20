@@ -8,10 +8,12 @@ import { ReferenceFields, type ReferenceValue } from "./ReferenceFields.js";
 
 interface StartTaskModalProps {
   onClose: () => void;
+  /** Pré-remplissage (20 août 2026) — "Puncher sur ce call" depuis ServiceCallDetail : ouvre déjà sur projectType "service" + serviceCallId, jamais la tâche (toujours choisie par le technicien). */
+  initialValue?: Partial<ReferenceValue>;
 }
 
 /** « Débuter une tâche » — v19 (référence visuelle), champs vérifiés contre la spécification confirmée (voir ReferenceFields). */
-export function StartTaskModal({ onClose }: StartTaskModalProps) {
+export function StartTaskModal({ onClose, initialValue }: StartTaskModalProps) {
   const { employee } = useAuth();
   const queryClient = useQueryClient();
   const tasksQuery = useQuery({ queryKey: ["punchable-tasks"], queryFn: fetchPunchableTasks });
@@ -26,7 +28,7 @@ export function StartTaskModal({ onClose }: StartTaskModalProps) {
   });
 
   const [employeeId, setEmployeeId] = useState(employee?.id ?? "");
-  const [value, setValue] = useState<ReferenceValue>({ projectType: "internal", taskId: "" });
+  const [value, setValue] = useState<ReferenceValue>({ projectType: "internal", taskId: "", ...initialValue });
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
 
