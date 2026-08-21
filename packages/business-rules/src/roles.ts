@@ -586,3 +586,41 @@ export function canDeleteClientRequest(persona: Persona): boolean {
   assertRole(persona);
   return persona === ROLES.OWNER;
 }
+
+// ---------------------------------------------------------------------------
+// Sous-assemblages / Avenants / Gantt (21 août 2026) — voir subassembly.ts,
+// amendments.ts. Déclarer un sous-assemblage prêt (declareSubassemblyReady)
+// reste ouvert à tout employé authentifié (même principe que le punch
+// d'heures — un geste de terrain, pas une approbation) : aucune fonction
+// dédiée ici, seulement requireAuth côté route.
+// ---------------------------------------------------------------------------
+
+/** Créer la liste de pièces d'un sous-assemblage : Direction seulement (spec confirmée). */
+export function canPrepareSubassemblyPartsList(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}
+
+/** Déclarer l'assemblage prêt à commencer : Direction seulement (spec confirmée) — même geste explicite que Marc pour la conception. */
+export function canDeclareAssemblyReady(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}
+
+/** Créer un avenant : Direction seulement (spec confirmée, vérifié le 9 août 2026 — "déjà correct"). */
+export function canCreateAmendment(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}
+
+/**
+ * Éditer le Gantt de production (affectations d'employés, dépendances,
+ * dérogations de compétence, marquer une tâche complétée) : Direction
+ * seulement — spec confirmée et corrigée le 9 août 2026 (Administration et
+ * Propriétaire n'ont qu'un accès visuel, voir canAccessOverviewViews pour
+ * la vue elle-même).
+ */
+export function canEditGanttSchedule(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}

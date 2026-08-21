@@ -18,10 +18,20 @@ function linkFor(item: ActionItemDto): string {
       return "/facturation";
     case "client_request_transmitted":
       return `/demandes?open=${item.id}`;
+    case "subassembly_ready":
+      // La liste de pièces se crée dans le détail du projet (Sous-assemblages),
+      // pas le Gantt lui-même (aucune tâche générée avant que la liste existe).
+      return "/projets";
   }
 }
 
-const TYPE_ORDER: ActionItemType[] = ["budget_approval", "purchase_approval", "invoicing", "client_request_transmitted"];
+const TYPE_ORDER: ActionItemType[] = [
+  "budget_approval",
+  "purchase_approval",
+  "invoicing",
+  "client_request_transmitted",
+  "subassembly_ready",
+];
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" });

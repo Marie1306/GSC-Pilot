@@ -63,6 +63,7 @@ model Employee {
   purchaseRequestsMade PurchaseRequest[] @relation("PurchaseRequestRequester")
   timeEntries          TimeEntry[]
   assignedServiceCalls ServiceCall[]
+  assignedProjectTasks ProjectTask[]
 
   @@index([persona])
 }
@@ -518,31 +519,37 @@ model ProjectTeamMember {
 }
 
 model ProjectTask {
-  id             String       @id @default(uuid())
-  projectId      String
-  project        Project      @relation(fields: [projectId], references: [id])
-  subassemblyId  String?
-  subassembly    Subassembly? @relation(fields: [subassemblyId], references: [id])
-  amendmentId    String?
-  amendment      Amendment?   @relation(fields: [amendmentId], references: [id])
-  name           String
-  category       String
-  subcategory    String?
-  skill          String?
-  plannedHours   Decimal      @default(0) @db.Decimal(10, 2)
-  plannedCost    Decimal      @default(0) @db.Decimal(12, 2)
-  actualHours    Decimal      @default(0) @db.Decimal(10, 2)
-  actualCost     Decimal      @default(0) @db.Decimal(12, 2)
-  purchases      Decimal      @default(0) @db.Decimal(12, 2)
-  maxPeople      Int?
-  minPeople      Int?
-  desiredStart   DateTime?
-  ganttCompleted Boolean      @default(false) // geste explicite — jamais un effet de bord des heures consommées
+  id                 String       @id @default(uuid())
+  projectId          String
+  project            Project      @relation(fields: [projectId], references: [id])
+  subassemblyId      String?
+  subassembly        Subassembly? @relation(fields: [subassemblyId], references: [id])
+  amendmentId        String?
+  amendment          Amendment?   @relation(fields: [amendmentId], references: [id])
+  name               String
+  category           String
+  subcategory        String?
+  skill              String?
+  // Affectation manuelle (Direction seulement, voir canEditGanttSchedule) —
+  // nullable : tant qu'aucun employé n'est assigné, la tâche reste non
+  // planifiable (pas d'auto-répartition dans cette phase, voir gantt/service.ts).
+  assignedEmployeeId String?
+  assignedEmployee   Employee?    @relation(fields: [assignedEmployeeId], references: [id])
+  plannedHours       Decimal      @default(0) @db.Decimal(10, 2)
+  plannedCost        Decimal      @default(0) @db.Decimal(12, 2)
+  actualHours        Decimal      @default(0) @db.Decimal(10, 2)
+  actualCost         Decimal      @default(0) @db.Decimal(12, 2)
+  purchases          Decimal      @default(0) @db.Decimal(12, 2)
+  maxPeople          Int?
+  minPeople          Int?
+  desiredStart       DateTime?
+  ganttCompleted     Boolean      @default(false) // geste explicite — jamais un effet de bord des heures consommées
 
   dependsOn    ProjectTaskDependency[] @relation("TaskDependsOn")
   dependedOnBy ProjectTaskDependency[] @relation("TaskDependedOnBy")
 
   @@index([projectId])
+  @@index([assignedEmployeeId])
 }
 
 model ProjectTaskDependency {
@@ -693,11 +700,11 @@ model PurchaseRequest {
 // ---------------------------------------------------------------------------
 
 model PunchableTask {
-  id               String          @id @default(uuid())
-  category         String
-  label            String
-  active           Boolean         @default(true)
-  sortOrder        Int             @default(0)
+  id                  String          @id @default(uuid())
+  category            String
+  label               String
+  active              Boolean         @default(true)
+  sortOrder           Int             @default(0)
   // Lien direct vers la ligne du modèle de budgétaire "labor" correspondante
   // — même tâche, utilisée à la fois pour planifier (budgétaire) et pour
   // puncher. Confirmé par l'utilisatrice le 18 août 2026 : elle veut un
@@ -715,14 +722,14 @@ model PunchableTask {
   // d'heures = squelette, modèle de budgétaire = seed seulement) — cette
   // passe pose donc le lien réel/vérifié d'abord; la gestion Direction-
   // facing (ajouter une tâche depuis l'interface) est la suite logique.
-  budgetModelRowId String?         @unique
-  budgetModelRow   BudgetModelRow? @relation(fields: [budgetModelRowId], references: [id])
+  budgetModelRowId    String?         @unique
+  budgetModelRow      BudgetModelRow? @relation(fields: [budgetModelRowId], references: [id])
   // Tarif fixe ($/h) qui remplace le taux de la classe facturable choisie au
   // punch (TimeEntry.techLevelId/rateType) pour CETTE tâche précise — utile
   // seulement pour une tâche de catégorie "service" (ex. Recherche à un tarif
   // fixe peu importe qui la fait). Nul = comportement inchangé, le taux de la
   // classe s'applique (confirmé par l'utilisatrice le 20 août 2026).
-  specificServiceRate Decimal? @db.Decimal(10, 2)
+  specificServiceRate Decimal?        @db.Decimal(10, 2)
 
   timeEntries TimeEntry[]
 }
@@ -844,39 +851,39 @@ model ServiceCallPhoto {
 // ---------------------------------------------------------------------------
 
 model Rolling {
-  id                   String         @id @default(uuid())
-  contactId            String
-  contact              Contact        @relation(fields: [contactId], references: [id])
-  clientRequestId      String?        @unique
-  clientRequest        ClientRequest? @relation(fields: [clientRequestId], references: [id])
-  budgetId             String?        @unique // nullable — création directe possible, avec ou sans budgétaire (confirmé)
-  budget               Budget?        @relation(fields: [budgetId], references: [id])
-  status               String         @default("active")
-  sold                 Decimal        @default(0) @db.Decimal(12, 2)
-  productionCompleted  Boolean        @default(false)
-  fulfillmentMode      String?
-  fulfillmentStatus    String?
-  fulfillmentDriverId  String?
-  fulfillmentAddress   String?
-  fulfillmentScheduled DateTime?
+  id                          String         @id @default(uuid())
+  contactId                   String
+  contact                     Contact        @relation(fields: [contactId], references: [id])
+  clientRequestId             String?        @unique
+  clientRequest               ClientRequest? @relation(fields: [clientRequestId], references: [id])
+  budgetId                    String?        @unique // nullable — création directe possible, avec ou sans budgétaire (confirmé)
+  budget                      Budget?        @relation(fields: [budgetId], references: [id])
+  status                      String         @default("active")
+  sold                        Decimal        @default(0) @db.Decimal(12, 2)
+  productionCompleted         Boolean        @default(false)
+  fulfillmentMode             String?
+  fulfillmentStatus           String?
+  fulfillmentDriverId         String?
+  fulfillmentAddress          String?
+  fulfillmentScheduled        DateTime?
   // Miroir exact de Project.billingReady/fulfillmentConfirmationNote — requis
   // pour réutiliser confirmFulfillment/confirmWarehouseDelivery (fulfillment.ts)
   // tels quels (FulfillmentEntity générique), jamais une variante spéciale
   // pour Rolling.
-  billingReady               Boolean   @default(false)
+  billingReady                Boolean        @default(false)
   fulfillmentConfirmationNote String?
-  createdDirectly      Boolean        @default(false)
-  closedAt             DateTime?
-  createdById          String
-  createdAt            DateTime       @default(now())
+  createdDirectly             Boolean        @default(false)
+  closedAt                    DateTime?
+  createdById                 String
+  createdAt                   DateTime       @default(now())
   // Post-mortem (20 août 2026, confirmé) : « la livraison termine le
   // roulement → statut "Terminé" → apparaît au Post-mortem. » Pas de
   // comparatif/coût réel ici contrairement à Project — aucune donnée
   // d'heures/achats n'existe pour un roulement (TimeEntry/PurchaseRequest
   // n'ont pas de rollingId), seulement le revenu (sold) et ces 3 champs.
-  postMortemDepassements   String?
-  postMortemAmeliorations  String?
-  postMortemRecommandation String?
+  postMortemDepassements      String?
+  postMortemAmeliorations     String?
+  postMortemRecommandation    String?
 
   invoiceEntries InvoicePlanEntry[]
   deliveries     Delivery[]
@@ -1013,6 +1020,7 @@ model Settings {
   nextBudgetNumber             Int      @default(1) // format BG-AAAA-NNNN
   nextDeliveryNumber           Int      @default(1) // format BL-AAAA-NNNN — même patron que nextBudgetNumber (année civile, pas d'année d'affaires)
   nextServiceCallNumber        Int      @default(1) // format CS-AAAA-NNNN — même patron que nextBudgetNumber/nextDeliveryNumber (année civile)
+  nextAmendmentNumber          Int      @default(1) // format AV-NNN — pas d'année (Amendment.displayId, voir amendments/service.ts)
   servicePartsDefaultMarginPct Decimal  @default(20) @db.Decimal(5, 2)
   punchRoundingMinutes         Int      @default(15)
   // Seuils du voyant de marge réelle (statut financier) — confirmé le 17

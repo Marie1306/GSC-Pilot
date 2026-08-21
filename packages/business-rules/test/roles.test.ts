@@ -465,3 +465,34 @@ describe("Post-mortem (17 août 2026)", () => {
     expect(P.canManagePostMortem(WAREHOUSE)).toBe(false);
   });
 });
+
+describe("Sous-assemblages / Avenants / Gantt (21 août 2026)", () => {
+  it("Direction seulement crée la liste de pièces d'un sous-assemblage", () => {
+    expect(P.canPrepareSubassemblyPartsList(OWNER)).toBe(true);
+    expect(P.canPrepareSubassemblyPartsList(ADMIN)).toBe(false);
+    expect(P.canPrepareSubassemblyPartsList(BOSS)).toBe(false);
+    expect(P.canPrepareSubassemblyPartsList(MEMBER)).toBe(false);
+    expect(P.canPrepareSubassemblyPartsList(WAREHOUSE)).toBe(false);
+  });
+  it("Direction seulement déclare l'assemblage prêt", () => {
+    expect(P.canDeclareAssemblyReady(OWNER)).toBe(true);
+    expect(P.canDeclareAssemblyReady(ADMIN)).toBe(false);
+    expect(P.canDeclareAssemblyReady(BOSS)).toBe(false);
+    expect(P.canDeclareAssemblyReady(MEMBER)).toBe(false);
+    expect(P.canDeclareAssemblyReady(WAREHOUSE)).toBe(false);
+  });
+  it("Direction seulement crée un avenant", () => {
+    expect(P.canCreateAmendment(OWNER)).toBe(true);
+    expect(P.canCreateAmendment(ADMIN)).toBe(false);
+    expect(P.canCreateAmendment(BOSS)).toBe(false);
+    expect(P.canCreateAmendment(MEMBER)).toBe(false);
+    expect(P.canCreateAmendment(WAREHOUSE)).toBe(false);
+  });
+  it("Direction seulement édite le Gantt (affectations, dépendances, complétion) — Administration/Propriétaire en lecture seule", () => {
+    expect(P.canEditGanttSchedule(OWNER)).toBe(true);
+    expect(P.canEditGanttSchedule(ADMIN)).toBe(false);
+    expect(P.canEditGanttSchedule(BOSS)).toBe(false);
+    expect(P.canEditGanttSchedule(MEMBER)).toBe(false);
+    expect(P.canEditGanttSchedule(WAREHOUSE)).toBe(false);
+  });
+});

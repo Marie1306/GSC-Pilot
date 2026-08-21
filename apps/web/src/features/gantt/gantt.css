@@ -1,0 +1,8 @@
+.gantt-task-done td {
+  color: var(--gsc-color-muted);
+}
+
+.gantt-task-done td:first-child {
+  text-decoration: line-through;
+  text-decoration-color: var(--gsc-color-muted2);
+}

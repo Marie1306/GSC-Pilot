@@ -15,16 +15,16 @@
  *   - Demandes clients transférées au Propriétaire, pas encore converties
  *     (transferClientRequestToOwner, déjà construit — voir clientRequests/
  *     service.ts, rien à ajouter côté mécanisme).
- *
- * Sous-assemblages (Marc déclare prêt → centre d'actions Direction, spec
- * confirmée) volontairement omis : aucune façon de créer un Subassembly
- * n'existe encore nulle part (module Gantt pas construit) — rien à
- * agréger de toute façon.
+ *   - Sous-assemblages déclarés prêts par le designer, en attente que
+ *     Direction crée la liste de pièces (module Sous-assemblages, 21 août
+ *     2026 — canPrepareSubassemblyPartsList, même geste qui débloque
+ *     l'item ici).
  */
 import {
   canApproveBudgetForSending,
   canApprovePurchaseRequest,
   canCreateInvoiceRecord,
+  canPrepareSubassemblyPartsList,
   buildFrozenPurchaseThresholdsMap,
   type Persona,
 } from "@gsc-pilot/business-rules";
@@ -33,8 +33,9 @@ import { listBudgets } from "../budgets/service.js";
 import { listPurchaseRequests } from "../purchases/service.js";
 import { listInvoiceEntries } from "../invoicing/service.js";
 import { listClientRequests } from "../clientRequests/service.js";
+import { listPendingPartsListSubassemblies } from "../subassemblies/service.js";
 
-export type ActionItemType = "budget_approval" | "purchase_approval" | "invoicing" | "client_request_transmitted";
+export type ActionItemType = "budget_approval" | "purchase_approval" | "invoicing" | "client_request_transmitted" | "subassembly_ready";
 
 export interface ActionItemDto {
   id: string;
@@ -129,6 +130,20 @@ export async function getActionCenterItems(viewerPersona: Persona, viewerEmploye
           createdAt: request.transmittedToOwnerAt,
         });
       }
+    }
+  }
+
+  if (canPrepareSubassemblyPartsList(viewerPersona)) {
+    const pending = await listPendingPartsListSubassemblies();
+    for (const subassembly of pending) {
+      items.push({
+        id: subassembly.id,
+        type: "subassembly_ready",
+        typeLabel: "Sous-assemblage à préparer",
+        label: `${subassembly.projectNumber} — ${subassembly.projectName} · ${subassembly.number}`,
+        sublabel: `Déclaré par ${subassembly.declaredByName}`,
+        createdAt: subassembly.declaredAt,
+      });
     }
   }
 

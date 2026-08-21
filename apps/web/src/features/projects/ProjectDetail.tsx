@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchProjectDetail, formatCurrency, FINANCIAL_STATUS_LABELS } from "./api.js";
 import { ProjectPurchaseEntries } from "./ProjectPurchaseEntries.js";
+import { ProjectSubassemblies } from "./ProjectSubassemblies.js";
+import { ProjectAmendments } from "./ProjectAmendments.js";
 import { ProjectFulfillment } from "./ProjectFulfillment.js";
 import { ProjectInvoicePlan } from "./ProjectInvoicePlan.js";
 import { ProjectWarranty } from "./ProjectWarranty.js";
@@ -242,6 +244,10 @@ export function ProjectDetail({ id, onClose }: ProjectDetailProps) {
                   </div>
                 </div>
               )}
+
+              <ProjectSubassemblies projectId={project.id} />
+
+              <ProjectAmendments projectId={project.id} />
 
               <ProjectPurchaseEntries projectId={project.id} />
 

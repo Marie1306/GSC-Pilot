@@ -10,6 +10,7 @@ export * from "./subassembly.js";
 export * from "./amendments.js";
 export * from "./internal-stats.js";
 export * from "./categories.js";
+export * from "./production-categories.js";
 export * from "./project-actuals.js";
 export * from "./warranty.js";
 export * from "./punch.js";
