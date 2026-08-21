@@ -135,6 +135,31 @@ export interface AddChecklistItemInput {
   shaftMeasurement?: string;
   note?: string;
   activeStepIds: string[];
+  /** Contourne l'avertissement d'unicité (spec confirmée 21 août 2026 — « Ajouter quand même »). */
+  force?: boolean;
+}
+
+/**
+ * Unicité du numéro (pièce ou sous-assemblage) par PROJET, tous checklists
+ * confondus (spec confirmée : deux projets différents peuvent réutiliser le
+ * même numéro, jamais deux items du même projet) — avertissement
+ * contournable (`force`), jamais un blocage définitif.
+ */
+async function findNumberConflict(projectId: string, number: string, excludeItemId?: string) {
+  const existing = await prisma.productionChecklistItem.findFirst({
+    where: {
+      number: number.trim(),
+      checklist: { projectId },
+      ...(excludeItemId && { id: { not: excludeItemId } }),
+    },
+    include: { checklist: { select: { assemblyLabel: true } } },
+  });
+  return existing ? { assemblyLabel: existing.checklist.assemblyLabel } : null;
+}
+
+function conflictMessage(number: string, assemblyLabel: string | null): string {
+  const where = assemblyLabel ? `l'assemblage ${assemblyLabel}` : "une autre checklist de ce projet";
+  return `Le numéro « ${number.trim()} » existe déjà dans ${where}. Utilisez « Ajouter quand même » si c'est voulu.`;
 }
 
 export async function addChecklistItem(checklistId: string, createdById: string, input: AddChecklistItemInput): Promise<ChecklistItemDto> {
@@ -149,6 +174,11 @@ export async function addChecklistItem(checklistId: string, createdById: string,
     const parent = await prisma.productionChecklistItem.findUnique({ where: { id: input.parentItemId } });
     if (!parent || parent.checklistId !== checklistId) throw new HttpError(400, "Sous-assemblage parent introuvable dans cette checklist.");
     if (parent.kind !== "subassembly") throw new HttpError(400, "Le parent doit être un sous-assemblage.");
+  }
+
+  if (!input.force) {
+    const conflict = await findNumberConflict(checklist.projectId, input.number);
+    if (conflict) throw new HttpError(409, conflictMessage(input.number, conflict.assemblyLabel));
   }
 
   const activeSteps = await listChecklistSteps();
@@ -216,45 +246,115 @@ function toItemDto(item: ItemWithSteps, nameById: Map<string, string>, parentNum
   };
 }
 
-export interface ActiveChecklistItemFilters {
-  stepId?: string;
-  thickness?: string;
+export interface UpdateChecklistItemInput {
+  number?: string;
+  quantity?: number | null;
+  thickness?: string | null;
+  material?: string | null;
+  shapeType?: string | null;
+  tubeShape?: string | null;
+  tubeOD?: string | null;
+  tubeID?: string | null;
+  tubeMeasurement1?: string | null;
+  tubeMeasurement2?: string | null;
+  tubeWallThickness?: string | null;
+  shaftMeasurement?: string | null;
+  note?: string | null;
+  activeStepIds?: string[];
+  force?: boolean;
 }
 
-export interface ActiveChecklistItemDto extends ChecklistItemDto {
+/**
+ * Modification d'une ligne déjà enregistrée — réservée à Direction (spec
+ * confirmée 21 août 2026 : « Toutes les lignes une fois enregistrées dans la
+ * checklist doivent pouvoir rester modifiables par Direction »). Si une
+ * étape redevient inactive, son état complété est réinitialisé (une étape
+ * qui ne s'applique plus ne peut pas rester « faite »).
+ */
+export async function updateChecklistItem(itemId: string, input: UpdateChecklistItemInput): Promise<ChecklistItemDto> {
+  const existing = await prisma.productionChecklistItem.findUnique({ where: { id: itemId }, include: { checklist: true } });
+  if (!existing) throw new HttpError(404, "Item introuvable.");
+  if (input.number !== undefined && !input.number.trim()) throw new HttpError(400, "Le numéro est requis.");
+
+  if (input.number !== undefined && !input.force) {
+    const conflict = await findNumberConflict(existing.checklist.projectId, input.number, itemId);
+    if (conflict) throw new HttpError(409, conflictMessage(input.number, conflict.assemblyLabel));
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.productionChecklistItem.update({
+      where: { id: itemId },
+      data: {
+        ...(input.number !== undefined && { number: input.number.trim() }),
+        ...(input.quantity !== undefined && { quantity: input.quantity }),
+        ...(input.thickness !== undefined && { thickness: input.thickness || null }),
+        ...(input.material !== undefined && { material: input.material || null }),
+        ...(input.shapeType !== undefined && { shapeType: input.shapeType || null }),
+        ...(input.tubeShape !== undefined && { tubeShape: input.tubeShape || null }),
+        ...(input.tubeOD !== undefined && { tubeOD: input.tubeOD || null }),
+        ...(input.tubeID !== undefined && { tubeID: input.tubeID || null }),
+        ...(input.tubeMeasurement1 !== undefined && { tubeMeasurement1: input.tubeMeasurement1 || null }),
+        ...(input.tubeMeasurement2 !== undefined && { tubeMeasurement2: input.tubeMeasurement2 || null }),
+        ...(input.tubeWallThickness !== undefined && { tubeWallThickness: input.tubeWallThickness || null }),
+        ...(input.shaftMeasurement !== undefined && { shaftMeasurement: input.shaftMeasurement || null }),
+        ...(input.note !== undefined && { note: input.note || null }),
+      },
+    });
+
+    if (input.activeStepIds) {
+      const steps = await tx.productionChecklistItemStep.findMany({ where: { itemId } });
+      for (const step of steps) {
+        const shouldBeActive = input.activeStepIds.includes(step.stepId);
+        if (shouldBeActive !== step.active) {
+          await tx.productionChecklistItemStep.update({
+            where: { id: step.id },
+            data: shouldBeActive ? { active: true } : { active: false, completed: false, completedById: null, completedAt: null },
+          });
+        }
+      }
+    }
+  });
+
+  const full = await prisma.productionChecklistItem.findUniqueOrThrow({ where: { id: itemId }, include: { steps: { include: { step: true } } } });
+  const nameById = await resolveEmployeeNames([full.createdById, ...full.steps.map((s) => s.completedById).filter((v): v is string => !!v)]);
+  const parentNumber = full.parentItemId
+    ? ((await prisma.productionChecklistItem.findUnique({ where: { id: full.parentItemId }, select: { number: true } }))?.number ?? null)
+    : null;
+  return toItemDto(full, nameById, parentNumber);
+}
+
+export interface ActiveChecklistProjectDto {
+  projectId: string;
   projectNumber: string;
   projectName: string;
-  assemblyLabel: string | null;
+  activeChecklistCount: number;
 }
 
-/** Vue active, tous projets confondus — exclut un item une fois toutes ses étapes actives complétées (spec confirmée). */
-export async function listActiveChecklistItems(filters: ActiveChecklistItemFilters): Promise<ActiveChecklistItemDto[]> {
-  const items = await prisma.productionChecklistItem.findMany({
-    where: {
-      ...(filters.thickness && { thickness: filters.thickness }),
-      ...(filters.stepId && { steps: { some: { stepId: filters.stepId, active: true, completed: false } } }),
-    },
-    include: {
-      steps: { include: { step: true } },
-      checklist: { select: { assemblyLabel: true, project: { select: { projectNumber: true, name: true } } } },
-    },
+/**
+ * Projets ayant au moins une checklist active — alimente la grille de
+ * cartes de la page Checklist (spec confirmée 21 août 2026 : navigation par
+ * projet, « seulement lorsqu'il y a des checklist créée [et active] » —
+ * une checklist entièrement complétée disparaît de cette liste, mais reste
+ * dans l'archive du projet, jamais supprimée).
+ */
+export async function listProjectsWithActiveChecklists(): Promise<ActiveChecklistProjectDto[]> {
+  const checklists = await prisma.productionChecklist.findMany({
+    include: { project: { select: { id: true, projectNumber: true, name: true } }, items: { include: { steps: true } } },
   });
-  const active = items.filter(isItemActive);
-  const nameById = await resolveEmployeeNames([
-    ...active.map((i) => i.createdById),
-    ...active.flatMap((i) => i.steps.map((s) => s.completedById).filter((v): v is string => !!v)),
-  ]);
-  const parentIds = active.map((i) => i.parentItemId).filter((v): v is string => !!v);
-  const parents = parentIds.length ? await prisma.productionChecklistItem.findMany({ where: { id: { in: parentIds } }, select: { id: true, number: true } }) : [];
-  const parentNumberById = new Map(parents.map((p) => [p.id, p.number]));
-  return active
-    .map((item) => ({
-      ...toItemDto(item, nameById, item.parentItemId ? (parentNumberById.get(item.parentItemId) ?? null) : null),
-      projectNumber: item.checklist.project.projectNumber,
-      projectName: item.checklist.project.name,
-      assemblyLabel: item.checklist.assemblyLabel,
-    }))
-    .sort((a, b) => a.projectNumber.localeCompare(b.projectNumber) || a.number.localeCompare(b.number));
+
+  const byProject = new Map<string, ActiveChecklistProjectDto>();
+  for (const checklist of checklists) {
+    if (!checklist.items.some(isItemActive)) continue;
+    const entry = byProject.get(checklist.projectId) ?? {
+      projectId: checklist.project.id,
+      projectNumber: checklist.project.projectNumber,
+      projectName: checklist.project.name,
+      activeChecklistCount: 0,
+    };
+    entry.activeChecklistCount += 1;
+    byProject.set(checklist.projectId, entry);
+  }
+  return [...byProject.values()].sort((a, b) => a.projectNumber.localeCompare(b.projectNumber));
 }
 
 export interface ChecklistWithItemsDto extends ChecklistDto {

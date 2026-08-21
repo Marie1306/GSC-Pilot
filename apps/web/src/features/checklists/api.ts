@@ -47,10 +47,11 @@ export interface ChecklistWithItemsDto extends ChecklistDto {
   items: ChecklistItemDto[];
 }
 
-export interface ActiveChecklistItemDto extends ChecklistItemDto {
+export interface ActiveChecklistProjectDto {
+  projectId: string;
   projectNumber: string;
   projectName: string;
-  assemblyLabel: string | null;
+  activeChecklistCount: number;
 }
 
 export function createChecklist(projectId: string, assemblyLabel?: string): Promise<{ checklist: ChecklistDto }> {
@@ -74,18 +75,39 @@ export interface AddChecklistItemInput {
   shaftMeasurement?: string;
   note?: string;
   activeStepIds: string[];
+  /** Contourne l'avertissement d'unicité de numéro par projet (« Ajouter quand même »). */
+  force?: boolean;
 }
 
 export function addChecklistItem(checklistId: string, input: AddChecklistItemInput): Promise<{ item: ChecklistItemDto }> {
   return apiFetch(`/api/checklists/${checklistId}/items`, { method: "POST", body: JSON.stringify(input) });
 }
 
-export function fetchActiveChecklistItems(filters: { stepId?: string; thickness?: string } = {}): Promise<{ items: ActiveChecklistItemDto[] }> {
-  const params = new URLSearchParams();
-  if (filters.stepId) params.set("stepId", filters.stepId);
-  if (filters.thickness) params.set("thickness", filters.thickness);
-  const query = params.toString();
-  return apiFetch(`/api/checklists/active-items${query ? `?${query}` : ""}`);
+export interface UpdateChecklistItemInput {
+  number?: string;
+  quantity?: number | null;
+  thickness?: string | null;
+  material?: string | null;
+  shapeType?: string | null;
+  tubeShape?: string | null;
+  tubeOD?: string | null;
+  tubeID?: string | null;
+  tubeMeasurement1?: string | null;
+  tubeMeasurement2?: string | null;
+  tubeWallThickness?: string | null;
+  shaftMeasurement?: string | null;
+  note?: string | null;
+  activeStepIds?: string[];
+  force?: boolean;
+}
+
+export function updateChecklistItem(itemId: string, input: UpdateChecklistItemInput): Promise<{ item: ChecklistItemDto }> {
+  return apiFetch(`/api/checklist-items/${itemId}`, { method: "PATCH", body: JSON.stringify(input) });
+}
+
+/** Projets ayant au moins une checklist active — alimente la grille de cartes de la page Checklist. */
+export function fetchProjectsWithActiveChecklists(): Promise<{ projects: ActiveChecklistProjectDto[] }> {
+  return apiFetch("/api/checklists/active-projects");
 }
 
 export function fetchProjectChecklists(projectId: string): Promise<{ checklists: ChecklistWithItemsDto[] }> {

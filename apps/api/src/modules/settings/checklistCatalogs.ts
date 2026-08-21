@@ -31,10 +31,25 @@ export interface ChecklistCatalogUpdate {
 export async function listChecklistThicknesses(): Promise<ChecklistCatalogDto[]> {
   return (await prisma.checklistThickness.findMany({ orderBy: { sortOrder: "asc" } })).map(toDto);
 }
-export async function createChecklistThickness(label: string): Promise<ChecklistCatalogDto> {
+/**
+ * `insertBeforeId` omis = ajout à la fin (comportement d'origine). Sinon,
+ * décale les sortOrder à partir de la position de l'ancre pour insérer
+ * juste avant elle (spec confirmée 21 août 2026 — un nouveau libellé
+ * s'ajoutait toujours à la fin, ce qui forçait par ex. « Coupe » à
+ * atterrir après Peinture au lieu de près de Plasma/Pliage).
+ */
+export async function createChecklistThickness(label: string, insertBeforeId?: string): Promise<ChecklistCatalogDto> {
   if (await prisma.checklistThickness.findUnique({ where: { label } })) throw new HttpError(409, "Cette épaisseur existe déjà.");
-  const count = await prisma.checklistThickness.count();
-  return toDto(await prisma.checklistThickness.create({ data: { label, sortOrder: count } }));
+  return prisma.$transaction(async (tx) => {
+    let sortOrder = await tx.checklistThickness.count();
+    if (insertBeforeId) {
+      const anchor = await tx.checklistThickness.findUnique({ where: { id: insertBeforeId } });
+      if (!anchor) throw new HttpError(404, "Position introuvable.");
+      sortOrder = anchor.sortOrder;
+      await tx.checklistThickness.updateMany({ where: { sortOrder: { gte: sortOrder } }, data: { sortOrder: { increment: 1 } } });
+    }
+    return toDto(await tx.checklistThickness.create({ data: { label, sortOrder } }));
+  });
 }
 export async function updateChecklistThickness(id: string, update: ChecklistCatalogUpdate): Promise<ChecklistCatalogDto> {
   const existing = await prisma.checklistThickness.findUnique({ where: { id } });
@@ -49,10 +64,18 @@ export async function updateChecklistThickness(id: string, update: ChecklistCata
 export async function listChecklistMaterials(): Promise<ChecklistCatalogDto[]> {
   return (await prisma.checklistMaterial.findMany({ orderBy: { sortOrder: "asc" } })).map(toDto);
 }
-export async function createChecklistMaterial(label: string): Promise<ChecklistCatalogDto> {
+export async function createChecklistMaterial(label: string, insertBeforeId?: string): Promise<ChecklistCatalogDto> {
   if (await prisma.checklistMaterial.findUnique({ where: { label } })) throw new HttpError(409, "Ce matériau existe déjà.");
-  const count = await prisma.checklistMaterial.count();
-  return toDto(await prisma.checklistMaterial.create({ data: { label, sortOrder: count } }));
+  return prisma.$transaction(async (tx) => {
+    let sortOrder = await tx.checklistMaterial.count();
+    if (insertBeforeId) {
+      const anchor = await tx.checklistMaterial.findUnique({ where: { id: insertBeforeId } });
+      if (!anchor) throw new HttpError(404, "Position introuvable.");
+      sortOrder = anchor.sortOrder;
+      await tx.checklistMaterial.updateMany({ where: { sortOrder: { gte: sortOrder } }, data: { sortOrder: { increment: 1 } } });
+    }
+    return toDto(await tx.checklistMaterial.create({ data: { label, sortOrder } }));
+  });
 }
 export async function updateChecklistMaterial(id: string, update: ChecklistCatalogUpdate): Promise<ChecklistCatalogDto> {
   const existing = await prisma.checklistMaterial.findUnique({ where: { id } });
@@ -67,10 +90,18 @@ export async function updateChecklistMaterial(id: string, update: ChecklistCatal
 export async function listChecklistSteps(): Promise<ChecklistCatalogDto[]> {
   return (await prisma.checklistStep.findMany({ orderBy: { sortOrder: "asc" } })).map(toDto);
 }
-export async function createChecklistStep(label: string): Promise<ChecklistCatalogDto> {
+export async function createChecklistStep(label: string, insertBeforeId?: string): Promise<ChecklistCatalogDto> {
   if (await prisma.checklistStep.findUnique({ where: { label } })) throw new HttpError(409, "Cette étape existe déjà.");
-  const count = await prisma.checklistStep.count();
-  return toDto(await prisma.checklistStep.create({ data: { label, sortOrder: count } }));
+  return prisma.$transaction(async (tx) => {
+    let sortOrder = await tx.checklistStep.count();
+    if (insertBeforeId) {
+      const anchor = await tx.checklistStep.findUnique({ where: { id: insertBeforeId } });
+      if (!anchor) throw new HttpError(404, "Position introuvable.");
+      sortOrder = anchor.sortOrder;
+      await tx.checklistStep.updateMany({ where: { sortOrder: { gte: sortOrder } }, data: { sortOrder: { increment: 1 } } });
+    }
+    return toDto(await tx.checklistStep.create({ data: { label, sortOrder } }));
+  });
 }
 export async function updateChecklistStep(id: string, update: ChecklistCatalogUpdate): Promise<ChecklistCatalogDto> {
   const existing = await prisma.checklistStep.findUnique({ where: { id } });

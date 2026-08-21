@@ -4,42 +4,44 @@ import { fetchChecklistThicknesses, fetchChecklistMaterials, fetchChecklistSteps
 import { submitPurchaseShortlist } from "../purchases/api.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { addChecklistItem, type ChecklistDto, type AddChecklistItemInput } from "./api.js";
+import { PieceFields, stepCheckboxes, emptyPieceFields, type PieceFieldsValue } from "./pieceFields.js";
+import "./checklist.css";
 
 interface ChecklistEntryModalProps {
   checklist: ChecklistDto;
   onClose: () => void;
 }
 
-const SHAPE_TYPES = [
-  { value: "", label: "—" },
-  { value: "tube", label: "Tube" },
-  { value: "shaft", label: "Shaft" },
-  { value: "print3d", label: "Impression 3D" },
-];
-const TUBE_SHAPES = [
-  { value: "round", label: "Rond" },
-  { value: "square", label: "Carré" },
-  { value: "rectangle", label: "Rectangle" },
-];
-
-const emptyPieceForm = {
-  number: "",
-  quantity: "",
-  thickness: "",
-  material: "",
-  shapeType: "",
-  tubeShape: "round",
-  tubeOD: "",
-  tubeID: "",
-  tubeMeasurement1: "",
-  tubeMeasurement2: "",
-  tubeWallThickness: "",
-  shaftMeasurement: "",
-  note: "",
-};
-type PieceForm = typeof emptyPieceForm;
-
 const emptySubForm = { number: "", note: "" };
+
+function buildPieceInput(form: PieceFieldsValue, parentItemId: string | undefined, activeStepIds: string[], force: boolean): AddChecklistItemInput {
+  const input: AddChecklistItemInput = {
+    kind: "piece",
+    parentItemId,
+    number: form.number.trim(),
+    quantity: form.quantity ? Number(form.quantity) : undefined,
+    thickness: form.thickness || undefined,
+    material: form.material || undefined,
+    shapeType: form.shapeType || undefined,
+    note: form.note.trim() || undefined,
+    activeStepIds,
+    force,
+  };
+  if (form.shapeType === "tube") {
+    input.tubeShape = form.tubeShape;
+    if (form.tubeShape === "round") {
+      input.tubeOD = form.tubeOD || undefined;
+      input.tubeID = form.tubeID || undefined;
+    } else {
+      input.tubeMeasurement1 = form.tubeMeasurement1 || undefined;
+      if (form.tubeShape === "rectangle") input.tubeMeasurement2 = form.tubeMeasurement2 || undefined;
+      input.tubeWallThickness = form.tubeWallThickness || undefined;
+    }
+  } else if (form.shapeType === "shaft") {
+    input.shaftMeasurement = form.shaftMeasurement || undefined;
+  }
+  return input;
+}
 
 /**
  * Flux d'entrée rapide (21 août 2026, spec confirmée avec l'utilisatrice) —
@@ -48,6 +50,10 @@ const emptySubForm = { number: "", note: "" };
  * formulaire de pièce se réinitialise et reste ouvert directement (jamais
  * besoin de rouvrir manuellement). Après un sous-assemblage, on passe
  * directement à l'entrée de pièces DANS ce sous-assemblage.
+ *
+ * Unicité de numéro par projet (21 août 2026) : un conflit renvoie 409 —
+ * plutôt qu'un blocage définitif, un avertissement propose « Ajouter quand
+ * même » qui renvoie la même requête avec force=true.
  */
 export function ChecklistEntryModal({ checklist, onClose }: ChecklistEntryModalProps) {
   const queryClient = useQueryClient();
@@ -57,71 +63,57 @@ export function ChecklistEntryModal({ checklist, onClose }: ChecklistEntryModalP
 
   const [parent, setParent] = useState<{ id: string; number: string } | null>(null);
   const [mode, setMode] = useState<"piece" | "subassembly" | "achat" | null>(null);
-  const [pieceForm, setPieceForm] = useState<PieceForm>(emptyPieceForm);
+  const [pieceForm, setPieceForm] = useState<PieceFieldsValue>(emptyPieceFields);
   const [pieceSteps, setPieceSteps] = useState<string[]>([]);
   const [subForm, setSubForm] = useState(emptySubForm);
   const [subSteps, setSubSteps] = useState<string[]>([]);
   const [achatLines, setAchatLines] = useState<string[]>([""]);
   const [error, setError] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<{ kind: "piece" | "subassembly"; message: string } | null>(null);
   const [justAdded, setJustAdded] = useState<string[]>([]);
 
   const activeThicknesses = (thicknessesQuery.data ?? []).filter((t) => t.active);
   const activeMaterials = (materialsQuery.data ?? []).filter((m) => m.active);
   const activeSteps = (stepsQuery.data ?? []).filter((s) => s.active);
 
-  const invalidate = () => void queryClient.invalidateQueries({ queryKey: ["checklist", "active-items"] });
-  const onMutationError = (err: unknown) => setError(err instanceof ApiError ? err.message : "Une erreur est survenue — réessayez.");
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ["checklist", "active-projects"] });
+    void queryClient.invalidateQueries({ queryKey: ["project-checklists", checklist.projectId] });
+  };
+  const onMutationError = (kind: "piece" | "subassembly") => (err: unknown) => {
+    if (err instanceof ApiError && err.status === 409) {
+      setConflict({ kind, message: err.message });
+      return;
+    }
+    setError(err instanceof ApiError ? err.message : "Une erreur est survenue — réessayez.");
+  };
 
   const addPieceMutation = useMutation({
-    mutationFn: () => {
-      const input: AddChecklistItemInput = {
-        kind: "piece",
-        parentItemId: parent?.id,
-        number: pieceForm.number.trim(),
-        quantity: pieceForm.quantity ? Number(pieceForm.quantity) : undefined,
-        thickness: pieceForm.thickness || undefined,
-        material: pieceForm.material || undefined,
-        shapeType: pieceForm.shapeType || undefined,
-        note: pieceForm.note.trim() || undefined,
-        activeStepIds: pieceSteps,
-      };
-      if (pieceForm.shapeType === "tube") {
-        input.tubeShape = pieceForm.tubeShape;
-        if (pieceForm.tubeShape === "round") {
-          input.tubeOD = pieceForm.tubeOD || undefined;
-          input.tubeID = pieceForm.tubeID || undefined;
-        } else {
-          input.tubeMeasurement1 = pieceForm.tubeMeasurement1 || undefined;
-          if (pieceForm.tubeShape === "rectangle") input.tubeMeasurement2 = pieceForm.tubeMeasurement2 || undefined;
-          input.tubeWallThickness = pieceForm.tubeWallThickness || undefined;
-        }
-      } else if (pieceForm.shapeType === "shaft") {
-        input.shaftMeasurement = pieceForm.shaftMeasurement || undefined;
-      }
-      return addChecklistItem(checklist.id, input);
-    },
+    mutationFn: (force: boolean) => addChecklistItem(checklist.id, buildPieceInput(pieceForm, parent?.id, pieceSteps, force)),
     onSuccess: ({ item }) => {
       setError(null);
+      setConflict(null);
       setJustAdded((current) => [...current, item.number]);
-      setPieceForm(emptyPieceForm);
+      setPieceForm(emptyPieceFields);
       setPieceSteps([]);
       invalidate();
     },
-    onError: onMutationError,
+    onError: onMutationError("piece"),
   });
 
   const addSubMutation = useMutation({
-    mutationFn: () =>
-      addChecklistItem(checklist.id, { kind: "subassembly", number: subForm.number.trim(), note: subForm.note.trim() || undefined, activeStepIds: subSteps }),
+    mutationFn: (force: boolean) =>
+      addChecklistItem(checklist.id, { kind: "subassembly", number: subForm.number.trim(), note: subForm.note.trim() || undefined, activeStepIds: subSteps, force }),
     onSuccess: ({ item }) => {
       setError(null);
+      setConflict(null);
       setJustAdded((current) => [...current, item.number]);
       setParent({ id: item.id, number: item.number });
       setSubForm(emptySubForm);
       setSubSteps([]);
       setMode("piece"); // on passe directement à l'entrée des pièces de ce sous-assemblage
     },
-    onError: onMutationError,
+    onError: onMutationError("subassembly"),
   });
 
   const achatMutation = useMutation({
@@ -137,7 +129,7 @@ export function ChecklistEntryModal({ checklist, onClose }: ChecklistEntryModalP
       setAchatLines([""]);
       setMode(null);
     },
-    onError: onMutationError,
+    onError: (err) => setError(err instanceof ApiError ? err.message : "Une erreur est survenue — réessayez."),
   });
 
   const canAddPiece = pieceForm.number.trim().length > 0 && !addPieceMutation.isPending;
@@ -148,20 +140,10 @@ export function ChecklistEntryModal({ checklist, onClose }: ChecklistEntryModalP
     setCurrent(current.includes(stepId) ? current.filter((s) => s !== stepId) : [...current, stepId]);
   }
 
-  function stepCheckboxes(current: string[], setCurrent: (v: string[]) => void) {
-    return (
-      <div className="field field-full">
-        <label>Étapes qui s'appliquent</label>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          {activeSteps.map((step) => (
-            <label key={step.id} style={{ display: "flex", alignItems: "center", gap: 4, fontWeight: 400 }}>
-              <input type="checkbox" checked={current.includes(step.id)} onChange={() => toggleStep(current, setCurrent, step.id)} />
-              {step.label}
-            </label>
-          ))}
-        </div>
-      </div>
-    );
+  function switchMode(next: "piece" | "subassembly" | "achat") {
+    setConflict(null);
+    setError(null);
+    setMode(next);
   }
 
   return (
@@ -169,7 +151,7 @@ export function ChecklistEntryModal({ checklist, onClose }: ChecklistEntryModalP
       <div className="modal" style={{ maxWidth: 640 }}>
         <div className="modal-header">
           <div>
-            <h2>
+            <h2 className="checklist-entry-title">
               {checklist.projectNumber} — {checklist.projectName}
             </h2>
             <p className="modal-subtitle">
@@ -190,22 +172,22 @@ export function ChecklistEntryModal({ checklist, onClose }: ChecklistEntryModalP
             </p>
           )}
 
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-            <button type="button" className={`btn btn-small ${mode === "piece" ? "" : "btn-secondary"}`} onClick={() => setMode("piece")}>
+          <div className="checklist-mode-row">
+            <button type="button" className="btn checklist-mode-btn" onClick={() => switchMode("piece")}>
               Nouvelle pièce
             </button>
-            <button type="button" className={`btn btn-small ${mode === "achat" ? "" : "btn-secondary"}`} onClick={() => setMode("achat")}>
+            <button type="button" className="btn checklist-mode-btn" onClick={() => switchMode("achat")}>
               Nouvel achat
             </button>
             {!parent && (
-              <button type="button" className={`btn btn-small ${mode === "subassembly" ? "" : "btn-secondary"}`} onClick={() => setMode("subassembly")}>
+              <button type="button" className="btn checklist-mode-btn" onClick={() => switchMode("subassembly")}>
                 Nouveau sous-assemblage
               </button>
             )}
             {parent && (
               <button
                 type="button"
-                className="btn btn-secondary btn-small"
+                className="btn btn-secondary"
                 onClick={() => {
                   setParent(null);
                   setMode(null);
@@ -216,111 +198,37 @@ export function ChecklistEntryModal({ checklist, onClose }: ChecklistEntryModalP
             )}
           </div>
 
+          {conflict && (
+            <div className="checklist-conflict">
+              <p>{conflict.message}</p>
+              <button
+                type="button"
+                className="btn btn-small"
+                onClick={() => (conflict.kind === "piece" ? addPieceMutation.mutate(true) : addSubMutation.mutate(true))}
+              >
+                Ajouter quand même
+              </button>
+              <button type="button" className="btn btn-secondary btn-small" onClick={() => setConflict(null)}>
+                Annuler
+              </button>
+            </div>
+          )}
+
           {mode === "piece" && (
             <form
               className="form-grid"
               onSubmit={(event) => {
                 event.preventDefault();
-                if (canAddPiece) addPieceMutation.mutate();
+                if (canAddPiece) addPieceMutation.mutate(false);
               }}
             >
-              <div className="field">
-                <label>Numéro de pièce</label>
-                <input value={pieceForm.number} onChange={(e) => setPieceForm({ ...pieceForm, number: e.target.value })} placeholder="ex. 07-011" />
-              </div>
-              <div className="field">
-                <label>Quantité</label>
-                <input type="number" min={1} value={pieceForm.quantity} onChange={(e) => setPieceForm({ ...pieceForm, quantity: e.target.value })} />
-              </div>
-              <div className="field">
-                <label>Épaisseur</label>
-                <select value={pieceForm.thickness} onChange={(e) => setPieceForm({ ...pieceForm, thickness: e.target.value })}>
-                  <option value="">—</option>
-                  {activeThicknesses.map((t) => (
-                    <option key={t.id} value={t.label}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="field">
-                <label>Matériaux</label>
-                <select value={pieceForm.material} onChange={(e) => setPieceForm({ ...pieceForm, material: e.target.value })}>
-                  <option value="">—</option>
-                  {activeMaterials.map((m) => (
-                    <option key={m.id} value={m.label}>
-                      {m.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="field">
-                <label>Type (au besoin)</label>
-                <select value={pieceForm.shapeType} onChange={(e) => setPieceForm({ ...pieceForm, shapeType: e.target.value })}>
-                  {SHAPE_TYPES.map((s) => (
-                    <option key={s.value} value={s.value}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {pieceForm.shapeType === "tube" && (
-                <>
-                  <div className="field">
-                    <label>Forme du tube</label>
-                    <select value={pieceForm.tubeShape} onChange={(e) => setPieceForm({ ...pieceForm, tubeShape: e.target.value })}>
-                      {TUBE_SHAPES.map((s) => (
-                        <option key={s.value} value={s.value}>
-                          {s.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  {pieceForm.tubeShape === "round" ? (
-                    <>
-                      <div className="field">
-                        <label>OD</label>
-                        <input value={pieceForm.tubeOD} onChange={(e) => setPieceForm({ ...pieceForm, tubeOD: e.target.value })} placeholder="ex. 1 1/4 po" />
-                      </div>
-                      <div className="field">
-                        <label>ID</label>
-                        <input value={pieceForm.tubeID} onChange={(e) => setPieceForm({ ...pieceForm, tubeID: e.target.value })} />
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="field">
-                        <label>{pieceForm.tubeShape === "rectangle" ? "Largeur" : "Mesure"}</label>
-                        <input value={pieceForm.tubeMeasurement1} onChange={(e) => setPieceForm({ ...pieceForm, tubeMeasurement1: e.target.value })} />
-                      </div>
-                      {pieceForm.tubeShape === "rectangle" && (
-                        <div className="field">
-                          <label>Hauteur</label>
-                          <input value={pieceForm.tubeMeasurement2} onChange={(e) => setPieceForm({ ...pieceForm, tubeMeasurement2: e.target.value })} />
-                        </div>
-                      )}
-                      <div className="field">
-                        <label>Épaisseur de paroi</label>
-                        <input value={pieceForm.tubeWallThickness} onChange={(e) => setPieceForm({ ...pieceForm, tubeWallThickness: e.target.value })} />
-                      </div>
-                    </>
-                  )}
-                </>
-              )}
-              {pieceForm.shapeType === "shaft" && (
-                <div className="field">
-                  <label>Mesure</label>
-                  <input value={pieceForm.shaftMeasurement} onChange={(e) => setPieceForm({ ...pieceForm, shaftMeasurement: e.target.value })} />
-                </div>
-              )}
-
-              {stepCheckboxes(pieceSteps, setPieceSteps)}
-
-              <div className="field field-full">
-                <label>Note (facultatif)</label>
-                <input value={pieceForm.note} onChange={(e) => setPieceForm({ ...pieceForm, note: e.target.value })} />
-              </div>
+              <PieceFields
+                value={pieceForm}
+                onChange={(patch) => setPieceForm((current) => ({ ...current, ...patch }))}
+                thicknesses={activeThicknesses}
+                materials={activeMaterials}
+              />
+              {stepCheckboxes(activeSteps, pieceSteps, (id) => toggleStep(pieceSteps, setPieceSteps, id))}
 
               <div className="field field-full">
                 <button type="submit" className="btn btn-small" disabled={!canAddPiece}>
@@ -335,14 +243,14 @@ export function ChecklistEntryModal({ checklist, onClose }: ChecklistEntryModalP
               className="form-grid"
               onSubmit={(event) => {
                 event.preventDefault();
-                if (canAddSub) addSubMutation.mutate();
+                if (canAddSub) addSubMutation.mutate(false);
               }}
             >
               <div className="field">
                 <label>Numéro d'assemblage</label>
                 <input value={subForm.number} onChange={(e) => setSubForm({ ...subForm, number: e.target.value })} placeholder="ex. 02-02-000" />
               </div>
-              {stepCheckboxes(subSteps, setSubSteps)}
+              {stepCheckboxes(activeSteps, subSteps, (id) => toggleStep(subSteps, setSubSteps, id))}
               <div className="field field-full">
                 <label>Note (facultatif)</label>
                 <input value={subForm.note} onChange={(e) => setSubForm({ ...subForm, note: e.target.value })} />

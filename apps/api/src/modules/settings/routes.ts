@@ -81,15 +81,16 @@ settingsRouter.patch("/purchase-categories/:id", async (req, res) => {
 });
 
 // --- Checklist de production : catalogues (épaisseurs/matériaux/étapes), 21 août 2026 ---
-const checklistCatalogCreateSchema = z.object({ label: z.string().min(1, "Le libellé est requis.") });
+// insertBeforeId optionnel (21 août 2026) : position choisie à l'ajout, plutôt que toujours à la fin.
+const checklistCatalogCreateSchema = z.object({ label: z.string().min(1, "Le libellé est requis."), insertBeforeId: z.uuid().optional() });
 const checklistCatalogUpdateSchema = z.object({ label: z.string().min(1).optional(), active: z.boolean().optional() });
 
 settingsRouter.get("/checklist-thicknesses", async (_req, res) => {
   res.json({ thicknesses: await listChecklistThicknesses() });
 });
 settingsRouter.post("/checklist-thicknesses", async (req, res) => {
-  const { label } = checklistCatalogCreateSchema.parse(req.body);
-  res.status(201).json({ thickness: await createChecklistThickness(label) });
+  const { label, insertBeforeId } = checklistCatalogCreateSchema.parse(req.body);
+  res.status(201).json({ thickness: await createChecklistThickness(label, insertBeforeId) });
 });
 settingsRouter.patch("/checklist-thicknesses/:id", async (req, res) => {
   const id = z.uuid().parse(req.params.id);
@@ -101,8 +102,8 @@ settingsRouter.get("/checklist-materials", async (_req, res) => {
   res.json({ materials: await listChecklistMaterials() });
 });
 settingsRouter.post("/checklist-materials", async (req, res) => {
-  const { label } = checklistCatalogCreateSchema.parse(req.body);
-  res.status(201).json({ material: await createChecklistMaterial(label) });
+  const { label, insertBeforeId } = checklistCatalogCreateSchema.parse(req.body);
+  res.status(201).json({ material: await createChecklistMaterial(label, insertBeforeId) });
 });
 settingsRouter.patch("/checklist-materials/:id", async (req, res) => {
   const id = z.uuid().parse(req.params.id);
@@ -114,8 +115,8 @@ settingsRouter.get("/checklist-steps", async (_req, res) => {
   res.json({ steps: await listChecklistSteps() });
 });
 settingsRouter.post("/checklist-steps", async (req, res) => {
-  const { label } = checklistCatalogCreateSchema.parse(req.body);
-  res.status(201).json({ step: await createChecklistStep(label) });
+  const { label, insertBeforeId } = checklistCatalogCreateSchema.parse(req.body);
+  res.status(201).json({ step: await createChecklistStep(label, insertBeforeId) });
 });
 settingsRouter.patch("/checklist-steps/:id", async (req, res) => {
   const id = z.uuid().parse(req.params.id);
