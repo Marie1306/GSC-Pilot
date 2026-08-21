@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { canAccessOverviewViews } from "@gsc-pilot/business-rules";
 import { NAV_ITEMS, NAV_SECTION_LABELS, type NavItem, type NavSection } from "../lib/nav.js";
 import { useAuth } from "../lib/auth/useAuth.js";
+import { fetchActionCenterItems } from "../features/actionCenter/api.js";
 import { NavIcon } from "./NavIcons.js";
 import "./AppShell.css";
 
@@ -15,29 +18,34 @@ function groupBySection(items: NavItem[]): { section: NavSection; items: NavItem
 
 interface NavListProps {
   groups: { section: NavSection; items: NavItem[] }[];
+  badges?: Partial<Record<string, number>>;
   onNavigate?: () => void;
 }
 
-function NavList({ groups, onNavigate }: NavListProps) {
+function NavList({ groups, badges, onNavigate }: NavListProps) {
   return (
     <>
       {groups.map((group) => (
         <div key={group.section} className="app-nav-group">
           <div className="app-nav-group-label">{NAV_SECTION_LABELS[group.section]}</div>
-          {group.items.map((item) => (
-            <NavLink
-              key={item.key}
-              to={item.path}
-              end={item.path === "/"}
-              className={({ isActive }) => (isActive ? "active" : "")}
-              onClick={onNavigate}
-            >
-              <span className="app-nav-icon">
-                <NavIcon name={item.key} />
-              </span>
-              {item.label}
-            </NavLink>
-          ))}
+          {group.items.map((item) => {
+            const badgeCount = badges?.[item.key];
+            return (
+              <NavLink
+                key={item.key}
+                to={item.path}
+                end={item.path === "/"}
+                className={({ isActive }) => (isActive ? "active" : "")}
+                onClick={onNavigate}
+              >
+                <span className="app-nav-icon">
+                  <NavIcon name={item.key} />
+                </span>
+                {item.label}
+                {!!badgeCount && <span className="app-nav-badge">{badgeCount}</span>}
+              </NavLink>
+            );
+          })}
         </div>
       ))}
     </>
@@ -53,17 +61,27 @@ function NavList({ groups, onNavigate }: NavListProps) {
 export function AppShell() {
   const { employee, signOut } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Hook toujours appelé (ordre stable) — activé seulement une fois
+  // employee connu et éligible, jamais pour Employé/Magasinier (403 côté
+  // serveur sinon, voir action-center/routes.ts).
+  const actionCenterQuery = useQuery({
+    queryKey: ["action-center", "items"],
+    queryFn: fetchActionCenterItems,
+    enabled: !!employee && canAccessOverviewViews(employee.persona),
+    refetchInterval: 60_000,
+  });
   if (!employee) return null; // RequireRole, plus haut dans l'arbre de routes, garantit déjà sa présence ici
 
   const visibleItems = NAV_ITEMS.filter((item) => item.allow(employee.persona));
   const groups = groupBySection(visibleItems);
+  const badges = { "action-center": actionCenterQuery.data?.items.length ?? 0 };
 
   return (
     <div className="app-shell">
       <aside className="app-sidebar">
         <div className="app-sidebar-brand">GSC Pilot</div>
         <nav className="app-sidebar-nav">
-          <NavList groups={groups} />
+          <NavList groups={groups} badges={badges} />
         </nav>
       </aside>
 
@@ -100,7 +118,7 @@ export function AppShell() {
               </button>
             </div>
             <nav className="app-sidebar-nav">
-              <NavList groups={groups} onNavigate={() => setDrawerOpen(false)} />
+              <NavList groups={groups} badges={badges} onNavigate={() => setDrawerOpen(false)} />
             </nav>
           </aside>
         </div>

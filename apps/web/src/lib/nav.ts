@@ -41,12 +41,14 @@ export const NAV_SECTION_LABELS: Record<NavSection, string> = {
 
 // Ordre + libellés alignés sur la barre latérale de la v19 (21 août 2026,
 // demande explicite de l'utilisatrice — visuel/libellés seulement, aucune
-// permission changée). "Centre d'actions" (v19) n'existe pas encore comme
-// écran séparé, pas ajouté ici. Scan QR n'apparaît pas dans la v19 mais
-// reste une vraie fonctionnalité confirmée (hors ligne, voir CLAUDE.md) —
-// placé à côté de Punch et heures, même tâche de terrain.
+// permission changée). Scan QR n'apparaît pas dans la v19 mais reste une
+// vraie fonctionnalité confirmée (hors ligne, voir CLAUDE.md) — placé à
+// côté de Punch et heures, même tâche de terrain.
 export const NAV_ITEMS: NavItem[] = [
   { key: "dashboard", label: "Tableau de bord", path: "/", section: "overview", allow: everyone },
+  // Même accès que les items qu'il agrège (budgétaires/achats/facturation/
+  // demandes transmises) — Direction/Administration/Propriétaire.
+  { key: "action-center", label: "Centre d'actions", path: "/centre-actions", section: "overview", allow: canAccessOverviewViews },
   { key: "client-requests", label: "Demandes clients", path: "/demandes", section: "sales", allow: canViewClientRequests },
   { key: "projects", label: "Projets", path: "/projets", section: "sales", allow: backOfficeOnly },
   { key: "budgets", label: "Budgétaires", path: "/budgetaire", section: "sales", allow: canAccessBudget },

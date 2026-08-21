@@ -23,6 +23,12 @@ const PATHS: Record<string, (props: SVGProps<SVGSVGElement>) => React.JSX.Elemen
       <rect x="11.5" y="11.5" width="6" height="6" rx="1" />
     </Base>
   ),
+  "action-center": (props) => (
+    <Base {...props}>
+      <path d="M10 2.5 3.5 6v5c0 4 2.8 6.6 6.5 8 3.7-1.4 6.5-4 6.5-8V6L10 2.5Z" />
+      <path d="M7.3 10.2 9.2 12l3.5-4" />
+    </Base>
+  ),
   "client-requests": (props) => (
     <Base {...props}>
       <path d="M4 3.5c0 7 5.5 12.5 12.5 12.5l1-3-4-1.3-1.3 1.5A9.5 9.5 0 0 1 7.3 8.3L8.8 7 7.5 3 4 3.5Z" />

@@ -186,6 +186,8 @@ export interface ClientRequestListItemDto {
   nextFollowUp: string | null;
   /** Exposé pour que le module Budgétaire puisse exclure les demandes déjà liées à un budgétaire de son sélecteur. */
   budgetId: string | null;
+  /** Exposé pour le Centre d'actions (21 août 2026) — une demande transférée, pas encore convertie, doit apparaître au centre d'actions du Propriétaire. */
+  transmittedToOwnerAt: string | null;
 }
 
 type ClientRequestRow = ClientRequest & { salesChannel: { name: string } | null };
@@ -205,6 +207,7 @@ function toListItemDto(row: ClientRequestRow, createdByName: string): ClientRequ
     createdAt: row.createdAt.toISOString(),
     nextFollowUp: row.nextFollowUp?.toISOString() ?? null,
     budgetId: row.budgetId,
+    transmittedToOwnerAt: row.transmittedToOwnerAt?.toISOString() ?? null,
   };
 }
 
@@ -248,7 +251,6 @@ export interface ClientRequestDetailDto extends ClientRequestListItemDto {
   sourceDetail: string | null;
   lostReason: string | null;
   notes: ClientRequestNoteDto[];
-  transmittedToOwnerAt: string | null;
   deletedAt: string | null;
 }
 
@@ -276,7 +278,6 @@ export async function getClientRequestDetail(id: string): Promise<ClientRequestD
       body: note.body,
       createdAt: note.createdAt.toISOString(),
     })),
-    transmittedToOwnerAt: row.transmittedToOwnerAt?.toISOString() ?? null,
     deletedAt: row.deletedAt?.toISOString() ?? null,
   };
 }

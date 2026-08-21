@@ -298,6 +298,9 @@ export interface BudgetListItemDto {
   createdByName: string;
   createdAt: string;
   totalSale: number;
+  /** Exposés pour le Centre d'actions (21 août 2026) : un brouillon complété (les deux résumés remplis) attend l'approbation de Direction/Propriétaire pour l'envoi — voir canApproveBudgetForSending. */
+  summary: string | null;
+  riskSummary: string | null;
 }
 
 export interface BudgetDetailDto extends BudgetListItemDto {
@@ -440,6 +443,8 @@ export async function listBudgets(): Promise<BudgetListItemDto[]> {
       createdByName: nameById.get(budget.createdById) ?? "—",
       createdAt: budget.createdAt.toISOString(),
       totalSale: totals.totalSale,
+      summary: budget.summary,
+      riskSummary: budget.riskSummary,
     };
   });
 }

@@ -8,6 +8,7 @@ import { LoginPage } from "./features/auth/LoginPage.js";
 import { BudgetExportView } from "./features/budgets/BudgetExportView.js";
 import { NAV_ITEMS } from "./lib/nav.js";
 import { DashboardPage } from "./features/dashboard/DashboardPage.js";
+import { ActionCenterPage } from "./features/actionCenter/ActionCenterPage.js";
 import { ClientRequestsPage } from "./features/clientRequests/ClientRequestsPage.js";
 import { BudgetsPage } from "./features/budgets/BudgetsPage.js";
 import { ProjectsPage } from "./features/projects/ProjectsPage.js";
@@ -25,6 +26,7 @@ import { SettingsPage } from "./features/settings/SettingsPage.js";
 
 const PAGE_BY_KEY: Record<string, ComponentType> = {
   dashboard: DashboardPage,
+  "action-center": ActionCenterPage,
   "client-requests": ClientRequestsPage,
   budgets: BudgetsPage,
   projects: ProjectsPage,
