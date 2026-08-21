@@ -31,8 +31,27 @@
   overflow-y: auto;
 }
 
+.app-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 12px;
+}
+
+.app-nav-group-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gsc-color-muted);
+  padding: 8px 12px 4px;
+}
+
 .app-sidebar-nav a {
-  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
   border-radius: var(--gsc-radius-sm);
   color: var(--gsc-color-ink);
   text-decoration: none;
@@ -46,6 +65,16 @@
 
 .app-sidebar-nav a.active {
   background: var(--gsc-color-brand-soft);
+  color: var(--gsc-color-brand-dark);
+}
+
+.app-nav-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--gsc-color-muted);
+}
+
+.app-sidebar-nav a.active .app-nav-icon {
   color: var(--gsc-color-brand-dark);
 }
 
@@ -91,11 +120,32 @@
   padding: 24px;
 }
 
-.app-mobile-nav {
+.app-hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.app-hamburger span {
+  display: block;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--gsc-color-ink);
+}
+
+.app-drawer-backdrop {
   display: none;
 }
 
-/* Sous ~880px : barre latérale cachée, menu simplifié à gros boutons en bas — même esprit que mobileNav/sidebarNav dans la v19. */
+/* Sous ~880px : barre latérale fixe cachée, remplacée par le même menu en
+   tiroir superposé (déclenché par le bouton hamburger) — même contenu que
+   la barre latérale desktop, jamais une liste séparée à maintenir. */
 @media (max-width: 880px) {
   .app-sidebar {
     display: none;
@@ -105,40 +155,40 @@
     display: block;
   }
 
-  .app-content {
-    padding-bottom: 88px; /* espace pour la nav mobile fixe */
-  }
-
-  .app-mobile-nav {
+  .app-hamburger {
     display: flex;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: var(--gsc-color-surface);
-    border-top: 1px solid var(--gsc-color-line);
-    padding: 6px;
-    gap: 4px;
-    z-index: 10;
   }
 
-  .app-mobile-nav a {
-    flex: 1;
+  .app-drawer-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 17, 21, 0.45);
+    z-index: 20;
+  }
+
+  .app-drawer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(280px, 84vw);
+    background: var(--gsc-color-surface);
+    display: flex;
+    flex-direction: column;
+    box-shadow: 2px 0 12px rgba(15, 17, 21, 0.15);
+  }
+
+  .app-drawer-header {
     display: flex;
     align-items: center;
-    justify-content: center;
-    text-align: center;
-    min-height: 56px;
-    padding: 6px 4px;
-    border-radius: var(--gsc-radius-sm);
-    color: var(--gsc-color-muted);
-    text-decoration: none;
-    font-size: 12px;
-    font-weight: 700;
+    justify-content: space-between;
+    height: var(--gsc-topbar-height);
+    padding: 0 12px 0 20px;
+    border-bottom: 1px solid var(--gsc-color-line);
   }
 
-  .app-mobile-nav a.active {
-    background: var(--gsc-color-brand-soft);
-    color: var(--gsc-color-brand-dark);
+  .app-drawer .app-sidebar-nav {
+    flex: 1;
   }
 }
