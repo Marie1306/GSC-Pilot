@@ -172,18 +172,21 @@ export interface PunchableTaskDto {
   active: boolean;
   sortOrder: number;
   specificServiceRate: number | null;
+  budgetModelRowId: string | null;
+  hourlyRate: number | null;
 }
 
 export function fetchPunchableTasks(): Promise<{ tasks: PunchableTaskDto[] }> {
   return apiFetch("/api/settings/punchable-tasks");
 }
-export function createPunchableTask(category: string, label: string): Promise<{ task: PunchableTaskDto }> {
-  return apiFetch("/api/settings/punchable-tasks", { method: "POST", body: JSON.stringify({ category, label }) });
+export function createPunchableTask(category: string, label: string, hourlyRate?: number): Promise<{ task: PunchableTaskDto }> {
+  return apiFetch("/api/settings/punchable-tasks", { method: "POST", body: JSON.stringify({ category, label, hourlyRate }) });
 }
 export interface UpdatePunchableTaskInput {
   label?: string;
   active?: boolean;
   specificServiceRate?: number | null;
+  hourlyRate?: number;
 }
 export function updatePunchableTask(id: string, update: UpdatePunchableTaskInput): Promise<{ task: PunchableTaskDto }> {
   return apiFetch(`/api/settings/punchable-tasks/${id}`, { method: "PATCH", body: JSON.stringify(update) });

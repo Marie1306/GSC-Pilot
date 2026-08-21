@@ -20,6 +20,11 @@ const CATEGORY_LABELS: Record<string, string> = {
   service: "Service",
   internal: "Amélioration GSC",
 };
+// Ces 5 catégories SONT le modèle de budgétaire (BudgetModelRow, une par
+// tâche) — voir punchableTasks.ts, backend. Ajouter/modifier une tâche ici
+// crée/modifie directement la ligne correspondante, y compris son taux
+// horaire, qui alimente ensuite les projets réels via le budgétaire.
+const BUDGET_LINKED_CATEGORIES = new Set(["conception", "fabrication", "panelProgramming", "assemblyTest", "installationLabor"]);
 
 export function PunchableTasksCard() {
   const queryClient = useQueryClient();
@@ -27,22 +32,30 @@ export function PunchableTasksCard() {
   const [labelDrafts, setLabelDrafts] = useState<Record<string, string>>({});
   const [rateDrafts, setRateDrafts] = useState<Record<string, string>>({});
   const [newLabelByCategory, setNewLabelByCategory] = useState<Record<string, string>>({});
+  const [newRateByCategory, setNewRateByCategory] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: ["punchable-tasks"] });
 
   const createMutation = useMutation({
-    mutationFn: ({ category, label }: { category: string; label: string }) => createPunchableTask(category, label),
+    mutationFn: ({ category, label, hourlyRate }: { category: string; label: string; hourlyRate?: number }) =>
+      createPunchableTask(category, label, hourlyRate),
     onSuccess: (_, variables) => {
       setNewLabelByCategory((current) => ({ ...current, [variables.category]: "" }));
+      setNewRateByCategory((current) => ({ ...current, [variables.category]: "" }));
       setError(null);
       invalidate();
     },
     onError: () => setError("Erreur — réessayez."),
   });
   const updateMutation = useMutation({
-    mutationFn: ({ id, update }: { id: string; update: { label?: string; active?: boolean; specificServiceRate?: number | null } }) =>
-      updatePunchableTask(id, update),
+    mutationFn: ({
+      id,
+      update,
+    }: {
+      id: string;
+      update: { label?: string; active?: boolean; specificServiceRate?: number | null; hourlyRate?: number };
+    }) => updatePunchableTask(id, update),
     onSuccess: invalidate,
   });
   const moveMutation = useMutation({
@@ -62,8 +75,11 @@ export function PunchableTasksCard() {
   function labelDraftFor(task: PunchableTaskDto): string {
     return labelDrafts[task.id] ?? task.label;
   }
-  function rateDraftFor(task: PunchableTaskDto): string {
+  function serviceRateDraftFor(task: PunchableTaskDto): string {
     return rateDrafts[task.id] ?? (task.specificServiceRate !== null ? String(task.specificServiceRate) : "");
+  }
+  function hourlyRateDraftFor(task: PunchableTaskDto): string {
+    return rateDrafts[task.id] ?? (task.hourlyRate !== null ? String(task.hourlyRate) : "");
   }
 
   return (
@@ -71,13 +87,18 @@ export function PunchableTasksCard() {
       <h2 style={{ marginTop: 0, fontSize: 16 }}>Tâches punchables par catégorie</h2>
       <p style={{ color: "var(--gsc-color-muted)", fontSize: 13, marginTop: -8 }}>
         Ajouter, renommer, réordonner ou désactiver une tâche — les punchs déjà enregistrés restent liés à la tâche, jamais cassés en la
-        désactivant.
+        désactivant. Pour Conception/Fabrication/Panneau &amp; programmation/Assemblage &amp; test/Installation, chaque tâche EST une
+        ligne du modèle de budgétaire (même taux horaire, utilisé pour tous les futurs budgétaires et projets) — pas deux choses
+        séparées à synchroniser.
       </p>
 
       {categories.map((category) => {
         const categoryTasks = (byCategory.get(category) ?? []).slice().sort((a, b) => a.sortOrder - b.sortOrder);
         const newLabel = newLabelByCategory[category] ?? "";
+        const newRate = newRateByCategory[category] ?? "";
         const isService = category === "service";
+        const isBudgetLinked = BUDGET_LINKED_CATEGORIES.has(category);
+        const canAdd = isBudgetLinked ? newLabel.trim().length > 0 && Number(newRate) > 0 : newLabel.trim().length > 0;
         return (
           <div key={category} style={{ marginTop: 20 }}>
             <h3 style={{ fontSize: 14, marginBottom: 6 }}>{CATEGORY_LABELS[category as BudgetCategorySlug] ?? category}</h3>
@@ -89,6 +110,7 @@ export function PunchableTasksCard() {
                   <tr>
                     <th>Tâche</th>
                     {isService && <th>Tarif spécifique ($/h)</th>}
+                    {isBudgetLinked && <th>Taux horaire ($/h)</th>}
                     <th>Statut</th>
                     <th></th>
                   </tr>
@@ -97,8 +119,11 @@ export function PunchableTasksCard() {
                   {categoryTasks.map((task, index) => {
                     const labelDraft = labelDraftFor(task);
                     const labelChanged = labelDraft.trim() !== task.label;
-                    const rateDraft = rateDraftFor(task);
-                    const rateChanged = (rateDraft.trim() === "" ? null : Number(rateDraft)) !== task.specificServiceRate;
+                    const serviceRateDraft = serviceRateDraftFor(task);
+                    const serviceRateChanged = isService && (serviceRateDraft.trim() === "" ? null : Number(serviceRateDraft)) !== task.specificServiceRate;
+                    const hourlyRateDraft = hourlyRateDraftFor(task);
+                    const hourlyRateChanged = isBudgetLinked && hourlyRateDraft.trim() !== "" && Number(hourlyRateDraft) !== task.hourlyRate;
+                    const hasChange = labelChanged || serviceRateChanged || hourlyRateChanged;
                     return (
                       <tr key={task.id} className={task.active ? "" : "settings-row-inactive"}>
                         <td>
@@ -116,7 +141,19 @@ export function PunchableTasksCard() {
                               step="0.01"
                               placeholder="Taux de la classe"
                               style={{ maxWidth: 130 }}
-                              value={rateDraft}
+                              value={serviceRateDraft}
+                              onChange={(event) => setRateDrafts((current) => ({ ...current, [task.id]: event.target.value }))}
+                            />
+                          </td>
+                        )}
+                        {isBudgetLinked && (
+                          <td>
+                            <input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              style={{ maxWidth: 100 }}
+                              value={hourlyRateDraft}
                               onChange={(event) => setRateDrafts((current) => ({ ...current, [task.id]: event.target.value }))}
                             />
                           </td>
@@ -139,7 +176,7 @@ export function PunchableTasksCard() {
                           >
                             ↓
                           </button>
-                          {(labelChanged || rateChanged) && labelDraft.trim().length > 0 && (
+                          {hasChange && labelDraft.trim().length > 0 && (
                             <button
                               type="button"
                               className="btn btn-secondary btn-small"
@@ -148,7 +185,8 @@ export function PunchableTasksCard() {
                                   id: task.id,
                                   update: {
                                     ...(labelChanged && { label: labelDraft.trim() }),
-                                    ...(rateChanged && { specificServiceRate: rateDraft.trim() === "" ? null : Number(rateDraft) }),
+                                    ...(serviceRateChanged && { specificServiceRate: serviceRateDraft.trim() === "" ? null : Number(serviceRateDraft) }),
+                                    ...(hourlyRateChanged && { hourlyRate: Number(hourlyRateDraft) }),
                                   },
                                 })
                               }
@@ -178,11 +216,24 @@ export function PunchableTasksCard() {
                 value={newLabel}
                 onChange={(event) => setNewLabelByCategory((current) => ({ ...current, [category]: event.target.value }))}
               />
+              {isBudgetLinked && (
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="Taux horaire ($/h)"
+                  style={{ maxWidth: 150 }}
+                  value={newRate}
+                  onChange={(event) => setNewRateByCategory((current) => ({ ...current, [category]: event.target.value }))}
+                />
+              )}
               <button
                 type="button"
                 className="btn btn-small"
-                disabled={newLabel.trim().length === 0 || createMutation.isPending}
-                onClick={() => createMutation.mutate({ category, label: newLabel.trim() })}
+                disabled={!canAdd || createMutation.isPending}
+                onClick={() =>
+                  createMutation.mutate({ category, label: newLabel.trim(), hourlyRate: isBudgetLinked ? Number(newRate) : undefined })
+                }
               >
                 + Ajouter
               </button>

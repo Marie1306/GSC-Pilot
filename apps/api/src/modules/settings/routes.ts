@@ -151,10 +151,14 @@ settingsRouter.get("/punchable-tasks", async (_req, res) => {
   res.json({ tasks });
 });
 
-const createTaskSchema = z.object({ category: z.string().min(1), label: z.string().min(1, "Le nom est requis.") });
+const createTaskSchema = z.object({
+  category: z.string().min(1),
+  label: z.string().min(1, "Le nom est requis."),
+  hourlyRate: z.number().positive().optional(),
+});
 settingsRouter.post("/punchable-tasks", async (req, res) => {
   const body = createTaskSchema.parse(req.body);
-  const task = await createPunchableTask(body.category, body.label);
+  const task = await createPunchableTask(body.category, body.label, body.hourlyRate);
   res.status(201).json({ task });
 });
 
@@ -162,6 +166,7 @@ const updateTaskSchema = z.object({
   label: z.string().min(1).optional(),
   active: z.boolean().optional(),
   specificServiceRate: z.number().nonnegative().nullable().optional(),
+  hourlyRate: z.number().nonnegative().optional(),
 });
 settingsRouter.patch("/punchable-tasks/:id", async (req, res) => {
   const id = z.uuid().parse(req.params.id);
