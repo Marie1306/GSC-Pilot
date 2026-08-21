@@ -467,6 +467,13 @@ describe("Post-mortem (17 août 2026)", () => {
 });
 
 describe("Sous-assemblages / Avenants / Gantt (21 août 2026)", () => {
+  it("Propriétaire seulement déclare un sous-assemblage prêt (Marc, spec ligne 639)", () => {
+    expect(P.canDeclareSubassembly(BOSS)).toBe(true);
+    expect(P.canDeclareSubassembly(OWNER)).toBe(false);
+    expect(P.canDeclareSubassembly(ADMIN)).toBe(false);
+    expect(P.canDeclareSubassembly(MEMBER)).toBe(false);
+    expect(P.canDeclareSubassembly(WAREHOUSE)).toBe(false);
+  });
   it("Direction seulement crée la liste de pièces d'un sous-assemblage", () => {
     expect(P.canPrepareSubassemblyPartsList(OWNER)).toBe(true);
     expect(P.canPrepareSubassemblyPartsList(ADMIN)).toBe(false);

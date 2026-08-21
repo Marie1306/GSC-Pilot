@@ -589,11 +589,22 @@ export function canDeleteClientRequest(persona: Persona): boolean {
 
 // ---------------------------------------------------------------------------
 // Sous-assemblages / Avenants / Gantt (21 août 2026) — voir subassembly.ts,
-// amendments.ts. Déclarer un sous-assemblage prêt (declareSubassemblyReady)
-// reste ouvert à tout employé authentifié (même principe que le punch
-// d'heures — un geste de terrain, pas une approbation) : aucune fonction
-// dédiée ici, seulement requireAuth côté route.
+// amendments.ts.
 // ---------------------------------------------------------------------------
+
+/**
+ * Déclarer un sous-assemblage prêt : Propriétaire SEULEMENT — corrigé le
+ * 21 août 2026, signalé par l'utilisatrice ("sous-assemblage toujours
+ * Marc (propriétaire)"). Confirmé directement dans la spec (ligne 639,
+ * section Achats liste rapide) : « le Propriétaire (Marc, aussi le seul
+ * designer/conception) ». Pas "tout employé" comme deviné au premier jet —
+ * un seul designer, un seul rôle, jamais Direction/Administration/Employé/
+ * Magasinier.
+ */
+export function canDeclareSubassembly(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.BOSS;
+}
 
 /** Créer la liste de pièces d'un sous-assemblage : Direction seulement (spec confirmée). */
 export function canPrepareSubassemblyPartsList(persona: Persona): boolean {

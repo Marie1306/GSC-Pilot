@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { canPrepareSubassemblyPartsList, canDeclareAssemblyReady } from "@gsc-pilot/business-rules";
+import { canDeclareSubassembly, canPrepareSubassemblyPartsList, canDeclareAssemblyReady } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { fetchProjectSubassemblies, declareSubassembly, markPartsListReady, declareAssemblyReady } from "../subassemblies/api.js";
@@ -77,6 +77,7 @@ export function ProjectSubassemblies({ projectId }: ProjectSubassembliesProps) {
   const assemblyMutation = useMutation({ mutationFn: declareAssemblyReady, onSuccess: invalidate, onError: onMutationError });
 
   if (!employee) return null;
+  const canDeclare = canDeclareSubassembly(employee.persona);
   const canPrepare = canPrepareSubassemblyPartsList(employee.persona);
   const canAssembly = canDeclareAssemblyReady(employee.persona);
   const subassemblies = listQuery.data?.subassemblies ?? [];
@@ -98,24 +99,27 @@ export function ProjectSubassemblies({ projectId }: ProjectSubassembliesProps) {
     <div className="card" style={{ marginBottom: 20 }}>
       <h3 style={{ margin: 0, fontSize: 15 }}>Sous-assemblages</h3>
       <p style={{ margin: "4px 0 10px", color: "var(--gsc-color-muted)", fontSize: 13 }}>
-        Le designer déclare un sous-assemblage dès qu'il est vraiment prêt (numéro libre, sa propre logique d'ingénierie) — aucune
-        description requise. Direction crée ensuite la liste de pièces (heures réelles) pour le rendre planifiable en production.
+        Le Propriétaire (seul designer/conception) déclare un sous-assemblage dès qu'il est vraiment prêt (numéro libre, sa propre logique
+        d'ingénierie) — aucune description requise. Direction crée ensuite la liste de pièces (heures réelles) pour le rendre planifiable
+        en production.
       </p>
 
       {error && <p className="form-error">{error}</p>}
 
-      <form
-        style={{ display: "flex", gap: 8, marginBottom: 14 }}
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (newNumber.trim()) declareMutation.mutate();
-        }}
-      >
-        <input placeholder="Numéro (ex. 08-000)" value={newNumber} onChange={(e) => setNewNumber(e.target.value)} style={{ maxWidth: 220 }} />
-        <button type="submit" className="btn btn-small" disabled={!newNumber.trim() || declareMutation.isPending}>
-          {declareMutation.isPending ? "…" : "Déclarer prêt"}
-        </button>
-      </form>
+      {canDeclare && (
+        <form
+          style={{ display: "flex", gap: 8, marginBottom: 14 }}
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (newNumber.trim()) declareMutation.mutate();
+          }}
+        >
+          <input placeholder="Numéro (ex. 08-000)" value={newNumber} onChange={(e) => setNewNumber(e.target.value)} style={{ maxWidth: 220 }} />
+          <button type="submit" className="btn btn-small" disabled={!newNumber.trim() || declareMutation.isPending}>
+            {declareMutation.isPending ? "…" : "Déclarer prêt"}
+          </button>
+        </form>
+      )}
 
       {subassemblies.length === 0 ? (
         <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucun sous-assemblage déclaré.</p>

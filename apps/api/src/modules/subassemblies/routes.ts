@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { canPrepareSubassemblyPartsList, canDeclareAssemblyReady, canAccessProject } from "@gsc-pilot/business-rules";
+import { canDeclareSubassembly, canPrepareSubassemblyPartsList, canDeclareAssemblyReady, canAccessProject } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import {
   listSubassembliesForProject,
@@ -33,15 +33,19 @@ subassembliesRouter.get("/subassemblies/mine", requireAuth, async (req, res) => 
 });
 
 const declareSchema = z.object({ number: z.string().min(1) });
-// Déclarer un sous-assemblage prêt : ouvert à tout employé authentifié — un
-// geste de terrain (le designer déclare quand c'est vraiment prêt), pas une
-// approbation. Aucune fonction de permission dédiée (voir roles.ts).
-subassembliesRouter.post("/projects/:projectId/subassemblies", requireAuth, async (req, res) => {
-  const projectId = z.uuid().parse(req.params.projectId);
-  const { number } = declareSchema.parse(req.body);
-  const subassembly = await declareSubassemblyForProject(projectId, number, req.employee!.id);
-  res.status(201).json({ subassembly });
-});
+// Déclarer un sous-assemblage prêt : Propriétaire seulement (Marc, le seul
+// designer — corrigé le 21 août 2026, voir roles.ts canDeclareSubassembly).
+subassembliesRouter.post(
+  "/projects/:projectId/subassemblies",
+  requireAuth,
+  requirePermission((persona) => canDeclareSubassembly(persona)),
+  async (req, res) => {
+    const projectId = z.uuid().parse(req.params.projectId);
+    const { number } = declareSchema.parse(req.body);
+    const subassembly = await declareSubassemblyForProject(projectId, number, req.employee!.id);
+    res.status(201).json({ subassembly });
+  },
+);
 
 const partsListSchema = z.object({ hoursByCategory: z.record(z.string(), z.number().nonnegative()) });
 subassembliesRouter.post(
