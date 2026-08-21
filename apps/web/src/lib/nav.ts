@@ -6,6 +6,7 @@ import {
   canAccessDeliveries,
   canCreateInvoiceRecord,
   canViewClientRequests,
+  canAccessProductionChecklist,
   type Persona,
 } from "@gsc-pilot/business-rules";
 
@@ -60,6 +61,8 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "reports", label: "Rapports / statistiques", path: "/rapports", section: "sales", allow: canAccessOverviewViews },
   { key: "time-punch", label: "Punch et heures", path: "/temps", section: "operations", allow: everyone },
   { key: "qr-scan", label: "Scan QR", path: "/scan", section: "operations", allow: everyone },
+  // Pièces fabriquées à l'interne, spec confirmée le 21 août 2026 : "tous sauf Magasinier".
+  { key: "checklist", label: "Checklist de production", path: "/checklist", section: "operations", allow: canAccessProductionChecklist },
   { key: "service-calls", label: "Appels de service", path: "/appels-service", section: "operations", allow: canAccessServiceCalls },
   { key: "purchases", label: "Demandes d'achat", path: "/achats", section: "operations", allow: everyone }, // chacun voit au moins ses propres demandes
   { key: "fulfillment", label: "Bons de livraison", path: "/livraisons", section: "operations", allow: canAccessDeliveries },

@@ -635,3 +635,25 @@ export function canEditGanttSchedule(persona: Persona): boolean {
   assertRole(persona);
   return persona === ROLES.OWNER;
 }
+
+// ---------------------------------------------------------------------------
+// Checklist de production (21 août 2026) — module indépendant de
+// Sous-assemblages (confirmé par l'utilisatrice). Suit les pièces
+// fabriquées à l'interne, pas les pièces achetées.
+// ---------------------------------------------------------------------------
+
+/** Créer une checklist et y ajouter des pièces/achats : Direction seulement (spec confirmée). */
+export function canManageProductionChecklist(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}
+
+/**
+ * Voir les checklists actives et cocher une étape complétée : tout le
+ * monde SAUF Magasinier (spec confirmée — "tous sauf Magasinier", le
+ * Magasinier n'a pas de travail d'atelier de fabrication).
+ */
+export function canAccessProductionChecklist(persona: Persona): boolean {
+  assertRole(persona);
+  return persona !== ROLES.WAREHOUSE;
+}

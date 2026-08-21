@@ -7,6 +7,7 @@ import { ApiError } from "../../lib/apiClient.js";
 import { OptionsDrawer, OptionRow, OptionSection } from "../../components/OptionsDrawer.js";
 import { updateProjectInfo, setProjectArchived, deleteProject, fetchProjectHistory, type ProjectDetail } from "./api.js";
 import { ProjectPostMortem } from "./ProjectPostMortem.js";
+import { ProjectChecklistArchive } from "../checklists/ProjectChecklistArchive.js";
 
 interface ProjectOptionsMenuProps {
   project: ProjectDetail;
@@ -47,6 +48,7 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted }: Projec
   const [deadline, setDeadline] = useState(project.deadline?.slice(0, 10) ?? "");
   const [showHistory, setShowHistory] = useState(false);
   const [showPostMortem, setShowPostMortem] = useState(false);
+  const [showChecklistArchive, setShowChecklistArchive] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -136,10 +138,16 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted }: Projec
                 {project.budgetId && (
                   <OptionRow icon="🧮" label="Accéder au Budgétaire" onClick={() => navigate(`/budgetaire?open=${project.budgetId}`)} />
                 )}
-                <OptionRow icon="➕" label="Créer un avenant" disabled disabledNote="Avenants — pas encore câblés à l'interface." />
+                <OptionRow icon="➕" label="Créer un avenant" onClick={onClose} />
                 <OptionRow icon="🕒" label="Historique du Budgétaire" disabled disabledNote="Hors de cette phase du module Projet." />
-                <OptionRow icon="📐" label="Accéder au Gantt" disabled disabledNote="Gantt — phase séparée, confirmé." />
-                <OptionRow icon="🔗" label="Gérer les dépendances" disabled disabledNote="Gantt — phase séparée, confirmé." />
+                <OptionRow icon="📐" label="Accéder au Gantt" onClick={() => navigate("/gantt")} />
+                <OptionRow
+                  icon="🔗"
+                  label="Gérer les dépendances"
+                  disabled
+                  disabledNote="Générées automatiquement par les sous-assemblages — aucune édition manuelle pour l'instant."
+                />
+                <OptionRow icon="✅" label="Checklist de production" onClick={() => setShowChecklistArchive(true)} />
               </OptionSection>
 
               <OptionSection title="Heures et opérations">
@@ -237,6 +245,7 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted }: Projec
       </OptionsDrawer>
 
       {showPostMortem && <ProjectPostMortem projectId={project.id} onClose={() => setShowPostMortem(false)} />}
+      {showChecklistArchive && <ProjectChecklistArchive projectId={project.id} onClose={() => setShowChecklistArchive(false)} />}
     </>
   );
 }

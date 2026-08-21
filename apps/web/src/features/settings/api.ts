@@ -242,3 +242,45 @@ export interface AuditLogEntryDto {
 export function fetchAuditLog(): Promise<{ entries: AuditLogEntryDto[] }> {
   return apiFetch("/api/settings/audit-log");
 }
+
+// --- Checklist de production : catalogues (épaisseurs/matériaux/étapes), 21 août 2026 ---
+export interface ChecklistCatalogDto {
+  id: string;
+  label: string;
+  active: boolean;
+  sortOrder: number;
+}
+
+export async function fetchChecklistThicknesses(): Promise<ChecklistCatalogDto[]> {
+  return (await apiFetch<{ thicknesses: ChecklistCatalogDto[] }>("/api/settings/checklist-thicknesses")).thicknesses;
+}
+export async function createChecklistThickness(label: string): Promise<ChecklistCatalogDto> {
+  return (await apiFetch<{ thickness: ChecklistCatalogDto }>("/api/settings/checklist-thicknesses", { method: "POST", body: JSON.stringify({ label }) }))
+    .thickness;
+}
+export async function updateChecklistThickness(id: string, update: { label?: string; active?: boolean }): Promise<ChecklistCatalogDto> {
+  return (await apiFetch<{ thickness: ChecklistCatalogDto }>(`/api/settings/checklist-thicknesses/${id}`, { method: "PATCH", body: JSON.stringify(update) }))
+    .thickness;
+}
+
+export async function fetchChecklistMaterials(): Promise<ChecklistCatalogDto[]> {
+  return (await apiFetch<{ materials: ChecklistCatalogDto[] }>("/api/settings/checklist-materials")).materials;
+}
+export async function createChecklistMaterial(label: string): Promise<ChecklistCatalogDto> {
+  return (await apiFetch<{ material: ChecklistCatalogDto }>("/api/settings/checklist-materials", { method: "POST", body: JSON.stringify({ label }) }))
+    .material;
+}
+export async function updateChecklistMaterial(id: string, update: { label?: string; active?: boolean }): Promise<ChecklistCatalogDto> {
+  return (await apiFetch<{ material: ChecklistCatalogDto }>(`/api/settings/checklist-materials/${id}`, { method: "PATCH", body: JSON.stringify(update) }))
+    .material;
+}
+
+export async function fetchChecklistSteps(): Promise<ChecklistCatalogDto[]> {
+  return (await apiFetch<{ steps: ChecklistCatalogDto[] }>("/api/settings/checklist-steps")).steps;
+}
+export async function createChecklistStep(label: string): Promise<ChecklistCatalogDto> {
+  return (await apiFetch<{ step: ChecklistCatalogDto }>("/api/settings/checklist-steps", { method: "POST", body: JSON.stringify({ label }) })).step;
+}
+export async function updateChecklistStep(id: string, update: { label?: string; active?: boolean }): Promise<ChecklistCatalogDto> {
+  return (await apiFetch<{ step: ChecklistCatalogDto }>(`/api/settings/checklist-steps/${id}`, { method: "PATCH", body: JSON.stringify(update) })).step;
+}

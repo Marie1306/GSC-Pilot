@@ -482,6 +482,7 @@ model Project {
   amendments       Amendment[]
   deliveries       Delivery[]
   warrantyHistory  WarrantyHistoryEntry[]
+  checklists       ProductionChecklist[]
 
   @@index([status])
 }
@@ -963,6 +964,119 @@ model Amendment {
   invoiceRequestId      String?
 
   tasks ProjectTask[]
+}
+
+// ---------------------------------------------------------------------------
+// Checklist de production (21 août 2026) — indépendant du module
+// Sous-assemblages (confirmé par l'utilisatrice, aucun lien). Suit les
+// pièces FABRIQUÉES à l'interne (pas les pièces achetées — voir
+// PurchaseRequest via la liste rapide déjà existante, réutilisée telle
+// quelle depuis l'interface, aucun lien de schéma nécessaire ici).
+// ---------------------------------------------------------------------------
+
+/// Catalogues configurables Direction (Paramètres) — mêmes patron que
+/// SalesChannel/PurchaseCategory : "supprimer" = désactiver, jamais une
+/// vraie suppression (les items déjà créés gardent leur valeur choisie).
+model ChecklistThickness {
+  id        String  @id @default(uuid())
+  label     String  @unique
+  active    Boolean @default(true)
+  sortOrder Int     @default(0)
+}
+
+model ChecklistMaterial {
+  id        String  @id @default(uuid())
+  label     String  @unique
+  active    Boolean @default(true)
+  sortOrder Int     @default(0)
+}
+
+/// Chaque étape = une colonne de la grille (MEP/DXF/Plasma/...). Modifiable
+/// par Direction — contrairement à Épaisseur/Matériaux (juste des choix de
+/// texte libre snapshotés sur la pièce), une étape a une vraie relation
+/// (ProductionChecklistItemStep) : l'identité de la colonne doit rester
+/// stable même si son libellé change plus tard.
+model ChecklistStep {
+  id        String  @id @default(uuid())
+  label     String  @unique
+  active    Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  itemSteps ProductionChecklistItemStep[]
+}
+
+model ProductionChecklist {
+  id            String   @id @default(uuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id])
+  assemblyLabel String? // texte libre, jamais validé (même esprit que Subassembly.number)
+  createdById   String
+  createdAt     DateTime @default(now())
+
+  items ProductionChecklistItem[]
+
+  @@index([projectId])
+}
+
+/// Une rangée = une pièce OU un sous-assemblage (regroupement propre à ce
+/// module, sans lien avec le modèle Subassembly). Un sous-assemblage peut
+/// contenir des pièces (parentItemId) ; une pièce orpheline reste sans
+/// parent. Les deux genres partagent exactement les mêmes champs — aucune
+/// règle ne force quelles cases s'appliquent, Direction choisit à la
+/// création (voir ProductionChecklistItemStep.active).
+model ProductionChecklistItem {
+  id           String                    @id @default(uuid())
+  checklistId  String
+  checklist    ProductionChecklist       @relation(fields: [checklistId], references: [id])
+  kind         String // "piece" | "subassembly"
+  parentItemId String?
+  parentItem   ProductionChecklistItem?  @relation("ChecklistItemParent", fields: [parentItemId], references: [id])
+  children     ProductionChecklistItem[] @relation("ChecklistItemParent")
+
+  number    String // numéro de pièce ou d'assemblage, texte libre
+  quantity  Int?
+  thickness String? // snapshot du choix — voir ChecklistThickness pour la liste, aucune FK (valeur figée)
+  material  String? // snapshot du choix — voir ChecklistMaterial, aucune FK
+
+  // Champs optionnels selon le type de pièce (spec confirmée le 21 août 2026) :
+  shapeType         String? // "tube" | "shaft" | "print3d"
+  tubeShape         String? // "round" | "square" | "rectangle"
+  tubeOD            String? // rond seulement, texte libre (ex. "1 1/4 po")
+  tubeID            String? // rond seulement, texte libre
+  tubeMeasurement1  String? // carré (seule mesure) ou rectangle (largeur), texte libre
+  tubeMeasurement2  String? // rectangle seulement (hauteur), texte libre
+  tubeWallThickness String? // carré/rectangle seulement, texte libre (ex. "1/4")
+  shaftMeasurement  String? // texte libre
+
+  note        String?
+  createdById String
+  createdAt   DateTime @default(now())
+
+  steps ProductionChecklistItemStep[]
+
+  @@index([checklistId])
+  @@index([parentItemId])
+}
+
+/// Une rangée par (item, étape) — état à 3 niveaux : active=false (grisé,
+/// ne s'applique pas à cet item), active=true+completed=false (s'applique,
+/// pas encore fait), active=true+completed=true (fait). "active" est
+/// choisi UNE FOIS par Direction à la création de l'item — cocher une case
+/// à la création ne marque jamais complété, seulement applicable (spec
+/// confirmée explicitement le 21 août 2026).
+model ProductionChecklistItemStep {
+  id            String                  @id @default(uuid())
+  itemId        String
+  item          ProductionChecklistItem @relation(fields: [itemId], references: [id])
+  stepId        String
+  step          ChecklistStep           @relation(fields: [stepId], references: [id])
+  active        Boolean                 @default(false)
+  completed     Boolean                 @default(false)
+  completedById String?
+  completedAt   DateTime?
+
+  @@unique([itemId, stepId])
+  @@index([stepId, active, completed])
 }
 
 // ---------------------------------------------------------------------------

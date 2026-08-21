@@ -79,6 +79,13 @@ const PATHS: Record<string, (props: SVGProps<SVGSVGElement>) => React.JSX.Elemen
       <rect x="7.5" y="7.5" width="5" height="5" rx="0.5" />
     </Base>
   ),
+  checklist: (props) => (
+    <Base {...props}>
+      <rect x="4" y="2.5" width="12" height="15" rx="1.2" />
+      <path d="M7 6.5h6M7 10h6M7 13.5h4" />
+      <path d="M6.5 10 7.5 11l1.5-2" strokeWidth={1.2} />
+    </Base>
+  ),
   "service-calls": (props) => (
     <Base {...props}>
       <path d="M13.5 3.5a3.5 3.5 0 0 0-4.8 4.6L3 13.8v2.7h2.7L11.4 11a3.5 3.5 0 0 0 4.6-4.8l-2.4 2.4-2-2 2.4-2.4Z" />

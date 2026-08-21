@@ -27,6 +27,7 @@ import { actionCenterRouter } from "./modules/actionCenter/routes.js";
 import { subassembliesRouter } from "./modules/subassemblies/routes.js";
 import { amendmentsRouter } from "./modules/amendments/routes.js";
 import { ganttRouter } from "./modules/gantt/routes.js";
+import { checklistsRouter } from "./modules/checklists/routes.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -80,6 +81,7 @@ export function createApp() {
   app.use("/api", subassembliesRouter);
   app.use("/api", amendmentsRouter);
   app.use("/api", ganttRouter);
+  app.use("/api", checklistsRouter);
   app.use("/api/settings", settingsRouter);
 
   // En production, l'API sert aussi le build statique de apps/web (un seul

@@ -4,6 +4,18 @@ import { TechLevelsCard } from "./TechLevelsCard.js";
 import { ServiceRatesCard } from "./ServiceRatesCard.js";
 import { EmployeesCard } from "./EmployeesCard.js";
 import { SalesChannelsCard } from "./SalesChannelsCard.js";
+import { ChecklistCatalogCard } from "./ChecklistCatalogCard.js";
+import {
+  fetchChecklistThicknesses,
+  createChecklistThickness,
+  updateChecklistThickness,
+  fetchChecklistMaterials,
+  createChecklistMaterial,
+  updateChecklistMaterial,
+  fetchChecklistSteps,
+  createChecklistStep,
+  updateChecklistStep,
+} from "./api.js";
 import { PunchableTasksCard } from "./PunchableTasksCard.js";
 import { BillingSplitCard } from "./BillingSplitCard.js";
 import { AuditLogCard } from "./AuditLogCard.js";
@@ -28,6 +40,30 @@ export function SettingsPage() {
       <PurchaseCategoriesCard />
       <MarginThresholdsCard />
       <SalesChannelsCard />
+      <ChecklistCatalogCard
+        title="Checklist de production — Épaisseurs"
+        description="Liste des épaisseurs offertes à la création d'une pièce (ex. 12GA, 1/4)."
+        queryKey="checklist-thicknesses"
+        fetchFn={fetchChecklistThicknesses}
+        createFn={createChecklistThickness}
+        updateFn={updateChecklistThickness}
+      />
+      <ChecklistCatalogCard
+        title="Checklist de production — Matériaux"
+        description="Liste des matériaux offerts à la création d'une pièce (ex. Acier, Stainless, Alu)."
+        queryKey="checklist-materials"
+        fetchFn={fetchChecklistMaterials}
+        createFn={createChecklistMaterial}
+        updateFn={updateChecklistMaterial}
+      />
+      <ChecklistCatalogCard
+        title="Checklist de production — Étapes de fabrication"
+        description="Les colonnes de la grille (MEP, DXF, Plasma, Pliage, Usinage, Soudage, CQ, Peinture)."
+        queryKey="checklist-steps"
+        fetchFn={fetchChecklistSteps}
+        createFn={createChecklistStep}
+        updateFn={updateChecklistStep}
+      />
       <PunchableTasksCard />
       <BillingSplitCard />
       <AuditLogCard />

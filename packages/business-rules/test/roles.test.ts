@@ -503,3 +503,20 @@ describe("Sous-assemblages / Avenants / Gantt (21 août 2026)", () => {
     expect(P.canEditGanttSchedule(WAREHOUSE)).toBe(false);
   });
 });
+
+describe("Checklist de production (21 août 2026)", () => {
+  it("Direction seulement crée une checklist et y ajoute des pièces/achats", () => {
+    expect(P.canManageProductionChecklist(OWNER)).toBe(true);
+    expect(P.canManageProductionChecklist(ADMIN)).toBe(false);
+    expect(P.canManageProductionChecklist(BOSS)).toBe(false);
+    expect(P.canManageProductionChecklist(MEMBER)).toBe(false);
+    expect(P.canManageProductionChecklist(WAREHOUSE)).toBe(false);
+  });
+  it("Tout le monde sauf Magasinier voit les checklists actives et coche une étape", () => {
+    expect(P.canAccessProductionChecklist(OWNER)).toBe(true);
+    expect(P.canAccessProductionChecklist(ADMIN)).toBe(true);
+    expect(P.canAccessProductionChecklist(BOSS)).toBe(true);
+    expect(P.canAccessProductionChecklist(MEMBER)).toBe(true);
+    expect(P.canAccessProductionChecklist(WAREHOUSE)).toBe(false);
+  });
+});

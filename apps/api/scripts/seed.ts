@@ -129,6 +129,11 @@ const PURCHASE_CATEGORIES = [
 // Valeurs vérifiées directement dans le prototype v19 (formulaire de demande client), pas devinées.
 const SALES_CHANNELS = ["Google", "Facebook", "LinkedIn", "Réseautage", "Référence client", "Site Web", "Téléphone / direct", "Autre"];
 
+// Checklist de production (21 août 2026) — valeurs données directement par l'utilisatrice, toutes modifiables ensuite en Paramètres.
+const CHECKLIST_THICKNESSES = ["11GA", "12GA", "14GA", "16GA", "18GA", "3/16", "1/4", "3/8", "1/2", "5/8", "3/4", "1"];
+const CHECKLIST_MATERIALS = ["Acier", "Stainless", "Alu"];
+const CHECKLIST_STEPS = ["MEP", "DXF", "Plasma", "Pliage", "Usinage", "Soudage", "CQ", "Peinture"];
+
 async function seedTestEmployees() {
   for (const [index, def] of TEST_EMPLOYEES.entries()) {
     const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
@@ -324,6 +329,18 @@ async function seedSalesChannels() {
   }
 }
 
+async function seedChecklistCatalogs() {
+  for (const [sortOrder, label] of CHECKLIST_THICKNESSES.entries()) {
+    await prisma.checklistThickness.upsert({ where: { label }, update: { sortOrder }, create: { label, sortOrder } });
+  }
+  for (const [sortOrder, label] of CHECKLIST_MATERIALS.entries()) {
+    await prisma.checklistMaterial.upsert({ where: { label }, update: { sortOrder }, create: { label, sortOrder } });
+  }
+  for (const [sortOrder, label] of CHECKLIST_STEPS.entries()) {
+    await prisma.checklistStep.upsert({ where: { label }, update: { sortOrder }, create: { label, sortOrder } });
+  }
+}
+
 /** Un contact + un projet fictifs pour pouvoir tester une fonctionnalité de bout en bout (ex. liste rapide d'achats) sans attendre la vraie saisie de projets. */
 async function seedTestProject() {
   const direction = await prisma.employee.findUnique({ where: { email: "test-direction@gscpilot.local" } });
@@ -379,6 +396,8 @@ async function main() {
   await seedPurchaseCategories();
   console.log("Canaux de vente...");
   await seedSalesChannels();
+  console.log("Checklist de production — catalogues (épaisseurs/matériaux/étapes)...");
+  await seedChecklistCatalogs();
   console.log("Projet de test...");
   await seedTestProject();
   console.log("\nTerminé. Mot de passe des usagers de test :", TEST_PASSWORD);
