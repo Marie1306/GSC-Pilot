@@ -787,7 +787,9 @@ export interface InvoicePlanEntryDto {
   processedAt: string | null;
 }
 
-function toInvoicePlanEntryDto(row: {
+// Exporté — réutilisé tel quel par rollings/service.ts (même format, même
+// calcul de statut) pour éviter un deuxième mapping divergent.
+export function toInvoicePlanEntryDto(row: {
   id: string;
   label: string;
   pct: unknown;

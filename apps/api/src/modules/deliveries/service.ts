@@ -135,37 +135,68 @@ export async function updateDelivery(id: string, patch: UpdateDeliveryInput): Pr
 }
 
 /**
- * Signature captée → livraison complétée ET projet lié fermé
- * (confirmWarehouseDelivery, fulfillment.ts). La note de confirmation
- * reprend le conditionNote déjà saisi (updateDelivery), pas un champ
- * séparé — même donnée, jamais dupliquée.
+ * Signature captée → livraison complétée ET entité liée fermée
+ * (confirmWarehouseDelivery, fulfillment.ts) — projet OU roulement, jamais
+ * les deux (Delivery.type). Roulement ajouté le 21 août 2026 (module
+ * Roulements) — jusque-là seul un projet lié était géré, un bon rattaché à
+ * un roulement échouait toujours ici (delivery.projectId nul par
+ * construction pour ce cas). La note de confirmation reprend le
+ * conditionNote déjà saisi (updateDelivery), pas un champ séparé — même
+ * donnée, jamais dupliquée.
  */
 export async function confirmDelivery(id: string, dataUrl: string): Promise<void> {
   const delivery = await loadDeliveryOrThrow(id);
   if (delivery.status === "completed") throw new HttpError(409, "Cette livraison est déjà confirmée.");
   if (!dataUrl?.startsWith("data:image/")) throw new HttpError(400, "Signature invalide.");
-  if (!delivery.projectId) throw new HttpError(400, "Aucun projet lié à cette livraison — confirmation impossible.");
+  if (!delivery.projectId && !delivery.rollingId) throw new HttpError(400, "Aucun projet ou roulement lié à cette livraison — confirmation impossible.");
 
-  const project = await prisma.project.findUnique({ where: { id: delivery.projectId } });
-  if (!project) throw new HttpError(404, "Projet introuvable.");
+  const deliveryUpdate = prisma.delivery.update({
+    where: { id },
+    data: { signatureCaptured: true, signatureImageUrl: dataUrl, status: "completed", completedAt: new Date() },
+  });
 
+  if (delivery.projectId) {
+    const project = await prisma.project.findUnique({ where: { id: delivery.projectId } });
+    if (!project) throw new HttpError(404, "Projet introuvable.");
+    const updated = confirmWarehouseDelivery(
+      {
+        fulfillmentMode: (project.fulfillmentMode ?? undefined) as FulfillmentMode | undefined,
+        billingReady: project.billingReady,
+        fulfillmentStatus: project.fulfillmentStatus ?? undefined,
+        status: project.status,
+      },
+      delivery.conditionNote ?? "",
+    );
+    await prisma.$transaction([
+      deliveryUpdate,
+      prisma.project.update({
+        where: { id: delivery.projectId },
+        data: {
+          billingReady: updated.billingReady,
+          fulfillmentStatus: updated.fulfillmentStatus,
+          fulfillmentConfirmationNote: updated.fulfillmentConfirmationNote,
+          status: updated.status,
+        },
+      }),
+    ]);
+    return;
+  }
+
+  const rolling = await prisma.rolling.findUnique({ where: { id: delivery.rollingId! } });
+  if (!rolling) throw new HttpError(404, "Roulement introuvable.");
   const updated = confirmWarehouseDelivery(
     {
-      fulfillmentMode: (project.fulfillmentMode ?? undefined) as FulfillmentMode | undefined,
-      billingReady: project.billingReady,
-      fulfillmentStatus: project.fulfillmentStatus ?? undefined,
-      status: project.status,
+      fulfillmentMode: (rolling.fulfillmentMode ?? undefined) as FulfillmentMode | undefined,
+      billingReady: rolling.billingReady,
+      fulfillmentStatus: rolling.fulfillmentStatus ?? undefined,
+      status: rolling.status,
     },
     delivery.conditionNote ?? "",
   );
-
   await prisma.$transaction([
-    prisma.delivery.update({
-      where: { id },
-      data: { signatureCaptured: true, signatureImageUrl: dataUrl, status: "completed", completedAt: new Date() },
-    }),
-    prisma.project.update({
-      where: { id: delivery.projectId },
+    deliveryUpdate,
+    prisma.rolling.update({
+      where: { id: delivery.rollingId! },
       data: {
         billingReady: updated.billingReady,
         fulfillmentStatus: updated.fulfillmentStatus,

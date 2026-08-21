@@ -319,6 +319,12 @@ export function canConvertBudgetToProject(persona: Persona): boolean {
   return persona === ROLES.OWNER;
 }
 
+/** Même palier que canConvertBudgetToProject (module Roulements, 20 août 2026) — distinct de canCreateRollingDirectly (Direction ET Propriétaire). */
+export function canConvertBudgetToRolling(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}
+
 /** Supprimer un budgétaire (corbeille) : Direction seulement — même palier que canDeleteProject/canDeleteClientRequest (18 août 2026). */
 export function canDeleteBudget(persona: Persona): boolean {
   assertRole(persona);

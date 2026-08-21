@@ -859,10 +859,24 @@ model Rolling {
   fulfillmentDriverId  String?
   fulfillmentAddress   String?
   fulfillmentScheduled DateTime?
+  // Miroir exact de Project.billingReady/fulfillmentConfirmationNote — requis
+  // pour réutiliser confirmFulfillment/confirmWarehouseDelivery (fulfillment.ts)
+  // tels quels (FulfillmentEntity générique), jamais une variante spéciale
+  // pour Rolling.
+  billingReady               Boolean   @default(false)
+  fulfillmentConfirmationNote String?
   createdDirectly      Boolean        @default(false)
   closedAt             DateTime?
   createdById          String
   createdAt            DateTime       @default(now())
+  // Post-mortem (20 août 2026, confirmé) : « la livraison termine le
+  // roulement → statut "Terminé" → apparaît au Post-mortem. » Pas de
+  // comparatif/coût réel ici contrairement à Project — aucune donnée
+  // d'heures/achats n'existe pour un roulement (TimeEntry/PurchaseRequest
+  // n'ont pas de rollingId), seulement le revenu (sold) et ces 3 champs.
+  postMortemDepassements   String?
+  postMortemAmeliorations  String?
+  postMortemRecommandation String?
 
   invoiceEntries InvoicePlanEntry[]
   deliveries     Delivery[]

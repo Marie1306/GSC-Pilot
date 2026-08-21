@@ -7,10 +7,12 @@ import {
   canApproveBudgetForSending,
   canRecordBudgetOutcome,
   canConvertBudgetToProject,
+  canConvertBudgetToRolling,
 } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { convertBudgetToProject, fetchNextProjectNumber } from "../projects/api.js";
+import { convertBudgetToRolling } from "../rollings/api.js";
 import { BudgetOptionsMenu } from "./BudgetOptionsMenu.js";
 import {
   fetchBudgetDetail,
@@ -371,6 +373,18 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
     },
     onError: onMutationError,
   });
+  const [showConvertRollingConfirm, setShowConvertRollingConfirm] = useState(false);
+  const convertRollingMutation = useMutation({
+    mutationFn: () => convertBudgetToRolling(id),
+    onSuccess: () => {
+      // RollingsPage ouvre le détail via un état local (pas de route dédiée
+      // par id, même patron que Livraisons/Facturation) — on navigue donc
+      // vers la liste, pas un lien direct.
+      void queryClient.invalidateQueries({ queryKey: ["rollings"] });
+      navigate("/roulements");
+    },
+    onError: onMutationError,
+  });
 
   if (!employee) return null;
 
@@ -380,6 +394,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
   const canApprove = canApproveBudgetForSending(employee.persona);
   const canOutcome = canRecordBudgetOutcome(employee.persona);
   const canConvert = canConvertBudgetToProject(employee.persona);
+  const canConvertRolling = canConvertBudgetToRolling(employee.persona);
   const busy =
     rowMutation.isPending ||
     addRowMutation.isPending ||
@@ -389,7 +404,8 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
     projectBackupMutation.isPending ||
     metaMutation.isPending ||
     statusMutation.isPending ||
-    convertMutation.isPending;
+    convertMutation.isPending ||
+    convertRollingMutation.isPending;
   // Busy du tableau de lignes SEULEMENT — exclut volontairement rowMutation
   // (voir savingRowId ci-dessous) et les mutations d'autres cartes
   // (méta/back-up), sans rapport avec la saisie de lignes. Corrige le 13
@@ -815,6 +831,39 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                   {convertMutation.isError && (
                     <p className="form-error" style={{ marginTop: 8 }}>
                       {convertMutation.error instanceof ApiError ? convertMutation.error.message : "Une erreur est survenue — réessayez."}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {budget.status === "won" && canConvertRolling && (
+                <div className="status-row">
+                  <span className="detail-label">Roulement</span>
+                  {!showConvertRollingConfirm ? (
+                    <div>
+                      <button type="button" className="btn btn-small" disabled={busy} onClick={() => setShowConvertRollingConfirm(true)}>
+                        Convertir en roulement
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <span style={{ fontSize: 13 }}>Un roulement n'a pas de nom/numéro distinct — identifié par le client.</span>
+                      <button
+                        type="button"
+                        className="btn btn-small"
+                        disabled={busy}
+                        onClick={() => convertRollingMutation.mutate()}
+                      >
+                        {convertRollingMutation.isPending ? "Conversion…" : "Confirmer"}
+                      </button>
+                      <button type="button" className="btn btn-secondary btn-small" onClick={() => setShowConvertRollingConfirm(false)}>
+                        Annuler
+                      </button>
+                    </div>
+                  )}
+                  {convertRollingMutation.isError && (
+                    <p className="form-error" style={{ marginTop: 8 }}>
+                      {convertRollingMutation.error instanceof ApiError ? convertRollingMutation.error.message : "Une erreur est survenue — réessayez."}
                     </p>
                   )}
                 </div>

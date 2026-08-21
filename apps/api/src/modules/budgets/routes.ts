@@ -8,6 +8,7 @@ import {
   canApproveBudgetForSending,
   canRecordBudgetOutcome,
   canConvertBudgetToProject,
+  canConvertBudgetToRolling,
   canDeleteBudget,
   canResetBudget,
 } from "@gsc-pilot/business-rules";
@@ -31,6 +32,7 @@ import {
   resetBudgetContent,
 } from "./service.js";
 import { convertBudgetToProject } from "../projects/service.js";
+import { convertBudgetToRolling } from "../rollings/service.js";
 
 export const budgetsRouter = Router();
 
@@ -255,5 +257,17 @@ budgetsRouter.post(
     const body = z.object({ name: z.string().min(1), projectNumber: z.string().optional() }).parse(req.body);
     const project = await convertBudgetToProject(req.employee!.id, id, body);
     res.status(201).json({ id: project.id, projectNumber: project.projectNumber });
+  },
+);
+
+/** Conversion en roulement : Direction seulement, uniquement depuis un budgétaire « Contrat obtenu » (même palier que convert-to-project). */
+budgetsRouter.post(
+  "/budgets/:id/convert-to-rolling",
+  requireAuth,
+  requirePermission((persona) => canConvertBudgetToRolling(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const rolling = await convertBudgetToRolling(req.employee!.id, id);
+    res.status(201).json({ id: rolling.id });
   },
 );
