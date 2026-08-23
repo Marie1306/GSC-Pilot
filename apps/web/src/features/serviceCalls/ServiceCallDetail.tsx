@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   canReassignServiceCall,
@@ -9,6 +9,9 @@ import {
   canDeleteServiceCall,
 } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
+import { useOnlineStatus } from "../../offline/useOnlineStatus.js";
+import { enqueue } from "../../offline/sync.js";
+import { OfflineBanner } from "../../offline/OfflineBanner.js";
 import { fetchPunchableEmployees } from "../timePunch/api.js";
 import { StartTaskModal } from "../timePunch/StartTaskModal.js";
 import {
@@ -45,9 +48,16 @@ function formatHours(minutes: number | null): string {
   return `${Math.floor(minutes / 60)}h${String(minutes % 60).padStart(2, "0")}`;
 }
 
+interface PendingPart {
+  id: string;
+  name: string;
+  qty: number;
+}
+
 export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
   const { employee } = useAuth();
   const queryClient = useQueryClient();
+  const online = useOnlineStatus();
   const detailQuery = useQuery({ queryKey: ["service-call", id], queryFn: () => fetchServiceCallDetail(id) });
   const employeesQuery = useQuery({ queryKey: ["time-entries", "employees"], queryFn: fetchPunchableEmployees });
   const call = detailQuery.data?.serviceCall;
@@ -62,6 +72,19 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
   const [punching, setPunching] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Terrain saisi hors ligne — spec confirmée 23 août 2026 (le call doit avoir été ouvert en ligne au préalable ; création/assignation/approbation restent en ligne).
+  const [pendingParts, setPendingParts] = useState<PendingPart[]>([]);
+  const [pendingSignature, setPendingSignature] = useState<{ dataUrl: string; signerName: string } | null>(null);
+
+  useEffect(() => {
+    function handleOnline() {
+      setPendingParts([]);
+      setPendingSignature(null);
+      void queryClient.invalidateQueries({ queryKey: ["service-call", id] });
+    }
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [id, queryClient]);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["service-call", id] });
@@ -70,12 +93,19 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
   const onMutationError = (err: unknown) => setError(err instanceof Error ? err.message : "Erreur — réessayez.");
 
   const updateMutation = useMutation({
-    mutationFn: (patch: Parameters<typeof updateServiceCall>[1]) => updateServiceCall(id, patch),
+    mutationFn: (patch: Parameters<typeof updateServiceCall>[1]) =>
+      online ? updateServiceCall(id, patch) : enqueue("service-call-update", { serviceCallId: id, patch }),
     onSuccess: invalidate,
     onError: onMutationError,
   });
   const addPartMutation = useMutation({
-    mutationFn: () => addServiceCallPart(id, { name: newPartName.trim(), qty: Number(newPartQty) }),
+    mutationFn: async () => {
+      const name = newPartName.trim();
+      const qty = Number(newPartQty);
+      if (online) return addServiceCallPart(id, { name, qty });
+      setPendingParts((current) => [...current, { id: crypto.randomUUID(), name, qty }]);
+      await enqueue("service-call-add-part", { serviceCallId: id, name, qty });
+    },
     onSuccess: () => {
       setNewPartName("");
       setNewPartQty("1");
@@ -90,7 +120,11 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
     onError: onMutationError,
   });
   const signatureMutation = useMutation({
-    mutationFn: ({ dataUrl, signerName }: { dataUrl: string; signerName: string }) => captureServiceCallSignature(id, dataUrl, signerName),
+    mutationFn: async ({ dataUrl, signerName }: { dataUrl: string; signerName: string }) => {
+      if (online) return captureServiceCallSignature(id, dataUrl, signerName);
+      setPendingSignature({ dataUrl, signerName });
+      await enqueue("service-call-signature", { serviceCallId: id, dataUrl, signerName });
+    },
     onSuccess: () => {
       setSigning(false);
       invalidate();
@@ -157,6 +191,7 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
         </div>
 
         <div className="modal-body">
+          <OfflineBanner />
           <div className="stat-tile-grid">
             <div className="stat-tile">
               <span className="stat-tile-label">Techniciens actifs</span>
@@ -286,6 +321,15 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
               </tr>
             </thead>
             <tbody>
+              {pendingParts.map((part) => (
+                <tr key={part.id}>
+                  <td>{part.name}</td>
+                  <td className="num">{part.qty}</td>
+                  {showFinancials && <td className="num">—</td>}
+                  {showFinancials && <td className="num">—</td>}
+                  <td className="cell-sub">En attente de synchronisation</td>
+                </tr>
+              ))}
               {call.parts.map((part: ServiceCallPartDto) => (
                 <tr key={part.id}>
                   <td>{part.name}</td>
@@ -402,7 +446,14 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
               <p>Obligatoire avant l'approbation.</p>
             </div>
           </div>
-          {call.signatureCaptured && call.signatureImageUrl ? (
+          {pendingSignature ? (
+            <div>
+              <img src={pendingSignature.dataUrl} alt="Signature du client" className="signature-pad-preview" />
+              <p style={{ margin: "6px 0 0", fontSize: 13, color: "var(--gsc-color-muted)" }}>
+                Signé par {pendingSignature.signerName} — en attente de synchronisation.
+              </p>
+            </div>
+          ) : call.signatureCaptured && call.signatureImageUrl ? (
             <div>
               <img src={call.signatureImageUrl} alt="Signature du client" className="signature-pad-preview" />
               {call.signatureSignerName && (

@@ -4,6 +4,9 @@ import { useQuery } from "@tanstack/react-query";
 import QrScanner from "qr-scanner";
 import { canAccessOverviewViews } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
+import { useOnlineStatus } from "../../offline/useOnlineStatus.js";
+import { offlineDb } from "../../offline/db.js";
+import { OfflineBanner } from "../../offline/OfflineBanner.js";
 import { fetchProjectOptions, type ProjectOptionDto } from "../timePunch/api.js";
 import { StartTaskModal } from "../timePunch/StartTaskModal.js";
 import "./qrScan.css";
@@ -26,6 +29,7 @@ import "./qrScan.css";
 export function QrScanPage() {
   const { employee } = useAuth();
   const navigate = useNavigate();
+  const online = useOnlineStatus();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const scannerRef = useRef<QrScanner | null>(null);
   const projectsRef = useRef<ProjectOptionDto[]>([]);
@@ -39,9 +43,22 @@ export function QrScanPage() {
 
   const projectsQuery = useQuery({ queryKey: ["time-entries", "project-options"], queryFn: fetchProjectOptions });
 
+  // Copie locale (Dexie) de la liste — spec confirmée 23 août 2026 : le
+  // raccourci de punch (Employé/Magasinier) doit fonctionner hors ligne, y
+  // compris après un redémarrage de l'app sans réseau. Rafraîchie à chaque
+  // chargement réussi en ligne ; sinon on lit la dernière copie connue.
   useEffect(() => {
-    projectsRef.current = projectsQuery.data?.projects ?? [];
+    if (!projectsQuery.data) return;
+    projectsRef.current = projectsQuery.data.projects;
+    void offlineDb.cachedProjects.clear().then(() => offlineDb.cachedProjects.bulkPut(projectsQuery.data.projects));
   }, [projectsQuery.data]);
+
+  useEffect(() => {
+    if (projectsQuery.data || projectsQuery.isLoading) return;
+    void offlineDb.cachedProjects.toArray().then((cached) => {
+      if (cached.length) projectsRef.current = cached;
+    });
+  }, [projectsQuery.data, projectsQuery.isLoading]);
 
   useEffect(() => {
     resolveRef.current = (code: string) => {
@@ -52,10 +69,15 @@ export function QrScanPage() {
         setError(`Aucun projet avec le numéro « ${trimmed} ».`);
         return;
       }
+      const isOverview = !!employee && canAccessOverviewViews(employee.persona);
+      if (isOverview && !online) {
+        setError("Hors ligne — reconnectez-vous pour voir la fiche du projet.");
+        return;
+      }
       setError(null);
       scannerRef.current?.stop();
       setScanning(false);
-      if (employee && canAccessOverviewViews(employee.persona)) {
+      if (isOverview) {
         navigate(`/projets?open=${match.id}`);
       } else {
         setPunchProject(match);
@@ -102,6 +124,7 @@ export function QrScanPage() {
 
   return (
     <div>
+      <OfflineBanner />
       <div className="card">
         <h1 style={{ marginTop: 0, fontSize: 20 }}>Scan QR</h1>
         <p style={{ color: "var(--gsc-color-muted)", margin: 0 }}>

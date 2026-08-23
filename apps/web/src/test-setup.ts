@@ -1,4 +1,6 @@
 import "@testing-library/jest-dom/vitest";
+// jsdom n'inclut pas IndexedDB — nécessaire pour packages/../offline/db.ts (Dexie), sinon rejets non gérés dans tout test qui monte une page l'important.
+import "fake-indexeddb/auto";
 import { afterEach } from "vitest";
 import { cleanup } from "@testing-library/react";
 

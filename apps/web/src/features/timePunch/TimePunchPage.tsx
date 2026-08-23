@@ -2,10 +2,21 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { canApprovePunch, canEditOwnPunch, canPunchForOtherEmployee, canDeleteTimeEntry } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
-import { fetchMyTimeEntries, fetchAllTimeEntries, stopTimer, approveTimeEntry, deleteTimeEntry, type TimeEntryDto } from "./api.js";
+import { useOnlineStatus } from "../../offline/useOnlineStatus.js";
+import { useLocalTimer } from "../../offline/useLocalTimer.js";
+import { clearLocalActiveEntry, markPendingStop } from "../../offline/localTimer.js";
+import { enqueue } from "../../offline/sync.js";
+import { OfflineBanner } from "../../offline/OfflineBanner.js";
+import { fetchMyTimeEntries, fetchAllTimeEntries, stopTimer, approveTimeEntry, deleteTimeEntry, type TimeEntryDto, type ManualEntryInput } from "./api.js";
 import { StartTaskModal } from "./StartTaskModal.js";
 import { ManualEntryModal } from "./ManualEntryModal.js";
 import "./timePunch.css";
+
+interface ActiveDisplay {
+  startAt: string;
+  taskLabel: string;
+  referenceLabel: string;
+}
 
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -42,7 +53,7 @@ function TimerHero({
   onStop,
   stopping,
 }: {
-  activeEntry?: TimeEntryDto;
+  activeEntry?: ActiveDisplay;
   onStart: () => void;
   onManual: () => void;
   onStop: () => void;
@@ -66,7 +77,7 @@ function TimerHero({
       <div className="punch-hero-display">{elapsed}</div>
       {activeEntry && (
         <div className="punch-hero-task">
-          {referenceLabel(activeEntry)} — {activeEntry.taskLabel}
+          {activeEntry.referenceLabel} — {activeEntry.taskLabel}
         </div>
       )}
       <div className="punch-hero-actions">
@@ -90,10 +101,15 @@ function TimerHero({
 }
 
 /**
- * Punch d'heures — 18 août 2026. En ligne seulement pour cette passe (le
- * hors-ligne, prévu par l'architecture confirmée, viendra dans une passe
- * technique dédiée — confirmé avec l'utilisatrice). Règles affichées ici :
- * seulement celles confirmées dans la spécification (arrondi vers le haut,
+ * Punch d'heures — 18 août 2026, hors ligne ajouté le 23 août 2026 (spec
+ * confirmée : le chronomètre en direct fonctionne hors ligne, pas
+ * seulement l'entrée manuelle). Une entrée démarrée hors ligne vit
+ * localement (offline/localTimer.ts) jusqu'à l'arrêt, où elle devient une
+ * entrée manuelle mise en file (heures calculées localement) — aucun
+ * nouvel endpoint serveur. Arrêter une entrée déjà connue du serveur en
+ * étant hors ligne la masque localement (pendingStops) le temps que la
+ * synchronisation confirme l'arrêt. Règles affichées ici : seulement
+ * celles confirmées dans la spécification (arrondi vers le haut,
  * correction possible avant approbation) — jamais la pause dîner ni les
  * heures hors plage du prototype v19, non confirmées (voir
  * packages/business-rules/src/punch.ts).
@@ -101,6 +117,8 @@ function TimerHero({
 export function TimePunchPage() {
   const { employee } = useAuth();
   const queryClient = useQueryClient();
+  const online = useOnlineStatus();
+  const { localActive, pendingStopIds } = useLocalTimer();
   const isDirection = employee ? canApprovePunch({}, employee.persona) : false;
 
   const myEntriesQuery = useQuery({ queryKey: ["time-entries", "mine"], queryFn: fetchMyTimeEntries });
@@ -110,6 +128,7 @@ export function TimePunchPage() {
   const [manualOpen, setManualOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<TimeEntryDto | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [stoppingLocal, setStoppingLocal] = useState(false);
 
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: ["time-entries"] });
   const stopMutation = useMutation({ mutationFn: stopTimer, onSuccess: invalidate });
@@ -127,8 +146,45 @@ export function TimePunchPage() {
   const canDelete = canDeleteTimeEntry(employee.persona);
 
   const myEntries = myEntriesQuery.data?.timeEntries ?? [];
-  const activeEntry = myEntries.find((entry) => !entry.endAt);
+  const serverActiveEntry = myEntries.find((entry) => !entry.endAt && !pendingStopIds.has(entry.id));
+  const displayActive: ActiveDisplay | undefined = localActive
+    ? { startAt: localActive.startAt, taskLabel: localActive.taskLabel, referenceLabel: localActive.referenceLabel }
+    : serverActiveEntry
+      ? { startAt: serverActiveEntry.startAt, taskLabel: serverActiveEntry.taskLabel ?? "—", referenceLabel: referenceLabel(serverActiveEntry) }
+      : undefined;
   const rows = isDirection ? allEntriesQuery.data?.timeEntries ?? [] : myEntries;
+
+  async function handleStop() {
+    if (localActive) {
+      setStoppingLocal(true);
+      const hours = (Date.now() - new Date(localActive.startAt).getTime()) / 3_600_000;
+      const input: ManualEntryInput = {
+        employeeId: localActive.employeeId,
+        projectType: localActive.projectType,
+        projectId: localActive.projectId,
+        serviceCallId: localActive.serviceCallId,
+        taskId: localActive.taskId,
+        techLevelId: localActive.techLevelId,
+        rateType: localActive.rateType,
+        note: localActive.note,
+        date: localActive.startAt.slice(0, 10),
+        hours: Math.round(hours * 100) / 100,
+      };
+      await enqueue("time-entry-create", input);
+      await clearLocalActiveEntry();
+      setStoppingLocal(false);
+      return;
+    }
+    if (!serverActiveEntry) return;
+    if (online) {
+      stopMutation.mutate(serverActiveEntry.id);
+      return;
+    }
+    setStoppingLocal(true);
+    await markPendingStop(serverActiveEntry.id);
+    await enqueue("time-entry-stop", { id: serverActiveEntry.id });
+    setStoppingLocal(false);
+  }
 
   function canEditRow(entry: TimeEntryDto): boolean {
     if (!entry.endAt) return false;
@@ -142,6 +198,7 @@ export function TimePunchPage() {
 
   return (
     <div>
+      <OfflineBanner />
       <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
         <div>
           <h1 style={{ marginTop: 0, fontSize: 20 }}>Temps</h1>
@@ -153,11 +210,11 @@ export function TimePunchPage() {
 
       <div className="grid grid-3" style={{ marginTop: 20 }}>
         <TimerHero
-          activeEntry={activeEntry}
+          activeEntry={displayActive}
           onStart={() => setStartOpen(true)}
           onManual={() => setManualOpen(true)}
-          onStop={() => activeEntry && stopMutation.mutate(activeEntry.id)}
-          stopping={stopMutation.isPending}
+          onStop={() => void handleStop()}
+          stopping={stopMutation.isPending || stoppingLocal}
         />
         <section className="card">
           <div className="card-header">

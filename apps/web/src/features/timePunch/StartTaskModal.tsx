@@ -2,9 +2,17 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { canPunchForOtherEmployee, canSeeFinancialValues } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
+import { useOnlineStatus } from "../../offline/useOnlineStatus.js";
+import { startLocalActiveEntry } from "../../offline/localTimer.js";
 import { fetchTechLevels } from "../settings/api.js";
 import { fetchPunchableTasks, fetchProjectOptions, fetchServiceCallOptions, fetchPunchableEmployees, startTimer } from "./api.js";
 import { ReferenceFields, type ReferenceValue } from "./ReferenceFields.js";
+
+const PROJECT_TYPE_FALLBACK_LABEL: Record<ReferenceValue["projectType"], string> = {
+  project: "Projet",
+  service: "Appel de service",
+  internal: "Interne — Amélioration GSC",
+};
 
 interface StartTaskModalProps {
   onClose: () => void;
@@ -16,6 +24,7 @@ interface StartTaskModalProps {
 export function StartTaskModal({ onClose, initialValue }: StartTaskModalProps) {
   const { employee } = useAuth();
   const queryClient = useQueryClient();
+  const online = useOnlineStatus();
   const tasksQuery = useQuery({ queryKey: ["punchable-tasks"], queryFn: fetchPunchableTasks });
   const projectsQuery = useQuery({ queryKey: ["time-entries", "project-options"], queryFn: fetchProjectOptions });
   const serviceCallsQuery = useQuery({ queryKey: ["time-entries", "service-call-options"], queryFn: fetchServiceCallOptions });
@@ -67,6 +76,29 @@ export function StartTaskModal({ onClose, initialValue }: StartTaskModalProps) {
       setError("Choisissez une tâche.");
       return;
     }
+    if (!online) {
+      const taskLabel = tasks.find((t) => t.id === value.taskId)?.label ?? "Tâche";
+      const referenceLabel =
+        value.projectType === "project"
+          ? (projects.find((p) => p.id === value.projectId)?.label ?? PROJECT_TYPE_FALLBACK_LABEL.project)
+          : value.projectType === "service"
+            ? (serviceCalls.find((c) => c.id === value.serviceCallId)?.label ?? PROJECT_TYPE_FALLBACK_LABEL.service)
+            : PROJECT_TYPE_FALLBACK_LABEL.internal;
+      void startLocalActiveEntry({
+        employeeId,
+        projectType: value.projectType,
+        projectId: value.projectId,
+        serviceCallId: value.serviceCallId,
+        taskId: value.taskId,
+        taskLabel,
+        referenceLabel,
+        techLevelId: value.techLevelId,
+        rateType: value.rateType,
+        note: note.trim() || undefined,
+        startAt: new Date().toISOString(),
+      }).then(onClose);
+      return;
+    }
     mutation.mutate();
   }
 
@@ -112,6 +144,11 @@ export function StartTaskModal({ onClose, initialValue }: StartTaskModalProps) {
             </div>
           </div>
           {error && <p className="form-error">{error}</p>}
+          {!online && (
+            <p style={{ margin: "0 24px 12px", fontSize: 13, color: "var(--gsc-color-amber)" }}>
+              Hors ligne — le chronomètre démarre localement, sera synchronisé à la reconnexion.
+            </p>
+          )}
           <div className="modal-footer">
             <button type="button" className="btn btn-secondary" onClick={onClose}>
               Annuler
