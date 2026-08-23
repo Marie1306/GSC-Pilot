@@ -19,20 +19,20 @@ import {
 import { PunchableTasksCard } from "./PunchableTasksCard.js";
 import { BillingSplitCard } from "./BillingSplitCard.js";
 import { AuditLogCard } from "./AuditLogCard.js";
+import { DelegationCard } from "./DelegationCard.js";
 
 /**
  * Direction seulement (voir canAccessSettings, déjà appliqué au niveau de
- * la route dans App.tsx). Modèles d'export PDF et délégation restent hors
- * de cette passe (20 août 2026) — portée confirmée avec l'utilisatrice.
+ * la route dans App.tsx). Modèles d'export PDF restent hors de cette passe
+ * (20 août 2026, portée à clarifier) — la délégation, construite le 23 août
+ * 2026, ne l'est plus.
  */
 export function SettingsPage() {
   return (
     <div>
       <div className="card">
         <h1 style={{ marginTop: 0, fontSize: 20 }}>Paramètres</h1>
-        <p style={{ color: "var(--gsc-color-muted)" }}>
-          Les modèles d'export PDF et la délégation d'approbation arrivent dans une prochaine phase.
-        </p>
+        <p style={{ color: "var(--gsc-color-muted)" }}>Les modèles d'export PDF arrivent dans une prochaine phase.</p>
       </div>
       <EmployeesCard />
       <TechLevelsCard />
@@ -66,6 +66,7 @@ export function SettingsPage() {
       />
       <PunchableTasksCard />
       <BillingSplitCard />
+      <DelegationCard />
       <AuditLogCard />
     </div>
   );

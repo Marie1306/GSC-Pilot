@@ -22,6 +22,7 @@ import {
   createChecklistStep,
   updateChecklistStep,
 } from "./checklistCatalogs.js";
+import { listDelegations, createDelegation, revokeDelegation } from "./delegation.js";
 
 // Monté sur /api/settings (voir app.ts) — jamais sur /api directement, pour
 // que le .use() ci-dessous ne gate QUE les routes de ce module, pas tout
@@ -301,4 +302,35 @@ settingsRouter.patch("/budget-model-rate", async (req, res) => {
 settingsRouter.get("/audit-log", async (_req, res) => {
   const entries = await listAuditLog();
   res.json({ entries });
+});
+
+// ---------------------------------------------------------------------------
+// Délégation d'approbation (23 août 2026) — logique de vérification déjà
+// dans roles.ts (delegationActive/actsAsDirection, branchée partout depuis
+// le port initial) ; ici seulement la gestion des DelegationGrant réels.
+// ---------------------------------------------------------------------------
+
+settingsRouter.get("/delegations", async (_req, res) => {
+  const delegations = await listDelegations();
+  res.json({ delegations });
+});
+
+const createDelegationSchema = z.object({
+  delegateId: z.uuid(),
+  categories: z.array(z.enum(["hours", "purchases", "service", "changes"])),
+  monetaryLimit: z.number().nonnegative().optional(),
+  startDate: z.string(),
+  endDate: z.string(),
+  justification: z.string().min(1),
+});
+settingsRouter.post("/delegations", async (req, res) => {
+  const body = createDelegationSchema.parse(req.body);
+  const delegation = await createDelegation(req.employee!.id, body);
+  res.status(201).json({ delegation });
+});
+
+settingsRouter.patch("/delegations/:id/revoke", async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  await revokeDelegation(id);
+  res.status(204).end();
 });

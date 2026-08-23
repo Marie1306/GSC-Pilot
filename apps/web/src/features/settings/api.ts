@@ -287,3 +287,47 @@ export async function createChecklistStep(label: string, insertBeforeId?: string
 export async function updateChecklistStep(id: string, update: { label?: string; active?: boolean }): Promise<ChecklistCatalogDto> {
   return (await apiFetch<{ step: ChecklistCatalogDto }>(`/api/settings/checklist-steps/${id}`, { method: "PATCH", body: JSON.stringify(update) })).step;
 }
+
+// --- Délégation d'approbation (23 août 2026) ---
+export type DelegationCategory = "hours" | "purchases" | "service" | "changes";
+export const DELEGATION_CATEGORY_LABELS: Record<DelegationCategory, string> = {
+  hours: "Heures",
+  purchases: "Achats",
+  service: "Appels de service",
+  changes: "Modifications structurelles",
+};
+
+export interface DelegationDto {
+  id: string;
+  delegateId: string;
+  delegateName: string;
+  grantedById: string;
+  grantedByName: string;
+  categories: DelegationCategory[];
+  monetaryLimit: number | null;
+  startDate: string;
+  endDate: string;
+  justification: string;
+  revokedAt: string | null;
+  createdAt: string;
+}
+
+export function fetchDelegations(): Promise<{ delegations: DelegationDto[] }> {
+  return apiFetch("/api/settings/delegations");
+}
+
+export interface CreateDelegationInput {
+  delegateId: string;
+  categories: DelegationCategory[];
+  monetaryLimit?: number;
+  startDate: string;
+  endDate: string;
+  justification: string;
+}
+export function createDelegation(input: CreateDelegationInput): Promise<{ delegation: DelegationDto }> {
+  return apiFetch("/api/settings/delegations", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function revokeDelegation(id: string): Promise<void> {
+  return apiFetch(`/api/settings/delegations/${id}/revoke`, { method: "PATCH" });
+}
