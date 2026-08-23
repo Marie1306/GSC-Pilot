@@ -165,35 +165,37 @@ export function ReportsPage() {
               {overview.internalStats.hours.employees.length === 0 ? (
                 <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucune heure interne approuvée pour {overview.internalStats.year}.</p>
               ) : (
-                <table className="shortlist-table">
-                  <thead>
-                    <tr>
-                      <th>Employé</th>
-                      <th className="num">Heures</th>
-                      <th className="num">Valeur</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {overview.internalStats.hours.employees.map((row) => (
-                      <tr key={row.employeeId}>
-                        <td>{row.employeeName}</td>
-                        <td className="num">{formatHours(row.hours)}</td>
-                        <td className="num">{formatCurrency(row.value)}</td>
+                <div className="table-scroll">
+                  <table className="shortlist-table">
+                    <thead>
+                      <tr>
+                        <th>Employé</th>
+                        <th className="num">Heures</th>
+                        <th className="num">Valeur</th>
                       </tr>
-                    ))}
-                    <tr>
-                      <td>
-                        <strong>Total</strong>
-                      </td>
-                      <td className="num">
-                        <strong>{formatHours(overview.internalStats.hours.hours)}</strong>
-                      </td>
-                      <td className="num">
-                        <strong>{formatCurrency(overview.internalStats.hours.value)}</strong>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {overview.internalStats.hours.employees.map((row) => (
+                        <tr key={row.employeeId}>
+                          <td>{row.employeeName}</td>
+                          <td className="num">{formatHours(row.hours)}</td>
+                          <td className="num">{formatCurrency(row.value)}</td>
+                        </tr>
+                      ))}
+                      <tr>
+                        <td>
+                          <strong>Total</strong>
+                        </td>
+                        <td className="num">
+                          <strong>{formatHours(overview.internalStats.hours.hours)}</strong>
+                        </td>
+                        <td className="num">
+                          <strong>{formatCurrency(overview.internalStats.hours.value)}</strong>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
 
@@ -202,30 +204,32 @@ export function ReportsPage() {
               {overview.internalStats.purchases.categories.length === 0 ? (
                 <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucun achat interne autorisé pour {overview.internalStats.year}.</p>
               ) : (
-                <table className="shortlist-table">
-                  <thead>
-                    <tr>
-                      <th>Catégorie</th>
-                      <th className="num">Montant</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {overview.internalStats.purchases.categories.map((row) => (
-                      <tr key={row.category}>
-                        <td>{row.category}</td>
-                        <td className="num">{formatCurrency(row.amount)}</td>
+                <div className="table-scroll">
+                  <table className="shortlist-table">
+                    <thead>
+                      <tr>
+                        <th>Catégorie</th>
+                        <th className="num">Montant</th>
                       </tr>
-                    ))}
-                    <tr>
-                      <td>
-                        <strong>Total</strong>
-                      </td>
-                      <td className="num">
-                        <strong>{formatCurrency(overview.internalStats.purchases.amount)}</strong>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {overview.internalStats.purchases.categories.map((row) => (
+                        <tr key={row.category}>
+                          <td>{row.category}</td>
+                          <td className="num">{formatCurrency(row.amount)}</td>
+                        </tr>
+                      ))}
+                      <tr>
+                        <td>
+                          <strong>Total</strong>
+                        </td>
+                        <td className="num">
+                          <strong>{formatCurrency(overview.internalStats.purchases.amount)}</strong>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>

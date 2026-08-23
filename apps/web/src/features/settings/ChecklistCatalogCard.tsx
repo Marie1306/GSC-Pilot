@@ -57,6 +57,7 @@ export function ChecklistCatalogCard({ title, description, queryKey, fetchFn, cr
       <h2 style={{ marginTop: 0, fontSize: 16 }}>{title}</h2>
       <p style={{ color: "var(--gsc-color-muted)", fontSize: 13, marginTop: -8 }}>{description}</p>
 
+      <div className="table-scroll">
       <table className="settings-table">
         <thead>
           <tr>
@@ -94,6 +95,7 @@ export function ChecklistCatalogCard({ title, description, queryKey, fetchFn, cr
           })}
         </tbody>
       </table>
+      </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center", flexWrap: "wrap" }}>
         <input type="text" placeholder="Nouveau" style={{ maxWidth: 220 }} value={newLabel} onChange={(event) => setNewLabel(event.target.value)} />

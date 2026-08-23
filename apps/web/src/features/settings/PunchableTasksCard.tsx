@@ -105,6 +105,7 @@ export function PunchableTasksCard() {
             {categoryTasks.length === 0 ? (
               <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucune tâche pour l'instant.</p>
             ) : (
+              <div className="table-scroll">
               <table className="settings-table">
                 <thead>
                   <tr>
@@ -207,6 +208,7 @@ export function PunchableTasksCard() {
                   })}
                 </tbody>
               </table>
+              </div>
             )}
             <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
               <input

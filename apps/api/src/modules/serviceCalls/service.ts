@@ -478,6 +478,7 @@ export async function sendServiceCallToAdmin(id: string, actorId: string): Promi
         amount: financials.totalSale,
         requestedById: actorId,
         requestedAt: new Date(),
+        sortOrder: 0,
       },
     }),
   ]);

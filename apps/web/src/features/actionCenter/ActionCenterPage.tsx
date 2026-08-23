@@ -16,6 +16,7 @@ function linkFor(item: ActionItemDto): string {
       return "/achats";
     case "invoicing":
       return "/facturation";
+    case "client_request_new":
     case "client_request_transmitted":
       return `/demandes?open=${item.id}`;
     case "subassembly_ready":
@@ -26,6 +27,7 @@ function linkFor(item: ActionItemDto): string {
 }
 
 const TYPE_ORDER: ActionItemType[] = [
+  "client_request_new",
   "budget_approval",
   "purchase_approval",
   "invoicing",

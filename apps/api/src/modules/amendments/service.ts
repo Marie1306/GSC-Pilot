@@ -88,7 +88,7 @@ export async function createAmendment(projectId: string, createdById: string, in
   if (!project) throw new HttpError(404, "Projet introuvable.");
   if (Object.keys(input.hoursByCategory).length === 0) throw new HttpError(400, "Au moins une catégorie d'heures est requise.");
 
-  const invoicePlanRows = await prisma.invoicePlanEntry.findMany({ where: { projectId }, orderBy: { createdAt: "asc" } });
+  const invoicePlanRows = await prisma.invoicePlanEntry.findMany({ where: { projectId }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] });
   const projectLike: AmendmentProjectLike & { invoicePlan: { id: string; label: string; pct: number; amount: number }[] } = {
     laborHours: Number(project.laborHours),
     laborCost: Number(project.laborCost),
@@ -164,6 +164,9 @@ export async function createAmendment(projectId: string, createdById: string, in
         amount: invoiceRequest.amount,
         status: invoiceRequest.status,
         isExtra: true,
+        // Ajouté après coup — toujours à la suite des jalons existants
+        // (invoicePlanRows déjà triée par sortOrder, voir ci-dessus).
+        sortOrder: invoicePlanRows.length,
       },
     });
     await tx.amendment.update({ where: { id: amendment.id }, data: { invoiceRequestId: invoiceEntry.id } });

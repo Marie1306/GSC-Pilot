@@ -12,9 +12,14 @@
  *     jamais une approximation "owner_pending → Direction" qui ignorerait
  *     la délégation ou l'escalade de seuil.
  *   - Facturation demandée mais pas encore enregistrée (canCreateInvoiceRecord).
+ *   - Nouvelles demandes clients (statut "new", canCreateClientRequest) —
+ *     ajouté le 23 août 2026 suite au rapport de l'utilisatrice : une
+ *     demande fraîchement entrée doit être visible immédiatement, pas
+ *     seulement une fois transmise au Propriétaire (item suivant).
  *   - Demandes clients transférées au Propriétaire, pas encore converties
  *     (transferClientRequestToOwner, déjà construit — voir clientRequests/
- *     service.ts, rien à ajouter côté mécanisme).
+ *     service.ts, rien à ajouter côté mécanisme) — signal séparé et
+ *     complémentaire du précédent, réservé au Propriétaire (spec confirmée).
  *   - Sous-assemblages déclarés prêts par le designer, en attente que
  *     Direction crée la liste de pièces (module Sous-assemblages, 21 août
  *     2026 — canPrepareSubassemblyPartsList, même geste qui débloque
@@ -24,6 +29,7 @@ import {
   canApproveBudgetForSending,
   canApprovePurchaseRequest,
   canCreateInvoiceRecord,
+  canCreateClientRequest,
   canPrepareSubassemblyPartsList,
   buildFrozenPurchaseThresholdsMap,
   type Persona,
@@ -35,7 +41,7 @@ import { listInvoiceEntries } from "../invoicing/service.js";
 import { listClientRequests } from "../clientRequests/service.js";
 import { listPendingPartsListSubassemblies } from "../subassemblies/service.js";
 
-export type ActionItemType = "budget_approval" | "purchase_approval" | "invoicing" | "client_request_transmitted" | "subassembly_ready";
+export type ActionItemType = "budget_approval" | "purchase_approval" | "invoicing" | "client_request_new" | "client_request_transmitted" | "subassembly_ready";
 
 export interface ActionItemDto {
   id: string;
@@ -111,6 +117,30 @@ export async function getActionCenterItems(viewerPersona: Persona, viewerEmploye
           sublabel: entry.clientLabel,
           amount: entry.amount,
           createdAt: entry.requestedAt!,
+        });
+      }
+    }
+  }
+
+  // Nouvelle demande client = signal immédiat pour Direction/Administration/
+  // Propriétaire dès l'entrée (rapport de l'utilisatrice, 23 août 2026 :
+  // "doivent aussi afficher... dès qu'une nouvelle demande entre") — même
+  // trio que canCreateClientRequest (roles.ts), distinct et complémentaire
+  // de la transmission ci-dessous (qui reste un signal PROPRIÉTAIRE
+  // spécifique, spec confirmée, ne pas retirer). Disparaît dès que Direction
+  // fait avancer le statut (in_progress/lost) ou convertit en budgétaire
+  // (statut "converted" posé automatiquement, voir clientRequests/service.ts).
+  if (canCreateClientRequest(viewerPersona)) {
+    const requests = await listClientRequests();
+    for (const request of requests) {
+      if (request.status === "new") {
+        items.push({
+          id: request.id,
+          type: "client_request_new",
+          typeLabel: "Nouvelle demande client",
+          label: `${request.displayId} — ${request.company ?? request.contactName}`,
+          sublabel: request.summary,
+          createdAt: request.createdAt,
         });
       }
     }

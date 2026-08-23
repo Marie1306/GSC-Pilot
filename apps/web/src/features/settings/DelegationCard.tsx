@@ -184,6 +184,7 @@ export function DelegationCard() {
       {history.length > 0 && (
         <>
           <h3 style={{ fontSize: 14, marginTop: 20, marginBottom: 8 }}>Historique</h3>
+          <div className="table-scroll">
           <table className="settings-table">
             <thead>
               <tr>
@@ -206,6 +207,7 @@ export function DelegationCard() {
               ))}
             </tbody>
           </table>
+          </div>
         </>
       )}
     </div>

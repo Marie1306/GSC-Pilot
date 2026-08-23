@@ -136,7 +136,7 @@ async function createSinglePaymentPlan(tx: Parameters<Parameters<typeof prisma.$
   if (!(sold > 0)) return;
   const plan = computeBillingPlan(sold, [{ label: "Paiement", pct: 100 }]);
   await tx.invoicePlanEntry.createMany({
-    data: plan.map((step) => ({ rollingId, label: step.label, pct: step.pct, amount: step.amount, status: step.status })),
+    data: plan.map((step, index) => ({ rollingId, label: step.label, pct: step.pct, amount: step.amount, status: step.status, sortOrder: index })),
   });
 }
 
@@ -223,7 +223,7 @@ export async function updateRollingSold(rollingId: string, sold: number): Promis
 }
 
 export async function getRollingInvoicePlan(rollingId: string): Promise<InvoicePlanEntryDto[]> {
-  const rows = await prisma.invoicePlanEntry.findMany({ where: { rollingId }, orderBy: { createdAt: "asc" } });
+  const rows = await prisma.invoicePlanEntry.findMany({ where: { rollingId }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] });
   return rows.map(toInvoicePlanEntryDto);
 }
 

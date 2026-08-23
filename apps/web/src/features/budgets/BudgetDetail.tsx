@@ -125,6 +125,7 @@ function BudgetSectionCard({
         </div>
       </div>
 
+      <div className="table-scroll">
       <table className="shortlist-table budget-rows-table">
         <thead>
           <tr>
@@ -231,6 +232,7 @@ function BudgetSectionCard({
           })}
         </tbody>
       </table>
+      </div>
 
       {isModular && canModifyPurchase && (
         <div className="budget-add-row">
@@ -566,7 +568,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       id="meta-po"
                       key={`po-${budget.poNumber}`}
                       defaultValue={budget.poNumber ?? ""}
-                      disabled={!canModifyLabor || busy}
+                      disabled={!canModifyLabor || metaMutation.isPending}
                       onBlur={(e) => {
                         const value = e.target.value.trim() || null;
                         if (value !== budget.poNumber) metaMutation.mutate({ poNumber: value });
@@ -581,7 +583,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       type="number"
                       min={1}
                       defaultValue={budget.quantity}
-                      disabled={!canModifyLabor || busy}
+                      disabled={!canModifyLabor || metaMutation.isPending}
                       onFocus={(e) => e.target.select()}
                       onBlur={(e) => {
                         const value = Math.max(1, Number(e.target.value || 1));
@@ -596,7 +598,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       key={`valid-${budget.validUntil}`}
                       type="date"
                       defaultValue={toDateInputValue(budget.validUntil)}
-                      disabled={!canModifyLabor || busy}
+                      disabled={!canModifyLabor || metaMutation.isPending}
                       onBlur={(e) => {
                         const value = e.target.value.trim() || null;
                         if (value !== toDateInputValue(budget.validUntil)) metaMutation.mutate({ validUntil: value });
@@ -611,7 +613,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       rows={2}
                       placeholder="Portée, hypothèses, prix, échéancier…"
                       defaultValue={budget.summary ?? ""}
-                      disabled={!canModifyLabor || busy}
+                      disabled={!canModifyLabor || metaMutation.isPending}
                       onBlur={(e) => {
                         const value = e.target.value.trim() || null;
                         if (value !== budget.summary) metaMutation.mutate({ summary: value });
@@ -628,7 +630,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       rows={2}
                       placeholder="Complexité, ressources critiques, disponibilité des composantes…"
                       defaultValue={budget.riskSummary ?? ""}
-                      disabled={!canModifyLabor || busy}
+                      disabled={!canModifyLabor || metaMutation.isPending}
                       onBlur={(e) => {
                         const value = e.target.value.trim() || null;
                         if (value !== budget.riskSummary) metaMutation.mutate({ riskSummary: value });
@@ -672,7 +674,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       min={0}
                       step={1}
                       defaultValue={budget.backupHoursPct}
-                      disabled={!canModifyLabor || busy}
+                      disabled={!canModifyLabor || backupMutation.isPending}
                       onFocus={(e) => e.target.select()}
                       onBlur={(e) => {
                         const pct = Number(e.target.value || 0);
@@ -685,7 +687,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                     <select
                       id="backup-complexity"
                       value={budget.backupHoursComplexity}
-                      disabled={!canModifyLabor || busy}
+                      disabled={!canModifyLabor || backupMutation.isPending}
                       onChange={(e) => backupMutation.mutate({ complexity: Number(e.target.value) })}
                     >
                       {COMPLEXITY_OPTIONS.map((level) => (
@@ -727,7 +729,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       min={0}
                       step={100}
                       defaultValue={budget.projectBackupAmount}
-                      disabled={!canModifyLabor || busy}
+                      disabled={!canModifyLabor || projectBackupMutation.isPending}
                       onFocus={(e) => e.target.select()}
                       onBlur={(e) => {
                         const amount = Number(e.target.value || 0);
@@ -740,7 +742,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                     <select
                       id="project-backup-complexity"
                       value={budget.projectBackupComplexity}
-                      disabled={!canModifyLabor || busy}
+                      disabled={!canModifyLabor || projectBackupMutation.isPending}
                       onChange={(e) => projectBackupMutation.mutate({ complexity: Number(e.target.value) })}
                     >
                       {COMPLEXITY_OPTIONS.map((level) => (

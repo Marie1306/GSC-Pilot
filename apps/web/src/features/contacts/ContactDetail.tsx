@@ -24,6 +24,7 @@ function LinkedRecordSection({ title, rows }: { title: string; rows: LinkedRecor
           </h3>
         </div>
       </div>
+      <div className="table-scroll">
       <table className="contact-table">
         <tbody>
           {rows.map((row) => (
@@ -38,6 +39,7 @@ function LinkedRecordSection({ title, rows }: { title: string; rows: LinkedRecor
           ))}
         </tbody>
       </table>
+      </div>
     </>
   );
 }

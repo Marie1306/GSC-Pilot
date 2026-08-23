@@ -67,6 +67,7 @@ export function ShortlistForm() {
         </select>
       </div>
 
+      <div className="table-scroll">
       <table className="shortlist-table">
         <thead>
           <tr>
@@ -118,6 +119,7 @@ export function ShortlistForm() {
           ))}
         </tbody>
       </table>
+      </div>
 
       <div style={{ display: "flex", gap: 10, marginTop: 12, alignItems: "center" }}>
         <button type="button" className="btn btn-secondary" onClick={addLine}>

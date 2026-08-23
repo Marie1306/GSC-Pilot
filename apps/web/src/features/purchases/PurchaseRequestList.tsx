@@ -93,6 +93,7 @@ export function PurchaseRequestList() {
         <h2 style={{ marginTop: 0, fontSize: 16 }}>En attente d'approbation</h2>
         {pending.length === 0 && <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucune demande en attente pour l'instant.</p>}
         {pending.length > 0 && (
+          <div className="table-scroll">
           <table className="shortlist-table">
             <thead>
               <tr>
@@ -149,13 +150,13 @@ export function PurchaseRequestList() {
                     {(canAct || isOwn) && (
                       <td>
                         {canAct && (
-                          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "nowrap" }}>
                             <input
                               type="number"
                               min={0}
                               step="0.01"
                               placeholder="Prix final"
-                              style={{ width: 90 }}
+                              style={{ width: 90, flex: "none" }}
                               value={draftAmounts[row.id] ?? (row.amount ?? "")}
                               onFocus={(e) => e.target.select()}
                               onChange={(event) => setDraftAmounts((current) => ({ ...current, [row.id]: event.target.value }))}
@@ -163,6 +164,7 @@ export function PurchaseRequestList() {
                             <button
                               type="button"
                               className="btn btn-secondary"
+                              style={{ flex: "none", whiteSpace: "nowrap" }}
                               onClick={() => {
                                 const value = Number(draftAmounts[row.id]);
                                 if (value > 0) amountMutation.mutate({ id: row.id, amount: value });
@@ -170,10 +172,21 @@ export function PurchaseRequestList() {
                             >
                               Fixer
                             </button>
-                            <button type="button" className="btn" disabled={row.amount == null} onClick={() => approveMutation.mutate(row.id)}>
+                            <button
+                              type="button"
+                              className="btn"
+                              style={{ flex: "none", whiteSpace: "nowrap" }}
+                              disabled={row.amount == null}
+                              onClick={() => approveMutation.mutate(row.id)}
+                            >
                               Approuver
                             </button>
-                            <button type="button" className="btn btn-secondary" onClick={() => rejectMutation.mutate(row.id)}>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ flex: "none", whiteSpace: "nowrap" }}
+                              onClick={() => rejectMutation.mutate(row.id)}
+                            >
                               Rejeter
                             </button>
                           </div>
@@ -185,6 +198,7 @@ export function PurchaseRequestList() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
@@ -193,6 +207,7 @@ export function PurchaseRequestList() {
           <h2 style={{ marginTop: 0, fontSize: 16 }}>Autorisées — suivi de commande</h2>
           {inProgress.length === 0 && <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucune demande autorisée en attente d'application au projet.</p>}
           {inProgress.length > 0 && (
+            <div className="table-scroll">
             <table className="shortlist-table">
               <thead>
                 <tr>
@@ -245,6 +260,7 @@ export function PurchaseRequestList() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       )}
@@ -252,6 +268,7 @@ export function PurchaseRequestList() {
       {history.length > 0 && (
         <div className="card" style={{ marginTop: 20 }}>
           <h2 style={{ marginTop: 0, fontSize: 16 }}>Historique</h2>
+          <div className="table-scroll">
           <table className="shortlist-table">
             <thead>
               <tr>
@@ -278,6 +295,7 @@ export function PurchaseRequestList() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </>

@@ -1,6 +1,6 @@
 import { apiFetch } from "../../lib/apiClient.js";
 
-export type ActionItemType = "budget_approval" | "purchase_approval" | "invoicing" | "client_request_transmitted" | "subassembly_ready";
+export type ActionItemType = "budget_approval" | "purchase_approval" | "invoicing" | "client_request_new" | "client_request_transmitted" | "subassembly_ready";
 
 export interface ActionItemDto {
   id: string;

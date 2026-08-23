@@ -22,6 +22,7 @@ export function ClientRequestList({ onOpen }: ClientRequestListProps) {
       <h2 style={{ marginTop: 0, fontSize: 16 }}>Demandes clients</h2>
       {rows.length === 0 && <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucune demande pour l'instant.</p>}
       {rows.length > 0 && (
+        <div className="table-scroll">
         <table className="shortlist-table">
           <thead>
             <tr>
@@ -52,6 +53,7 @@ export function ClientRequestList({ onOpen }: ClientRequestListProps) {
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );

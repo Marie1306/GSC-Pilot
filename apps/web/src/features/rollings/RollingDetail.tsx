@@ -314,6 +314,7 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
           {plan.length === 0 ? (
             <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucun jalon — le prix vendu n'est pas encore connu.</p>
           ) : (
+            <div className="table-scroll">
             <table className="shortlist-table">
               <thead>
                 <tr>
@@ -366,6 +367,7 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
 
           {expandedEntry?.type === "record" && (

@@ -8,6 +8,8 @@ import { fetchProjectAmendments, createAmendment } from "../amendments/api.js";
 
 interface ProjectAmendmentsProps {
   projectId: string;
+  /** Marge visée du projet (gelée à la conversion budgétaire → projet, absente pour un projet créé directement) — sert de marge par défaut ici plutôt qu'une valeur arbitraire (rapport de l'utilisatrice, 23 août 2026). */
+  targetMarginPct?: number | null;
 }
 
 const AVENANT_CATEGORIES = [
@@ -32,7 +34,9 @@ interface HoursRow {
   hours: string;
 }
 const emptyRow = (): HoursRow => ({ category: AVENANT_CATEGORIES[0]!.value, hours: "" });
-const emptyForm = { marginPct: "20", backupPct: "10", purchases: "" };
+function emptyForm(targetMarginPct: number | null | undefined) {
+  return { marginPct: targetMarginPct != null ? String(targetMarginPct) : "20", backupPct: "10", purchases: "" };
+}
 
 /**
  * Avenants (21 août 2026) — réutilise amendments.ts tel quel côté serveur.
@@ -41,13 +45,13 @@ const emptyForm = { marginPct: "20", backupPct: "10", purchases: "" };
  * de facturation extra, déjà visible dans le Cycle de facturation ci-dessous
  * (ProjectInvoicePlan.tsx, même mécanisme que les jalons standards).
  */
-export function ProjectAmendments({ projectId }: ProjectAmendmentsProps) {
+export function ProjectAmendments({ projectId, targetMarginPct }: ProjectAmendmentsProps) {
   const { employee } = useAuth();
   const queryClient = useQueryClient();
   const listQuery = useQuery({ queryKey: ["amendments", projectId], queryFn: () => fetchProjectAmendments(projectId) });
   const [showForm, setShowForm] = useState(false);
   const [rows, setRows] = useState<HoursRow[]>([emptyRow()]);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(() => emptyForm(targetMarginPct));
   const [error, setError] = useState<string | null>(null);
 
   const invalidate = () => {
@@ -76,7 +80,7 @@ export function ProjectAmendments({ projectId }: ProjectAmendmentsProps) {
     onSuccess: () => {
       setShowForm(false);
       setRows([emptyRow()]);
-      setForm(emptyForm);
+      setForm(emptyForm(targetMarginPct));
       invalidate();
     },
     onError: onMutationError,

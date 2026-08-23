@@ -114,6 +114,7 @@ export function TechLevelsCard() {
         chaque punch, parmi les classes assignées à l'employé ci-dessous.
       </p>
 
+      <div className="table-scroll">
       <table className="settings-table">
         <thead>
           <tr>
@@ -198,6 +199,7 @@ export function TechLevelsCard() {
           })}
         </tbody>
       </table>
+      </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center", flexWrap: "wrap" }}>
         <input
@@ -248,6 +250,7 @@ export function TechLevelsCard() {
       {activeTechLevels.length === 0 ? (
         <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Ajoutez au moins une classe active ci-dessus pour les assigner.</p>
       ) : (
+        <div className="table-scroll">
         <table className="settings-table">
           <thead>
             <tr>
@@ -274,6 +277,7 @@ export function TechLevelsCard() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );

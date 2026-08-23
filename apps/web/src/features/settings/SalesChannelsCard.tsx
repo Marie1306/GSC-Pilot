@@ -50,6 +50,7 @@ export function SalesChannelsCard() {
         Ajouter, renommer, réordonner, désactiver et réactiver — les canaux déjà utilisés restent dans l'historique.
       </p>
 
+      <div className="table-scroll">
       <table className="settings-table">
         <thead>
           <tr>
@@ -113,6 +114,7 @@ export function SalesChannelsCard() {
           })}
         </tbody>
       </table>
+      </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center" }}>
         <input type="text" placeholder="Nouveau canal" style={{ maxWidth: 220 }} value={newName} onChange={(event) => setNewName(event.target.value)} />

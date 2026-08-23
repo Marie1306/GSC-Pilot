@@ -589,6 +589,14 @@ model InvoicePlanEntry {
   processedById String?
   processedAt   DateTime?
   createdAt     DateTime     @default(now())
+  // Ordre d'affichage explicite (23 août 2026) — les jalons standards d'un
+  // même projet/roulement sont créés en un seul createMany, donc partagent
+  // souvent le même createdAt à la microseconde près; trier sur createdAt
+  // seul n'a alors aucun départage déterministe et une ligne peut sembler
+  // sauter de position au prochain chargement (rapporté par l'utilisatrice :
+  // "l'ordre doit rester fixé"). Peuplé à la création (index dans le plan
+  // pour les 4 jalons standards, max+1 pour un extra ajouté après coup).
+  sortOrder     Int          @default(0)
 
   @@index([status])
 }

@@ -18,33 +18,35 @@ export function BudgetList({ onOpen }: BudgetListProps) {
       <h2 style={{ marginTop: 0, fontSize: 16 }}>Budgétaires</h2>
       {rows.length === 0 && <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucun budgétaire pour l'instant.</p>}
       {rows.length > 0 && (
-        <table className="shortlist-table">
-          <thead>
-            <tr>
-              <th>Budgétaire</th>
-              <th>Client / contact</th>
-              <th>Statut</th>
-              <th>Créé par</th>
-              <th>Date</th>
-              <th className="num">Prix de vente</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="clickable-row" onClick={() => onOpen(row.id)}>
-                <td>{row.displayId}</td>
-                <td>
-                  <div>{row.company ?? row.contactName}</div>
-                  <div className="cell-sub">{row.contactName}</div>
-                </td>
-                <td>{STATUS_LABELS[row.status] ?? row.status}</td>
-                <td>{row.createdByName}</td>
-                <td>{formatDate(row.createdAt)}</td>
-                <td className="num">{formatCurrency(row.totalSale)}</td>
+        <div className="table-scroll">
+          <table className="shortlist-table">
+            <thead>
+              <tr>
+                <th>Budgétaire</th>
+                <th>Client / contact</th>
+                <th>Statut</th>
+                <th>Créé par</th>
+                <th>Date</th>
+                <th className="num">Prix de vente</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id} className="clickable-row" onClick={() => onOpen(row.id)}>
+                  <td>{row.displayId}</td>
+                  <td>
+                    <div>{row.company ?? row.contactName}</div>
+                    <div className="cell-sub">{row.contactName}</div>
+                  </td>
+                  <td>{STATUS_LABELS[row.status] ?? row.status}</td>
+                  <td>{row.createdByName}</td>
+                  <td>{formatDate(row.createdAt)}</td>
+                  <td className="num">{formatCurrency(row.totalSale)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

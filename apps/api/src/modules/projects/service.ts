@@ -150,7 +150,7 @@ export async function convertBudgetToProject(createdById: string, budgetId: stri
     // phase.
     const plan = computeBillingPlan(totalSale, parseBillingSplit(settings.defaultBillingSplit));
     await tx.invoicePlanEntry.createMany({
-      data: plan.map((step) => ({ projectId: project.id, label: step.label, pct: step.pct, amount: step.amount, status: step.status })),
+      data: plan.map((step, index) => ({ projectId: project.id, label: step.label, pct: step.pct, amount: step.amount, status: step.status, sortOrder: index })),
     });
 
     return project;
@@ -286,7 +286,7 @@ export async function updateProjectPlanning(projectId: string, input: UpdateProj
         if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
         const plan = computeBillingPlan(input.sold, parseBillingSplit(settings.defaultBillingSplit));
         await tx.invoicePlanEntry.createMany({
-          data: plan.map((step) => ({ projectId, label: step.label, pct: step.pct, amount: step.amount, status: step.status })),
+          data: plan.map((step, index) => ({ projectId, label: step.label, pct: step.pct, amount: step.amount, status: step.status, sortOrder: index })),
         });
       }
     }
@@ -829,7 +829,7 @@ export function toInvoicePlanEntryDto(row: {
 }
 
 export async function getInvoicePlan(projectId: string): Promise<InvoicePlanEntryDto[]> {
-  const rows = await prisma.invoicePlanEntry.findMany({ where: { projectId }, orderBy: { createdAt: "asc" } });
+  const rows = await prisma.invoicePlanEntry.findMany({ where: { projectId }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] });
   return rows.map(toInvoicePlanEntryDto);
 }
 

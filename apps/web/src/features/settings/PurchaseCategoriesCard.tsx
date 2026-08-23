@@ -55,6 +55,7 @@ export function PurchaseCategoriesCard() {
         approuver. Changer un seuil n'affecte jamais une demande déjà en attente.
       </p>
 
+      <div className="table-scroll">
       <table className="settings-table">
         <thead>
           <tr>
@@ -112,6 +113,7 @@ export function PurchaseCategoriesCard() {
           })}
         </tbody>
       </table>
+      </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center" }}>
         <input

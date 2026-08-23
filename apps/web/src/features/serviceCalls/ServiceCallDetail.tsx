@@ -274,6 +274,7 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
               Puncher sur ce call
             </button>
           </div>
+          <div className="table-scroll">
           <table className="service-call-table">
             <thead>
               <tr>
@@ -303,6 +304,7 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
               ))}
             </tbody>
           </table>
+          </div>
 
           <div className="section-heading" style={{ marginTop: 20 }}>
             <div>
@@ -310,6 +312,7 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
               <p>Le technicien décrit la pièce; la Direction ajoute le coût réel après coup.</p>
             </div>
           </div>
+          <div className="table-scroll">
           <table className="service-call-table">
             <thead>
               <tr>
@@ -375,6 +378,7 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
               ))}
             </tbody>
           </table>
+          </div>
           <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
             <input placeholder="Nom de la pièce" value={newPartName} onChange={(event) => setNewPartName(event.target.value)} style={{ flex: 1 }} />
             <input

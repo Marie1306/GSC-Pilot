@@ -283,6 +283,30 @@ a {
   margin: 0 24px 12px;
 }
 
+/* Tableaux — conteneur défilant plutôt que d'étirer toute la page (rapport
+   de l'utilisatrice, 22-23 août 2026 : "toutes les vues s'étirent pas
+   bien"). Un <table> en table-layout:auto peut dépasser son parent sans
+   jamais défiler lui-même (son propre débordement est nul par définition,
+   c'est le PARENT qui déborde) — d'où l'enrobage par un vrai conteneur de
+   défilement, jamais overflow-x directement sur <table>. */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 880px) {
+  /* Même seuil que AppShell.css (barre latérale → tiroir) — un seul point
+     de bascule "mobile" pour toute l'application. Sans ceci, deux colonnes
+     de champs réels (input/select/date, largeur minimale imposée par le
+     navigateur) ne peuvent pas rétrécir sous leur contenu minimal et
+     étirent la page entière plutôt que de s'empiler. */
+  .form-grid,
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Menu Options du projet (Projet 2F, 17 août 2026) — structure calquée sur la référence v19. */
 .options-section {
   margin-top: 14px;
