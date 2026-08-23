@@ -8,6 +8,7 @@ import { OptionsDrawer, OptionRow, OptionSection } from "../../components/Option
 import { updateProjectInfo, setProjectArchived, deleteProject, fetchProjectHistory, type ProjectDetail } from "./api.js";
 import { ProjectPostMortem } from "./ProjectPostMortem.js";
 import { ProjectChecklistArchive } from "../checklists/ProjectChecklistArchive.js";
+import { ProjectQrCode } from "./ProjectQrCode.js";
 
 interface ProjectOptionsMenuProps {
   project: ProjectDetail;
@@ -23,10 +24,11 @@ function formatDateTime(iso: string): string {
 /**
  * Menu Options du projet (Projet 2F, 17 août 2026) — structure calquée sur
  * la référence v19, section par section. Les lignes dont le module cible
- * n'existe pas encore (Gantt, avenants, punch d'heures, Code QR, Appels de
- * service, Contacts — toutes confirmées comme des squelettes vides ailleurs
- * dans l'appli) restent visibles mais inertes plutôt que masquées, pour ne
- * jamais donner l'impression d'un menu incomplet. Post-mortem (Projet 2E)
+ * n'existe pas encore (punch d'heures, Appels de service, Contacts —
+ * toujours des squelettes vides ailleurs dans l'appli) restent visibles
+ * mais inertes plutôt que masquées, pour ne jamais donner l'impression d'un
+ * menu incomplet. Code QR ouvre ProjectQrCode.tsx depuis le 23 août 2026.
+ * Post-mortem (Projet 2E)
  * ouvre maintenant ProjectPostMortem.tsx — le comparatif main-d'oeuvre y
  * reste au niveau catégorie en attendant la spécification du détail par
  * sous-tâche. Garantie reste une section toujours visible sur la page
@@ -49,6 +51,7 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted }: Projec
   const [showHistory, setShowHistory] = useState(false);
   const [showPostMortem, setShowPostMortem] = useState(false);
   const [showChecklistArchive, setShowChecklistArchive] = useState(false);
+  const [showQrCode, setShowQrCode] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -158,7 +161,7 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted }: Projec
               </OptionSection>
 
               <OptionSection title="Documents et suivi">
-                <OptionRow icon="⬜" label="Code QR" disabled disabledNote="Module Scan QR pas encore construit." />
+                <OptionRow icon="⬜" label="Code QR" onClick={() => setShowQrCode(true)} />
                 <OptionRow icon="📄" label="Post-mortem" onClick={() => setShowPostMortem(true)} />
                 <OptionRow icon="🕒" label={showHistory ? "Masquer l'historique" : "Historique complet"} onClick={() => setShowHistory((v) => !v)} />
               </OptionSection>
@@ -246,6 +249,7 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted }: Projec
 
       {showPostMortem && <ProjectPostMortem projectId={project.id} onClose={() => setShowPostMortem(false)} />}
       {showChecklistArchive && <ProjectChecklistArchive projectId={project.id} onClose={() => setShowChecklistArchive(false)} />}
+      {showQrCode && <ProjectQrCode project={{ projectNumber: project.projectNumber, name: project.name }} onClose={() => setShowQrCode(false)} />}
     </>
   );
 }

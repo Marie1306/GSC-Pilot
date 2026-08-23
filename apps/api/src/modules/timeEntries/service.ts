@@ -475,6 +475,8 @@ export async function listPunchableTasks(): Promise<PunchableTaskDto[]> {
 export interface ProjectOptionDto {
   id: string;
   label: string;
+  projectNumber: string;
+  name: string;
 }
 
 export async function listProjectOptions(): Promise<ProjectOptionDto[]> {
@@ -483,7 +485,7 @@ export async function listProjectOptions(): Promise<ProjectOptionDto[]> {
     select: { id: true, projectNumber: true, name: true },
     orderBy: { projectNumber: "asc" },
   });
-  return rows.map((row) => ({ id: row.id, label: `${row.projectNumber} — ${row.name}` }));
+  return rows.map((row) => ({ id: row.id, label: `${row.projectNumber} — ${row.name}`, projectNumber: row.projectNumber, name: row.name }));
 }
 
 export interface PunchableEmployeeDto {

@@ -20,6 +20,8 @@ export interface PunchableTaskDto {
 export interface ProjectOptionDto {
   id: string;
   label: string;
+  projectNumber: string;
+  name: string;
 }
 
 export interface ServiceCallOptionDto {
