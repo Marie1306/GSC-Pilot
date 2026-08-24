@@ -3,11 +3,18 @@
   height: 100%;
 }
 
+/* Colonne de navigation en gris foncé, comme la v19 (fond clair partout
+   ailleurs dans l'app — seule cette colonne passe en thème sombre,
+   demandé explicitement par l'utilisatrice le 24 août 2026). --gsc-color-ink
+   réutilisé comme fond plutôt qu'une nouvelle teinte inventée : déjà la
+   couleur la plus sombre du jeton de conception d'origine (extrait de
+   v19), donc plausiblement proche du vrai fond sombre de sa barre
+   latérale. */
 .app-sidebar {
   width: var(--gsc-sidebar-width);
   flex-shrink: 0;
-  background: var(--gsc-color-surface);
-  border-right: 1px solid var(--gsc-color-line);
+  background: var(--gsc-color-ink);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
 }
@@ -18,9 +25,9 @@
   align-items: center;
   padding: 0 20px;
   font-weight: 750;
-  color: var(--gsc-color-brand);
+  color: #fff;
   font-size: 18px;
-  border-bottom: 1px solid var(--gsc-color-line);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .app-sidebar-nav {
@@ -43,7 +50,7 @@
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--gsc-color-muted);
+  color: rgba(255, 255, 255, 0.45);
   padding: 8px 12px 4px;
 }
 
@@ -53,29 +60,29 @@
   gap: 10px;
   padding: 9px 12px;
   border-radius: var(--gsc-radius-sm);
-  color: var(--gsc-color-ink);
+  color: rgba(255, 255, 255, 0.85);
   text-decoration: none;
   font-size: 14px;
   font-weight: 600;
 }
 
 .app-sidebar-nav a:hover {
-  background: var(--gsc-color-surface2);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .app-sidebar-nav a.active {
-  background: var(--gsc-color-brand-soft);
-  color: var(--gsc-color-brand-dark);
+  background: var(--gsc-color-brand);
+  color: #fff;
 }
 
 .app-nav-icon {
   display: inline-flex;
   flex-shrink: 0;
-  color: var(--gsc-color-muted);
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .app-sidebar-nav a.active .app-nav-icon {
-  color: var(--gsc-color-brand-dark);
+  color: #fff;
 }
 
 .app-nav-badge {
@@ -209,7 +216,7 @@
     left: 0;
     bottom: 0;
     width: min(280px, 84vw);
-    background: var(--gsc-color-surface);
+    background: var(--gsc-color-ink);
     display: flex;
     flex-direction: column;
     box-shadow: 2px 0 12px rgba(15, 17, 21, 0.15);
@@ -221,7 +228,7 @@
     justify-content: space-between;
     height: var(--gsc-topbar-height);
     padding: 0 12px 0 20px;
-    border-bottom: 1px solid var(--gsc-color-line);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   }
 
   .app-drawer .app-sidebar-nav {
