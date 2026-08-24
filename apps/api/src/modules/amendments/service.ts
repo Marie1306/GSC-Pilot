@@ -30,6 +30,7 @@ export interface CreateAmendmentInput {
   marginPct: number;
   backupPct: number;
   purchases?: number;
+  description?: string;
 }
 
 export interface AmendmentDto {
@@ -38,6 +39,7 @@ export interface AmendmentDto {
   projectId: string;
   createdByName: string;
   createdAt: string;
+  description: string | null;
   hoursByCategory: Record<string, number>;
   marginPct: number;
   backupPct: number;
@@ -59,6 +61,7 @@ function toDto(row: Amendment, createdByName: string, viewerPersona: Persona): A
     projectId: row.projectId,
     createdByName,
     createdAt: row.createdAt.toISOString(),
+    description: row.description,
     hoursByCategory: row.hoursByCategory as Record<string, number>,
     marginPct: Number(row.marginPct),
     backupPct: Number(row.backupPct),
@@ -123,6 +126,7 @@ export async function createAmendment(projectId: string, createdById: string, in
         displayId,
         projectId,
         createdById,
+        description: input.description?.trim() || null,
         hoursByCategory: input.hoursByCategory,
         marginPct: input.marginPct,
         backupPct: input.backupPct,

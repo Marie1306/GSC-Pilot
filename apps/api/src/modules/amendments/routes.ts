@@ -22,6 +22,7 @@ const createSchema = z.object({
   marginPct: z.number().min(0).max(99.99),
   backupPct: z.number().min(0),
   purchases: z.number().nonnegative().optional(),
+  description: z.string().min(1).optional(),
 });
 amendmentsRouter.post(
   "/projects/:projectId/amendments",

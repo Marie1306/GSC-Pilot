@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { canAccessOverviewViews } from "@gsc-pilot/business-rules";
 import { NAV_ITEMS, NAV_SECTION_LABELS, type NavItem, type NavSection } from "../lib/nav.js";
@@ -61,6 +61,7 @@ function NavList({ groups, badges, onNavigate }: NavListProps) {
  */
 export function AppShell() {
   const { employee, signOut } = useAuth();
+  const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Hook toujours appelé (ordre stable) — activé seulement une fois
   // employee connu et éligible, jamais pour Employé/Magasinier (403 côté
@@ -76,6 +77,7 @@ export function AppShell() {
   const visibleItems = NAV_ITEMS.filter((item) => item.allow(employee.persona));
   const groups = groupBySection(visibleItems);
   const badges = { "action-center": actionCenterQuery.data?.items.length ?? 0 };
+  const activeItem = NAV_ITEMS.find((item) => item.path === location.pathname);
 
   return (
     <div className="app-shell">
@@ -93,7 +95,10 @@ export function AppShell() {
             <span />
             <span />
           </button>
-          <span className="app-topbar-title">GSC Pilot</span>
+          <div className="app-topbar-titles">
+            <span className="app-topbar-eyebrow">{activeItem ? NAV_SECTION_LABELS[activeItem.section] : "GSC Pilot"}</span>
+            <span className="app-topbar-heading">{activeItem?.label ?? "GSC Pilot"}</span>
+          </div>
           <div className="app-topbar-user">
             <span className="app-topbar-name">{employee.name}</span>
             <button type="button" className="btn btn-secondary" onClick={() => void signOut()}>

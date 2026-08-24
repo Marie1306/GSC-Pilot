@@ -970,6 +970,7 @@ model Amendment {
   totalCost             Decimal  @db.Decimal(12, 2)
   sale                  Decimal  @db.Decimal(12, 2)
   invoiceRequestId      String?
+  description           String? // description des ajouts, facultative (demandée par l'utilisatrice le 24 août 2026)
 
   tasks ProjectTask[]
 }

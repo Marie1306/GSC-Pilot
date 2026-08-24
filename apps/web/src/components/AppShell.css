@@ -106,14 +106,30 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 14px;
   padding: 0 24px;
   background: var(--gsc-color-surface);
   border-bottom: 1px solid var(--gsc-color-line);
 }
 
-.app-topbar-title {
-  font-weight: 750;
+.app-topbar-titles {
   display: none;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.app-topbar-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--gsc-color-muted);
+}
+
+.app-topbar-heading {
+  font-size: 15px;
+  font-weight: 750;
+  color: var(--gsc-color-ink);
 }
 
 .app-topbar-user {
@@ -140,12 +156,17 @@
   flex-direction: column;
   justify-content: center;
   gap: 4px;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border: none;
-  background: transparent;
+  border-radius: var(--gsc-radius-base);
+  background: var(--gsc-color-surface2);
   cursor: pointer;
-  padding: 0;
+  padding: 0 10px;
+  flex-shrink: 0;
+}
+.app-hamburger:hover {
+  background: var(--gsc-color-surface3);
 }
 .app-hamburger span {
   display: block;
@@ -166,8 +187,8 @@
     display: none;
   }
 
-  .app-topbar-title {
-    display: block;
+  .app-topbar-titles {
+    display: flex;
   }
 
   .app-hamburger {

@@ -34,7 +34,7 @@ function emptyHours(): Record<string, string> {
   return Object.fromEntries(AVENANT_CATEGORIES.map((c) => [c.value, "0"]));
 }
 function emptyForm(targetMarginPct: number | null | undefined) {
-  return { marginPct: targetMarginPct != null ? String(targetMarginPct) : "20", backupPct: "10", purchases: "" };
+  return { marginPct: targetMarginPct != null ? String(targetMarginPct) : "20", backupPct: "10", purchases: "", description: "" };
 }
 
 /**
@@ -85,6 +85,7 @@ export function ProjectAmendments({ projectId, projectLabel, targetMarginPct, ba
         marginPct: Number(form.marginPct),
         backupPct: Number(form.backupPct),
         purchases: form.purchases.trim() ? Number(form.purchases) : undefined,
+        description: form.description.trim() || undefined,
       }),
     onSuccess: () => {
       setShowForm(false);
@@ -203,6 +204,15 @@ export function ProjectAmendments({ projectId, projectLabel, targetMarginPct, ba
                       onChange={(e) => setForm({ ...form, purchases: e.target.value })}
                     />
                   </div>
+                  <div className="field field-full">
+                    <label htmlFor="av-description">Description des ajouts (facultatif)</label>
+                    <textarea
+                      id="av-description"
+                      rows={3}
+                      value={form.description}
+                      onChange={(e) => setForm({ ...form, description: e.target.value })}
+                    />
+                  </div>
                 </div>
 
                 <div className="stat-tile-grid">
@@ -266,6 +276,11 @@ export function ProjectAmendments({ projectId, projectLabel, targetMarginPct, ba
                   .map(([cat, h]) => `${CATEGORY_LABEL.get(cat) ?? cat} : ${h} h`)
                   .join(" · ")}
               </div>
+              {av.description && (
+                <div className="cell-sub" style={{ marginTop: 6 }}>
+                  {av.description}
+                </div>
+              )}
               {av.laborCost !== undefined && (
                 <div className="cell-sub" style={{ marginTop: 6 }}>
                   Coût main-d'œuvre {formatCurrency(av.laborCost)} · Back-up {av.backupHours} h ({formatCurrency(av.backupCost ?? 0)})

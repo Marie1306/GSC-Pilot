@@ -6,6 +6,7 @@ export interface AmendmentDto {
   projectId: string;
   createdByName: string;
   createdAt: string;
+  description: string | null;
   hoursByCategory: Record<string, number>;
   marginPct: number;
   backupPct: number;
@@ -24,6 +25,7 @@ export interface CreateAmendmentInput {
   marginPct: number;
   backupPct: number;
   purchases?: number;
+  description?: string;
 }
 
 export function fetchProjectAmendments(projectId: string): Promise<{ amendments: AmendmentDto[] }> {
