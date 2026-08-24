@@ -421,6 +421,18 @@ export async function listProjects(viewerPersona: Persona): Promise<ProjectListI
   });
 }
 
+/** Détail par tâche à l'intérieur d'une catégorie — voir computeProjectFinancials pour la jointure (PunchableTask.budgetModelRowId === BudgetRow.modelRowId). */
+export interface ProjectComparatifTaskRow {
+  taskId: string;
+  taskLabel: string;
+  plannedHours: number;
+  actualHours: number;
+  hoursDelta: number;
+  plannedCost?: number;
+  actualCost?: number;
+  costDelta?: number;
+}
+
 export interface ProjectComparatifRow {
   category: string;
   categoryLabel: string;
@@ -430,6 +442,8 @@ export interface ProjectComparatifRow {
   plannedCost?: number;
   actualCost?: number;
   costDelta?: number;
+  /** Absent pour un projet sans budgétaire d'origine (rien à détailler par tâche). */
+  tasks?: ProjectComparatifTaskRow[];
 }
 
 export interface ProjectDetailDto {
@@ -506,11 +520,15 @@ interface ProjectFinancials {
  * Calcul financier partagé entre getProjectDetail et getPostMortem (Projet
  * 2E, 17 août 2026) — les deux affichent exactement les mêmes chiffres
  * (comparatif, marge réelle), jamais recalculés différemment d'un écran à
- * l'autre. Comparatif regroupé par CATÉGORIE seulement (pas par sous-tâche
- * : TimeEntry.taskId/PunchableTask existent au schéma mais ne sont peuplés
- * nulle part — confirmé avec l'utilisatrice, le détail par tâche attend une
- * spécification distincte). Vide si le projet n'a pas de budgétaire
- * d'origine (création directe).
+ * l'autre. Comparatif regroupé par CATÉGORIE, avec un détail par TÂCHE en
+ * plus depuis le 24 août 2026 (demandé par l'utilisatrice pour le
+ * post-mortem — ProjectDetail.tsx continue d'afficher seulement le niveau
+ * catégorie, confirmé "parfait" tel quel). Jointure : TimeEntry.taskId est
+ * bel et bien peuplé à chaque punch depuis la Phase Punch (sélecteur
+ * cascade catégorie→tâche, routes.ts l'exige) — PunchableTask.budgetModelRowId
+ * et BudgetRow.modelRowId pointent vers la même BudgetModelRow, ce qui
+ * relie une tâche punchée à sa ligne planifiée dans CE budgétaire précis.
+ * Vide si le projet n'a pas de budgétaire d'origine (création directe).
  */
 async function computeProjectFinancials(
   projectId: string,
@@ -521,7 +539,7 @@ async function computeProjectFinancials(
   const [timeEntries, purchasesActual, settings] = await Promise.all([
     prisma.timeEntry.findMany({
       where: { projectId, status: "approved", deletedAt: null },
-      select: { category: true, status: true, roundedMinutes: true, costRate: true },
+      select: { category: true, status: true, roundedMinutes: true, costRate: true, taskId: true },
     }),
     projectPurchasesActual(projectId),
     prisma.settings.findFirst(),
@@ -539,6 +557,21 @@ async function computeProjectFinancials(
   const actualHours = round2(actualByCategory.reduce((sum, row) => sum + row.hours, 0));
   const actualLaborCost = round2(actualByCategory.reduce((sum, row) => sum + row.cost, 0));
 
+  // Même fonction pure, regroupée par taskId plutôt que par category — elle
+  // ne valide rien contre un ensemble de clés connues, donc ce détournement
+  // est sûr (voir project-actuals.ts).
+  const actualByTask = actualHoursByCategory(
+    timeEntries
+      .filter((entry): entry is typeof entry & { taskId: string } => entry.taskId !== null)
+      .map((entry) => ({
+        category: entry.taskId,
+        status: entry.status,
+        roundedMinutes: entry.roundedMinutes,
+        costRate: Number(entry.costRate),
+      })),
+  );
+  const actualByTaskMap = new Map(actualByTask.map((row) => [row.category, row]));
+
   const marginResult = projectMargin(sold, actualLaborCost, purchasesActual);
   const grossMargin = marginResult.grossMargin;
   const grossMarginPct = round2(marginResult.grossMarginPct);
@@ -551,12 +584,37 @@ async function computeProjectFinancials(
   if (budgetId) {
     const budgetDetail = await getBudgetDetail(budgetId);
     const actualByCategoryMap = new Map(actualByCategory.map((row) => [row.category, row]));
+    const punchableTasks = await prisma.punchableTask.findMany({
+      where: { budgetModelRowId: { not: null } },
+      select: { id: true, label: true, budgetModelRowId: true },
+    });
+    const taskByModelRowId = new Map(punchableTasks.map((task) => [task.budgetModelRowId as string, task]));
+
     comparatif = budgetDetail.sections
       .filter((section) => section.kind === "labor")
       .map((section) => {
         const actual = actualByCategoryMap.get(section.category);
         const rowActualHours = actual?.hours ?? 0;
         const rowActualCost = round2(actual?.cost ?? 0);
+        const tasks: ProjectComparatifTaskRow[] = section.rows.map((row) => {
+          const task = row.modelRowId ? taskByModelRowId.get(row.modelRowId) : undefined;
+          const taskActual = task ? actualByTaskMap.get(task.id) : undefined;
+          const taskActualHours = taskActual?.hours ?? 0;
+          const taskActualCost = round2(taskActual?.cost ?? 0);
+          const taskPlannedCost = round2(row.hours * row.hourlyRate);
+          return {
+            taskId: task?.id ?? row.id,
+            taskLabel: task?.label ?? row.label,
+            plannedHours: row.hours,
+            actualHours: taskActualHours,
+            hoursDelta: round2(taskActualHours - row.hours),
+            ...(showFinancials && {
+              plannedCost: taskPlannedCost,
+              actualCost: taskActualCost,
+              costDelta: round2(taskActualCost - taskPlannedCost),
+            }),
+          };
+        });
         return {
           category: section.category,
           categoryLabel: BUDGET_CATEGORY_LABELS[section.category as BudgetCategorySlug] ?? section.category,
@@ -568,6 +626,7 @@ async function computeProjectFinancials(
             actualCost: rowActualCost,
             costDelta: round2(rowActualCost - section.baseCost),
           }),
+          tasks,
         };
       });
   }

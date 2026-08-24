@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { canManagePostMortem } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
@@ -28,9 +28,12 @@ function formatDate(iso: string): string {
  * couplée à la mécanique propre de ProjectDetail. Tous les chiffres sauf
  * l'Analyse finale réutilisent exactement les mêmes calculs que le reste du
  * module Projet (computeProjectFinancials, service.ts) — rien recalculé
- * différemment. Comparatif main-d'oeuvre au niveau catégorie seulement pour
- * l'instant (confirmé complexe par l'utilisatrice, détail par sous-tâche à
- * spécifier avant de construire le lien punch → tâche). Le bloc "Heures
+ * différemment. Comparatif main-d'oeuvre détaillé par tâche à l'intérieur de
+ * chaque catégorie depuis le 24 août 2026 (demandé par l'utilisatrice —
+ * PunchableTask joint via BudgetRow.modelRowId). ProjectDetail.tsx affiche
+ * volontairement le même comparatif SANS le détail par tâche (confirmé
+ * "parfait" ainsi par l'utilisatrice) — jamais une deuxième formule,
+ * seulement un rendu différent du même champ optionnel `tasks`. Le bloc "Heures
  * planifiées et réelles" en barres de la référence v19 est volontairement
  * omis ici — mêmes données que le Comparatif ci-dessous, pas de deuxième
  * visualisation redondante pour cette première version.
@@ -139,7 +142,8 @@ export function ProjectPostMortem({ projectId, onClose }: ProjectPostMortemProps
                 <div style={{ marginBottom: 20 }}>
                   <h3 style={{ fontSize: 15, marginBottom: 4 }}>Comparatif main-d'oeuvre</h3>
                   <p style={{ margin: "0 0 10px", color: "var(--gsc-color-muted)", fontSize: 13 }}>
-                    Par catégorie — le détail par sous-tâche demande le lien punch → tâche, pas encore construit.
+                    Par catégorie, détaillé par tâche — les valeurs réelles deviennent rouges uniquement lorsqu'elles dépassent le
+                    planifié.
                   </p>
                   <div style={{ overflowX: "auto" }}>
                     <table className="comparatif-table">
@@ -160,27 +164,50 @@ export function ProjectPostMortem({ projectId, onClose }: ProjectPostMortemProps
                       </thead>
                       <tbody>
                         {postMortem.comparatif.map((row) => (
-                          <tr key={row.category}>
-                            <td>
-                              <strong>{row.categoryLabel}</strong>
-                            </td>
-                            <td>{row.plannedHours} h</td>
-                            <td className={row.hoursDelta > 0 ? "over-budget" : ""}>{row.actualHours} h</td>
-                            <td className={row.hoursDelta > 0 ? "over-budget" : ""}>
-                              {row.hoursDelta > 0 ? "+" : ""}
-                              {row.hoursDelta} h
-                            </td>
-                            {row.plannedCost !== undefined && (
-                              <>
-                                <td>{formatCurrency(row.plannedCost)}</td>
-                                <td className={(row.costDelta ?? 0) > 0 ? "over-budget" : ""}>{formatCurrency(row.actualCost ?? 0)}</td>
-                                <td className={(row.costDelta ?? 0) > 0 ? "over-budget" : ""}>
-                                  {(row.costDelta ?? 0) > 0 ? "+" : ""}
-                                  {formatCurrency(row.costDelta ?? 0)}
+                          <Fragment key={row.category}>
+                            <tr>
+                              <td>
+                                <strong>{row.categoryLabel}</strong>
+                              </td>
+                              <td>{row.plannedHours} h</td>
+                              <td className={row.hoursDelta > 0 ? "over-budget" : ""}>{row.actualHours} h</td>
+                              <td className={row.hoursDelta > 0 ? "over-budget" : ""}>
+                                {row.hoursDelta > 0 ? "+" : ""}
+                                {row.hoursDelta} h
+                              </td>
+                              {row.plannedCost !== undefined && (
+                                <>
+                                  <td>{formatCurrency(row.plannedCost)}</td>
+                                  <td className={(row.costDelta ?? 0) > 0 ? "over-budget" : ""}>{formatCurrency(row.actualCost ?? 0)}</td>
+                                  <td className={(row.costDelta ?? 0) > 0 ? "over-budget" : ""}>
+                                    {(row.costDelta ?? 0) > 0 ? "+" : ""}
+                                    {formatCurrency(row.costDelta ?? 0)}
+                                  </td>
+                                </>
+                              )}
+                            </tr>
+                            {row.tasks?.map((task) => (
+                              <tr key={task.taskId} className="comparatif-task-row">
+                                <td>{task.taskLabel}</td>
+                                <td>{task.plannedHours} h</td>
+                                <td className={task.hoursDelta > 0 ? "over-budget" : ""}>{task.actualHours} h</td>
+                                <td className={task.hoursDelta > 0 ? "over-budget" : ""}>
+                                  {task.hoursDelta > 0 ? "+" : ""}
+                                  {task.hoursDelta} h
                                 </td>
-                              </>
-                            )}
-                          </tr>
+                                {task.plannedCost !== undefined && (
+                                  <>
+                                    <td>{formatCurrency(task.plannedCost)}</td>
+                                    <td className={(task.costDelta ?? 0) > 0 ? "over-budget" : ""}>{formatCurrency(task.actualCost ?? 0)}</td>
+                                    <td className={(task.costDelta ?? 0) > 0 ? "over-budget" : ""}>
+                                      {(task.costDelta ?? 0) > 0 ? "+" : ""}
+                                      {formatCurrency(task.costDelta ?? 0)}
+                                    </td>
+                                  </>
+                                )}
+                              </tr>
+                            ))}
+                          </Fragment>
                         ))}
                       </tbody>
                     </table>

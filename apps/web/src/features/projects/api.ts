@@ -41,6 +41,17 @@ export const FINANCIAL_STATUS_LABELS: Record<FinancialStatus, string> = {
   critical: "Critique",
 };
 
+export interface ProjectComparatifTaskRow {
+  taskId: string;
+  taskLabel: string;
+  plannedHours: number;
+  actualHours: number;
+  hoursDelta: number;
+  plannedCost?: number;
+  actualCost?: number;
+  costDelta?: number;
+}
+
 export interface ProjectComparatifRow {
   category: string;
   categoryLabel: string;
@@ -50,6 +61,8 @@ export interface ProjectComparatifRow {
   plannedCost?: number;
   actualCost?: number;
   costDelta?: number;
+  /** Absent pour un projet sans budgétaire d'origine. Affiché seulement dans le post-mortem (ProjectDetail.tsx reste au niveau catégorie). */
+  tasks?: ProjectComparatifTaskRow[];
 }
 
 /**

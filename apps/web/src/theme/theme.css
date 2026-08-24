@@ -635,6 +635,16 @@ a {
   color: var(--gsc-color-danger);
   font-weight: 700;
 }
+.comparatif-task-row td {
+  color: var(--gsc-color-muted);
+  font-size: 12px;
+}
+.comparatif-task-row td:first-child {
+  padding-left: 24px;
+}
+.comparatif-task-row td.over-budget {
+  color: var(--gsc-color-danger);
+}
 
 .project-card-grid {
   display: grid;

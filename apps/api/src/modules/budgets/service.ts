@@ -273,6 +273,8 @@ export interface BudgetRowDto {
   directionOnly: boolean;
   auto: boolean; // heures calculées automatiquement à partir d'une autre ligne — non modifiable directement
   risk: string | null;
+  /** Lien vers BudgetModelRow — voir PunchableTask.budgetModelRowId (même id) pour joindre cette ligne à la tâche punchable correspondante (comparatif main-d'oeuvre par tâche, post-mortem). Nul pour une ligne ajoutée manuellement. */
+  modelRowId: string | null;
 }
 
 export interface BudgetSectionDto extends SectionSummary {
@@ -294,6 +296,7 @@ function toRowDto(row: BudgetRow, allRows: BudgetRow[]): BudgetRowDto {
     directionOnly: row.directionOnly,
     auto: row.autoFromRowId !== null,
     risk: row.risk,
+    modelRowId: row.modelRowId,
   };
 }
 
