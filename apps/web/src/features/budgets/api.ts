@@ -123,6 +123,7 @@ export interface BudgetDetail extends BudgetListItem {
   requestSummary: string | null;
   sentAt: string | null;
   contractWonAt: string | null;
+  readOnly: boolean;
   sections: BudgetSectionData[];
   backup: BudgetBackupData;
   projectBackup: ProjectBackupData;

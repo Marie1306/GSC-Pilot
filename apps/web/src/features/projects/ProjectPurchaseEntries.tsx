@@ -17,6 +17,8 @@ import {
 interface ProjectPurchaseEntriesProps {
   projectId: string;
   projectLabel: string;
+  /** Incrémenté par ProjectDetail quand "Ajouter un achat" est choisi depuis le menu Options (composant frère, pas parent) — ouvre la modale sans dupliquer l'état showForm. */
+  openSignal?: number;
 }
 
 function formatDate(iso: string): string {
@@ -34,7 +36,7 @@ const emptyForm = { date: new Date().toISOString().slice(0, 10), category: "", s
  * suppression permises tant qu'en attente seulement — jamais après
  * approbation (confirmé le 17 août 2026, aucun statut "rejeté").
  */
-export function ProjectPurchaseEntries({ projectId, projectLabel }: ProjectPurchaseEntriesProps) {
+export function ProjectPurchaseEntries({ projectId, projectLabel, openSignal }: ProjectPurchaseEntriesProps) {
   const { employee } = useAuth();
   const queryClient = useQueryClient();
   const entriesQuery = useQuery({ queryKey: ["project-purchase-entries", projectId], queryFn: () => fetchProjectPurchaseEntries(projectId) });
@@ -43,6 +45,15 @@ export function ProjectPurchaseEntries({ projectId, projectLabel }: ProjectPurch
   const [form, setForm] = useState(emptyForm);
   const [amountDrafts, setAmountDrafts] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+
+  // Ouvre la modale depuis le signal externe (menu Options) — ajustement
+  // pendant le rendu plutôt qu'un effect (recommandation React : éviter
+  // setState synchrone dans un effect, voir react-hooks/set-state-in-effect).
+  const [lastOpenSignal, setLastOpenSignal] = useState(openSignal);
+  if (openSignal !== lastOpenSignal) {
+    setLastOpenSignal(openSignal);
+    if (openSignal) setShowForm(true);
+  }
 
   const invalidate = () => {
     setError(null);

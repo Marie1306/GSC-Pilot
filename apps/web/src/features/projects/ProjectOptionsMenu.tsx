@@ -15,6 +15,10 @@ interface ProjectOptionsMenuProps {
   open: boolean;
   onClose: () => void;
   onDeleted: () => void;
+  /** Ferme le tiroir ET déclenche l'ouverture de la modale Avenant (ProjectAmendments, composant frère) — signal levé jusqu'à ProjectDetail. */
+  onCreateAmendment: () => void;
+  /** Même mécanisme pour la modale Achats réels (ProjectPurchaseEntries). */
+  onAddPurchase: () => void;
 }
 
 function formatDateTime(iso: string): string {
@@ -41,7 +45,7 @@ function formatDateTime(iso: string): string {
  * page projet vers le bas) — même référence v19, capture du tiroir fournie
  * par l'utilisatrice pour confirmer l'emplacement exact.
  */
-export function ProjectOptionsMenu({ project, open, onClose, onDeleted }: ProjectOptionsMenuProps) {
+export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreateAmendment, onAddPurchase }: ProjectOptionsMenuProps) {
   const { employee } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -90,7 +94,7 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted }: Projec
     onError: onMutationError,
   });
 
-  if (!open || !employee) return null;
+  if (!employee) return null;
   const canManage = canManageProject(employee.persona);
   const canArchive = canArchiveProject(employee.persona);
   const canDelete = canDeleteProject(employee.persona);
@@ -98,6 +102,7 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted }: Projec
 
   return (
     <>
+      {open && (
       <OptionsDrawer eyebrow="Options du projet" title={`${project.projectNumber} — ${project.name}`} onClose={onClose}>
         {error && <p className="form-error">{error}</p>}
 
@@ -141,7 +146,14 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted }: Projec
                 {project.budgetId && (
                   <OptionRow icon="🧮" label="Accéder au Budgétaire" onClick={() => navigate(`/budgetaire?open=${project.budgetId}`)} />
                 )}
-                <OptionRow icon="➕" label="Créer un avenant" onClick={onClose} />
+                <OptionRow
+                  icon="➕"
+                  label="Créer un avenant"
+                  onClick={() => {
+                    onClose();
+                    onCreateAmendment();
+                  }}
+                />
                 <OptionRow icon="🕒" label="Historique du Budgétaire" disabled disabledNote="Hors de cette phase du module Projet." />
                 <OptionRow icon="📐" label="Accéder au Gantt" onClick={() => navigate("/gantt")} />
                 <OptionRow
@@ -150,19 +162,47 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted }: Projec
                   disabled
                   disabledNote="Générées automatiquement par les sous-assemblages — aucune édition manuelle pour l'instant."
                 />
-                <OptionRow icon="✅" label="Checklist de production" onClick={() => setShowChecklistArchive(true)} />
+                <OptionRow
+                  icon="✅"
+                  label="Checklist de production"
+                  onClick={() => {
+                    onClose();
+                    setShowChecklistArchive(true);
+                  }}
+                />
               </OptionSection>
 
               <OptionSection title="Heures et opérations">
                 <OptionRow icon="🕒" label="Ajouter une entrée manuelle" disabled disabledNote="Module Punch d'heures pas encore construit." />
-                <OptionRow icon="🛒" label="Ajouter un achat" onClick={onClose} />
+                <OptionRow
+                  icon="🛒"
+                  label="Ajouter un achat"
+                  onClick={() => {
+                    onClose();
+                    onAddPurchase();
+                  }}
+                />
                 <OptionRow icon="📞" label="Créer un call lié" disabled disabledNote="Module Appels de service pas encore construit." />
                 <OptionRow icon="🕒" label="Consulter les heures" disabled disabledNote="Module Punch d'heures pas encore construit." />
               </OptionSection>
 
               <OptionSection title="Documents et suivi">
-                <OptionRow icon="⬜" label="Code QR" onClick={() => setShowQrCode(true)} />
-                <OptionRow icon="📄" label="Post-mortem" onClick={() => setShowPostMortem(true)} />
+                <OptionRow
+                  icon="⬜"
+                  label="Code QR"
+                  onClick={() => {
+                    onClose();
+                    setShowQrCode(true);
+                  }}
+                />
+                <OptionRow
+                  icon="📄"
+                  label="Post-mortem"
+                  onClick={() => {
+                    onClose();
+                    setShowPostMortem(true);
+                  }}
+                />
                 <OptionRow icon="🕒" label={showHistory ? "Masquer l'historique" : "Historique complet"} onClick={() => setShowHistory((v) => !v)} />
               </OptionSection>
 
@@ -246,6 +286,7 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted }: Projec
             </div>
           )}
       </OptionsDrawer>
+      )}
 
       {showPostMortem && <ProjectPostMortem projectId={project.id} onClose={() => setShowPostMortem(false)} />}
       {showChecklistArchive && <ProjectChecklistArchive projectId={project.id} onClose={() => setShowChecklistArchive(false)} />}

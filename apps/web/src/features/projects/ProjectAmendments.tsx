@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { canCreateAmendment, calculateAmendment, AMENDMENT_INTERNAL_RATES } from "@gsc-pilot/business-rules";
+import { canCreateAmendment, calculateAmendment, AMENDMENT_INTERNAL_RATES, productionCategoryLabel } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { formatCurrency } from "./api.js";
@@ -13,16 +13,40 @@ interface ProjectAmendmentsProps {
   targetMarginPct?: number | null;
   /** Taux gelé du budgétaire d'origine — même taux que calculateAmendment utilise côté serveur, réutilisé ici pour les totaux en direct. */
   backupHourlyRate?: number | null;
+  /** Incrémenté par ProjectDetail quand "Créer un avenant" est choisi depuis le menu Options (composant frère, pas parent) — ouvre la modale sans dupliquer l'état showForm. */
+  openSignal?: number;
 }
 
-/** Mêmes 5 champs que la v19 (facilité de création, confirmée par l'utilisatrice le 23 août 2026) — la fabrication n'est PAS détaillée par sous-catégorie ici : la clé générique "fabrication" est déjà gérée par calculateAmendment/amendmentTasks exactement comme "fabrication-*" pour le calcul financier, seule la génération de tâches Gantt perd le détail plasma/pliage/usinage/soudage/peinture (jamais utilisé nulle part ailleurs pour un avenant). */
+// Sous-catégories de fabrication (mêmes clés que subassembly.ts/le Gantt de
+// production, confirmé nécessaire par l'utilisatrice le 24 août 2026 — sa
+// première version listait déjà ces 5 sous-catégories séparément, jamais un
+// champ "Fabrication" générique unique, contrairement à ce que la v19
+// montre visuellement).
+const FABRICATION_SUBCATEGORIES = ["plasma", "pliage", "usinage", "soudage", "peinture"];
+
+/** Fenêtre contextuelle depuis le 24 août 2026 (facilité de création,
+ * catégories déjà listées comme dans la v19) — mais le détail par
+ * sous-catégorie de fabrication reste affiché séparément, contrairement au
+ * visuel v19 : calculateAmendment/amendmentTasks traitent "fabrication-*"
+ * exactement comme "fabrication" pour le calcul financier (même taux), donc
+ * garder le détail ici ne coûte rien et préserve la précision utilisée
+ * ailleurs (Gantt, sous-assemblages). */
 const AVENANT_CATEGORIES = [
   { value: "conception", label: "Conception" },
-  { value: "fabrication", label: "Fabrication" },
+  ...FABRICATION_SUBCATEGORIES.map((sub) => ({ value: `fabrication-${sub}`, label: productionCategoryLabel(`fabrication-${sub}`) })),
   { value: "programmation", label: "Panneau et programmation" },
   { value: "assemblage", label: "Assemblage et test" },
   { value: "installation", label: "Installation" },
 ];
+
+/** AMENDMENT_INTERNAL_RATES n'a que 5 clés canoniques (fabrication en couvre
+ * toutes les sous-catégories, même taux) — même mapping que isFabrication()
+ * côté serveur (amendments.ts, non exporté), dupliqué ici en une ligne
+ * plutôt que d'exporter un utilitaire pour ça seul. */
+function internalRateFor(category: string): number {
+  const rateKey = category.startsWith("fabrication") ? "fabrication" : category;
+  return AMENDMENT_INTERNAL_RATES[rateKey as keyof typeof AMENDMENT_INTERNAL_RATES];
+}
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" });
@@ -51,7 +75,7 @@ function emptyForm(targetMarginPct: number | null | undefined) {
  * extra, déjà visible dans le Cycle de facturation ci-dessous
  * (ProjectInvoicePlan.tsx, même mécanisme que les jalons standards).
  */
-export function ProjectAmendments({ projectId, projectLabel, targetMarginPct, backupHourlyRate }: ProjectAmendmentsProps) {
+export function ProjectAmendments({ projectId, projectLabel, targetMarginPct, backupHourlyRate, openSignal }: ProjectAmendmentsProps) {
   const { employee } = useAuth();
   const queryClient = useQueryClient();
   const listQuery = useQuery({ queryKey: ["amendments", projectId], queryFn: () => fetchProjectAmendments(projectId) });
@@ -59,6 +83,15 @@ export function ProjectAmendments({ projectId, projectLabel, targetMarginPct, ba
   const [hours, setHours] = useState<Record<string, string>>(emptyHours);
   const [form, setForm] = useState(() => emptyForm(targetMarginPct));
   const [error, setError] = useState<string | null>(null);
+
+  // Ouvre la modale depuis le signal externe (menu Options) — ajustement
+  // pendant le rendu plutôt qu'un effect (recommandation React : éviter
+  // setState synchrone dans un effect, voir react-hooks/set-state-in-effect).
+  const [lastOpenSignal, setLastOpenSignal] = useState(openSignal);
+  if (openSignal !== lastOpenSignal) {
+    setLastOpenSignal(openSignal);
+    if (openSignal) setShowForm(true);
+  }
 
   const invalidate = () => {
     setError(null);
@@ -162,9 +195,7 @@ export function ProjectAmendments({ projectId, projectLabel, targetMarginPct, ba
                         onFocus={(e) => e.target.select()}
                         onChange={(e) => setHours((current) => ({ ...current, [category.value]: e.target.value }))}
                       />
-                      <span className="cell-sub">
-                        Coût interne : {formatCurrency(AMENDMENT_INTERNAL_RATES[category.value as keyof typeof AMENDMENT_INTERNAL_RATES])}/h
-                      </span>
+                      <span className="cell-sub">Coût interne : {formatCurrency(internalRateFor(category.value))}/h</span>
                     </div>
                   ))}
                 </div>

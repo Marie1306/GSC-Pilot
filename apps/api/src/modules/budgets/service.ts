@@ -337,6 +337,8 @@ export interface BudgetDetailDto extends BudgetListItemDto {
   requestSummary: string | null;
   sentAt: string | null;
   contractWonAt: string | null;
+  /** true si déjà converti en projet ou en roulement — voir assertBudgetNotConverted côté serveur, seule source de vérité pour le blocage réel; ce champ sert seulement à désactiver l'édition côté interface (rapport de l'utilisatrice, 24 août 2026 : elle pouvait encore modifier un budgétaire déjà converti). */
+  readOnly: boolean;
   sections: BudgetSectionDto[];
   backup: BackupSummary;
   projectBackup: ProjectBackupSummary;
@@ -352,7 +354,11 @@ async function namesByEmployeeId(ids: string[]): Promise<Map<string, string>> {
 export async function getBudgetDetail(id: string): Promise<BudgetDetailDto> {
   const budget = await prisma.budget.findUnique({
     where: { id },
-    include: { sections: { include: { rows: { orderBy: { sortOrder: "asc" } } } } },
+    include: {
+      sections: { include: { rows: { orderBy: { sortOrder: "asc" } } } },
+      project: { select: { id: true } },
+      rolling: { select: { id: true } },
+    },
   });
   if (!budget) throw new HttpError(404, "Budgétaire introuvable.");
 
@@ -401,6 +407,7 @@ export async function getBudgetDetail(id: string): Promise<BudgetDetailDto> {
     requestSummary: clientRequest?.summary ?? null,
     sentAt: budget.sentAt?.toISOString() ?? null,
     contractWonAt: budget.contractWonAt?.toISOString() ?? null,
+    readOnly: !!(budget.project || budget.rolling),
     sections: sections
       .sort((a, b) => BUDGET_CATEGORIES.indexOf(a.category as BudgetCategoryValue) - BUDGET_CATEGORIES.indexOf(b.category as BudgetCategoryValue))
       .map((section) => ({
@@ -593,7 +600,7 @@ export interface UpdateRowPatch {
 }
 
 export async function updateRow(persona: Persona, budgetId: string, rowId: string, patch: UpdateRowPatch): Promise<void> {
-  await assertBudgetExists(budgetId);
+  await assertBudgetNotConverted(budgetId);
   const row = await prisma.budgetRow.findUnique({ where: { id: rowId }, include: { section: true } });
   if (!row || row.section.budgetId !== budgetId) throw new HttpError(404, "Ligne introuvable pour ce budgétaire.");
   assertRowEditable(persona, row.section.kind, row.directionOnly);
@@ -624,7 +631,7 @@ export interface AddBudgetRowInput {
 }
 
 export async function addBudgetRow(persona: Persona, budgetId: string, sectionId: string, input: AddBudgetRowInput): Promise<{ id: string }> {
-  await assertBudgetExists(budgetId);
+  await assertBudgetNotConverted(budgetId);
   const section = await assertSectionOfBudget(budgetId, sectionId);
   if (!(MODULAR_CATEGORIES as readonly string[]).includes(section.category)) {
     throw new HttpError(400, "Cette section n'accepte pas de lignes ajoutées manuellement.");
@@ -653,7 +660,7 @@ export async function addBudgetRow(persona: Persona, budgetId: string, sectionId
 }
 
 export async function removeBudgetRow(persona: Persona, budgetId: string, rowId: string): Promise<void> {
-  await assertBudgetExists(budgetId);
+  await assertBudgetNotConverted(budgetId);
   const row = await prisma.budgetRow.findUnique({ where: { id: rowId }, include: { section: { include: { rows: true } } } });
   if (!row || row.section.budgetId !== budgetId) throw new HttpError(404, "Ligne introuvable pour ce budgétaire.");
   if (!(MODULAR_CATEGORIES as readonly string[]).includes(row.section.category)) {
@@ -667,13 +674,13 @@ export async function removeBudgetRow(persona: Persona, budgetId: string, rowId:
 }
 
 export async function updateSectionComplexity(budgetId: string, sectionId: string, complexity: number): Promise<void> {
-  await assertBudgetExists(budgetId);
+  await assertBudgetNotConverted(budgetId);
   await assertSectionOfBudget(budgetId, sectionId);
   await prisma.budgetSection.update({ where: { id: sectionId }, data: { complexity: Math.max(0, Math.min(10, complexity)) } });
 }
 
 export async function updateBackupSettings(budgetId: string, patch: { pct?: number; complexity?: number }): Promise<void> {
-  await assertBudgetExists(budgetId);
+  await assertBudgetNotConverted(budgetId);
   await prisma.budget.update({
     where: { id: budgetId },
     data: {
@@ -685,7 +692,7 @@ export async function updateBackupSettings(budgetId: string, patch: { pct?: numb
 
 /** Back-up PROJET — montant saisi à la main, distinct du back-up d'heures ci-dessus (confirmé le 12 août 2026). */
 export async function updateProjectBackup(budgetId: string, patch: { amount?: number; complexity?: number }): Promise<void> {
-  await assertBudgetExists(budgetId);
+  await assertBudgetNotConverted(budgetId);
   await prisma.budget.update({
     where: { id: budgetId },
     data: {
@@ -704,7 +711,7 @@ export interface UpdateBudgetMetaInput {
 }
 
 export async function updateBudgetMeta(budgetId: string, patch: UpdateBudgetMetaInput): Promise<void> {
-  await assertBudgetExists(budgetId);
+  await assertBudgetNotConverted(budgetId);
   await prisma.budget.update({
     where: { id: budgetId },
     data: {

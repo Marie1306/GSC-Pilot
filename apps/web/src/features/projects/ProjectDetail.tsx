@@ -39,6 +39,15 @@ export function ProjectDetail({ id, onClose }: ProjectDetailProps) {
   const detailQuery = useQuery({ queryKey: ["project", id], queryFn: () => fetchProjectDetail(id) });
   const project = detailQuery.data?.project;
   const [optionsOpen, setOptionsOpen] = useState(false);
+  // Signaux d'ouverture pour les raccourcis du menu Options (Créer un
+  // avenant / Ajouter un achat) — ProjectOptionsMenu et ProjectAmendments/
+  // ProjectPurchaseEntries sont des composants frères, pas parent-enfant ;
+  // un compteur incrémenté force l'ouverture via useEffect côté cible sans
+  // dupliquer leur état showForm interne (rapport de l'utilisatrice, 24
+  // août 2026 : cliquer ces entrées ne faisait rien d'autre que fermer le
+  // menu).
+  const [amendmentOpenSignal, setAmendmentOpenSignal] = useState(0);
+  const [purchaseOpenSignal, setPurchaseOpenSignal] = useState(0);
 
   return (
     <div className="modal-backdrop">
@@ -61,7 +70,14 @@ export function ProjectDetail({ id, onClose }: ProjectDetailProps) {
         <div className="modal-body">
           {!project && <p>Chargement…</p>}
           {project && (
-            <ProjectOptionsMenu project={project} open={optionsOpen} onClose={() => setOptionsOpen(false)} onDeleted={onClose} />
+            <ProjectOptionsMenu
+              project={project}
+              open={optionsOpen}
+              onClose={() => setOptionsOpen(false)}
+              onDeleted={onClose}
+              onCreateAmendment={() => setAmendmentOpenSignal((v) => v + 1)}
+              onAddPurchase={() => setPurchaseOpenSignal((v) => v + 1)}
+            />
           )}
           {project && (
             <>
@@ -252,9 +268,14 @@ export function ProjectDetail({ id, onClose }: ProjectDetailProps) {
                 projectLabel={`${project.projectNumber} — ${project.name}`}
                 targetMarginPct={project.targetMarginPct}
                 backupHourlyRate={project.backupHourlyRate}
+                openSignal={amendmentOpenSignal}
               />
 
-              <ProjectPurchaseEntries projectId={project.id} projectLabel={`${project.projectNumber} — ${project.name}`} />
+              <ProjectPurchaseEntries
+                projectId={project.id}
+                projectLabel={`${project.projectNumber} — ${project.name}`}
+                openSignal={purchaseOpenSignal}
+              />
 
               <ProjectFulfillment project={project} />
 

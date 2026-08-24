@@ -391,8 +391,13 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
   if (!employee) return null;
 
   const budget = detailQuery.data?.budget;
-  const canModifyLabor = canModifyBudget(employee.persona);
-  const canModifyPurchase = canModifyBudgetPurchaseLine(employee.persona);
+  // Déjà converti en projet ou en roulement (budget.readOnly) : plus aucune
+  // modification de contenu permise, même pour Direction/Propriétaire — le
+  // serveur refuse déjà ces appels (assertBudgetNotConverted, budgets/service.ts),
+  // ceci évite seulement de laisser croire que l'édition est possible
+  // (rapport de l'utilisatrice, 24 août 2026).
+  const canModifyLabor = canModifyBudget(employee.persona) && !budget?.readOnly;
+  const canModifyPurchase = canModifyBudgetPurchaseLine(employee.persona) && !budget?.readOnly;
   const canApprove = canApproveBudgetForSending(employee.persona);
   const canOutcome = canRecordBudgetOutcome(employee.persona);
   const canConvert = canConvertBudgetToProject(employee.persona);
@@ -442,6 +447,14 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
           {error && <p className="form-error">{error}</p>}
           {budget && (
             <>
+              {budget.readOnly && (
+                <div className="card" style={{ marginBottom: 16, background: "var(--gsc-color-blue-soft)", border: "none" }}>
+                  <strong style={{ color: "var(--gsc-color-blue)" }}>Lecture seule — budgétaire déjà converti</strong>
+                  <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--gsc-color-ink)" }}>
+                    Ce budgétaire a déjà été converti en projet ou en roulement — son contenu est gelé et ne peut plus être modifié.
+                  </p>
+                </div>
+              )}
               <div className="budget-total-bar">
                 <div>
                   <span className="detail-label">Statut</span>
@@ -796,7 +809,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                 </div>
               </div>
 
-              {budget.status === "won" && canConvert && (
+              {budget.status === "won" && canConvert && !budget.readOnly && (
                 <div className="status-row">
                   <span className="detail-label">Projet</span>
                   {!showConvertForm ? (
@@ -838,7 +851,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                 </div>
               )}
 
-              {budget.status === "won" && canConvertRolling && (
+              {budget.status === "won" && canConvertRolling && !budget.readOnly && (
                 <div className="status-row">
                   <span className="detail-label">Roulement</span>
                   {!showConvertRollingConfirm ? (
