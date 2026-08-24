@@ -137,8 +137,6 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
               {canManage && (
                 <OptionSection title="Projet">
                   <OptionRow icon="✏️" label="Modifier les informations" onClick={() => setEditForm(true)} />
-                  <OptionRow icon="✏️" label="Renommer le projet" onClick={() => setEditForm(true)} />
-                  <OptionRow icon="📅" label="Modifier la date d'échéance" onClick={() => setEditForm(true)} />
                 </OptionSection>
               )}
 
