@@ -233,6 +233,7 @@ export function ProjectPostMortem({ projectId, onClose }: ProjectPostMortemProps
                           <th>Date</th>
                           <th>Employé</th>
                           <th>Catégorie</th>
+                          <th>Tâche</th>
                           <th className="num">Heures</th>
                           {hoursQuery.data.entries[0]?.cost !== undefined && <th className="num">Coût</th>}
                         </tr>
@@ -243,6 +244,7 @@ export function ProjectPostMortem({ projectId, onClose }: ProjectPostMortemProps
                             <td>{formatDate(entry.date)}</td>
                             <td>{entry.employeeName}</td>
                             <td>{entry.category}</td>
+                            <td>{entry.taskLabel}</td>
                             <td className="num">{entry.hours} h</td>
                             {entry.cost !== undefined && <td className="num">{formatCurrency(entry.cost)}</td>}
                           </tr>

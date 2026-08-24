@@ -1240,20 +1240,33 @@ export interface ApprovedTimeEntryDto {
   date: string;
   employeeName: string;
   category: string;
+  taskLabel: string;
   hours: number;
   cost?: number;
 }
 
-/** « Détail des heures approuvées » — drill-down des punchs individuels (confirmé le 17 août 2026). */
+/**
+ * « Détail des heures approuvées » — drill-down des punchs individuels
+ * (confirmé le 17 août 2026). Tâche affichée depuis le 24 août 2026 (même
+ * remarque que le comparatif détaillé par tâche du post-mortem — signalée
+ * manquante ici aussi par l'utilisatrice) — TimeEntry.taskId directement,
+ * jamais besoin du détour par BudgetRow.modelRowId comme dans
+ * computeProjectFinancials, puisqu'il n'y a pas de planifié à joindre ici.
+ */
 export async function getApprovedTimeEntries(projectId: string, showFinancials: boolean): Promise<ApprovedTimeEntryDto[]> {
   const entries = await prisma.timeEntry.findMany({
     where: { projectId, status: "approved", deletedAt: null },
-    select: { id: true, date: true, employeeId: true, category: true, roundedMinutes: true, costRate: true },
+    select: { id: true, date: true, employeeId: true, category: true, taskId: true, roundedMinutes: true, costRate: true },
     orderBy: { date: "desc" },
   });
   const employeeIds = [...new Set(entries.map((entry) => entry.employeeId))];
-  const employees = await prisma.employee.findMany({ where: { id: { in: employeeIds } }, select: { id: true, name: true } });
+  const taskIds = [...new Set(entries.map((entry) => entry.taskId).filter((id): id is string => id !== null))];
+  const [employees, tasks] = await Promise.all([
+    prisma.employee.findMany({ where: { id: { in: employeeIds } }, select: { id: true, name: true } }),
+    prisma.punchableTask.findMany({ where: { id: { in: taskIds } }, select: { id: true, label: true } }),
+  ]);
   const nameById = new Map(employees.map((employee) => [employee.id, employee.name]));
+  const taskLabelById = new Map(tasks.map((task) => [task.id, task.label]));
 
   return entries.map((entry) => {
     const hours = round2((entry.roundedMinutes ?? 0) / 60);
@@ -1262,6 +1275,7 @@ export async function getApprovedTimeEntries(projectId: string, showFinancials: 
       date: entry.date.toISOString(),
       employeeName: nameById.get(entry.employeeId) ?? "—",
       category: BUDGET_CATEGORY_LABELS[entry.category as BudgetCategorySlug] ?? entry.category,
+      taskLabel: (entry.taskId ? taskLabelById.get(entry.taskId) : undefined) ?? "—",
       hours,
       ...(showFinancials && { cost: round2(hours * Number(entry.costRate)) }),
     };

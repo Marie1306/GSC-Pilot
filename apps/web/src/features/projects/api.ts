@@ -389,6 +389,7 @@ export interface ApprovedTimeEntryDto {
   date: string;
   employeeName: string;
   category: string;
+  taskLabel: string;
   hours: number;
   cost?: number;
 }
