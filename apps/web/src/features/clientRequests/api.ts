@@ -84,6 +84,10 @@ export interface CreateClientRequestInput {
   summary: string;
 }
 
+export function fetchNextClientRequestNumber(): Promise<{ nextDisplayId: string }> {
+  return apiFetch("/api/client-requests/next-number");
+}
+
 export function fetchSalesChannels(): Promise<{ salesChannels: SalesChannelOption[] }> {
   return apiFetch("/api/sales-channels");
 }

@@ -12,12 +12,24 @@ import {
   transferClientRequestToOwner,
   updateClientRequestFollowUp,
   deleteClientRequest,
+  getNextClientRequestDisplayId,
   REQUEST_TYPES,
   URGENCIES,
   SETTABLE_STATUSES,
 } from "./service.js";
 
 export const clientRequestsRouter = Router();
+
+/** Aperçu pour la modale « Ajouter rapidement » (23 août 2026) — mêmes rôles que la création. */
+clientRequestsRouter.get(
+  "/client-requests/next-number",
+  requireAuth,
+  requirePermission((persona) => canCreateClientRequest(persona)),
+  async (_req, res) => {
+    const nextDisplayId = await getNextClientRequestDisplayId();
+    res.json({ nextDisplayId });
+  },
+);
 
 /** Pour peupler le menu déroulant du formulaire — mêmes rôles que la création (canViewClientRequests). */
 clientRequestsRouter.get(

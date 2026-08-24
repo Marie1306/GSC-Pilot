@@ -1,0 +1,145 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import {
+  canCreateClientRequest,
+  canCreateBudgetFromRequest,
+  canCreateProjectDirectly,
+  canCreateServiceCall,
+  canCreateRollingDirectly,
+  canAccessOverviewViews,
+  type Persona,
+} from "@gsc-pilot/business-rules";
+import { fetchNextClientRequestNumber } from "../features/clientRequests/api.js";
+import { fetchNextBudgetNumber } from "../features/budgets/api.js";
+import { fetchNextProjectNumber } from "../features/projects/api.js";
+import { fetchNextServiceCallNumber } from "../features/serviceCalls/api.js";
+import "./quickAdd.css";
+
+type NextNumberKind = "clientRequest" | "budget" | "project" | "serviceCall";
+
+interface QuickAddCard {
+  key: string;
+  icon: string;
+  label: string;
+  path: string;
+  allow: (persona: Persona) => boolean;
+  /** Sous-titre statique (action sans numéro réel) — sinon nextNumber ci-dessous. */
+  sub?: string;
+  nextNumber?: NextNumberKind;
+}
+
+/**
+ * Raccourcis de création (23 août 2026, demande explicite de l'utilisatrice
+ * après comparaison avec v19 : « le bouton + visible de chacune des pages…
+ * adapté selon les modules visibles pour chacun »). Chaque carte réutilise
+ * la permission réelle qui gouverne déjà la route de création correspondante
+ * — jamais une nouvelle règle inventée pour cette modale. Navigue vers la
+ * page du module (pas d'ouverture automatique du formulaire pour l'instant
+ * — chaque page a déjà son propre bouton "+ Nouveau").
+ *
+ * Livraison délibérément absente malgré v19 (BL-2026-0002) : aucune création
+ * manuelle n'existe dans le vrai système — un bon de livraison est TOUJOURS
+ * généré automatiquement depuis un projet/roulement (fulfillment, voir
+ * projects/service.ts et rollings/service.ts) — construire cette carte
+ * suggérerait une action qui n'existe pas.
+ *
+ * Roulement n'a délibérément aucun numéro (RL-2026-0002 dans v19 est
+ * fictif) — confirmé ailleurs dans le code : « Un roulement n'a pas de
+ * nom/numéro distinct — identifié par le client. »
+ */
+const CARDS: QuickAddCard[] = [
+  { key: "client-request", icon: "📞", label: "Demande client", path: "/demandes", allow: canCreateClientRequest, nextNumber: "clientRequest" },
+  { key: "budget", icon: "🧮", label: "Budgétaire", path: "/budgetaire", allow: canCreateBudgetFromRequest, nextNumber: "budget" },
+  { key: "project", icon: "📁", label: "Projet", path: "/projets", allow: canCreateProjectDirectly, nextNumber: "project" },
+  { key: "service-call", icon: "🔧", label: "Appel de service", path: "/appels-service", allow: canCreateServiceCall, nextNumber: "serviceCall" },
+  { key: "rolling", icon: "🔁", label: "Roulement", path: "/roulements", allow: canCreateRollingDirectly, sub: "Identifié par le client" },
+  { key: "punch", icon: "▶️", label: "Punch", path: "/temps", allow: () => true, sub: "Débuter une tâche" },
+  { key: "manual-entry", icon: "🕒", label: "Entrée manuelle", path: "/temps", allow: () => true, sub: "Plusieurs tâches" },
+  { key: "qr-scan", icon: "⬜", label: "Scanner un projet", path: "/scan", allow: () => true, sub: "Accès direct ou punch" },
+  { key: "purchase", icon: "🛒", label: "Demande d'achat", path: "/achats", allow: () => true, sub: "Soumettre" },
+  { key: "contact", icon: "👥", label: "Contact", path: "/contacts", allow: canAccessOverviewViews, sub: "Client ou fournisseur" },
+];
+
+interface QuickAddProps {
+  persona: Persona;
+}
+
+export function QuickAdd({ persona }: QuickAddProps) {
+  const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const visibleCards = CARDS.filter((card) => card.allow(persona));
+  const needs = (kind: NextNumberKind) => open && visibleCards.some((card) => card.nextNumber === kind);
+
+  const nextClientRequest = useQuery({ queryKey: ["next-number", "client-request"], queryFn: fetchNextClientRequestNumber, enabled: needs("clientRequest") });
+  const nextBudget = useQuery({ queryKey: ["next-number", "budget"], queryFn: fetchNextBudgetNumber, enabled: needs("budget") });
+  const nextProject = useQuery({ queryKey: ["next-number", "project"], queryFn: fetchNextProjectNumber, enabled: needs("project") });
+  const nextServiceCall = useQuery({ queryKey: ["next-number", "service-call"], queryFn: fetchNextServiceCallNumber, enabled: needs("serviceCall") });
+
+  function subtitleFor(card: QuickAddCard): string {
+    if (card.sub) return card.sub;
+    switch (card.nextNumber) {
+      case "clientRequest":
+        return nextClientRequest.data?.nextDisplayId ?? "…";
+      case "budget":
+        return nextBudget.data?.nextDisplayId ?? "…";
+      case "project":
+        return nextProject.data ? `Prochain no ${nextProject.data.nextProjectNumber}` : "…";
+      case "serviceCall":
+        return nextServiceCall.data?.nextDisplayId ?? "…";
+      default:
+        return "";
+    }
+  }
+
+  if (visibleCards.length === 0) return null;
+
+  return (
+    <>
+      <button type="button" className="quickadd-fab" aria-label="Ajouter rapidement" onClick={() => setOpen(true)}>
+        +
+      </button>
+
+      {open && (
+        <div className="modal-backdrop" onClick={() => setOpen(false)}>
+          <div className="modal quickadd-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h2>Ajouter rapidement</h2>
+                <p className="modal-subtitle">Choisissez une action autorisée pour votre rôle.</p>
+              </div>
+              <button type="button" className="modal-close" aria-label="Fermer" onClick={() => setOpen(false)}>
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="quickadd-grid">
+                {visibleCards.map((card) => (
+                  <button
+                    key={card.key}
+                    type="button"
+                    className="quickadd-card"
+                    onClick={() => {
+                      setOpen(false);
+                      navigate(card.path);
+                    }}
+                  >
+                    <span className="quickadd-card-icon">{card.icon}</span>
+                    <strong>{card.label}</strong>
+                    <span className="cell-sub">{subtitleFor(card)}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={() => setOpen(false)}>
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

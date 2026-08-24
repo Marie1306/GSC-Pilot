@@ -226,6 +226,10 @@ export function fetchSalesChannels(): Promise<{ salesChannels: SalesChannelOptio
   return apiFetch("/api/sales-channels");
 }
 
+export function fetchNextBudgetNumber(): Promise<{ nextDisplayId: string }> {
+  return apiFetch("/api/budgets/next-number");
+}
+
 export function fetchBudgets(): Promise<{ budgets: BudgetListItem[] }> {
   return apiFetch("/api/budgets");
 }

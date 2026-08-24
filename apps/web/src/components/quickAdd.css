@@ -1,0 +1,67 @@
+.quickadd-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: var(--gsc-color-brand);
+  color: #fff;
+  font-size: 28px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--gsc-shadow-lg);
+  z-index: 90;
+}
+.quickadd-fab:hover {
+  background: var(--gsc-color-brand-dark);
+}
+
+.quickadd-modal {
+  max-width: 760px;
+}
+
+.quickadd-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+@media (max-width: 640px) {
+  .quickadd-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.quickadd-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid var(--gsc-color-line);
+  border-radius: var(--gsc-radius-base);
+  background: var(--gsc-color-surface);
+  cursor: pointer;
+  text-align: left;
+  font-size: 14px;
+  color: var(--gsc-color-ink);
+}
+.quickadd-card:hover {
+  border-color: var(--gsc-color-brand);
+  background: var(--gsc-color-brand-soft);
+}
+
+.quickadd-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--gsc-radius-sm);
+  background: var(--gsc-color-surface3);
+  font-size: 17px;
+}

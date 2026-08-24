@@ -111,6 +111,14 @@ export async function ensureContactRow(input: EnsureContactInput): Promise<Conta
  * échec dans createBudget, restait enregistrée pour de bon sans budgétaire
  * attaché — voir l'audit livré à l'utilisatrice le même jour.
  */
+/** Aperçu du prochain numéro — jamais incrémenté (voir /projects/next-number, même patron). */
+export async function getNextClientRequestDisplayId(): Promise<string> {
+  const settings = await prisma.settings.findFirst();
+  if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
+  const year = new Date().getFullYear();
+  return `DC-${year}-${String(settings.nextClientRequestNumber).padStart(4, "0")}`;
+}
+
 export async function createClientRequestInTx(
   tx: Prisma.TransactionClient,
   createdById: string,

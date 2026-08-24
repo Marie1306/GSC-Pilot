@@ -20,41 +20,5 @@
   vertical-align: middle;
 }
 
-.channel-bar-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.channel-bar-row {
-  display: grid;
-  grid-template-columns: 200px 1fr 48px;
-  align-items: center;
-  gap: 12px;
-}
-
-.channel-bar-label {
-  display: flex;
-  flex-direction: column;
-  font-size: 13px;
-}
-
-.channel-bar-track {
-  background: var(--gsc-color-surface2);
-  border-radius: 999px;
-  height: 10px;
-  overflow: hidden;
-}
-
-.channel-bar-fill {
-  background: var(--gsc-color-brand);
-  height: 100%;
-  border-radius: 999px;
-}
-
-.channel-bar-pct {
-  font-size: 13px;
-  text-align: right;
-  white-space: nowrap;
-}
+/* .channel-bar-* déménagé dans theme.css (23 août 2026) — réutilisé tel
+   quel par le Tableau de bord (Pipeline des demandes clients). */

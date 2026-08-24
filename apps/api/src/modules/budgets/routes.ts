@@ -30,11 +30,23 @@ import {
   markBudgetDeclined,
   deleteBudget,
   resetBudgetContent,
+  getNextBudgetDisplayId,
 } from "./service.js";
 import { convertBudgetToProject } from "../projects/service.js";
 import { convertBudgetToRolling } from "../rollings/service.js";
 
 export const budgetsRouter = Router();
+
+/** Aperçu pour la modale « Ajouter rapidement » (23 août 2026) — mêmes rôles que la création directe. */
+budgetsRouter.get(
+  "/budgets/next-number",
+  requireAuth,
+  requirePermission((persona) => canCreateBudgetFromRequest(persona)),
+  async (_req, res) => {
+    const nextDisplayId = await getNextBudgetDisplayId();
+    res.json({ nextDisplayId });
+  },
+);
 
 const newClientRequestSchema = z.object({
   company: z.string().min(1),

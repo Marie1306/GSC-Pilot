@@ -68,6 +68,13 @@ async function resolveContactId(input: CreateServiceCallInput): Promise<string> 
   return contact.id;
 }
 
+/** Aperçu du prochain numéro — jamais incrémenté (voir /projects/next-number, même patron). */
+export async function getNextServiceCallDisplayId(): Promise<string> {
+  const settings = await prisma.settings.findFirst();
+  if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
+  return `CS-${new Date().getFullYear()}-${String(settings.nextServiceCallNumber).padStart(4, "0")}`;
+}
+
 export async function createServiceCall(input: CreateServiceCallInput): Promise<ServiceCall> {
   if (!input.request?.trim()) throw new HttpError(400, "La description de la demande est requise.");
   const contactId = await resolveContactId(input);

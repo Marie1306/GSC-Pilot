@@ -17,6 +17,10 @@ export interface ServiceCallListItemDto {
   createdAt: string;
 }
 
+export function fetchNextServiceCallNumber(): Promise<{ nextDisplayId: string }> {
+  return apiFetch("/api/service-calls/next-number");
+}
+
 export function fetchServiceCalls(): Promise<{ serviceCalls: ServiceCallListItemDto[] }> {
   return apiFetch("/api/service-calls");
 }

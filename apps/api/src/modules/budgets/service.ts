@@ -85,6 +85,14 @@ export interface CreateBudgetInput {
   newClientRequest?: NewClientRequestForBudget;
 }
 
+/** Aperçu du prochain numéro — jamais incrémenté (voir /projects/next-number, même patron). */
+export async function getNextBudgetDisplayId(): Promise<string> {
+  const settings = await prisma.settings.findFirst();
+  if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
+  const year = new Date().getFullYear();
+  return `BG-${year}-${String(settings.nextBudgetNumber).padStart(4, "0")}`;
+}
+
 export async function createBudget(createdById: string, input: CreateBudgetInput): Promise<Budget> {
   if (!input.clientRequestId && !input.newClientRequest) {
     throw new HttpError(400, "Une demande client existante ou de nouvelles informations client sont requises.");

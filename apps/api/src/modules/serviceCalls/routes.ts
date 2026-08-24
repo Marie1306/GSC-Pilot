@@ -22,6 +22,7 @@ import {
   approveServiceCall,
   sendServiceCallToAdmin,
   deleteServiceCall,
+  getNextServiceCallDisplayId,
 } from "./service.js";
 
 // Monté sur /api directement (voir app.ts, comme budgetsRouter/purchasesRouter)
@@ -29,6 +30,17 @@ import {
 // jamais un .use() global sans chemin sur ce routeur (interceptait aussi
 // des requêtes complètement étrangères à ce module, voir settings/routes.ts).
 export const serviceCallsRouter = Router();
+
+/** Aperçu pour la modale « Ajouter rapidement » (23 août 2026) — mêmes rôles que la création. */
+serviceCallsRouter.get(
+  "/service-calls/next-number",
+  requireAuth,
+  requirePermission((persona) => canCreateServiceCall(persona)),
+  async (_req, res) => {
+    const nextDisplayId = await getNextServiceCallDisplayId();
+    res.json({ nextDisplayId });
+  },
+);
 
 serviceCallsRouter.get("/service-calls", requireAuth, requirePermission((persona) => canAccessServiceCalls(persona)), async (req, res) => {
   const employee = req.employee!;

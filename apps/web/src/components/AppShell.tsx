@@ -6,6 +6,7 @@ import { NAV_ITEMS, NAV_SECTION_LABELS, type NavItem, type NavSection } from "..
 import { useAuth } from "../lib/auth/useAuth.js";
 import { fetchActionCenterItems } from "../features/actionCenter/api.js";
 import { NavIcon } from "./NavIcons.js";
+import { QuickAdd } from "./QuickAdd.js";
 import "./AppShell.css";
 
 const SECTION_ORDER: NavSection[] = ["overview", "sales", "operations", "admin"];
@@ -123,6 +124,8 @@ export function AppShell() {
           </aside>
         </div>
       )}
+
+      <QuickAdd persona={employee.persona} />
     </div>
   );
 }
