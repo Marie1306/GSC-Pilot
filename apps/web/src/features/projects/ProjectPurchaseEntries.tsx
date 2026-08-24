@@ -16,6 +16,7 @@ import {
 
 interface ProjectPurchaseEntriesProps {
   projectId: string;
+  projectLabel: string;
 }
 
 function formatDate(iso: string): string {
@@ -33,7 +34,7 @@ const emptyForm = { date: new Date().toISOString().slice(0, 10), category: "", s
  * suppression permises tant qu'en attente seulement — jamais après
  * approbation (confirmé le 17 août 2026, aucun statut "rejeté").
  */
-export function ProjectPurchaseEntries({ projectId }: ProjectPurchaseEntriesProps) {
+export function ProjectPurchaseEntries({ projectId, projectLabel }: ProjectPurchaseEntriesProps) {
   const { employee } = useAuth();
   const queryClient = useQueryClient();
   const entriesQuery = useQuery({ queryKey: ["project-purchase-entries", projectId], queryFn: () => fetchProjectPurchaseEntries(projectId) });
@@ -97,7 +98,7 @@ export function ProjectPurchaseEntries({ projectId }: ProjectPurchaseEntriesProp
     <div style={{ marginBottom: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
         <h3 style={{ fontSize: 15, margin: 0 }}>Achats réels</h3>
-        {canEnter && !showForm && (
+        {canEnter && (
           <button type="button" className="btn btn-small" onClick={() => setShowForm(true)}>
             🛒 Ajouter un achat
           </button>
@@ -108,62 +109,85 @@ export function ProjectPurchaseEntries({ projectId }: ProjectPurchaseEntriesProp
       </p>
 
       {showForm && (
-        <form
-          className="card"
-          style={{ marginBottom: 14 }}
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (canCreate) createMutation.mutate();
-          }}
-        >
-          <div className="form-grid">
-            <div className="field">
-              <label>Date</label>
-              <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
-            </div>
-            <div className="field">
-              <label>Catégorie</label>
-              <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-                <option value="" disabled>
-                  Sélectionner…
-                </option>
-                {categoriesQuery.data?.categories.map((category) => (
-                  <option key={category.id} value={category.name}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label>Fournisseur</label>
-              <input value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} />
-            </div>
-            <div className="field">
-              <label>Montant ($)</label>
-              <input type="number" min={0} step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
-            </div>
-            <div className="field field-full">
-              <label>Description</label>
-              <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-            </div>
-            <div className="field field-full">
-              <label>Note (facultatif)</label>
-              <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button type="submit" className="btn btn-small" disabled={!canCreate}>
-              {createMutation.isPending ? "Ajout…" : "Ajouter"}
-            </button>
-            <button type="button" className="btn btn-secondary btn-small" onClick={() => setShowForm(false)}>
-              Annuler
-            </button>
-          </div>
-        </form>
-      )}
-      {error && <p className="form-error">{error}</p>}
+        <div className="modal-backdrop" onClick={() => setShowForm(false)}>
+          <div className="modal" style={{ maxWidth: 640 }} onClick={(event) => event.stopPropagation()}>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (canCreate) createMutation.mutate();
+              }}
+            >
+              <div className="modal-header">
+                <div>
+                  <h2>Ajouter un achat</h2>
+                  <p className="modal-subtitle">{projectLabel}</p>
+                </div>
+                <button type="button" className="modal-close" aria-label="Fermer" onClick={() => setShowForm(false)}>
+                  ×
+                </button>
+              </div>
 
-      {entries.length === 0 && !showForm && <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucun achat saisi.</p>}
+              <div className="modal-body">
+                {error && <p className="form-error">{error}</p>}
+                <div className="form-grid">
+                  <div className="field">
+                    <label htmlFor="pe-date">Date</label>
+                    <input id="pe-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="pe-category">Catégorie</label>
+                    <select id="pe-category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+                      <option value="" disabled>
+                        Sélectionner…
+                      </option>
+                      {categoriesQuery.data?.categories.map((category) => (
+                        <option key={category.id} value={category.name}>
+                          {category.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="pe-supplier">Fournisseur</label>
+                    <input id="pe-supplier" value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="pe-amount">Montant ($)</label>
+                    <input
+                      id="pe-amount"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={form.amount}
+                      onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                    />
+                  </div>
+                  <div className="field field-full">
+                    <label htmlFor="pe-description">Description</label>
+                    <input id="pe-description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+                  </div>
+                  <div className="field field-full">
+                    <label htmlFor="pe-note">Note (facultatif)</label>
+                    <input id="pe-note" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>
+                  Annuler
+                </button>
+                <button type="submit" className="btn" disabled={!canCreate}>
+                  {createMutation.isPending ? "Ajout…" : "Ajouter l'achat"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {error && !showForm && <p className="form-error">{error}</p>}
+
+      {entries.length === 0 && <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucun achat saisi.</p>}
       {entries.length > 0 && (
         <div style={{ overflowX: "auto" }}>
           <table className="shortlist-table">

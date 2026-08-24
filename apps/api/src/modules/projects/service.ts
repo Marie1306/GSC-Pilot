@@ -457,6 +457,8 @@ export interface ProjectDetailDto {
   grossMargin?: number;
   grossMarginPct?: number;
   targetMarginPct?: number | null;
+  /** Taux gelé du budgétaire d'origine — exposé pour le calcul en direct de l'avenant côté client (calculateAmendment, jamais réimplémenté). */
+  backupHourlyRate?: number | null;
   financialStatus?: FinancialStatus;
   progressionPct?: number;
   comparatif: ProjectComparatifRow[];
@@ -641,6 +643,7 @@ export async function getProjectDetail(id: string, viewerPersona: Persona): Prom
       grossMargin,
       grossMarginPct,
       targetMarginPct: project.targetMarginPct !== null ? Number(project.targetMarginPct) : null,
+      backupHourlyRate: project.backupHourlyRate !== null ? Number(project.backupHourlyRate) : null,
       financialStatus: status,
       progressionPct,
     }),

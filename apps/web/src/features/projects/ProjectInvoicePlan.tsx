@@ -136,11 +136,12 @@ export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
                     {!entry.requestedAt && !entry.invoiceNumber && canRequest && (
                       <button
                         type="button"
-                        className="btn btn-secondary btn-small"
+                        className="btn"
+                        style={{ flex: "none", whiteSpace: "nowrap" }}
                         disabled={requestMutation.isPending}
                         onClick={() => requestMutation.mutate(entry.id)}
                       >
-                        Demander
+                        ✉ {requestMutation.isPending ? "…" : "Demander la facturation"}
                       </button>
                     )}
                     {canRecord && (

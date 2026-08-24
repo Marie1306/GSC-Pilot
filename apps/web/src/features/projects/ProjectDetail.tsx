@@ -247,9 +247,14 @@ export function ProjectDetail({ id, onClose }: ProjectDetailProps) {
 
               <ProjectSubassemblies projectId={project.id} />
 
-              <ProjectAmendments projectId={project.id} />
+              <ProjectAmendments
+                projectId={project.id}
+                projectLabel={`${project.projectNumber} — ${project.name}`}
+                targetMarginPct={project.targetMarginPct}
+                backupHourlyRate={project.backupHourlyRate}
+              />
 
-              <ProjectPurchaseEntries projectId={project.id} />
+              <ProjectPurchaseEntries projectId={project.id} projectLabel={`${project.projectNumber} — ${project.name}`} />
 
               <ProjectFulfillment project={project} />
 

@@ -83,6 +83,7 @@ export interface ProjectDetail {
   grossMargin?: number;
   grossMarginPct?: number;
   targetMarginPct?: number | null;
+  backupHourlyRate?: number | null;
   financialStatus?: FinancialStatus;
   progressionPct?: number;
   comparatif: ProjectComparatifRow[];
