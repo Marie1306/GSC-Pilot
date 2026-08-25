@@ -97,6 +97,7 @@ export interface PurchaseRequestDto {
   /** Suivi post-autorisation (waiting/ordered/received) — nul tant que pas encore autorisée. */
   fulfillmentStatus: string | null;
   appliedToProjectAt: string | null;
+  expectedReceiptDate: string | null;
 }
 
 type PurchaseRequestWithRelations = PurchaseRequest & {
@@ -256,6 +257,7 @@ export function toPurchaseRequestDto(row: PurchaseRequestWithRelations, viewerPe
     editedAt: row.editedAt?.toISOString() ?? null,
     fulfillmentStatus: row.fulfillmentStatus,
     appliedToProjectAt: row.appliedToProjectAt?.toISOString() ?? null,
+    expectedReceiptDate: row.expectedReceiptDate?.toISOString().slice(0, 10) ?? null,
   };
 }
 
@@ -267,6 +269,13 @@ export async function setPurchaseRequestAmount(id: string, amount: number): Prom
     throw new HttpError(400, "Le prix ne peut être modifié qu'avant l'approbation.");
   }
   return prisma.purchaseRequest.update({ where: { id }, data: { amount } });
+}
+
+/** Date visée de réception — purement informatif (suivi), aucune restriction de statut contrairement au prix. */
+export async function setPurchaseRequestExpectedReceiptDate(id: string, date: Date | null): Promise<PurchaseRequest> {
+  const request = await prisma.purchaseRequest.findUnique({ where: { id } });
+  if (!request) throw new HttpError(404, "Demande d'achat introuvable.");
+  return prisma.purchaseRequest.update({ where: { id }, data: { expectedReceiptDate: date } });
 }
 
 export async function approvePurchaseRequest(id: string, approvedById: string): Promise<PurchaseRequest> {

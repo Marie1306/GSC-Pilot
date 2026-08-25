@@ -21,6 +21,7 @@ import {
   listPurchaseRequests,
   updatePurchaseRequest,
   setPurchaseRequestAmount,
+  setPurchaseRequestExpectedReceiptDate,
   approvePurchaseRequest,
   rejectPurchaseRequest,
   setFulfillmentStatus,
@@ -121,6 +122,19 @@ purchasesRouter.patch("/purchase-requests/:id/amount", requireAuth, async (req, 
 
   const updated = await setPurchaseRequestAmount(id, amount);
   res.json({ id: updated.id, amount: updated.amount ? Number(updated.amount) : null });
+});
+
+/** Date visée de réception — même porte que le prix (informatif, pas de calcul dépendant). */
+purchasesRouter.patch("/purchase-requests/:id/expected-receipt-date", requireAuth, async (req, res) => {
+  const employee = req.employee!;
+  const { expectedReceiptDate } = z.object({ expectedReceiptDate: z.iso.date().nullable() }).parse(req.body);
+  const id = z.uuid().parse(req.params.id);
+
+  const request = await loadRequestOrThrow(id);
+  await assertCanActOnRequest(employee, request);
+
+  const updated = await setPurchaseRequestExpectedReceiptDate(id, expectedReceiptDate ? new Date(expectedReceiptDate) : null);
+  res.json({ id: updated.id, expectedReceiptDate: updated.expectedReceiptDate?.toISOString().slice(0, 10) ?? null });
 });
 
 purchasesRouter.post("/purchase-requests/:id/approve", requireAuth, async (req, res) => {

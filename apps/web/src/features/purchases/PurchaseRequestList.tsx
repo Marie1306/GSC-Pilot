@@ -6,6 +6,7 @@ import { ApiError } from "../../lib/apiClient.js";
 import {
   fetchPurchaseRequests,
   setPurchaseRequestAmount,
+  setPurchaseRequestExpectedReceiptDate,
   approvePurchaseRequest,
   rejectPurchaseRequest,
   updatePurchaseRequest,
@@ -49,6 +50,7 @@ export function PurchaseRequestList() {
   const queryClient = useQueryClient();
   const listQuery = useQuery({ queryKey: ["purchase-requests"], queryFn: fetchPurchaseRequests });
   const [draftAmounts, setDraftAmounts] = useState<Record<string, string>>({});
+  const [draftReceiptDates, setDraftReceiptDates] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
   const invalidate = () => {
@@ -58,6 +60,11 @@ export function PurchaseRequestList() {
   const onMutationError = (err: unknown) => setError(err instanceof ApiError ? err.message : "Une erreur est survenue — réessayez.");
 
   const amountMutation = useMutation({ mutationFn: ({ id, amount }: { id: string; amount: number }) => setPurchaseRequestAmount(id, amount), onSuccess: invalidate, onError: onMutationError });
+  const receiptDateMutation = useMutation({
+    mutationFn: ({ id, date }: { id: string; date: string }) => setPurchaseRequestExpectedReceiptDate(id, date),
+    onSuccess: invalidate,
+    onError: onMutationError,
+  });
   const approveMutation = useMutation({ mutationFn: approvePurchaseRequest, onSuccess: invalidate, onError: onMutationError });
   const rejectMutation = useMutation({ mutationFn: (id: string) => rejectPurchaseRequest(id), onSuccess: invalidate, onError: onMutationError });
   const updateMutation = useMutation({
@@ -103,6 +110,7 @@ export function PurchaseRequestList() {
                 <th>Description</th>
                 <th>Fournisseur(s)</th>
                 <th>Prix</th>
+                <th>Réception visée</th>
                 <th>Proposé par</th>
                 {(pending.some(canActOn) || pending.some((row) => row.requesterId === employee.id)) && <th>Actions</th>}
               </tr>
@@ -146,6 +154,7 @@ export function PurchaseRequestList() {
                       )}
                     </td>
                     <td>{formatRange(row)}</td>
+                    <td>{row.expectedReceiptDate ? formatDate(row.expectedReceiptDate) : "—"}</td>
                     <td>{row.requesterName}</td>
                     {(canAct || isOwn) && (
                       <td>
@@ -171,6 +180,23 @@ export function PurchaseRequestList() {
                               }}
                             >
                               Fixer
+                            </button>
+                            <input
+                              type="date"
+                              style={{ width: 130, flex: "none" }}
+                              value={draftReceiptDates[row.id] ?? (row.expectedReceiptDate ?? "")}
+                              onChange={(event) => setDraftReceiptDates((current) => ({ ...current, [row.id]: event.target.value }))}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ flex: "none", whiteSpace: "nowrap" }}
+                              onClick={() => {
+                                const value = draftReceiptDates[row.id];
+                                if (value) receiptDateMutation.mutate({ id: row.id, date: value });
+                              }}
+                            >
+                              Fixer la date
                             </button>
                             <button
                               type="button"

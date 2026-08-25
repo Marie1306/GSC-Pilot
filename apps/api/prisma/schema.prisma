@@ -698,6 +698,10 @@ model PurchaseRequest {
   // automatique à l'autorisation. Exige fulfillmentStatus === "received"
   // avant de pouvoir être posé (voir applyPurchaseRequestToProject).
   appliedToProjectAt          DateTime?
+  // Date visée de réception (25 août 2026, demande explicite pour faciliter
+  // le suivi) — purement informatif, jamais utilisé par une règle métier
+  // (pas de restriction de statut pour la modifier, contrairement à amount).
+  expectedReceiptDate         DateTime?         @db.Date
 
   @@index([status])
   @@index([requesterId])

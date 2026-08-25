@@ -60,6 +60,7 @@ export interface PurchaseRequestDto {
   editedAt: string | null;
   fulfillmentStatus: FulfillmentStatus | null;
   appliedToProjectAt: string | null;
+  expectedReceiptDate: string | null;
 }
 
 export interface NewPurchaseRequestInput {
@@ -110,6 +111,10 @@ export function updatePurchaseRequest(id: string, patch: UpdatePurchaseRequestIn
 
 export function setPurchaseRequestAmount(id: string, amount: number): Promise<{ id: string; amount: number | null }> {
   return apiFetch(`/api/purchase-requests/${id}/amount`, { method: "PATCH", body: JSON.stringify({ amount }) });
+}
+
+export function setPurchaseRequestExpectedReceiptDate(id: string, expectedReceiptDate: string | null): Promise<{ id: string; expectedReceiptDate: string | null }> {
+  return apiFetch(`/api/purchase-requests/${id}/expected-receipt-date`, { method: "PATCH", body: JSON.stringify({ expectedReceiptDate }) });
 }
 
 export function approvePurchaseRequest(id: string): Promise<{ id: string; status: string }> {
