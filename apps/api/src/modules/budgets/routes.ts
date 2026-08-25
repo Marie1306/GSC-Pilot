@@ -31,6 +31,7 @@ import {
   deleteBudget,
   resetBudgetContent,
   getNextBudgetDisplayId,
+  addBudgetNote,
 } from "./service.js";
 import { convertBudgetToProject } from "../projects/service.js";
 import { convertBudgetToRolling } from "../rollings/service.js";
@@ -212,6 +213,19 @@ budgetsRouter.patch(
       .parse(req.body);
     await updateBudgetMeta(id, patch);
     res.status(204).send();
+  },
+);
+
+/** Notes datées pour le suivi client (25 août 2026) — même porte que la modification du contenu, jamais bloquée par readOnly (informatif, pas du contenu financier). */
+budgetsRouter.post(
+  "/budgets/:id/notes",
+  requireAuth,
+  requirePermission((persona) => canModifyBudget(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const { body } = z.object({ body: z.string().min(1, "La note ne peut pas être vide.") }).parse(req.body);
+    const note = await addBudgetNote(id, req.employee!.id, body);
+    res.status(201).json({ note });
   },
 );
 

@@ -128,6 +128,15 @@ export interface BudgetDetail extends BudgetListItem {
   backup: BudgetBackupData;
   projectBackup: ProjectBackupData;
   totals: { totalHours: number; totalBaseCost: number; totalSale: number };
+  notes: BudgetNoteDto[];
+}
+
+export interface BudgetNoteDto {
+  id: string;
+  authorId: string;
+  authorName: string;
+  body: string;
+  createdAt: string;
 }
 
 /**
@@ -309,4 +318,8 @@ export function deleteBudget(id: string): Promise<void> {
 
 export function resetBudgetContent(id: string): Promise<void> {
   return apiFetch(`/api/budgets/${id}/reset`, { method: "POST" });
+}
+
+export function addBudgetNote(id: string, body: string): Promise<{ note: BudgetNoteDto }> {
+  return apiFetch(`/api/budgets/${id}/notes`, { method: "POST", body: JSON.stringify({ body }) });
 }

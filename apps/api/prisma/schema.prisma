@@ -331,8 +331,19 @@ model Budget {
   // les budgétaires où cette relation serait posée, en prévision (même
   // filtre que pour "project" ci-dessus), mais rien ne la pose encore.
   rolling       Rolling?
+  notes         BudgetNote[]
 
   @@index([status])
+}
+
+/// Notes datées pour le suivi client (25 août 2026) — même mécanisme que ClientRequestNote, jamais modifiées/supprimées après coup.
+model BudgetNote {
+  id        String   @id @default(uuid())
+  budgetId  String
+  budget    Budget   @relation(fields: [budgetId], references: [id])
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
 }
 
 model BudgetSection {

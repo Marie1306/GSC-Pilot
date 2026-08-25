@@ -346,6 +346,15 @@ export interface BudgetDetailDto extends BudgetListItemDto {
   backup: BackupSummary;
   projectBackup: ProjectBackupSummary;
   totals: { totalHours: number; totalBaseCost: number; totalSale: number };
+  notes: BudgetNoteDto[];
+}
+
+export interface BudgetNoteDto {
+  id: string;
+  authorId: string;
+  authorName: string;
+  body: string;
+  createdAt: string;
 }
 
 async function namesByEmployeeId(ids: string[]): Promise<Map<string, string>> {
@@ -361,6 +370,7 @@ export async function getBudgetDetail(id: string): Promise<BudgetDetailDto> {
       sections: { include: { rows: { orderBy: { sortOrder: "asc" } } } },
       project: { select: { id: true } },
       rolling: { select: { id: true } },
+      notes: { orderBy: { createdAt: "asc" } },
     },
   });
   if (!budget) throw new HttpError(404, "Budgétaire introuvable.");
@@ -380,7 +390,7 @@ export async function getBudgetDetail(id: string): Promise<BudgetDetailDto> {
   const backup = toBackupSummary(budget, sections);
   const projectBackup = toProjectBackupSummary(budget);
   const totals = budgetTotals(sectionSummaries, backup, projectBackup);
-  const nameById = await namesByEmployeeId([budget.createdById]);
+  const nameById = await namesByEmployeeId([budget.createdById, ...budget.notes.map((note) => note.authorId)]);
 
   return {
     id: budget.id,
@@ -422,7 +432,23 @@ export async function getBudgetDetail(id: string): Promise<BudgetDetailDto> {
     backup,
     projectBackup,
     totals,
+    notes: budget.notes.map((note) => ({
+      id: note.id,
+      authorId: note.authorId,
+      authorName: nameById.get(note.authorId) ?? "—",
+      body: note.body,
+      createdAt: note.createdAt.toISOString(),
+    })),
   };
+}
+
+export async function addBudgetNote(budgetId: string, authorId: string, body: string): Promise<BudgetNoteDto> {
+  const budget = await prisma.budget.findUnique({ where: { id: budgetId }, select: { id: true } });
+  if (!budget) throw new HttpError(404, "Budgétaire introuvable.");
+
+  const note = await prisma.budgetNote.create({ data: { budgetId, authorId, body: body.trim() } });
+  const author = await prisma.employee.findUnique({ where: { id: authorId }, select: { name: true } });
+  return { id: note.id, authorId, authorName: author?.name ?? "—", body: note.body, createdAt: note.createdAt.toISOString() };
 }
 
 /**
