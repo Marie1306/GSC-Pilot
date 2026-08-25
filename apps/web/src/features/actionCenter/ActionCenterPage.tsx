@@ -55,28 +55,21 @@ export function ActionCenterPage() {
 
   return (
     <div>
-      <div className="card">
-        <h1 style={{ marginTop: 0, fontSize: 20 }}>Centre d'actions</h1>
-        <p style={{ color: "var(--gsc-color-muted)", margin: 0 }}>
-          Tout ce qui attend un traitement ou une approbation de votre part, tous modules confondus.
-        </p>
-      </div>
-
       {itemsQuery.isError && (
-        <div className="card" style={{ marginTop: 20 }}>
+        <div className="card">
           <p className="form-error">Impossible de charger le centre d'actions.</p>
         </div>
       )}
 
       {itemsQuery.isSuccess && groups.length === 0 && (
-        <div className="card" style={{ marginTop: 20 }}>
+        <div className="card">
           <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Rien à traiter pour l'instant.</p>
         </div>
       )}
 
-      {groups.map((group) => (
-        <div key={group.type} className="card" style={{ marginTop: 20 }}>
-          <div className="section-heading">
+      {groups.map((group, index) => (
+        <div key={group.type} className="card" style={{ marginTop: index === 0 ? 0 : 20 }}>
+          <div className="card-band-header">
             <h3>
               {group.items[0]?.typeLabel} <span className="cell-sub">({group.items.length})</span>
             </h3>

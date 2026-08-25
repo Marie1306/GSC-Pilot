@@ -106,7 +106,7 @@ export function DashboardPage() {
 
       {projectHealth.length > 0 && (
         <div className="card" style={{ marginTop: 20 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+          <div className="card-band-header">
             <div>
               <h3 style={{ margin: 0 }}>Santé des projets actifs</h3>
               <p className="modal-subtitle">Avancement, marge réelle et échéance des projets actifs.</p>
@@ -154,7 +154,7 @@ export function DashboardPage() {
 
       {summary?.channelConversion && summary.channelConversion.length > 0 && (
         <div className="card" style={{ marginTop: 20 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+          <div className="card-band-header">
             <div>
               <h3 style={{ margin: 0 }}>Pipeline des demandes clients</h3>
               <p className="modal-subtitle">Demandes reçues et converties (budgétaire créé) par canal.</p>
@@ -182,7 +182,7 @@ export function DashboardPage() {
 
       {summary?.recentInvoices && summary.recentInvoices.length > 0 && (
         <div className="card" style={{ marginTop: 20 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+          <div className="card-band-header">
             <div>
               <h3 style={{ margin: 0 }}>Factures récemment envoyées</h3>
               <p className="modal-subtitle">Suivi manuel des paiements reçus au compte.</p>

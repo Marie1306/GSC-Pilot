@@ -112,16 +112,7 @@ export function InvoicingPage() {
 
   return (
     <div>
-      <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
-        <div>
-          <h1 style={{ marginTop: 0, fontSize: 20 }}>Facturation</h1>
-          <p style={{ color: "var(--gsc-color-muted)", margin: 0 }}>
-            Suivi manuel des factures créées dans Sage, des échéances, suspens et paiements reçus au compte.
-          </p>
-        </div>
-      </div>
-
-      <div className="stat-tile-grid" style={{ marginTop: 20 }}>
+      <div className="stat-tile-grid">
         <div className="stat-tile">
           <span className="stat-tile-label">Facture ouverte</span>
           <span className="stat-tile-value">{formatCurrency(stats.open)}</span>

@@ -8,6 +8,12 @@ interface ContactListProps {
   onCreate: () => void;
 }
 
+const TYPE_TABS: { key: "all" | "Client" | "Fournisseur"; label: string }[] = [
+  { key: "all", label: "Tous" },
+  { key: "Client", label: "Clients" },
+  { key: "Fournisseur", label: "Fournisseurs" },
+];
+
 function matches(query: string, ...values: (string | null)[]): boolean {
   const needle = query.trim().toLowerCase();
   if (!needle) return true;
@@ -16,31 +22,41 @@ function matches(query: string, ...values: (string | null)[]): boolean {
 
 export function ContactList({ onOpen, onCreate }: ContactListProps) {
   const listQuery = useQuery({ queryKey: ["contacts"], queryFn: fetchContacts });
+  const [tab, setTab] = useState<"all" | "Client" | "Fournisseur">("all");
   const [search, setSearch] = useState("");
-  const rows = (listQuery.data?.contacts ?? []).filter((row) => matches(search, row.name, row.company, row.email));
+  const rows = (listQuery.data?.contacts ?? [])
+    .filter((row) => tab === "all" || row.type === tab)
+    .filter((row) => matches(search, row.name, row.company, row.email));
 
   return (
     <div>
-      <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
-        <div>
-          <h1 style={{ marginTop: 0, fontSize: 20 }}>Contacts</h1>
-          <p style={{ color: "var(--gsc-color-muted)", margin: 0 }}>
-            Carnet d'adresses — la plupart des contacts s'ajoutent automatiquement (demandes, appels de service).
-          </p>
+      <section className="card">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {TYPE_TABS.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                className={tab === t.key ? "btn btn-small" : "btn btn-secondary btn-small"}
+                onClick={() => setTab(t.key)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <input
+              type="search"
+              placeholder="Rechercher par nom, entreprise ou courriel…"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              style={{ maxWidth: 260 }}
+            />
+            <button type="button" className="btn" onClick={onCreate}>
+              + Nouveau contact
+            </button>
+          </div>
         </div>
-        <button type="button" className="btn" onClick={onCreate}>
-          + Nouveau contact
-        </button>
-      </div>
-
-      <section className="card" style={{ marginTop: 20 }}>
-        <input
-          type="search"
-          placeholder="Rechercher par nom, entreprise ou courriel…"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          style={{ marginBottom: 12, maxWidth: 360 }}
-        />
         <div style={{ overflowX: "auto" }}>
           <table className="contact-table">
             <thead>

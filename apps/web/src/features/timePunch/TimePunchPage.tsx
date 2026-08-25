@@ -88,10 +88,10 @@ function TimerHero({
         ) : (
           <>
             <button type="button" className="btn" onClick={onStart}>
-              Débuter une tâche
+              ▶️ Débuter une tâche
             </button>
             <button type="button" className="btn btn-secondary" onClick={onManual}>
-              Entrée manuelle
+              🕒 Entrée manuelle
             </button>
           </>
         )}

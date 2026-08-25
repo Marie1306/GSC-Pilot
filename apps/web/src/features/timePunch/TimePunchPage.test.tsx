@@ -108,7 +108,7 @@ describe("TimePunchPage", () => {
 
   it("ouvre la modale 'Débuter une tâche' au clic", async () => {
     renderPage(member);
-    fireEvent.click(screen.getByRole("button", { name: "Débuter une tâche" }));
+    fireEvent.click(screen.getByRole("button", { name: "▶️ Débuter une tâche" }));
     expect(await screen.findByText("Le chronomètre démarre à l'enregistrement.")).toBeInTheDocument();
   });
 });

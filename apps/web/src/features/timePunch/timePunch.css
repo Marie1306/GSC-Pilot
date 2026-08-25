@@ -5,11 +5,12 @@
   gap: 10px;
   padding: 28px 20px;
   text-align: center;
+  background: var(--gsc-color-ink);
 }
 .punch-hero-state {
   font-size: 13px;
   font-weight: 600;
-  color: var(--gsc-color-muted);
+  color: rgba(255, 255, 255, 0.55);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -17,11 +18,11 @@
   font-size: 40px;
   font-weight: 750;
   font-variant-numeric: tabular-nums;
-  color: var(--gsc-color-ink);
+  color: #fff;
 }
 .punch-hero-task {
   font-size: 14px;
-  color: var(--gsc-color-muted);
+  color: rgba(255, 255, 255, 0.7);
 }
 .punch-hero-actions {
   display: flex;
