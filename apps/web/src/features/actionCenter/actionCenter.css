@@ -4,15 +4,25 @@
   margin-top: 8px;
 }
 
+/* Réutilisée à la fois sur un <a> (navigation classique, subassembly_ready)
+   et un <button> (ouvre le tiroir d'actions, 25 août 2026) — les propriétés
+   de réinitialisation de bouton ci-dessous sont ignorées sans effet sur
+   l'ancre. */
 .action-item-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  width: 100%;
   padding: 10px 8px;
+  border: none;
   border-bottom: 1px solid var(--gsc-color-line);
+  background: none;
   text-decoration: none;
   color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 /* Icône par type — utilisée seulement par le mini-aperçu du Tableau de

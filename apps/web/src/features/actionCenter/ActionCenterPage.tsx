@@ -1,7 +1,12 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { formatCurrency } from "../projects/api.js";
-import { fetchActionCenterItems, linkFor, type ActionItemType } from "./api.js";
+import { fetchActionCenterItems, linkFor, type ActionItemDto, type ActionItemType } from "./api.js";
+import { BudgetDetail } from "../budgets/BudgetDetail.js";
+import { ClientRequestDetail } from "../clientRequests/ClientRequestDetail.js";
+import { PurchaseRequestActionDrawer } from "../purchases/PurchaseRequestActionDrawer.js";
+import { InvoiceActionDrawer } from "../invoicing/InvoiceActionDrawer.js";
 import "./actionCenter.css";
 
 const TYPE_ORDER: ActionItemType[] = [
@@ -12,6 +17,17 @@ const TYPE_ORDER: ActionItemType[] = [
   "client_request_transmitted",
   "subassembly_ready",
 ];
+
+// Types qui ouvrent directement le détail + les actions réelles sans
+// quitter le Centre d'actions (25 août 2026, demande explicite) — chacun
+// réutilise le composant déjà construit et vérifié de son propre module,
+// jamais une deuxième logique d'approbation ici. subassembly_ready reste
+// une navigation classique : la préparation de la liste de pièces vit en
+// profondeur dans l'onglet Sous-assemblages d'un projet, pas extractible
+// proprement dans un tiroir sans dupliquer cet écran.
+function hasActionDrawer(type: ActionItemType): boolean {
+  return type !== "subassembly_ready";
+}
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" });
@@ -26,6 +42,7 @@ function formatDate(iso: string): string {
 export function ActionCenterPage() {
   const itemsQuery = useQuery({ queryKey: ["action-center", "items"], queryFn: fetchActionCenterItems });
   const items = itemsQuery.data?.items ?? [];
+  const [openItem, setOpenItem] = useState<ActionItemDto | null>(null);
 
   const groups = TYPE_ORDER.map((type) => ({ type, items: items.filter((item) => item.type === type) })).filter(
     (group) => group.items.length > 0,
@@ -53,21 +70,41 @@ export function ActionCenterPage() {
             </h3>
           </div>
           <div className="action-item-list">
-            {group.items.map((item) => (
-              <Link key={item.id} to={linkFor(item)} className="action-item-row">
-                <div className="action-item-main">
-                  <span className="action-item-label">{item.label}</span>
-                  <span className="action-item-sublabel">{item.sublabel}</span>
-                </div>
-                <div className="action-item-side">
-                  {item.amount !== undefined && <span className="action-item-amount">{formatCurrency(item.amount)}</span>}
-                  <span className="action-item-date">{formatDate(item.createdAt)}</span>
-                </div>
-              </Link>
-            ))}
+            {group.items.map((item) =>
+              hasActionDrawer(item.type) ? (
+                <button key={item.id} type="button" className="action-item-row" onClick={() => setOpenItem(item)}>
+                  <div className="action-item-main">
+                    <span className="action-item-label">{item.label}</span>
+                    <span className="action-item-sublabel">{item.sublabel}</span>
+                  </div>
+                  <div className="action-item-side">
+                    {item.amount !== undefined && <span className="action-item-amount">{formatCurrency(item.amount)}</span>}
+                    <span className="action-item-date">{formatDate(item.createdAt)}</span>
+                  </div>
+                </button>
+              ) : (
+                <Link key={item.id} to={linkFor(item)} className="action-item-row">
+                  <div className="action-item-main">
+                    <span className="action-item-label">{item.label}</span>
+                    <span className="action-item-sublabel">{item.sublabel}</span>
+                  </div>
+                  <div className="action-item-side">
+                    {item.amount !== undefined && <span className="action-item-amount">{formatCurrency(item.amount)}</span>}
+                    <span className="action-item-date">{formatDate(item.createdAt)}</span>
+                  </div>
+                </Link>
+              ),
+            )}
           </div>
         </div>
       ))}
+
+      {openItem?.type === "budget_approval" && <BudgetDetail id={openItem.id} onClose={() => setOpenItem(null)} />}
+      {(openItem?.type === "client_request_new" || openItem?.type === "client_request_transmitted") && (
+        <ClientRequestDetail id={openItem.id} onClose={() => setOpenItem(null)} />
+      )}
+      {openItem?.type === "purchase_approval" && <PurchaseRequestActionDrawer id={openItem.id} onClose={() => setOpenItem(null)} />}
+      {openItem?.type === "invoicing" && <InvoiceActionDrawer id={openItem.id} onClose={() => setOpenItem(null)} />}
     </div>
   );
 }
