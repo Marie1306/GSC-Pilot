@@ -11,6 +11,9 @@ function formatHours(value: number | null): string {
 function formatMoneyOrDash(value: number | null): string {
   return value !== null ? formatCurrency(value) : "—";
 }
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" });
+}
 
 /**
  * Rapports (20 août 2026, sur demande explicite de l'utilisatrice) —
@@ -22,6 +25,7 @@ function formatMoneyOrDash(value: number | null): string {
  */
 export function ReportsPage() {
   const [year, setYear] = useState<number | undefined>(undefined);
+  const [showDetail, setShowDetail] = useState(false);
   const overviewQuery = useQuery({ queryKey: ["reports", "overview", year], queryFn: () => fetchReportsOverview(year) });
   const overview = overviewQuery.data;
 
@@ -144,40 +148,45 @@ export function ReportsPage() {
             </p>
           </div>
           {overview && (
-            <select
-              value={overview.internalStats.year}
-              onChange={(event) => setYear(Number(event.target.value))}
-              style={{ maxWidth: 120 }}
-            >
-              {overview.internalStats.availableYears.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <select
+                value={overview.internalStats.year}
+                onChange={(event) => setYear(Number(event.target.value))}
+                style={{ maxWidth: 120 }}
+              >
+                {overview.internalStats.availableYears.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+              <button type="button" className="btn btn-secondary btn-small" onClick={() => setShowDetail(true)}>
+                Voir le détail
+              </button>
+            </div>
           )}
         </div>
 
         {overview && (
           <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 10 }}>
             <div style={{ flex: 1, minWidth: 280 }}>
-              <h4 style={{ marginBottom: 8 }}>Heures internes par employé</h4>
-              {overview.internalStats.hours.employees.length === 0 ? (
+              <h4 style={{ marginBottom: 8 }}>Heures internes par tâche</h4>
+              {overview.internalStats.hours.tasks.length === 0 ? (
                 <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucune heure interne approuvée pour {overview.internalStats.year}.</p>
               ) : (
                 <div className="table-scroll">
                   <table className="shortlist-table">
                     <thead>
                       <tr>
-                        <th>Employé</th>
+                        <th>Tâche</th>
                         <th className="num">Heures</th>
                         <th className="num">Valeur</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {overview.internalStats.hours.employees.map((row) => (
-                        <tr key={row.employeeId}>
-                          <td>{row.employeeName}</td>
+                      {overview.internalStats.hours.tasks.map((row) => (
+                        <tr key={row.taskId}>
+                          <td>{row.taskLabel}</td>
                           <td className="num">{formatHours(row.hours)}</td>
                           <td className="num">{formatCurrency(row.value)}</td>
                         </tr>
@@ -235,6 +244,86 @@ export function ReportsPage() {
           </div>
         )}
       </div>
+
+      {showDetail && overview && (
+        <div className="modal-backdrop" onClick={() => setShowDetail(false)}>
+          <div className="modal" style={{ maxWidth: 900 }} onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h2>Détail — {overview.internalStats.year}</h2>
+                <p className="modal-subtitle">Toutes les heures et tous les achats internes approuvés pour cette année.</p>
+              </div>
+              <button type="button" className="modal-close" aria-label="Fermer" onClick={() => setShowDetail(false)}>
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <h4 style={{ marginBottom: 8 }}>Heures détaillées</h4>
+              {overview.internalStats.hours.detail.length === 0 ? (
+                <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucune entrée.</p>
+              ) : (
+                <div className="table-scroll">
+                  <table className="shortlist-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Employé</th>
+                        <th>Tâche</th>
+                        <th className="num">Heures</th>
+                        <th className="num">Valeur</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {overview.internalStats.hours.detail.map((row) => (
+                        <tr key={row.id}>
+                          <td>{formatDate(row.date)}</td>
+                          <td>{row.employeeName}</td>
+                          <td>{row.taskLabel}</td>
+                          <td className="num">{formatHours(row.hours)}</td>
+                          <td className="num">{formatCurrency(row.value)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <h4 style={{ marginTop: 20, marginBottom: 8 }}>Achats détaillés</h4>
+              {overview.internalStats.purchases.detail.length === 0 ? (
+                <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucune entrée.</p>
+              ) : (
+                <div className="table-scroll">
+                  <table className="shortlist-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Fournisseur</th>
+                        <th>Catégorie</th>
+                        <th className="num">Montant</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {overview.internalStats.purchases.detail.map((row) => (
+                        <tr key={row.id}>
+                          <td>{formatDate(row.requestedAt)}</td>
+                          <td>{row.supplier ?? "—"}</td>
+                          <td>{row.categoryName}</td>
+                          <td className="num">{formatCurrency(row.amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={() => setShowDetail(false)}>
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

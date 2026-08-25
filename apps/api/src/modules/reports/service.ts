@@ -177,19 +177,36 @@ export async function getChannelConversion(): Promise<ChannelConversionDto[]> {
   });
 }
 
-export interface InternalHoursEmployeeDto {
-  employeeId: string;
-  employeeName: string;
+export interface InternalHoursTaskDto {
+  taskId: string;
+  taskLabel: string;
   hours: number;
   value: number;
   count: number;
 }
 
+export interface InternalHoursDetailDto {
+  id: string;
+  date: string;
+  employeeName: string;
+  taskLabel: string;
+  hours: number;
+  value: number;
+}
+
+export interface InternalPurchaseDetailDto {
+  id: string;
+  requestedAt: string;
+  supplier: string | null;
+  categoryName: string;
+  amount: number;
+}
+
 export interface InternalStatsDto {
   year: number;
   availableYears: number[];
-  hours: { employees: InternalHoursEmployeeDto[]; hours: number; value: number };
-  purchases: ReturnType<typeof internalPurchasesSummary>;
+  hours: { tasks: InternalHoursTaskDto[]; hours: number; value: number; detail: InternalHoursDetailDto[] };
+  purchases: ReturnType<typeof internalPurchasesSummary> & { detail: InternalPurchaseDetailDto[] };
 }
 
 /**
@@ -199,16 +216,25 @@ export interface InternalStatsDto {
  * 2026. availableYears dérivé des dates réelles trouvées (jamais deviné) —
  * l'année demandée est toujours incluse même si elle n'a encore aucune
  * donnée, pour que le sélecteur reste utilisable sur une année vide.
+ *
+ * Regroupement par TÂCHE plutôt que par employé (25 août 2026, demande
+ * explicite) : internalHoursSummary groupe par le champ générique `employee`
+ * (une simple clé de regroupement, jamais validée contre de vrais IDs
+ * employé — voir internal-stats.ts) — réutilisée telle quelle en y glissant
+ * taskId à la place, exactement comme actualHoursByCategory est réutilisée
+ * pour un regroupement par tâche ailleurs (ProjectPostMortem). Les tâches
+ * restent celles gérées dans Paramètres → Tâches punchables (PunchableTask),
+ * aucun nouveau catalogue.
  */
 export async function getInternalStats(year: number): Promise<InternalStatsDto> {
   const [timeEntries, purchaseRequests] = await Promise.all([
     prisma.timeEntry.findMany({
       where: { projectType: "internal", deletedAt: null },
-      select: { employeeId: true, status: true, date: true, roundedMinutes: true, costRate: true },
+      select: { id: true, employeeId: true, taskId: true, status: true, date: true, roundedMinutes: true, costRate: true },
     }),
     prisma.purchaseRequest.findMany({
       where: { projectType: "internal" },
-      select: { status: true, requestedAt: true, amount: true, category: { select: { name: true } } },
+      select: { id: true, status: true, requestedAt: true, amount: true, supplier: true, category: { select: { name: true } } },
     }),
   ]);
 
@@ -221,7 +247,7 @@ export async function getInternalStats(year: number): Promise<InternalStatsDto> 
   if (!availableYears.includes(year)) availableYears.unshift(year);
 
   const hoursInput: InternalTimeEntry[] = timeEntries.map((entry) => ({
-    employee: entry.employeeId,
+    employee: entry.taskId ?? "—",
     projectType: "internal",
     status: entry.status,
     date: entry.date.toISOString(),
@@ -239,18 +265,53 @@ export async function getInternalStats(year: number): Promise<InternalStatsDto> 
   const hoursSummary = internalHoursSummary(hoursInput, year);
   const purchasesSummary = internalPurchasesSummary(purchasesInput, year);
 
-  const employeeIds = [...new Set(hoursSummary.employees.map((row) => row.employeeId))];
-  const employees = await prisma.employee.findMany({ where: { id: { in: employeeIds } }, select: { id: true, name: true } });
-  const nameById = new Map(employees.map((employee) => [employee.id, employee.name]));
+  const taskIds = [...new Set(hoursSummary.employees.map((row) => row.employeeId))];
+  const employeeIds = [...new Set(timeEntries.map((entry) => entry.employeeId))];
+  const [tasks, employees] = await Promise.all([
+    prisma.punchableTask.findMany({ where: { id: { in: taskIds } }, select: { id: true, label: true } }),
+    prisma.employee.findMany({ where: { id: { in: employeeIds } }, select: { id: true, name: true } }),
+  ]);
+  const taskLabelById = new Map(tasks.map((task) => [task.id, task.label]));
+  const employeeNameById = new Map(employees.map((employee) => [employee.id, employee.name]));
+
+  const approvedYearEntries = timeEntries.filter(
+    (entry) => entry.status === "approved" && entry.date.getUTCFullYear() === year,
+  );
+  const purchaseYearEntries = purchaseRequests.filter(
+    (request) => ["approved", "authorized"].includes(request.status) && request.requestedAt.getUTCFullYear() === year,
+  );
 
   return {
     year,
     availableYears,
     hours: {
-      employees: hoursSummary.employees.map((row) => ({ ...row, employeeName: nameById.get(row.employeeId) ?? "—" })),
+      tasks: hoursSummary.employees.map((row) => ({
+        taskId: row.employeeId,
+        taskLabel: taskLabelById.get(row.employeeId) ?? "—",
+        hours: row.hours,
+        value: row.value,
+        count: row.count,
+      })),
       hours: hoursSummary.hours,
       value: hoursSummary.value,
+      detail: approvedYearEntries.map((entry) => ({
+        id: entry.id,
+        date: entry.date.toISOString(),
+        employeeName: employeeNameById.get(entry.employeeId) ?? "—",
+        taskLabel: entry.taskId ? (taskLabelById.get(entry.taskId) ?? "—") : "—",
+        hours: round2((entry.roundedMinutes ?? 0) / 60),
+        value: round2(((entry.roundedMinutes ?? 0) / 60) * Number(entry.costRate)),
+      })),
     },
-    purchases: purchasesSummary,
+    purchases: {
+      ...purchasesSummary,
+      detail: purchaseYearEntries.map((request) => ({
+        id: request.id,
+        requestedAt: request.requestedAt.toISOString(),
+        supplier: request.supplier,
+        categoryName: request.category?.name ?? "Sans catégorie",
+        amount: request.amount !== null ? Number(request.amount) : 0,
+      })),
+    },
   };
 }

@@ -27,12 +27,21 @@ export interface ChannelConversionDto {
   conversionPct: number;
 }
 
-export interface InternalHoursEmployeeDto {
-  employeeId: string;
-  employeeName: string;
+export interface InternalHoursTaskDto {
+  taskId: string;
+  taskLabel: string;
   hours: number;
   value: number;
   count: number;
+}
+
+export interface InternalHoursDetailDto {
+  id: string;
+  date: string;
+  employeeName: string;
+  taskLabel: string;
+  hours: number;
+  value: number;
 }
 
 export interface InternalPurchasesCategoryDto {
@@ -41,11 +50,19 @@ export interface InternalPurchasesCategoryDto {
   count: number;
 }
 
+export interface InternalPurchaseDetailDto {
+  id: string;
+  requestedAt: string;
+  supplier: string | null;
+  categoryName: string;
+  amount: number;
+}
+
 export interface InternalStatsDto {
   year: number;
   availableYears: number[];
-  hours: { employees: InternalHoursEmployeeDto[]; hours: number; value: number };
-  purchases: { categories: InternalPurchasesCategoryDto[]; amount: number; count: number };
+  hours: { tasks: InternalHoursTaskDto[]; hours: number; value: number; detail: InternalHoursDetailDto[] };
+  purchases: { categories: InternalPurchasesCategoryDto[]; amount: number; count: number; detail: InternalPurchaseDetailDto[] };
 }
 
 export interface ReportsOverviewDto {
