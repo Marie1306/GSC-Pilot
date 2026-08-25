@@ -2,6 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { fetchDashboardSummary, formatCurrency } from "./api.js";
+import { INVOICE_STATUS_LABELS, INVOICE_STATUS_BADGE } from "../invoicing/api.js";
+import { linkFor, type ActionItemType } from "../actionCenter/api.js";
+import "../actionCenter/actionCenter.css";
 
 const PERSONA_LABELS: Record<string, string> = {
   owner: "Direction",
@@ -9,6 +12,15 @@ const PERSONA_LABELS: Record<string, string> = {
   boss: "Propriétaire",
   member: "Employé",
   warehouse: "Magasinier",
+};
+
+const ACTION_TYPE_ICON: Record<ActionItemType, string> = {
+  budget_approval: "🧮",
+  purchase_approval: "🛒",
+  invoicing: "📄",
+  client_request_new: "📞",
+  client_request_transmitted: "📞",
+  subassembly_ready: "🔗",
 };
 
 const FINANCIAL_STATUS_LABELS: Record<string, string> = {
@@ -188,7 +200,7 @@ export function DashboardPage() {
               <p className="modal-subtitle">Suivi manuel des paiements reçus au compte.</p>
             </div>
             <Link to="/facturation" className="btn btn-secondary btn-small">
-              Ouvrir la facturation
+              Ouvrir les comptes clients
             </Link>
           </div>
           <div className="table-scroll" style={{ marginTop: 10 }}>
@@ -198,8 +210,10 @@ export function DashboardPage() {
                   <th>Facture</th>
                   <th>Client / dossier</th>
                   <th>Envoyée</th>
+                  <th>Échéance</th>
                   <th className="num">Montant</th>
                   <th className="num">Solde</th>
+                  <th>Statut</th>
                 </tr>
               </thead>
               <tbody>
@@ -211,13 +225,51 @@ export function DashboardPage() {
                       <div className="cell-sub">{entry.sourceLabel}</div>
                     </td>
                     <td>{formatDate(entry.processedAt)}</td>
+                    <td>{formatDate(entry.dueDate)}</td>
                     <td className="num">{formatCurrency(entry.amount)}</td>
                     <td className="num">{formatCurrency(entry.amount - entry.paidAmount)}</td>
+                    <td>
+                      <span className={`badge-pill ${INVOICE_STATUS_BADGE[entry.status as keyof typeof INVOICE_STATUS_BADGE]}`}>
+                        {INVOICE_STATUS_LABELS[entry.status as keyof typeof INVOICE_STATUS_LABELS]}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {summary && summary.actionCenterItems.length > 0 && (
+        <div className="card" style={{ marginTop: 20 }}>
+          <div className="card-band-header">
+            <div>
+              <h3 style={{ margin: 0 }}>Centre d'actions</h3>
+              <p className="modal-subtitle">Priorisé selon l'impact.</p>
+            </div>
+            <span className="badge-pill badge-critical">{summary.actionCenterCount} ouvert{summary.actionCenterCount > 1 ? "s" : ""}</span>
+          </div>
+          <div className="action-item-list">
+            {summary.actionCenterItems.map((item) => (
+              <Link key={item.id} to={linkFor(item)} className="action-item-row">
+                <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                  <span className="action-item-icon">{ACTION_TYPE_ICON[item.type]}</span>
+                  <div className="action-item-main">
+                    <span className="action-item-label">{item.label}</span>
+                    <span className="action-item-sublabel">{item.sublabel}</span>
+                  </div>
+                </div>
+                <div className="action-item-side">
+                  {item.amount !== undefined && <span className="action-item-amount">{formatCurrency(item.amount)}</span>}
+                  <span className="action-item-date">{formatDate(item.createdAt)}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+          <Link to="/centre-actions" className="btn btn-secondary" style={{ marginTop: 14, width: "100%" }}>
+            Voir le centre complet
+          </Link>
         </div>
       )}
     </div>

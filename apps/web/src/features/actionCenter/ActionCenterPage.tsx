@@ -1,30 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { formatCurrency } from "../projects/api.js";
-import { fetchActionCenterItems, type ActionItemDto, type ActionItemType } from "./api.js";
+import { fetchActionCenterItems, linkFor, type ActionItemType } from "./api.js";
 import "./actionCenter.css";
-
-// Cible de navigation par type — réutilise la convention ?open=<id> déjà
-// câblée dans BudgetsPage/ClientRequestsPage ; Achats/Facturation n'ont pas
-// cette convention (voir ces pages) donc lien vers la liste seulement, pas
-// d'ouverture directe inventée ici.
-function linkFor(item: ActionItemDto): string {
-  switch (item.type) {
-    case "budget_approval":
-      return `/budgetaire?open=${item.id}`;
-    case "purchase_approval":
-      return "/achats";
-    case "invoicing":
-      return "/facturation";
-    case "client_request_new":
-    case "client_request_transmitted":
-      return `/demandes?open=${item.id}`;
-    case "subassembly_ready":
-      // La liste de pièces se crée dans le détail du projet (Sous-assemblages),
-      // pas le Gantt lui-même (aucune tâche générée avant que la liste existe).
-      return "/projets";
-  }
-}
 
 const TYPE_ORDER: ActionItemType[] = [
   "client_request_new",

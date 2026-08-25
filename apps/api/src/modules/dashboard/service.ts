@@ -30,7 +30,7 @@ import { listBudgets } from "../budgets/service.js";
 import { listInvoiceEntries } from "../invoicing/service.js";
 import { listMyTimeEntries } from "../timeEntries/service.js";
 import { listDeliveries } from "../deliveries/service.js";
-import { getActionCenterItems } from "../actionCenter/service.js";
+import { getActionCenterItems, type ActionItemDto } from "../actionCenter/service.js";
 import { getChannelConversion, type ChannelConversionDto } from "../reports/service.js";
 
 function round2(value: number): number {
@@ -80,14 +80,16 @@ export interface DashboardSummaryDto {
   channelConversion?: ChannelConversionDto[];
   actionCenterCount: number;
   actionCenterBreakdown: string;
+  actionCenterItems: ActionItemDto[];
   myWeekHours: number;
   myPendingEntriesCount: number;
   myAssignedDeliveriesCount?: number;
 }
 
-/** Combien de projets actifs / factures récentes afficher — le reste se consulte sur la page dédiée (liens fournis côté interface). */
+/** Combien de projets actifs / factures récentes / actions afficher — le reste se consulte sur la page dédiée (liens fournis côté interface). */
 const PROJECT_HEALTH_LIMIT = 8;
 const RECENT_INVOICES_LIMIT = 5;
+const ACTION_CENTER_PREVIEW_LIMIT = 6;
 
 export async function getDashboardSummary(viewerPersona: Persona, viewerEmployeeId: string): Promise<DashboardSummaryDto> {
   const summary: Partial<DashboardSummaryDto> = {};
@@ -176,6 +178,9 @@ export async function getDashboardSummary(viewerPersona: Persona, viewerEmployee
   const actionCenterBreakdown = Array.from(countByLabel.entries())
     .map(([label, count]) => `${count} × ${label}`)
     .join(" · ");
+  // Aperçu du Centre d'actions (demande explicite du 25 août 2026, mini-liste
+  // v19) — même tableau actionItems déjà calculé ci-dessus, juste tronqué.
+  const actionCenterItems = actionItems.slice(0, ACTION_CENTER_PREVIEW_LIMIT);
 
   const myEntries = await listMyTimeEntries(viewerEmployeeId, viewerPersona);
   const weekStart = startOfWeek(new Date());
@@ -189,5 +194,5 @@ export async function getDashboardSummary(viewerPersona: Persona, viewerEmployee
     summary.myAssignedDeliveriesCount = deliveries.filter((delivery) => delivery.status === "planned").length;
   }
 
-  return { ...summary, actionCenterCount, actionCenterBreakdown, myWeekHours, myPendingEntriesCount };
+  return { ...summary, actionCenterCount, actionCenterBreakdown, actionCenterItems, myWeekHours, myPendingEntriesCount };
 }

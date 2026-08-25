@@ -1,4 +1,5 @@
 import { apiFetch } from "../../lib/apiClient.js";
+import type { ActionItemDto } from "../actionCenter/api.js";
 
 export interface ProjectHealthDto {
   projectNumber: string;
@@ -41,6 +42,7 @@ export interface DashboardSummaryDto {
   channelConversion?: ChannelConversionDto[];
   actionCenterCount: number;
   actionCenterBreakdown: string;
+  actionCenterItems: ActionItemDto[];
   myWeekHours: number;
   myPendingEntriesCount: number;
   myAssignedDeliveriesCount?: number;

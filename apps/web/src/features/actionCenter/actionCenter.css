@@ -15,6 +15,20 @@
   color: inherit;
 }
 
+/* Icône par type — utilisée seulement par le mini-aperçu du Tableau de
+   bord (v19) ; ActionCenterPage garde ses lignes sans icône, non demandé. */
+.action-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--gsc-radius-sm);
+  background: var(--gsc-color-surface3);
+  font-size: 16px;
+  flex: none;
+}
+
 .action-item-row:last-child {
   border-bottom: none;
 }
