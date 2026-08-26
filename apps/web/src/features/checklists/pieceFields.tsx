@@ -28,6 +28,49 @@ export interface PieceFieldsValue {
   note: string;
 }
 
+const SHAPE_TYPE_LABELS = new Map(SHAPE_TYPES.map((s) => [s.value, s.label]));
+const TUBE_SHAPE_LABELS = new Map(TUBE_SHAPES.map((s) => [s.value, s.label]));
+
+export interface PieceSummaryFields {
+  shapeType: string | null;
+  tubeShape: string | null;
+  tubeOD: string | null;
+  tubeID: string | null;
+  tubeMeasurement1: string | null;
+  tubeMeasurement2: string | null;
+  tubeWallThickness: string | null;
+  shaftMeasurement: string | null;
+  note: string | null;
+}
+
+/**
+ * Résumé compact affiché en petit sous le numéro de pièce dans la checklist
+ * (26 août 2026, rapporté par l'utilisatrice : type/forme/dimensions/note
+ * saisis à l'entrée n'apparaissaient nulle part ensuite — les champs
+ * étaient bien enregistrés, jamais réaffichés).
+ */
+export function pieceSummaryLine(item: PieceSummaryFields): string | null {
+  const parts: string[] = [];
+  if (item.shapeType) {
+    const shapeLabel = SHAPE_TYPE_LABELS.get(item.shapeType) ?? item.shapeType;
+    if (item.shapeType === "tube") {
+      const tubeShapeLabel = item.tubeShape ? (TUBE_SHAPE_LABELS.get(item.tubeShape) ?? item.tubeShape) : null;
+      const dims =
+        item.tubeShape === "round"
+          ? [item.tubeOD && `OD ${item.tubeOD}`, item.tubeID && `ID ${item.tubeID}`].filter(Boolean).join(" · ")
+          : [item.tubeMeasurement1, item.tubeMeasurement2].filter(Boolean).join(" × ");
+      const wall = item.tubeWallThickness ? `paroi ${item.tubeWallThickness}` : null;
+      parts.push([shapeLabel, tubeShapeLabel, dims || null, wall].filter(Boolean).join(" · "));
+    } else if (item.shapeType === "shaft") {
+      parts.push([shapeLabel, item.shaftMeasurement].filter(Boolean).join(" · "));
+    } else {
+      parts.push(shapeLabel);
+    }
+  }
+  if (item.note) parts.push(item.note);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 export const emptyPieceFields: PieceFieldsValue = {
   number: "",
   quantity: "",

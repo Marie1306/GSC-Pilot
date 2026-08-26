@@ -6,6 +6,7 @@ import { fetchChecklistThicknesses, fetchChecklistSteps } from "../settings/api.
 import { fetchProjectChecklists, setChecklistItemStepCompleted, type ChecklistDto, type ChecklistItemDto, type ChecklistWithItemsDto } from "./api.js";
 import { ChecklistEntryModal } from "./ChecklistEntryModal.js";
 import { ChecklistItemEditModal } from "./ChecklistItemEditModal.js";
+import { pieceSummaryLine } from "./pieceFields.js";
 import "./checklist.css";
 
 interface ChecklistProjectViewProps {
@@ -171,10 +172,15 @@ export function ChecklistProjectView({ projectId, initialChecklistId, onBack }: 
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => (
+              {items.map((item) => {
+                const summary = pieceSummaryLine(item);
+                return (
                 <tr key={item.id} className={item.kind === "subassembly" ? "checklist-row-subassembly" : ""}>
                   <td className="checklist-cell-nowrap">{item.parentNumber ?? (item.kind === "subassembly" ? "(sous-assemblage)" : "—")}</td>
-                  <td className="checklist-cell-nowrap">{item.number}</td>
+                  <td className="checklist-cell-nowrap">
+                    {item.number}
+                    {summary && <div className="cell-sub">{summary}</div>}
+                  </td>
                   <td className="num">{item.quantity ?? "—"}</td>
                   <td>{item.thickness ?? "—"}</td>
                   <td>{item.material ?? "—"}</td>
@@ -199,7 +205,8 @@ export function ChecklistProjectView({ projectId, initialChecklistId, onBack }: 
                     </td>
                   )}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
