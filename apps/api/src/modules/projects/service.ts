@@ -25,6 +25,7 @@ import {
   BUDGET_CATEGORY_LABELS,
   computeBillingPlan,
   invoiceStatus,
+  type BillingSplitStep,
   FULFILLMENT_MODES,
   chooseFulfillment as chooseFulfillmentPure,
   confirmFulfillment as confirmFulfillmentPure,
@@ -893,6 +894,48 @@ export function toInvoicePlanEntryDto(row: {
 export async function getInvoicePlan(projectId: string): Promise<InvoicePlanEntryDto[]> {
   const rows = await prisma.invoicePlanEntry.findMany({ where: { projectId }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] });
   return rows.map(toInvoicePlanEntryDto);
+}
+
+/**
+ * Remplace entièrement le cycle de facturation d'un projet par une
+ * répartition personnalisée (26 août 2026, confirmé avec l'utilisatrice :
+ * jalons entièrement personnalisables — pas seulement les % des 4 jalons
+ * par défaut, un vrai projet a besoin d'un cycle à seulement 2 jalons : 30 %
+ * après conception / 70 % après installation). Réutilise computeBillingPlan
+ * (billing.ts, jamais modifié) tel quel — jamais un deuxième calcul de
+ * montants divergent. Bloqué dès qu'un seul jalon a déjà été
+ * demandé/facturé/payé : à ce stade le suivi réel a commencé (Sage reste la
+ * source réelle des factures), le remplacer casserait cet historique — même
+ * porte que "Demander la facturation" (canRequestInvoice, Direction
+ * seulement).
+ */
+export async function updateProjectBillingPlan(projectId: string, steps: BillingSplitStep[]): Promise<InvoicePlanEntryDto[]> {
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  if (!project) throw new HttpError(404, "Projet introuvable.");
+
+  const existing = await prisma.invoicePlanEntry.findMany({ where: { projectId } });
+  const started = existing.some((entry) => entry.requestedAt || entry.invoiceNumber || Number(entry.paidAmount) > 0);
+  if (started) {
+    throw new HttpError(409, "Impossible de remplacer le cycle : au moins un jalon a déjà été demandé, facturé ou payé.");
+  }
+
+  const totalPct = steps.reduce((sum, step) => sum + Number(step.pct || 0), 0);
+  if (Math.round(totalPct) !== 100) throw new HttpError(400, `Le cycle doit totaliser exactement 100 % (obtenu ${totalPct}%).`);
+
+  const plan = computeBillingPlan(Number(project.sold), steps);
+
+  await prisma.$transaction([
+    prisma.invoicePlanEntry.deleteMany({ where: { projectId } }),
+    prisma.invoicePlanEntry.createMany({
+      data: plan.map((step, index) => ({ projectId, label: step.label, pct: step.pct, amount: step.amount, status: step.status, sortOrder: index })),
+    }),
+    prisma.project.update({
+      where: { id: projectId },
+      data: { billingSplitOverride: JSON.parse(JSON.stringify(steps)) },
+    }),
+  ]);
+
+  return getInvoicePlan(projectId);
 }
 
 /** Fait apparaître la demande dans le centre d'actions d'Administration (Direction seulement, canRequestInvoice). */

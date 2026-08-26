@@ -30,6 +30,7 @@ import {
   chooseProjectFulfillmentMode,
   confirmProjectFulfillment,
   getInvoicePlan,
+  updateProjectBillingPlan,
   requestInvoice,
   recordInvoice,
   recordInvoicePayment,
@@ -193,6 +194,21 @@ projectsRouter.get(
   async (req, res) => {
     const id = z.uuid().parse(req.params.id);
     const entries = await getInvoicePlan(id);
+    res.json({ entries });
+  },
+);
+
+const updateBillingPlanSchema = z.object({
+  steps: z.array(z.object({ label: z.string().min(1), pct: z.number().positive() })).min(1),
+});
+projectsRouter.put(
+  "/projects/:id/invoice-plan",
+  requireAuth,
+  requirePermission((persona) => canRequestInvoice(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const { steps } = updateBillingPlanSchema.parse(req.body);
+    const entries = await updateProjectBillingPlan(id, steps);
     res.json({ entries });
   },
 );

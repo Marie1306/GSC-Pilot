@@ -8,10 +8,12 @@ import {
   requestInvoice,
   recordInvoice,
   recordInvoicePayment,
+  updateInvoicePlan,
   formatCurrency,
   INVOICE_STATUS_LABELS,
   INVOICE_STATUS_BADGE,
   type InvoicePlanEntryDto,
+  type BillingPlanStepInput,
 } from "./api.js";
 
 interface ProjectInvoicePlanProps {
@@ -23,13 +25,21 @@ function formatDate(iso: string | null): string {
 }
 
 type ExpandedAction = { id: string; type: "record" | "payment" } | null;
+interface CycleStepDraft {
+  label: string;
+  pct: string;
+}
 
 /**
  * Cycle de facturation (Projet 2C, 17 août 2026) : les 4 jalons sont créés
- * une seule fois à la conversion (DEFAULT_BILLING_SPLIT, billing.ts) —
- * modifier la répartition après coup reste hors de cette phase (voir
- * CLAUDE.md). Sage reste la source réelle des factures — ceci n'est qu'un
- * suivi manuel, "Enregistrer" ne requiert jamais un "Demander" préalable.
+ * une seule fois à la conversion (DEFAULT_BILLING_SPLIT, billing.ts). Depuis
+ * le 26 août 2026, Direction/Propriétaire peuvent remplacer entièrement ces
+ * jalons par un cycle personnalisé (updateProjectBillingPlan, même porte que
+ * "Demander la facturation") — bloqué côté serveur (409) dès qu'un jalon a
+ * déjà progressé, donc le déclencheur disparaît ici dans ce cas plutôt que
+ * de laisser l'utilisatrice remplir un formulaire voué à échouer. Sage reste
+ * la source réelle des factures — ceci n'est qu'un suivi manuel,
+ * "Enregistrer" ne requiert jamais un "Demander" préalable.
  */
 export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
   const { employee } = useAuth();
@@ -40,6 +50,9 @@ export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
   const [dueDateDraft, setDueDateDraft] = useState("");
   const [paidAmountDraft, setPaidAmountDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [showCycleEditor, setShowCycleEditor] = useState(false);
+  const [cycleDraft, setCycleDraft] = useState<CycleStepDraft[]>([]);
+  const [cycleError, setCycleError] = useState<string | null>(null);
 
   const invalidate = () => {
     setError(null);
@@ -59,6 +72,14 @@ export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
     mutationFn: ({ id, paidAmount }: { id: string; paidAmount: number }) => recordInvoicePayment(id, paidAmount),
     onSuccess: invalidate,
     onError: onMutationError,
+  });
+  const updatePlanMutation = useMutation({
+    mutationFn: (steps: BillingPlanStepInput[]) => updateInvoicePlan(projectId, steps),
+    onSuccess: () => {
+      setShowCycleEditor(false);
+      invalidate();
+    },
+    onError: (err: unknown) => setCycleError(err instanceof ApiError ? err.message : "Une erreur est survenue — réessayez."),
   });
 
   if (!employee) return null;
@@ -97,10 +118,131 @@ export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
     setPaidAmountDraft(entry.paidAmount ? String(entry.paidAmount) : "");
   }
 
+  // Même condition que le blocage 409 côté serveur (updateProjectBillingPlan)
+  // — évite de laisser l'utilisatrice remplir tout un formulaire voué à
+  // échouer une fois qu'un jalon a réellement progressé.
+  const started = entries.some((entry) => entry.requestedAt || entry.invoiceNumber || Number(entry.paidAmount) > 0);
+
+  function openCycleEditor() {
+    setCycleDraft(entries.map((entry) => ({ label: entry.label, pct: String(entry.pct) })));
+    setCycleError(null);
+    setShowCycleEditor(true);
+  }
+  function updateCycleLabel(index: number, label: string) {
+    setCycleDraft((current) => current.map((step, i) => (i === index ? { ...step, label } : step)));
+  }
+  function updateCyclePct(index: number, pct: string) {
+    setCycleDraft((current) => current.map((step, i) => (i === index ? { ...step, pct } : step)));
+  }
+  function removeCycleStep(index: number) {
+    setCycleDraft((current) => current.filter((_, i) => i !== index));
+  }
+  function addCycleStep() {
+    setCycleDraft((current) => [...current, { label: "", pct: "" }]);
+  }
+
+  const cycleTotalPct = cycleDraft.reduce((sum, step) => sum + (Number(step.pct) || 0), 0);
+  const cycleValid =
+    cycleDraft.length > 0 &&
+    cycleDraft.every((step) => step.label.trim().length > 0 && Number(step.pct) > 0) &&
+    Math.round(cycleTotalPct) === 100;
+
   return (
     <div style={{ marginBottom: 20 }}>
-      <h3 style={{ fontSize: 15, marginBottom: 4 }}>Cycle de facturation</h3>
-      <p style={{ margin: "0 0 10px", color: "var(--gsc-color-muted)", fontSize: 13 }}>Suivi manuel — Sage reste la source réelle des factures.</p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+        <div>
+          <h3 style={{ fontSize: 15, margin: 0 }}>Cycle de facturation</h3>
+          <p style={{ margin: "4px 0 10px", color: "var(--gsc-color-muted)", fontSize: 13 }}>Suivi manuel — Sage reste la source réelle des factures.</p>
+        </div>
+        {canRequest && !started && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-small"
+            style={{ flex: "none", whiteSpace: "nowrap" }}
+            onClick={openCycleEditor}
+          >
+            Modifier le cycle
+          </button>
+        )}
+      </div>
+      {showCycleEditor && (
+        <div className="modal-backdrop" onClick={() => setShowCycleEditor(false)}>
+          <div className="modal" style={{ maxWidth: 560 }} onClick={(event) => event.stopPropagation()}>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (!cycleValid) return;
+                updatePlanMutation.mutate(cycleDraft.map((step) => ({ label: step.label.trim(), pct: Number(step.pct) })));
+              }}
+            >
+              <div className="modal-header">
+                <div>
+                  <h2>Modifier le cycle de facturation</h2>
+                  <p className="modal-subtitle">Remplace entièrement les jalons actuels — jalons entièrement personnalisables.</p>
+                </div>
+                <button type="button" className="modal-close" aria-label="Fermer" onClick={() => setShowCycleEditor(false)}>
+                  ×
+                </button>
+              </div>
+              <div className="modal-body">
+                {cycleError && <p className="form-error">{cycleError}</p>}
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {cycleDraft.map((step, index) => (
+                    <div key={index} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <input
+                        type="text"
+                        placeholder="Nom du jalon"
+                        style={{ flex: 1 }}
+                        value={step.label}
+                        onChange={(e) => updateCycleLabel(index, e.target.value)}
+                      />
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step="0.1"
+                        placeholder="%"
+                        style={{ width: 80 }}
+                        value={step.pct}
+                        onChange={(e) => updateCyclePct(index, e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-small"
+                        style={{ flex: "none" }}
+                        onClick={() => removeCycleStep(index)}
+                      >
+                        Retirer
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button type="button" className="btn btn-secondary btn-small" style={{ marginTop: 10 }} onClick={addCycleStep}>
+                  + Ajouter un jalon
+                </button>
+                <p
+                  style={{
+                    marginTop: 14,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: Math.round(cycleTotalPct) === 100 ? "var(--gsc-color-green)" : "var(--gsc-color-danger)",
+                  }}
+                >
+                  Total : {Math.round(cycleTotalPct * 10) / 10} %
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowCycleEditor(false)}>
+                  Annuler
+                </button>
+                <button type="submit" className="btn" disabled={!cycleValid || updatePlanMutation.isPending}>
+                  {updatePlanMutation.isPending ? "…" : "Enregistrer le cycle"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       {error && <p className="form-error">{error}</p>}
       <div style={{ overflowX: "auto" }}>
         <table className="shortlist-table">

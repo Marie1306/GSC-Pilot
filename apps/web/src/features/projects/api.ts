@@ -254,6 +254,21 @@ export function fetchInvoicePlan(projectId: string): Promise<{ entries: InvoiceP
   return apiFetch(`/api/projects/${projectId}/invoice-plan`);
 }
 
+export interface BillingPlanStepInput {
+  label: string;
+  pct: number;
+}
+
+/**
+ * Remplace entièrement le cycle de facturation par des jalons personnalisés
+ * (26 août 2026, confirmé : jalons entièrement personnalisables, pas
+ * seulement les % des 4 par défaut). Bloqué côté serveur (409) dès qu'un
+ * jalon existant a déjà été demandé/facturé/payé.
+ */
+export function updateInvoicePlan(projectId: string, steps: BillingPlanStepInput[]): Promise<{ entries: InvoicePlanEntryDto[] }> {
+  return apiFetch(`/api/projects/${projectId}/invoice-plan`, { method: "PUT", body: JSON.stringify({ steps }) });
+}
+
 export function requestInvoice(entryId: string): Promise<{ entry: InvoicePlanEntryDto }> {
   return apiFetch(`/api/invoice-plan/${entryId}/request`, { method: "POST" });
 }
