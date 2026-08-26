@@ -96,7 +96,7 @@ describe("ChecklistProjectView — groupe sous-assemblage/pièces", () => {
         if (url.includes("/api/settings/checklist-thicknesses")) {
           return new Response(JSON.stringify({ thicknesses: [] }), { status: 200 });
         }
-        if (url.includes("/api/projects/project-1/checklists")) {
+        if (url.includes("/api/checklists/projects/project-1")) {
           return new Response(
             JSON.stringify({
               checklists: [
@@ -145,5 +145,49 @@ describe("ChecklistProjectView — groupe sous-assemblage/pièces", () => {
     renderView();
     await waitFor(() => expect(screen.getByText("ORPHAN-PENDING")).toBeInTheDocument());
     expect(screen.queryByText("ORPHAN-DONE")).not.toBeInTheDocument();
+  });
+
+  it("charge bien depuis la route accessible à l'Employé, pas la route archive (canAccessProject, 403 pour l'Employé) — écart trouvé et corrigé le 26 août 2026", async () => {
+    // Simule exactement le bug rapporté : la route archive répondrait 403 à
+    // un Employé, la nouvelle route (canAccessProductionChecklist) répond
+    // 200. Si le composant appelait encore la mauvaise route par erreur, ce
+    // test échouerait (jamais de "Chargement…" qui se termine).
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/api/settings/checklist-steps")) {
+          return new Response(JSON.stringify({ steps: [] }), { status: 200 });
+        }
+        if (url.includes("/api/settings/checklist-thicknesses")) {
+          return new Response(JSON.stringify({ thicknesses: [] }), { status: 200 });
+        }
+        if (url.includes("/api/projects/project-1/checklists")) {
+          return new Response(JSON.stringify({ error: "forbidden" }), { status: 403 });
+        }
+        if (url.includes("/api/checklists/projects/project-1")) {
+          return new Response(
+            JSON.stringify({
+              checklists: [
+                {
+                  id: "checklist-1",
+                  projectId: "project-1",
+                  projectNumber: "2356",
+                  projectName: "test",
+                  assemblyLabel: "08-000",
+                  createdByName: "Test Direction",
+                  createdAt: "2026-08-26T00:00:00.000Z",
+                  items: [orphanPending],
+                },
+              ],
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response("{}", { status: 200 });
+      }),
+    );
+
+    renderView();
+    await waitFor(() => expect(screen.getByText("ORPHAN-PENDING")).toBeInTheDocument());
   });
 });

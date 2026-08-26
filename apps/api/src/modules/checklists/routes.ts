@@ -95,9 +95,27 @@ checklistsRouter.get(
   },
 );
 
+// Vue de travail (ChecklistProjectView, menu "Checklist de production") —
+// même porte que le reste du module (canAccessProductionChecklist, "tout le
+// monde sauf Magasinier"). Écart trouvé et corrigé le 26 août 2026 : cette
+// vue appelait par erreur la route archive ci-dessous (canAccessProject),
+// qui exclut aussi l'Employé — resté bloqué (403) en boucle de retentatives
+// React Query, perçu comme "reste en mode chargement" côté interface.
+checklistsRouter.get(
+  "/checklists/projects/:projectId",
+  requireAuth,
+  requirePermission((persona) => canAccessProductionChecklist(persona)),
+  async (req, res) => {
+    const projectId = z.uuid().parse(req.params.projectId);
+    const checklists = await listProjectChecklists(projectId);
+    res.json({ checklists });
+  },
+);
+
 // Archive complète d'un projet — même porte que le reste du détail projet
-// (canAccessProject), pas canAccessProductionChecklist : reachée depuis le
-// menu Options du projet, jamais exposée séparément à l'Employé.
+// (canAccessProject), pas canAccessProductionChecklist : reachée uniquement
+// depuis le menu Options du projet, jamais depuis le menu "Checklist de
+// production" ci-dessus — jamais exposée à l'Employé.
 checklistsRouter.get(
   "/projects/:projectId/checklists",
   requireAuth,

@@ -110,8 +110,20 @@ export function fetchProjectsWithActiveChecklists(): Promise<{ projects: ActiveC
   return apiFetch("/api/checklists/active-projects");
 }
 
+/**
+ * Archive complète d'un projet (Options du projet → Checklist de
+ * production) — canAccessProject côté serveur, jamais exposée à l'Employé.
+ * Pour la vue de travail (menu "Checklist de production"), utiliser
+ * fetchChecklistsForProject ci-dessous — ne jamais réutiliser celle-ci là,
+ * c'est exactement l'écart trouvé et corrigé le 26 août 2026.
+ */
 export function fetchProjectChecklists(projectId: string): Promise<{ checklists: ChecklistWithItemsDto[] }> {
   return apiFetch(`/api/projects/${projectId}/checklists`);
+}
+
+/** Vue de travail (ChecklistProjectView) — canAccessProductionChecklist côté serveur, accessible à l'Employé (tout le monde sauf Magasinier). */
+export function fetchChecklistsForProject(projectId: string): Promise<{ checklists: ChecklistWithItemsDto[] }> {
+  return apiFetch(`/api/checklists/projects/${projectId}`);
 }
 
 export function setChecklistItemStepCompleted(itemId: string, stepId: string, completed: boolean): Promise<void> {

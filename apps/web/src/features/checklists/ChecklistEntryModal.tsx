@@ -78,7 +78,7 @@ export function ChecklistEntryModal({ checklist, onClose }: ChecklistEntryModalP
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["checklist", "active-projects"] });
-    void queryClient.invalidateQueries({ queryKey: ["project-checklists", checklist.projectId] });
+    void queryClient.invalidateQueries({ queryKey: ["checklist-project-view", checklist.projectId] });
   };
   const onMutationError = (kind: "piece" | "subassembly") => (err: unknown) => {
     if (err instanceof ApiError && err.status === 409) {

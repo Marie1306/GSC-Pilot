@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { canManageProductionChecklist } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { fetchChecklistThicknesses, fetchChecklistSteps } from "../settings/api.js";
-import { fetchProjectChecklists, setChecklistItemStepCompleted, type ChecklistDto, type ChecklistItemDto, type ChecklistWithItemsDto } from "./api.js";
+import { fetchChecklistsForProject, setChecklistItemStepCompleted, type ChecklistDto, type ChecklistItemDto, type ChecklistWithItemsDto } from "./api.js";
 import { ChecklistEntryModal } from "./ChecklistEntryModal.js";
 import { ChecklistItemEditModal } from "./ChecklistItemEditModal.js";
 import { pieceSummaryLine } from "./pieceFields.js";
@@ -56,7 +56,7 @@ export function ChecklistProjectView({ projectId, initialChecklistId, onBack }: 
   const [entryChecklist, setEntryChecklist] = useState<ChecklistDto | null>(null);
   const [editItem, setEditItem] = useState<ChecklistItemDto | null>(null);
 
-  const checklistsQuery = useQuery({ queryKey: ["project-checklists", projectId], queryFn: () => fetchProjectChecklists(projectId) });
+  const checklistsQuery = useQuery({ queryKey: ["checklist-project-view", projectId], queryFn: () => fetchChecklistsForProject(projectId) });
   const stepsQuery = useQuery({ queryKey: ["checklist-steps"], queryFn: fetchChecklistSteps });
   const thicknessesQuery = useQuery({ queryKey: ["checklist-thicknesses"], queryFn: fetchChecklistThicknesses });
 
@@ -68,7 +68,7 @@ export function ChecklistProjectView({ projectId, initialChecklistId, onBack }: 
   const selected = activeChecklists.find((c) => c.id === selectedChecklistId) ?? null;
 
   const invalidateItems = () => {
-    void queryClient.invalidateQueries({ queryKey: ["project-checklists", projectId] });
+    void queryClient.invalidateQueries({ queryKey: ["checklist-project-view", projectId] });
     void queryClient.invalidateQueries({ queryKey: ["checklist", "active-projects"] });
   };
 

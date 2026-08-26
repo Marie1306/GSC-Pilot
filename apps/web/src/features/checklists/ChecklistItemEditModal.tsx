@@ -90,7 +90,7 @@ export function ChecklistItemEditModal({ item, projectId, onClose }: ChecklistIt
     mutationFn: (force: boolean) => updateChecklistItem(item.id, buildPatch(force)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["checklist", "active-projects"] });
-      void queryClient.invalidateQueries({ queryKey: ["project-checklists", projectId] });
+      void queryClient.invalidateQueries({ queryKey: ["checklist-project-view", projectId] });
       onClose();
     },
     onError: (err) => {
