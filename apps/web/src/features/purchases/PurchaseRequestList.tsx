@@ -97,7 +97,9 @@ export function PurchaseRequestList() {
       {error && <p className="form-error">{error}</p>}
 
       <div className="card" style={{ marginTop: 20 }}>
-        <h2 style={{ marginTop: 0, fontSize: 16 }}>En attente d'approbation</h2>
+        <div className="card-band-header">
+          <h3>En attente d'approbation</h3>
+        </div>
         {pending.length === 0 && <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucune demande en attente pour l'instant.</p>}
         {pending.length > 0 && (
           <div className="table-scroll">
@@ -230,7 +232,9 @@ export function PurchaseRequestList() {
 
       {(inProgress.length > 0 || canManageFulfillment) && (
         <div className="card" style={{ marginTop: 20 }}>
-          <h2 style={{ marginTop: 0, fontSize: 16 }}>Autorisées — suivi de commande</h2>
+          <div className="card-band-header">
+            <h3>Autorisées — suivi de commande</h3>
+          </div>
           {inProgress.length === 0 && <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucune demande autorisée en attente d'application au projet.</p>}
           {inProgress.length > 0 && (
             <div className="table-scroll">
@@ -293,7 +297,9 @@ export function PurchaseRequestList() {
 
       {history.length > 0 && (
         <div className="card" style={{ marginTop: 20 }}>
-          <h2 style={{ marginTop: 0, fontSize: 16 }}>Historique</h2>
+          <div className="card-band-header">
+            <h3>Historique</h3>
+          </div>
           <div className="table-scroll">
           <table className="shortlist-table">
             <thead>
