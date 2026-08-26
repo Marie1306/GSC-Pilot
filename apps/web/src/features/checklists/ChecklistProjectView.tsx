@@ -14,11 +14,29 @@ interface ChecklistProjectViewProps {
   onBack: () => void;
 }
 
-function isItemActive(item: ChecklistItemDto): boolean {
+function hasOwnPendingSteps(item: ChecklistItemDto): boolean {
   return item.steps.some((s) => s.active && !s.completed);
 }
+
+/** Un sous-assemblage et ses pièces (parentItemId) forment un groupe qui
+ * disparaît ensemble, jamais un membre avant les autres — une pièce
+ * orpheline reste indépendante (spec confirmée le 26 août 2026). */
+function groupMembers(item: ChecklistItemDto, allItems: ChecklistItemDto[]): ChecklistItemDto[] {
+  if (item.kind === "subassembly") {
+    return [item, ...allItems.filter((i) => i.parentItemId === item.id)];
+  }
+  if (item.parentItemId) {
+    const parent = allItems.find((i) => i.id === item.parentItemId);
+    const siblings = allItems.filter((i) => i.parentItemId === item.parentItemId);
+    return parent ? [parent, ...siblings] : siblings;
+  }
+  return [item];
+}
+function isItemActive(item: ChecklistItemDto, allItems: ChecklistItemDto[]): boolean {
+  return groupMembers(item, allItems).some(hasOwnPendingSteps);
+}
 function isChecklistActive(checklist: ChecklistWithItemsDto): boolean {
-  return checklist.items.some(isItemActive);
+  return checklist.items.some((item) => isItemActive(item, checklist.items));
 }
 
 /**
@@ -67,7 +85,7 @@ export function ChecklistProjectView({ projectId, initialChecklistId, onBack }: 
         {activeChecklists.length > 0 && (
           <div className="project-card-grid" style={{ marginTop: 14 }}>
             {activeChecklists.map((checklist) => {
-              const activeCount = checklist.items.filter(isItemActive).length;
+              const activeCount = checklist.items.filter((item) => isItemActive(item, checklist.items)).length;
               return (
                 <div key={checklist.id} className="project-card" onClick={() => setSelectedChecklistId(checklist.id)}>
                   <div className="project-card-header">
@@ -88,7 +106,7 @@ export function ChecklistProjectView({ projectId, initialChecklistId, onBack }: 
   }
 
   const items = selected.items
-    .filter(isItemActive)
+    .filter((item) => isItemActive(item, selected.items))
     .filter((item) => !stepFilter || item.steps.some((s) => s.stepId === stepFilter && s.active && !s.completed))
     .filter((item) => !thicknessFilter || item.thickness === thicknessFilter);
 
