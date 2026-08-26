@@ -93,7 +93,7 @@ export function ChecklistPage() {
                   <label>Assemblage (facultatif)</label>
                   <input value={newAssemblyLabel} onChange={(e) => setNewAssemblyLabel(e.target.value)} placeholder="ex. 02-01-000" />
                 </div>
-                <div className="field field-full" style={{ display: "flex", gap: 8 }}>
+                <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button type="submit" className="btn btn-small" disabled={!canCreate}>
                     {createMutation.isPending ? "…" : "Créer"}
                   </button>

@@ -200,7 +200,7 @@ export function EmployeeDrawer({ employee, onClose }: EmployeeDrawerProps) {
         </p>
       )}
 
-      <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
+      <div style={{ display: "flex", gap: 8, marginTop: 20, flexWrap: "wrap" }}>
         <button type="button" className="btn" disabled={!valid || saveMutation.isPending} onClick={() => saveMutation.mutate()}>
           {saveMutation.isPending ? "…" : "Enregistrer"}
         </button>

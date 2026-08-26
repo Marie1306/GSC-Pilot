@@ -123,7 +123,7 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
                 <label>Date d'échéance</label>
                 <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
               </div>
-              <div className="field field-full" style={{ display: "flex", gap: 8 }}>
+              <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button type="submit" className="btn btn-small" disabled={!name.trim() || updateMutation.isPending}>
                   {updateMutation.isPending ? "…" : "Enregistrer"}
                 </button>

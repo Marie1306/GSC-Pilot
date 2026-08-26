@@ -188,11 +188,11 @@ export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
                 {cycleError && <p className="form-error">{cycleError}</p>}
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {cycleDraft.map((step, index) => (
-                    <div key={index} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <div key={index} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                       <input
                         type="text"
                         placeholder="Nom du jalon"
-                        style={{ flex: 1 }}
+                        style={{ flex: 1, minWidth: 120 }}
                         value={step.label}
                         onChange={(e) => updateCycleLabel(index, e.target.value)}
                       />
@@ -318,7 +318,7 @@ export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
                           <label>Échéance (facultatif)</label>
                           <input type="date" value={dueDateDraft} onChange={(e) => setDueDateDraft(e.target.value)} />
                         </div>
-                        <div className="field field-full" style={{ display: "flex", gap: 8 }}>
+                        <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                           <button type="submit" className="btn btn-small" disabled={!invoiceNumberDraft.trim() || recordMutation.isPending}>
                             {recordMutation.isPending ? "…" : "Enregistrer"}
                           </button>
@@ -347,7 +347,7 @@ export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
                           <label>Montant payé à ce jour ($)</label>
                           <input type="number" min={0} step="0.01" value={paidAmountDraft} onChange={(e) => setPaidAmountDraft(e.target.value)} />
                         </div>
-                        <div className="field field-full" style={{ display: "flex", gap: 8 }}>
+                        <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                           <button type="submit" className="btn btn-small" disabled={paymentMutation.isPending}>
                             {paymentMutation.isPending ? "…" : "Enregistrer le paiement"}
                           </button>

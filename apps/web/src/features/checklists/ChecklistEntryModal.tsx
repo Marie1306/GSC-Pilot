@@ -274,7 +274,7 @@ export function ChecklistEntryModal({ checklist, onClose }: ChecklistEntryModalP
               {achatLines.map((line, index) => (
                 <div key={index} className="field field-full" style={{ display: "flex", gap: 8 }}>
                   <input
-                    style={{ flex: 1 }}
+                    style={{ flex: 1, minWidth: 0 }}
                     value={line}
                     onChange={(e) => setAchatLines(achatLines.map((l, i) => (i === index ? e.target.value : l)))}
                     placeholder="Description"
@@ -290,7 +290,7 @@ export function ChecklistEntryModal({ checklist, onClose }: ChecklistEntryModalP
                   </button>
                 </div>
               ))}
-              <div className="field field-full" style={{ display: "flex", gap: 8 }}>
+              <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button type="button" className="btn btn-secondary btn-small" onClick={() => setAchatLines([...achatLines, ""])}>
                   + Ligne
                 </button>

@@ -150,7 +150,7 @@ export function SalesChannelsCard() {
       </table>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center" }}>
+      <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center", flexWrap: "wrap" }}>
         <input type="text" placeholder="Nouveau canal" style={{ maxWidth: 220 }} value={newName} onChange={(event) => setNewName(event.target.value)} />
         <button type="button" className="btn" disabled={!canCreate} onClick={() => createMutation.mutate()}>
           + Ajouter

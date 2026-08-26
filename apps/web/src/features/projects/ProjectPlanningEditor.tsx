@@ -167,7 +167,7 @@ export function ProjectPlanningEditor({ project }: ProjectPlanningEditorProps) {
             </p>
           )}
 
-          <div className="field-full" style={{ display: "flex", gap: 8 }}>
+          <div className="field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button type="submit" className="btn btn-small" disabled={mutation.isPending}>
               {mutation.isPending ? "…" : "Enregistrer"}
             </button>

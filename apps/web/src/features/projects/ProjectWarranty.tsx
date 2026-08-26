@@ -128,7 +128,7 @@ export function ProjectWarranty({ project }: ProjectWarrantyProps) {
               placeholder="ex. FA-2026-0140, si une facture distincte s'applique"
             />
           </div>
-          <div className="field field-full" style={{ display: "flex", gap: 8 }}>
+          <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button type="submit" className="btn btn-small" disabled={!endsAt || activateMutation.isPending}>
               {activateMutation.isPending ? "…" : "Enregistrer"}
             </button>

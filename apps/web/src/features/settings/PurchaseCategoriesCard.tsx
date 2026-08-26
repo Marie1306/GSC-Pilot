@@ -119,7 +119,7 @@ export function PurchaseCategoriesCard() {
       </table>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center" }}>
+      <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center", flexWrap: "wrap" }}>
         <input
           type="text"
           placeholder="Nouvelle catégorie"

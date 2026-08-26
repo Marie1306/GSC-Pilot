@@ -108,7 +108,7 @@ export function ProjectSubassemblies({ projectId }: ProjectSubassembliesProps) {
 
       {canDeclare && (
         <form
-          style={{ display: "flex", gap: 8, marginBottom: 14 }}
+          style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}
           onSubmit={(event) => {
             event.preventDefault();
             if (newNumber.trim()) declareMutation.mutate();
@@ -193,7 +193,7 @@ export function ProjectSubassemblies({ projectId }: ProjectSubassembliesProps) {
                       </button>
                     </div>
                   ))}
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <button type="button" className="btn btn-secondary btn-small" onClick={() => setRows([...rows, emptyRow()])}>
                       + Catégorie
                     </button>

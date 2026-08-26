@@ -173,7 +173,7 @@ export function DelegationCard() {
             <label>Justification (obligatoire)</label>
             <input value={justification} onChange={(e) => setJustification(e.target.value)} placeholder="ex. Vacances du 1er au 15 septembre" />
           </div>
-          <div className="field field-full" style={{ display: "flex", gap: 8 }}>
+          <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button type="submit" className="btn btn-small" disabled={!canCreate}>
               {createMutation.isPending ? "…" : "Créer la délégation"}
             </button>

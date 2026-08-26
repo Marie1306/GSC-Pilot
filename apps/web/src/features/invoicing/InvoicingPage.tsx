@@ -235,7 +235,7 @@ export function InvoicingPage() {
                               <label>Échéance (facultatif)</label>
                               <input type="date" value={dueDateDraft} onChange={(event) => setDueDateDraft(event.target.value)} />
                             </div>
-                            <div className="field field-full" style={{ display: "flex", gap: 8 }}>
+                            <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                               <button type="submit" className="btn btn-small" disabled={!invoiceNumberDraft.trim() || recordMutation.isPending}>
                                 {recordMutation.isPending ? "…" : "Enregistrer"}
                               </button>
@@ -270,7 +270,7 @@ export function InvoicingPage() {
                                 onChange={(event) => setPaidAmountDraft(event.target.value)}
                               />
                             </div>
-                            <div className="field field-full" style={{ display: "flex", gap: 8 }}>
+                            <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                               <button type="submit" className="btn btn-small" disabled={paymentMutation.isPending}>
                                 {paymentMutation.isPending ? "…" : "Enregistrer le paiement"}
                               </button>

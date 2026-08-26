@@ -118,7 +118,7 @@ export function ClientRequestOptionsMenu({ request, open, onClose, onDeleted }: 
               <label>Date de relance</label>
               <input type="date" value={followUpDate} onChange={(e) => setFollowUpDate(e.target.value)} />
             </div>
-            <div className="field field-full" style={{ display: "flex", gap: 8 }}>
+            <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button type="button" className="btn btn-small" disabled={followUpMutation.isPending} onClick={() => followUpMutation.mutate(followUpDate)}>
                 {followUpMutation.isPending ? "…" : "Enregistrer"}
               </button>
@@ -142,7 +142,7 @@ export function ClientRequestOptionsMenu({ request, open, onClose, onDeleted }: 
               <label>Raison (facultatif)</label>
               <input value={lostReason} onChange={(e) => setLostReason(e.target.value)} />
             </div>
-            <div className="field field-full" style={{ display: "flex", gap: 8 }}>
+            <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button type="button" className="btn btn-small" disabled={lostMutation.isPending} onClick={() => lostMutation.mutate(lostReason)}>
                 {lostMutation.isPending ? "…" : "Confirmer perdue"}
               </button>

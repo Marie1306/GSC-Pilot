@@ -216,7 +216,7 @@ export function PunchableTasksSection() {
               </table>
               </div>
             )}
-            <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
               <input
                 type="text"
                 placeholder="Nouvelle tâche"

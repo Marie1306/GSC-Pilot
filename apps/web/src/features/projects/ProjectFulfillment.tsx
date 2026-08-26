@@ -173,7 +173,7 @@ export function ProjectFulfillment({ project }: ProjectFulfillmentProps) {
               </div>
             </>
           )}
-          <div className="field field-full" style={{ display: "flex", gap: 8 }}>
+          <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button type="submit" className="btn btn-small" disabled={chooseModeMutation.isPending}>
               {chooseModeMutation.isPending ? "…" : "Confirmer le mode"}
             </button>

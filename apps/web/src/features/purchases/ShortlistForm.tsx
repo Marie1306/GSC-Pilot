@@ -125,7 +125,7 @@ export function ShortlistForm() {
       </table>
       </div>
 
-      <div style={{ display: "flex", gap: 10, marginTop: 12, alignItems: "center" }}>
+      <div style={{ display: "flex", gap: 10, marginTop: 12, alignItems: "center", flexWrap: "wrap" }}>
         <button type="button" className="btn btn-secondary" onClick={addLine}>
           + Ajouter une ligne
         </button>

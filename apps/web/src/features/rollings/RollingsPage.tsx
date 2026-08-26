@@ -87,7 +87,7 @@ export function RollingsPage() {
               <label>Courriel (facultatif)</label>
               <input value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
-            <div className="field field-full" style={{ display: "flex", gap: 8 }}>
+            <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button type="submit" className="btn btn-small" disabled={!contactName.trim() || createMutation.isPending}>
                 {createMutation.isPending ? "Création…" : "Créer"}
               </button>

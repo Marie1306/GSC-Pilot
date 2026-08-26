@@ -149,7 +149,7 @@ export function ChecklistItemEditModal({ item, projectId, onClose }: ChecklistIt
               setActiveStepIds((current) => (current.includes(id) ? current.filter((s) => s !== id) : [...current, id])),
             )}
 
-            <div className="field field-full" style={{ display: "flex", gap: 8 }}>
+            <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button type="submit" className="btn btn-small" disabled={!canSave}>
                 {saveMutation.isPending ? "…" : "Enregistrer"}
               </button>

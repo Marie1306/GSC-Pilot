@@ -202,7 +202,7 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
           {!rolling.budgetId && canEditSold && rolling.sold === 0 && (
             <div className="field" style={{ maxWidth: 220 }}>
               <label>Prix vendu ($)</label>
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <input type="number" min={0} step="0.01" value={sold} onChange={(e) => setSoldDraft(e.target.value)} />
                 <button
                   type="button"
@@ -276,7 +276,7 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
                   </div>
                 </>
               )}
-              <div className="field field-full" style={{ display: "flex", gap: 8 }}>
+              <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button type="submit" className="btn btn-small" disabled={chooseModeMutation.isPending}>
                   {chooseModeMutation.isPending ? "…" : "Confirmer le mode"}
                 </button>
@@ -384,7 +384,7 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
                 <label>Numéro de facture</label>
                 <input value={invoiceNumberDraft} onChange={(e) => setInvoiceNumberDraft(e.target.value)} autoFocus />
               </div>
-              <div className="field field-full" style={{ display: "flex", gap: 8 }}>
+              <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button type="submit" className="btn btn-small" disabled={!invoiceNumberDraft.trim() || recordMutation.isPending}>
                   {recordMutation.isPending ? "…" : "Enregistrer"}
                 </button>
@@ -409,7 +409,7 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
                 <label>Montant payé à ce jour ($)</label>
                 <input type="number" min={0} step="0.01" value={paidAmountDraft} onChange={(e) => setPaidAmountDraft(e.target.value)} autoFocus />
               </div>
-              <div className="field field-full" style={{ display: "flex", gap: 8 }}>
+              <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button type="submit" className="btn btn-small" disabled={paymentMutation.isPending}>
                   {paymentMutation.isPending ? "…" : "Enregistrer le paiement"}
                 </button>

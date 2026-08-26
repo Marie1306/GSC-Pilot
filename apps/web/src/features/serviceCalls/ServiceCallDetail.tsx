@@ -379,8 +379,13 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
             </tbody>
           </table>
           </div>
-          <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
-            <input placeholder="Nom de la pièce" value={newPartName} onChange={(event) => setNewPartName(event.target.value)} style={{ flex: 1 }} />
+          <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <input
+              placeholder="Nom de la pièce"
+              value={newPartName}
+              onChange={(event) => setNewPartName(event.target.value)}
+              style={{ flex: 1, minWidth: 140 }}
+            />
             <input
               type="number"
               min={0.01}
@@ -535,7 +540,7 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
 
         <div className="modal-footer">
           {canDelete && (
-            <div style={{ marginRight: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+            <div style={{ marginRight: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               {!confirmDelete ? (
                 <button type="button" className="btn btn-secondary service-call-btn-small" onClick={() => setConfirmDelete(true)}>
                   Supprimer la demande
