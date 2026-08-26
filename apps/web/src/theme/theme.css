@@ -695,7 +695,10 @@ a {
   justify-content: space-between;
   align-items: flex-start;
   gap: 10px;
-  margin-bottom: 2px;
+  margin: -18px -18px 12px;
+  padding: 12px 16px;
+  background: var(--gsc-color-ink);
+  border-radius: var(--gsc-radius-base) var(--gsc-radius-base) 0 0;
 }
 .project-card-number {
   color: var(--gsc-color-brand);
