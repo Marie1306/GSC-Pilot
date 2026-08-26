@@ -5,7 +5,7 @@ import { ServiceRatesCard } from "./ServiceRatesCard.js";
 import { EmployeesCard } from "./EmployeesCard.js";
 import { SalesChannelsCard } from "./SalesChannelsCard.js";
 import { ChecklistCatalogsCard } from "./ChecklistCatalogsCard.js";
-import { PunchableTasksCard } from "./PunchableTasksCard.js";
+import { BudgetPunchableCard } from "./BudgetPunchableCard.js";
 import { BillingSplitCard } from "./BillingSplitCard.js";
 import { AuditLogCard } from "./AuditLogCard.js";
 import { DelegationCard } from "./DelegationCard.js";
@@ -26,7 +26,7 @@ export function SettingsPage() {
       <MarginThresholdsCard />
       <SalesChannelsCard />
       <ChecklistCatalogsCard />
-      <PunchableTasksCard />
+      <BudgetPunchableCard />
       <BillingSplitCard />
       <DelegationCard />
       <AuditLogCard />

@@ -17,6 +17,20 @@
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  transition: width 0.15s ease, opacity 0.15s ease;
+}
+
+/* Repliable sur PC (26 août 2026) — .app-sidebar-toggle dans la topbar
+   bascule cette classe ; le tiroir superposé sous ~880px (drawerOpen) n'est
+   jamais concerné, cette classe n'a d'effet qu'au-dessus de 880px puisque
+   .app-sidebar est déjà display:none en dessous. */
+.app-shell.sidebar-collapsed .app-sidebar {
+  width: 0;
+  min-width: 0;
+  opacity: 0;
+  visibility: hidden;
+  border-right: none;
 }
 
 .app-sidebar-brand {
@@ -120,7 +134,7 @@
 }
 
 .app-topbar-titles {
-  display: none;
+  display: flex;
   flex-direction: column;
   gap: 1px;
 }
@@ -182,6 +196,33 @@
   background: var(--gsc-color-ink);
 }
 
+/* Symétrique du hamburger mobile, mais pour PC : replie/déplie la barre
+   latérale fixe au lieu d'ouvrir le tiroir superposé (26 août 2026). Les
+   deux boutons ne sont jamais visibles en même temps (voir media query). */
+.app-sidebar-toggle {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: var(--gsc-radius-base);
+  background: var(--gsc-color-surface2);
+  cursor: pointer;
+  padding: 0 10px;
+  flex-shrink: 0;
+}
+.app-sidebar-toggle:hover {
+  background: var(--gsc-color-surface3);
+}
+.app-sidebar-toggle span {
+  display: block;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--gsc-color-ink);
+}
+
 .app-drawer-backdrop {
   display: none;
 }
@@ -194,12 +235,12 @@
     display: none;
   }
 
-  .app-topbar-titles {
+  .app-hamburger {
     display: flex;
   }
 
-  .app-hamburger {
-    display: flex;
+  .app-sidebar-toggle {
+    display: none;
   }
 
   .app-drawer-backdrop {

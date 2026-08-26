@@ -54,8 +54,12 @@ export function ChecklistCatalogCard({ title, description, queryKey, fetchFn, cr
 
   return (
     <div className="card" style={{ marginTop: 20 }}>
-      <h2 style={{ marginTop: 0, fontSize: 16 }}>{title}</h2>
-      <p style={{ color: "var(--gsc-color-muted)", fontSize: 13, marginTop: -8 }}>{description}</p>
+      <div className="card-band-header">
+        <div>
+          <h3>{title}</h3>
+          <p className="modal-subtitle">{description}</p>
+        </div>
+      </div>
 
       <div className="table-scroll">
       <table className="settings-table">

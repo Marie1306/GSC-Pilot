@@ -58,11 +58,22 @@ function NavList({ groups, badges, onNavigate }: NavListProps) {
  * (avec icônes, mêmes libellés/regroupement que la v19) sur PC, la MÊME
  * barre latérale en tiroir superposé sous ~880px (21 août 2026, remplace
  * l'ancienne barre de 5 boutons en bas — l'utilisatrice ne l'aimait pas).
+ * Le titre de page dans la topbar (.app-topbar-titles) reste visible à
+ * toutes les largeurs depuis le 26 août 2026 (disparaissait auparavant en
+ * PC) ; la barre latérale fixe reste repliable sur PC via
+ * .app-sidebar-toggle (sidebarCollapsed) pour libérer de l'espace, sans
+ * jamais toucher au tiroir superposé mobile (drawerOpen).
  */
 export function AppShell() {
   const { employee, signOut } = useAuth();
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Repliable sur PC (26 août 2026, demandé par l'utilisatrice — le bandeau
+  // de titre de page et cette bascule doivent tous les deux rester
+  // accessibles en plein écran, ce qui n'était pas le cas avant). Distinct
+  // de drawerOpen : ce dernier gère le tiroir superposé sous ~880px, jamais
+  // touché ici.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   // Hook toujours appelé (ordre stable) — activé seulement une fois
   // employee connu et éligible, jamais pour Employé/Magasinier (403 côté
   // serveur sinon, voir action-center/routes.ts).
@@ -80,7 +91,7 @@ export function AppShell() {
   const activeItem = NAV_ITEMS.find((item) => item.path === location.pathname);
 
   return (
-    <div className="app-shell">
+    <div className={sidebarCollapsed ? "app-shell sidebar-collapsed" : "app-shell"}>
       <aside className="app-sidebar">
         <div className="app-sidebar-brand">GSC Pilot</div>
         <nav className="app-sidebar-nav">
@@ -91,6 +102,16 @@ export function AppShell() {
       <div className="app-main">
         <header className="app-topbar">
           <button type="button" className="app-hamburger" aria-label="Ouvrir le menu" onClick={() => setDrawerOpen(true)}>
+            <span />
+            <span />
+            <span />
+          </button>
+          <button
+            type="button"
+            className="app-sidebar-toggle"
+            aria-label={sidebarCollapsed ? "Afficher le menu" : "Réduire le menu"}
+            onClick={() => setSidebarCollapsed((current) => !current)}
+          >
             <span />
             <span />
             <span />

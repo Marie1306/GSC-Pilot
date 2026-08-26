@@ -26,7 +26,13 @@ const CATEGORY_LABELS: Record<string, string> = {
 // horaire, qui alimente ensuite les projets réels via le budgétaire.
 const BUDGET_LINKED_CATEGORIES = new Set(["conception", "fabrication", "panelProgramming", "assemblyTest", "installationLabor"]);
 
-export function PunchableTasksCard() {
+/**
+ * Contenu seul (pas de carte/titre propre) — embarqué dans la fenêtre
+ * contextuelle de BudgetPunchableCard depuis le 26 août 2026, aux côtés du
+ * taux de back-up par défaut. Auparavant sa propre carte Paramètres
+ * (PunchableTasksCard) ; logique interne inchangée.
+ */
+export function PunchableTasksSection() {
   const queryClient = useQueryClient();
   const tasksQuery = useQuery({ queryKey: ["punchable-tasks"], queryFn: fetchPunchableTasks });
   const [labelDrafts, setLabelDrafts] = useState<Record<string, string>>({});
@@ -83,9 +89,9 @@ export function PunchableTasksCard() {
   }
 
   return (
-    <div className="card" style={{ marginTop: 20 }}>
-      <h2 style={{ marginTop: 0, fontSize: 16 }}>Tâches punchables par catégorie</h2>
-      <p style={{ color: "var(--gsc-color-muted)", fontSize: 13, marginTop: -8 }}>
+    <div style={{ marginTop: 24 }}>
+      <h3 style={{ fontSize: 14, marginTop: 0, marginBottom: 6 }}>Tâches punchables par catégorie</h3>
+      <p style={{ color: "var(--gsc-color-muted)", fontSize: 13, marginTop: -4 }}>
         Ajouter, renommer, réordonner ou désactiver une tâche — les punchs déjà enregistrés restent liés à la tâche, jamais cassés en la
         désactivant. Pour Conception/Fabrication/Panneau &amp; programmation/Assemblage &amp; test/Installation, chaque tâche EST une
         ligne du modèle de budgétaire (même taux horaire, utilisé pour tous les futurs budgétaires et projets) — pas deux choses
@@ -101,7 +107,7 @@ export function PunchableTasksCard() {
         const canAdd = isBudgetLinked ? newLabel.trim().length > 0 && Number(newRate) > 0 : newLabel.trim().length > 0;
         return (
           <div key={category} style={{ marginTop: 20 }}>
-            <h3 style={{ fontSize: 14, marginBottom: 6 }}>{CATEGORY_LABELS[category as BudgetCategorySlug] ?? category}</h3>
+            <h4 style={{ fontSize: 14, marginBottom: 6 }}>{CATEGORY_LABELS[category as BudgetCategorySlug] ?? category}</h4>
             {categoryTasks.length === 0 ? (
               <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucune tâche pour l'instant.</p>
             ) : (
