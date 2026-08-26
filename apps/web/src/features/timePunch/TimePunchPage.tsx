@@ -199,16 +199,7 @@ export function TimePunchPage() {
   return (
     <div>
       <OfflineBanner />
-      <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
-        <div>
-          <h1 style={{ marginTop: 0, fontSize: 20 }}>Temps</h1>
-          <p style={{ color: "var(--gsc-color-muted)", margin: 0 }}>
-            Chronomètre en temps réel ou entrée manuelle — arrondi au pas configuré, approbation par la Direction.
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-3" style={{ marginTop: 20 }}>
+      <div className="grid grid-3">
         <TimerHero
           activeEntry={displayActive}
           onStart={() => setStartOpen(true)}
@@ -231,13 +222,13 @@ export function TimePunchPage() {
         </section>
       </div>
 
-      <div className="section-heading" style={{ marginTop: 24 }}>
-        <div>
-          <h3>{isDirection ? "Toutes les entrées" : "Mes entrées"}</h3>
-          <p>Une entrée approuvée devient verrouillée; toute correction repasse en approbation.</p>
+      <section className="card" style={{ marginTop: 20 }}>
+        <div className="card-band-header">
+          <div>
+            <h3>{isDirection ? "Toutes les entrées" : "Mes entrées"}</h3>
+            <p className="modal-subtitle">Une entrée approuvée devient verrouillée; toute correction repasse en approbation.</p>
+          </div>
         </div>
-      </div>
-      <section className="card">
         <div style={{ overflowX: "auto" }}>
           <table className="punch-table">
             <thead>

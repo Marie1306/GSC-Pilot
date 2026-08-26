@@ -25,13 +25,7 @@ export function BudgetsPage() {
 
   return (
     <div>
-      {canCreateBudgetFromRequest(employee.persona) && (
-        <button type="button" className="btn" onClick={() => setShowForm(true)}>
-          + Nouveau budgétaire
-        </button>
-      )}
-
-      <BudgetList onOpen={setOpenId} />
+      <BudgetList onOpen={setOpenId} onCreate={() => setShowForm(true)} canCreate={canCreateBudgetFromRequest(employee.persona)} />
 
       {showForm && (
         <BudgetForm

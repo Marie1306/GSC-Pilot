@@ -23,21 +23,15 @@ export function ServiceCallList({ onOpen, onCreate }: ServiceCallListProps) {
 
   return (
     <div>
-      <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
-        <div>
-          <h1 style={{ marginTop: 0, fontSize: 20 }}>Appels de service</h1>
-          <p style={{ color: "var(--gsc-color-muted)", margin: 0 }}>
-            Résumé obligatoire → signature client → approbation Direction → envoi à l'administration.
-          </p>
+      <section className="card">
+        <div className="card-band-header">
+          <h3>Appels de service</h3>
+          {canCreate && (
+            <button type="button" className="btn" onClick={onCreate}>
+              + Nouvel appel
+            </button>
+          )}
         </div>
-        {canCreate && (
-          <button type="button" className="btn" onClick={onCreate}>
-            + Nouvel appel
-          </button>
-        )}
-      </div>
-
-      <section className="card" style={{ marginTop: 20 }}>
         <div style={{ overflowX: "auto" }}>
           <table className="service-call-table">
             <thead>

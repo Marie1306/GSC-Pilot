@@ -126,13 +126,9 @@ export function QrScanPage() {
     <div>
       <OfflineBanner />
       <div className="card">
-        <h1 style={{ marginTop: 0, fontSize: 20 }}>Scan QR</h1>
-        <p style={{ color: "var(--gsc-color-muted)", margin: 0 }}>
-          Pointez la caméra vers l'étiquette du projet, ou entrez son numéro directement.
-        </p>
-      </div>
-
-      <div className="card" style={{ marginTop: 20 }}>
+        <div className="card-band-header">
+          <h3>Scan QR</h3>
+        </div>
         {cameraState === "available" && scanning && (
           <div className="qr-video-wrap">
             <video ref={videoRef} className="qr-video" muted playsInline />

@@ -25,16 +25,10 @@ export function FulfillmentPage() {
 
   return (
     <div>
-      <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
-        <div>
-          <h1 style={{ marginTop: 0, fontSize: 20 }}>Livraisons</h1>
-          <p style={{ color: "var(--gsc-color-muted)", margin: 0 }}>
-            Bons de livraison créés depuis les projets — confirmation par le magasinier qui livre.
-          </p>
+      <div className="card">
+        <div className="card-band-header">
+          <h3>Livraisons</h3>
         </div>
-      </div>
-
-      <div className="card" style={{ marginTop: 20 }}>
         {deliveriesQuery.isError ? (
           <p className="form-error">Impossible de charger les livraisons.</p>
         ) : deliveries.length === 0 ? (

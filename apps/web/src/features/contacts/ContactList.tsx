@@ -31,6 +31,9 @@ export function ContactList({ onOpen, onCreate }: ContactListProps) {
   return (
     <div>
       <section className="card">
+        <div className="card-band-header">
+          <h3>Contacts</h3>
+        </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {TYPE_TABS.map((t) => (
@@ -82,7 +85,7 @@ export function ContactList({ onOpen, onCreate }: ContactListProps) {
                   <td>{row.name}</td>
                   <td>{row.company ?? "—"}</td>
                   <td>{row.type}</td>
-                  <td>{row.phone ?? "—"}</td>
+                  <td style={{ whiteSpace: "nowrap" }}>{row.phone ?? "—"}</td>
                   <td>{row.email ?? "—"}</td>
                   <td>
                     {row.categories.map((category) => (

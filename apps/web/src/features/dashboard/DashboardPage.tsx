@@ -91,8 +91,8 @@ export function DashboardPage() {
 
   return (
     <div>
-      <div className="card">
-        <h1 style={{ marginTop: 0, fontSize: 20 }}>Bonjour, {employee.name}</h1>
+      <div>
+        <h1 style={{ marginTop: 0, marginBottom: 4, fontSize: 22 }}>Bonjour, {employee.name}</h1>
         <p style={{ color: "var(--gsc-color-muted)", margin: 0 }}>
           Connecté comme <strong>{PERSONA_LABELS[employee.persona] ?? employee.persona}</strong>.
         </p>

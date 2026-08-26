@@ -55,37 +55,31 @@ export function GanttPage() {
 
   return (
     <div>
-      <div className="card">
-        <h1 style={{ marginTop: 0, fontSize: 20 }}>Gantt de production</h1>
-        <p style={{ color: "var(--gsc-color-muted)", margin: 0 }}>
-          Tâches issues des sous-assemblages et des avenants, tous projets actifs confondus.
-          {!canEdit && " Accès visuel seulement — Direction gère les affectations et la complétion."}
-        </p>
-      </div>
-
       {error && (
-        <div className="card" style={{ marginTop: 20 }}>
+        <div className="card">
           <p className="form-error">{error}</p>
         </div>
       )}
 
       {tasksQuery.isError && (
-        <div className="card" style={{ marginTop: 20 }}>
+        <div className="card">
           <p className="form-error">Impossible de charger le Gantt de production.</p>
         </div>
       )}
 
       {tasksQuery.isSuccess && groups.length === 0 && (
-        <div className="card" style={{ marginTop: 20 }}>
+        <div className="card">
           <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucune tâche de production pour l'instant.</p>
         </div>
       )}
 
-      {groups.map((group) => (
-        <div key={group.projectId} className="card" style={{ marginTop: 20 }}>
-          <h3 style={{ margin: "0 0 10px", fontSize: 15 }}>
-            {group.projectNumber} — {group.projectName}
-          </h3>
+      {groups.map((group, index) => (
+        <div key={group.projectId} className="card" style={{ marginTop: index === 0 && !error ? 0 : 20 }}>
+          <div className="card-band-header">
+            <h3>
+              {group.projectNumber} — {group.projectName}
+            </h3>
+          </div>
           <div style={{ overflowX: "auto" }}>
             <table className="shortlist-table">
               <thead>

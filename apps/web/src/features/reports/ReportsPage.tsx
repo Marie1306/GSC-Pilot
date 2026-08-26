@@ -31,22 +31,14 @@ export function ReportsPage() {
 
   return (
     <div>
-      <div className="card">
-        <h1 style={{ marginTop: 0, fontSize: 20 }}>Rapports</h1>
-        <p style={{ color: "var(--gsc-color-muted)", margin: 0 }}>
-          Comparatif de rentabilité entre projets, roulements et calls de service, conversion des demandes clients par canal de vente, et
-          statistiques internes (Amélioration GSC).
-        </p>
-      </div>
-
       {overviewQuery.isError && (
-        <div className="card" style={{ marginTop: 20 }}>
+        <div className="card">
           <p className="form-error">Impossible de charger les rapports.</p>
         </div>
       )}
 
-      <div className="card" style={{ marginTop: 20 }}>
-        <div className="section-heading">
+      <div className="card" style={{ marginTop: overviewQuery.isError ? 20 : 0 }}>
+        <div className="card-band-header">
           <div>
             <h3>Comparatif de rentabilité</h3>
             <p className="modal-subtitle">Revenu, coût, marge et heures réelles — projets, roulements et calls de service confondus.</p>
@@ -110,7 +102,7 @@ export function ReportsPage() {
       </div>
 
       <div className="card" style={{ marginTop: 20 }}>
-        <div className="section-heading">
+        <div className="card-band-header">
           <div>
             <h3>Conversion par canal de vente</h3>
             <p className="modal-subtitle">Demandes clients reçues et converties (budgétaire créé) par canal, historique complet.</p>
@@ -139,7 +131,7 @@ export function ReportsPage() {
       </div>
 
       <div className="card" style={{ marginTop: 20 }}>
-        <div className="section-heading">
+        <div className="card-band-header">
           <div>
             <h3>Statistiques internes — Amélioration GSC</h3>
             <p className="modal-subtitle">

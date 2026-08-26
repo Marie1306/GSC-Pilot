@@ -20,13 +20,7 @@ export function ClientRequestsPage() {
 
   return (
     <div>
-      {canCreateClientRequest(employee.persona) && (
-        <button type="button" className="btn" onClick={() => setShowForm(true)}>
-          + Nouvelle demande client
-        </button>
-      )}
-
-      <ClientRequestList onOpen={setOpenId} />
+      <ClientRequestList onOpen={setOpenId} onCreate={() => setShowForm(true)} canCreate={canCreateClientRequest(employee.persona)} />
 
       {showForm && <ClientRequestForm onClose={() => setShowForm(false)} />}
       {openId && <ClientRequestDetail id={openId} onClose={() => setOpenId(null)} />}

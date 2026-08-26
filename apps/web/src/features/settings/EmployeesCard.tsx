@@ -258,13 +258,11 @@ export function EmployeesCard() {
     createDraft.name.trim().length > 0 && createDraft.initials.trim().length > 0 && createDraft.email.trim().length > 0 && !createMutation.isPending;
 
   return (
-    <div className="card" style={{ marginTop: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
+    <div className="card">
+      <div className="card-band-header">
         <div>
-          <h2 style={{ marginTop: 0, fontSize: 16 }}>Utilisateurs et employés actifs</h2>
-          <p style={{ color: "var(--gsc-color-muted)", fontSize: 13, marginTop: -8 }}>
-            Identifiants, accès, rôles, classes facturables, compétences et coût réel.
-          </p>
+          <h3>Utilisateurs et employés actifs</h3>
+          <p className="modal-subtitle">Identifiants, accès, rôles, classes facturables, compétences et coût réel.</p>
         </div>
         <button type="button" className="btn" onClick={() => setCreating((current) => !current)}>
           {creating ? "Annuler" : "+ Ajouter"}

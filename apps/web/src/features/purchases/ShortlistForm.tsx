@@ -50,10 +50,14 @@ export function ShortlistForm() {
 
   return (
     <div className="card shortlist-form">
-      <h2 style={{ marginTop: 0, fontSize: 16 }}>Liste rapide d'achats de projet</h2>
-      <p style={{ color: "var(--gsc-color-muted)", fontSize: 13, marginTop: -8 }}>
-        Une ligne par article — numéro de pièce ou description courte. Fournisseurs et prix sont facultatifs, modifiables plus tard.
-      </p>
+      <div className="card-band-header">
+        <div>
+          <h3>Liste rapide d'achats de projet</h3>
+          <p className="modal-subtitle">
+            Une ligne par article — numéro de pièce ou description courte. Fournisseurs et prix sont facultatifs, modifiables plus tard.
+          </p>
+        </div>
+      </div>
 
       <div className="field">
         <label htmlFor="shortlist-project">Projet (obligatoire)</label>

@@ -140,6 +140,9 @@ export function InvoicingPage() {
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
+        <div className="card-band-header">
+          <h3>Facturation</h3>
+        </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {TABS.map((t) => (

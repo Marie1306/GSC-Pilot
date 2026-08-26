@@ -70,7 +70,9 @@ export function PurchaseRequestForm() {
 
   return (
     <div className="card">
-      <h2 style={{ marginTop: 0, fontSize: 16 }}>Demande d'achat</h2>
+      <div className="card-band-header">
+        <h3>Demande d'achat</h3>
+      </div>
       <form onSubmit={handleSubmit} className="form-grid">
         <div className="field">
           <label htmlFor="pr-category">Catégorie</label>

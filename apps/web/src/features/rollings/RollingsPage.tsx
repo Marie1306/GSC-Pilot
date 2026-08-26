@@ -60,22 +60,8 @@ export function RollingsPage() {
 
   return (
     <div>
-      <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
-        <div>
-          <h1 style={{ marginTop: 0, fontSize: 20 }}>Roulements</h1>
-          <p style={{ color: "var(--gsc-color-muted)", margin: 0 }}>
-            Proviennent en général d'un budgétaire converti, ou créés directement ici. Cycle de facturation à un seul paiement.
-          </p>
-        </div>
-        {canCreate && !showForm && (
-          <button type="button" className="btn btn-small" onClick={() => setShowForm(true)}>
-            + Créer un roulement
-          </button>
-        )}
-      </div>
-
       {showForm && canCreate && (
-        <div className="card" style={{ marginTop: 20 }}>
+        <div className="card">
           <h3 style={{ marginTop: 0, fontSize: 15 }}>Nouveau roulement</h3>
           <form
             className="form-grid"
@@ -114,7 +100,15 @@ export function RollingsPage() {
         </div>
       )}
 
-      <div className="card" style={{ marginTop: 20 }}>
+      <div className="card" style={{ marginTop: showForm && canCreate ? 20 : 0 }}>
+        <div className="card-band-header">
+          <h3>Roulements</h3>
+          {canCreate && !showForm && (
+            <button type="button" className="btn btn-small" onClick={() => setShowForm(true)}>
+              + Créer un roulement
+            </button>
+          )}
+        </div>
         {rollingsQuery.isError ? (
           <p className="form-error">Impossible de charger les roulements.</p>
         ) : rollings.length === 0 ? (

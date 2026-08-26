@@ -28,16 +28,16 @@ export function ProjectList({ onOpen, onCreate }: ProjectListProps) {
   const rows = allRows.filter((row) => row.lifecycleTab === tab);
 
   return (
-    <div style={{ marginTop: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
-        <h2 style={{ fontSize: 16, margin: 0 }}>Projets</h2>
+    <div className="card" style={{ marginTop: 20 }}>
+      <div className="card-band-header">
+        <h3>Projets</h3>
         {employee && canCreateProjectDirectly(employee.persona) && (
           <button type="button" className="btn" onClick={onCreate}>
             + Nouveau projet
           </button>
         )}
       </div>
-      <div style={{ display: "flex", gap: 8, margin: "12px 0 16px" }}>
+      <div style={{ display: "flex", gap: 8, margin: "0 0 16px" }}>
         {TABS.map((t) => (
           <button
             key={t}

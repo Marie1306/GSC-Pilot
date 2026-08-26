@@ -30,10 +30,6 @@ import { DelegationCard } from "./DelegationCard.js";
 export function SettingsPage() {
   return (
     <div>
-      <div className="card">
-        <h1 style={{ marginTop: 0, fontSize: 20 }}>Paramètres</h1>
-        <p style={{ color: "var(--gsc-color-muted)" }}>Les modèles d'export PDF arrivent dans une prochaine phase.</p>
-      </div>
       <EmployeesCard />
       <TechLevelsCard />
       <ServiceRatesCard />

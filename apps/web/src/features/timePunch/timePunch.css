@@ -68,7 +68,7 @@
 .punch-table .actions {
   display: flex;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 .punch-btn-small {
   font-size: 12px;

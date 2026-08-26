@@ -57,64 +57,54 @@ export function ChecklistPage() {
   return (
     <div>
       <div className="card">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 10 }}>
-          <div>
-            <h1 style={{ marginTop: 0, fontSize: 20 }}>Checklist de production</h1>
-            <p style={{ color: "var(--gsc-color-muted)", margin: 0 }}>
-              Pièces fabriquées à l'interne — MEP, DXF, Plasma, Pliage, Usinage, Soudage, CQ, Peinture. Disparaît une fois toutes les
-              étapes complétées; toujours conservée dans l'archive du projet.
-            </p>
-          </div>
-          {canManage && !showNewForm && (
-            <button type="button" className="btn btn-small" onClick={() => setShowNewForm(true)}>
-              + Nouvelle checklist
-            </button>
-          )}
-        </div>
-
-        {showNewForm && (
-          <form
-            className="form-grid"
-            style={{ marginTop: 14 }}
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (canCreate) createMutation.mutate();
-            }}
-          >
-            <div className="field">
-              <label>Projet</label>
-              <select value={newProjectId} onChange={(e) => setNewProjectId(e.target.value)}>
-                <option value="" disabled>
-                  Sélectionner…
-                </option>
-                {projectsQuery.data?.projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.projectNumber} — {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label>Assemblage (facultatif)</label>
-              <input value={newAssemblyLabel} onChange={(e) => setNewAssemblyLabel(e.target.value)} placeholder="ex. 02-01-000" />
-            </div>
-            <div className="field field-full" style={{ display: "flex", gap: 8 }}>
-              <button type="submit" className="btn btn-small" disabled={!canCreate}>
-                {createMutation.isPending ? "…" : "Créer"}
-              </button>
-              <button type="button" className="btn btn-secondary btn-small" onClick={() => setShowNewForm(false)}>
-                Annuler
-              </button>
-            </div>
-          </form>
-        )}
-        {error && <p className="form-error">{error}</p>}
-      </div>
-
-      <div className="card" style={{ marginTop: 20 }}>
         {!selectedProjectId ? (
           <>
-            <h2 style={{ fontSize: 16, margin: 0 }}>Projets</h2>
+            <div className="card-band-header">
+              <h3>Projets</h3>
+              {canManage && !showNewForm && (
+                <button type="button" className="btn btn-small" onClick={() => setShowNewForm(true)}>
+                  + Nouvelle checklist
+                </button>
+              )}
+            </div>
+
+            {showNewForm && (
+              <form
+                className="form-grid"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (canCreate) createMutation.mutate();
+                }}
+              >
+                <div className="field">
+                  <label>Projet</label>
+                  <select value={newProjectId} onChange={(e) => setNewProjectId(e.target.value)}>
+                    <option value="" disabled>
+                      Sélectionner…
+                    </option>
+                    {projectsQuery.data?.projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.projectNumber} — {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Assemblage (facultatif)</label>
+                  <input value={newAssemblyLabel} onChange={(e) => setNewAssemblyLabel(e.target.value)} placeholder="ex. 02-01-000" />
+                </div>
+                <div className="field field-full" style={{ display: "flex", gap: 8 }}>
+                  <button type="submit" className="btn btn-small" disabled={!canCreate}>
+                    {createMutation.isPending ? "…" : "Créer"}
+                  </button>
+                  <button type="button" className="btn btn-secondary btn-small" onClick={() => setShowNewForm(false)}>
+                    Annuler
+                  </button>
+                </div>
+              </form>
+            )}
+            {error && <p className="form-error" style={{ marginTop: 14 }}>{error}</p>}
+
             {activeProjectsQuery.isLoading && <p style={{ color: "var(--gsc-color-muted)", fontSize: 13, marginTop: 14 }}>Chargement…</p>}
             {activeProjectsQuery.isSuccess && activeProjects.length === 0 && (
               <p style={{ color: "var(--gsc-color-muted)", fontSize: 13, marginTop: 14 }}>Aucun projet avec une checklist active pour l'instant.</p>
