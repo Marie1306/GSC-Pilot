@@ -1,10 +1,14 @@
 /**
  * Paramètres — canaux d'entrée des demandes clients (SalesChannel). Direction
- * seulement — ajouter/renommer/réordonner/désactiver/réactiver (confirmé,
- * spécification : « configurables/ajoutables par Direction seulement »,
- * section Rapports/Contacts/Tableau de bord/Demandes clients). Même patron
- * que les catégories d'achat : "désactiver" plutôt qu'effacer — une demande
- * déjà faite garde son canal (SalesChannel.clientRequests), jamais orpheline.
+ * seulement — ajouter/renommer/réordonner/désactiver/réactiver/supprimer
+ * (confirmé, spécification : « configurables/ajoutables par Direction
+ * seulement », section Rapports/Contacts/Tableau de bord/Demandes clients).
+ * Suppression définitive confirmée avec l'utilisatrice le 26 août 2026 (avec
+ * avertissement côté interface) même pour un canal déjà utilisé — la
+ * contrainte réelle ClientRequest_salesChannelId_fkey est ON DELETE SET
+ * NULL (migration 20260811114623_init), donc les demandes déjà faites
+ * survivent, seul leur lien au canal disparaît. Ne jamais changer ce ON
+ * DELETE sans repasser par une migration + le SQL pour Marie.
  */
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
@@ -48,6 +52,12 @@ export async function updateSalesChannel(id: string, update: SalesChannelUpdate)
   }
   const row = await prisma.salesChannel.update({ where: { id }, data: update });
   return toDto(row);
+}
+
+export async function deleteSalesChannel(id: string): Promise<void> {
+  const existing = await prisma.salesChannel.findUnique({ where: { id } });
+  if (!existing) throw new HttpError(404, "Canal introuvable.");
+  await prisma.salesChannel.delete({ where: { id } });
 }
 
 /** Échange le sortOrder avec le voisin immédiat (liste complète, actifs et désactivés confondus) — sans effet en bout de liste. */

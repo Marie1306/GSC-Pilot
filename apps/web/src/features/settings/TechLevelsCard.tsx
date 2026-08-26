@@ -1,13 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  fetchTechLevels,
-  createTechLevel,
-  updateTechLevel,
-  fetchEmployees,
-  updateEmployeeTechLevels,
-  type TechLevelDto,
-} from "./api.js";
+import { fetchTechLevels, createTechLevel, updateTechLevel, type TechLevelDto } from "./api.js";
 import "./settings.css";
 
 interface Draft {
@@ -31,14 +24,13 @@ function draftFrom(techLevel: TechLevelDto): Draft {
  * Trois taux par classe (régulier/temps supplémentaire/extra) : la classe
  * réellement facturée se choisit à chaque punch, pas fixée une fois pour
  * toutes. Un même employé peut avoir plusieurs classes applicables (ex.
- * programmeur ET technicien senior) — assignation ci-dessous, deuxième
- * section. Part vide : aucun taux n'est deviné, Direction entre ses
- * vraies classes/taux.
+ * programmeur ET technicien senior) — assignation par employé maintenant
+ * dans sa propre fiche (Utilisateurs et employés actifs), pas ici. Part
+ * vide : aucun taux n'est deviné, Direction entre ses vraies classes/taux.
  */
 export function TechLevelsCard() {
   const queryClient = useQueryClient();
   const techLevelsQuery = useQuery({ queryKey: ["tech-levels"], queryFn: fetchTechLevels });
-  const employeesQuery = useQuery({ queryKey: ["employees"], queryFn: fetchEmployees });
 
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [newDraft, setNewDraft] = useState<Draft>({ label: "", regularRate: "", overtimeRate: "", extraRate: "" });
@@ -67,15 +59,7 @@ export function TechLevelsCard() {
     onSuccess: invalidateTechLevels,
   });
 
-  const assignMutation = useMutation({
-    mutationFn: ({ employeeId, techLevelIds }: { employeeId: string; techLevelIds: string[] }) =>
-      updateEmployeeTechLevels(employeeId, techLevelIds),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["employees"] }),
-  });
-
   const techLevels = techLevelsQuery.data?.techLevels ?? [];
-  const activeTechLevels = techLevels.filter((techLevel) => techLevel.active);
-  const employees = (employeesQuery.data?.employees ?? []).filter((employee) => employee.active);
 
   function draftFor(techLevel: TechLevelDto): Draft {
     return drafts[techLevel.id] ?? draftFrom(techLevel);
@@ -101,18 +85,17 @@ export function TechLevelsCard() {
 
   const canCreate = draftValid(newDraft) && !createMutation.isPending;
 
-  function toggleEmployeeTechLevel(employeeId: string, currentIds: string[], techLevelId: string) {
-    const next = currentIds.includes(techLevelId) ? currentIds.filter((id) => id !== techLevelId) : [...currentIds, techLevelId];
-    assignMutation.mutate({ employeeId, techLevelIds: next });
-  }
-
   return (
     <div className="card" style={{ marginTop: 20 }}>
-      <h2 style={{ marginTop: 0, fontSize: 16 }}>Classes de service</h2>
-      <p style={{ color: "var(--gsc-color-muted)", fontSize: 13, marginTop: -8 }}>
-        Utilisées au punch sur un call de service. La classe et le type de temps (régulier/temps supplémentaire/extra) se choisissent à
-        chaque punch, parmi les classes assignées à l'employé ci-dessous.
-      </p>
+      <div className="card-band-header">
+        <div>
+          <h3>Classes de service</h3>
+          <p className="modal-subtitle">
+            Utilisées au punch sur un call de service. La classe et le type de temps (régulier/temps supplémentaire/extra) se choisissent
+            à chaque punch, parmi les classes assignées à l'employé (voir sa fiche, Utilisateurs et employés actifs).
+          </p>
+        </div>
+      </div>
 
       <div className="table-scroll">
       <table className="settings-table">
@@ -241,44 +224,6 @@ export function TechLevelsCard() {
         </button>
       </div>
       {error && <p className="error-text">{error}</p>}
-
-      <h3 style={{ fontSize: 14, marginTop: 24 }}>Classes par employé</h3>
-      <p style={{ color: "var(--gsc-color-muted)", fontSize: 13, marginTop: -6 }}>
-        Un employé peut avoir plusieurs classes (ex. programmeur ET technicien senior) — celle qui s'applique dépend de la job, choisie
-        au punch.
-      </p>
-      {activeTechLevels.length === 0 ? (
-        <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Ajoutez au moins une classe active ci-dessus pour les assigner.</p>
-      ) : (
-        <div className="table-scroll">
-        <table className="settings-table">
-          <thead>
-            <tr>
-              <th>Employé</th>
-              {activeTechLevels.map((techLevel) => (
-                <th key={techLevel.id}>{techLevel.label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {employees.map((employee) => (
-              <tr key={employee.id}>
-                <td>{employee.name}</td>
-                {activeTechLevels.map((techLevel) => (
-                  <td key={techLevel.id} style={{ textAlign: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={employee.techLevelIds.includes(techLevel.id)}
-                      onChange={() => toggleEmployeeTechLevel(employee.id, employee.techLevelIds, techLevel.id)}
-                    />
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
-      )}
     </div>
   );
 }

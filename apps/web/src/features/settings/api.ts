@@ -155,6 +155,10 @@ export interface SalesChannelDto {
 export function fetchSalesChannels(): Promise<{ salesChannels: SalesChannelDto[] }> {
   return apiFetch("/api/settings/sales-channels");
 }
+
+export function deleteSalesChannel(id: string): Promise<void> {
+  return apiFetch(`/api/settings/sales-channels/${id}`, { method: "DELETE" });
+}
 export function createSalesChannel(name: string): Promise<{ salesChannel: SalesChannelDto }> {
   return apiFetch("/api/settings/sales-channels", { method: "POST", body: JSON.stringify({ name }) });
 }

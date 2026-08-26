@@ -49,11 +49,15 @@ export function PurchaseCategoriesCard() {
 
   return (
     <div className="card" style={{ marginTop: 20 }}>
-      <h2 style={{ marginTop: 0, fontSize: 16 }}>Catégories d'achat</h2>
-      <p style={{ color: "var(--gsc-color-muted)", fontSize: 13, marginTop: -8 }}>
-        Utilisées par la demande d'achat régulière. Un seuil est requis pour chaque catégorie — au-delà, le Propriétaire doit aussi
-        approuver. Changer un seuil n'affecte jamais une demande déjà en attente.
-      </p>
+      <div className="card-band-header">
+        <div>
+          <h3>Catégories d'achat</h3>
+          <p className="modal-subtitle">
+            Utilisées par la demande d'achat régulière. Un seuil est requis pour chaque catégorie — au-delà, le Propriétaire doit aussi
+            approuver. Changer un seuil n'affecte jamais une demande déjà en attente.
+          </p>
+        </div>
+      </div>
 
       <div className="table-scroll">
       <table className="settings-table">

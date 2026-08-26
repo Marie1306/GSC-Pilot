@@ -5,7 +5,7 @@ import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import { listPurchaseCategories, createPurchaseCategory, updatePurchaseCategory } from "./purchaseCategories.js";
 import { getMarginThresholds, updateMarginThresholds } from "./marginThresholds.js";
 import { listTechLevels, createTechLevel, updateTechLevel, scrubTechLevelRates } from "./techLevels.js";
-import { listSalesChannels, createSalesChannel, updateSalesChannel, moveSalesChannel } from "./salesChannels.js";
+import { listSalesChannels, createSalesChannel, updateSalesChannel, deleteSalesChannel, moveSalesChannel } from "./salesChannels.js";
 import { listPunchableTasks, createPunchableTask, updatePunchableTask, movePunchableTask } from "./punchableTasks.js";
 import { getServiceRates, updateServiceRates } from "./serviceRates.js";
 import { getBillingSplit, updateBillingSplit } from "./billingSplit.js";
@@ -191,6 +191,12 @@ settingsRouter.patch("/sales-channels/:id", async (req, res) => {
 });
 
 const moveSchema = z.object({ direction: z.enum(["up", "down"]) });
+settingsRouter.delete("/sales-channels/:id", async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  await deleteSalesChannel(id);
+  res.status(204).end();
+});
+
 settingsRouter.post("/sales-channels/:id/move", async (req, res) => {
   const id = z.uuid().parse(req.params.id);
   const { direction } = moveSchema.parse(req.body);

@@ -28,10 +28,12 @@ export function MarginThresholdsCard() {
 
   return (
     <div className="card" style={{ marginTop: 20 }}>
-      <h2 style={{ marginTop: 0, fontSize: 16 }}>Seuils du voyant de marge réelle</h2>
-      <p style={{ color: "var(--gsc-color-muted)", fontSize: 13, marginTop: -8 }}>
-        Ces seuils s'appliquent immédiatement aux projets, roulements et calls.
-      </p>
+      <div className="card-band-header">
+        <div>
+          <h3>Seuils du voyant de marge réelle</h3>
+          <p className="modal-subtitle">Ces seuils s'appliquent immédiatement aux projets, roulements et calls.</p>
+        </div>
+      </div>
 
       <div className="form-grid">
         <div className="field">

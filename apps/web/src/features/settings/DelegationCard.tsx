@@ -85,10 +85,14 @@ export function DelegationCard() {
 
   return (
     <div className="card" style={{ marginTop: 20 }}>
-      <h2 style={{ marginTop: 0, fontSize: 16 }}>Délégation d'approbation</h2>
-      <p style={{ color: "var(--gsc-color-muted)", fontSize: 13, marginTop: -8 }}>
-        Confie temporairement les pouvoirs d'approbation de la Direction au Propriétaire ou à l'Administration (ex. absence prévue).
-      </p>
+      <div className="card-band-header">
+        <div>
+          <h3>Délégation d'approbation</h3>
+          <p className="modal-subtitle">
+            Confie temporairement les pouvoirs d'approbation de la Direction au Propriétaire ou à l'Administration (ex. absence prévue).
+          </p>
+        </div>
+      </div>
 
       {active ? (
         <div className="card" style={{ background: "var(--gsc-color-surface2)", border: "none" }}>

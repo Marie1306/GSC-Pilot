@@ -60,10 +60,14 @@ export function ServiceRatesCard() {
 
   return (
     <div className="card" style={{ marginTop: 20 }}>
-      <h2 style={{ marginTop: 0, fontSize: 16 }}>Tarifs de calls de service et pièces</h2>
-      <p style={{ color: "var(--gsc-color-muted)", fontSize: 13, marginTop: -8 }}>
-        Modifiables par la Direction; invisibles aux employés. Complète les classes de service (Régulier/Temps sup./Extra) ci-dessus.
-      </p>
+      <div className="card-band-header">
+        <div>
+          <h3>Tarifs de calls de service et pièces</h3>
+          <p className="modal-subtitle">
+            Modifiables par la Direction; invisibles aux employés. Complète les classes de service (Régulier/Temps sup./Extra) ci-dessus.
+          </p>
+        </div>
+      </div>
 
       <div className="form-grid" style={{ marginTop: 12 }}>
         <div className="field">

@@ -19,10 +19,10 @@ export function AuditLogCard() {
 
   return (
     <div className="card" style={{ marginTop: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+      <div className="card-band-header">
         <div>
-          <h2 style={{ marginTop: 0, fontSize: 16 }}>Journal d'audit</h2>
-          <p style={{ color: "var(--gsc-color-muted)", fontSize: 13, marginTop: -8 }}>Historique des modifications structurantes.</p>
+          <h3>Journal d'audit</h3>
+          <p className="modal-subtitle">Historique des modifications structurantes.</p>
         </div>
       </div>
 
