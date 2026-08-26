@@ -29,12 +29,16 @@
   background: var(--gsc-color-surface2);
 }
 
-/* Cases à cocher plus petites et rouges (spec confirmée 21 août 2026 — pas la couleur bleue par défaut du navigateur). */
+/* Cases à cocher plus petites et rouges (spec confirmée 21 août 2026 — pas la couleur bleue par défaut du navigateur).
+   display:block + margin:auto plutôt que compter sur le text-align:center du td parent seul — certains
+   navigateurs mobiles réservent une zone de tap asymétrique autour de la case, qui paraît alors décalée
+   (rapportée sur un vrai appareil Employé le 26 août 2026). */
 .checklist-grid input[type="checkbox"] {
+  display: block;
   width: 16px;
   height: 16px;
   accent-color: var(--gsc-color-brand);
-  margin: 0;
+  margin: 0 auto;
 }
 
 /* Boutons de mode (ChecklistEntryModal) — centrés, plus gros, rouges (spec confirmée). */
