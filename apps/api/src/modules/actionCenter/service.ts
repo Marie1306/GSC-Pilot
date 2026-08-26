@@ -24,10 +24,21 @@
  *     Direction crée la liste de pièces (module Sous-assemblages, 21 août
  *     2026 — canPrepareSubassemblyPartsList, même geste qui débloque
  *     l'item ici).
+ *   - Achats autorisés mais pas encore commandés (fulfillmentStatus ===
+ *     "waiting", canManagePurchaseFulfillment) — "Commande à passer",
+ *     distinct de "Achat à approuver" ci-dessus (26 août 2026, demande de
+ *     l'utilisatrice). Jamais l'escalade de seuil de l'approbation : cette
+ *     étape suit toujours l'autorisation (voir roles.ts, doc de la fonction).
+ *   - Heures punchées en attente d'approbation (canApprovePunch), rejoue
+ *     listTimeEntriesForApproval tel quel (timeEntries/service.ts) — ajouté
+ *     le 26 août 2026 suite au rapport de l'utilisatrice : la catégorie
+ *     n'existait pas alors que les achats avaient la leur.
  */
 import {
   canApproveBudgetForSending,
   canApprovePurchaseRequest,
+  canManagePurchaseFulfillment,
+  canApprovePunch,
   canCreateInvoiceRecord,
   canCreateClientRequest,
   canPrepareSubassemblyPartsList,
@@ -40,8 +51,17 @@ import { listPurchaseRequests } from "../purchases/service.js";
 import { listInvoiceEntries } from "../invoicing/service.js";
 import { listClientRequests } from "../clientRequests/service.js";
 import { listPendingPartsListSubassemblies } from "../subassemblies/service.js";
+import { listTimeEntriesForApproval } from "../timeEntries/service.js";
 
-export type ActionItemType = "budget_approval" | "purchase_approval" | "invoicing" | "client_request_new" | "client_request_transmitted" | "subassembly_ready";
+export type ActionItemType =
+  | "budget_approval"
+  | "purchase_approval"
+  | "purchase_to_order"
+  | "invoicing"
+  | "client_request_new"
+  | "client_request_transmitted"
+  | "subassembly_ready"
+  | "hours_approval";
 
 export interface ActionItemDto {
   id: string;
@@ -55,6 +75,7 @@ export interface ActionItemDto {
 
 export async function getActionCenterItems(viewerPersona: Persona, viewerEmployeeId: string): Promise<ActionItemDto[]> {
   const items: ActionItemDto[] = [];
+  const settings = await loadDelegationSettings();
 
   if (canApproveBudgetForSending(viewerPersona)) {
     const budgets = await listBudgets();
@@ -78,7 +99,6 @@ export async function getActionCenterItems(viewerPersona: Persona, viewerEmploye
   // seuil (voir purchases/routes.ts, assertCanActOnRequest, même patron).
   {
     const requests = await listPurchaseRequests({ id: viewerEmployeeId, persona: viewerPersona });
-    const settings = await loadDelegationSettings();
     for (const request of requests) {
       if (request.status !== "owner_pending" && request.status !== "boss_pending") continue;
       const thresholds = buildFrozenPurchaseThresholdsMap({
@@ -98,6 +118,27 @@ export async function getActionCenterItems(viewerPersona: Persona, viewerEmploye
           typeLabel: "Achat à approuver",
           label: `${request.displayId} — ${request.description}`,
           sublabel: request.requesterName,
+          amount: request.amount ?? undefined,
+          createdAt: request.requestedAt,
+        });
+      }
+    }
+
+    // "Commande à passer" — achat déjà autorisé, en attente que la commande
+    // soit effectivement passée (fulfillmentStatus === "waiting", posé
+    // automatiquement à l'autorisation, voir purchases/service.ts). Même
+    // porte que le suivi de commande (canManagePurchaseFulfillment), jamais
+    // l'escalade de seuil de l'approbation ci-dessus (roles.ts, doc de la
+    // fonction) — demande de l'utilisatrice le 26 août 2026.
+    if (canManagePurchaseFulfillment(settings, viewerPersona)) {
+      for (const request of requests) {
+        if (request.status !== "authorized" || request.fulfillmentStatus !== "waiting") continue;
+        items.push({
+          id: request.id,
+          type: "purchase_to_order",
+          typeLabel: "Commande à passer",
+          label: `${request.displayId} — ${request.description}`,
+          sublabel: request.supplier ?? request.requesterName,
           amount: request.amount ?? undefined,
           createdAt: request.requestedAt,
         });
@@ -173,6 +214,23 @@ export async function getActionCenterItems(viewerPersona: Persona, viewerEmploye
         label: `${subassembly.projectNumber} — ${subassembly.projectName} · ${subassembly.number}`,
         sublabel: `Déclaré par ${subassembly.declaredByName}`,
         createdAt: subassembly.declaredAt,
+      });
+    }
+  }
+
+  // Heures punchées en attente d'approbation — rejoue listTimeEntriesForApproval
+  // + canApprovePunch tel quel (timeEntries/service.ts, routes.ts), jamais un
+  // deuxième filtre approximatif ici. Demande de l'utilisatrice le 26 août 2026.
+  if (canApprovePunch(settings, viewerPersona)) {
+    const entries = await listTimeEntriesForApproval(viewerPersona);
+    for (const entry of entries) {
+      items.push({
+        id: entry.id,
+        type: "hours_approval",
+        typeLabel: "Heures à approuver",
+        label: `${entry.employeeName} — ${entry.categoryLabel}`,
+        sublabel: entry.projectLabel ?? entry.taskLabel ?? "Interne",
+        createdAt: entry.endAt ?? entry.startAt,
       });
     }
   }

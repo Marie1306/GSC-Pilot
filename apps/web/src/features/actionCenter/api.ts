@@ -1,6 +1,14 @@
 import { apiFetch } from "../../lib/apiClient.js";
 
-export type ActionItemType = "budget_approval" | "purchase_approval" | "invoicing" | "client_request_new" | "client_request_transmitted" | "subassembly_ready";
+export type ActionItemType =
+  | "budget_approval"
+  | "purchase_approval"
+  | "purchase_to_order"
+  | "invoicing"
+  | "client_request_new"
+  | "client_request_transmitted"
+  | "subassembly_ready"
+  | "hours_approval";
 
 export interface ActionItemDto {
   id: string;
@@ -25,6 +33,7 @@ export function linkFor(item: ActionItemDto): string {
     case "budget_approval":
       return `/budgetaire?open=${item.id}`;
     case "purchase_approval":
+    case "purchase_to_order":
       return "/achats";
     case "invoicing":
       return "/facturation";
@@ -33,5 +42,7 @@ export function linkFor(item: ActionItemDto): string {
       return `/demandes?open=${item.id}`;
     case "subassembly_ready":
       return "/projets";
+    case "hours_approval":
+      return "/temps";
   }
 }

@@ -7,12 +7,15 @@ import { BudgetDetail } from "../budgets/BudgetDetail.js";
 import { ClientRequestDetail } from "../clientRequests/ClientRequestDetail.js";
 import { PurchaseRequestActionDrawer } from "../purchases/PurchaseRequestActionDrawer.js";
 import { InvoiceActionDrawer } from "../invoicing/InvoiceActionDrawer.js";
+import { TimeEntryActionDrawer } from "../timePunch/TimeEntryActionDrawer.js";
 import "./actionCenter.css";
 
 const TYPE_ORDER: ActionItemType[] = [
   "client_request_new",
   "budget_approval",
+  "hours_approval",
   "purchase_approval",
+  "purchase_to_order",
   "invoicing",
   "client_request_transmitted",
   "subassembly_ready",
@@ -21,12 +24,14 @@ const TYPE_ORDER: ActionItemType[] = [
 // Types qui ouvrent directement le détail + les actions réelles sans
 // quitter le Centre d'actions (25 août 2026, demande explicite) — chacun
 // réutilise le composant déjà construit et vérifié de son propre module,
-// jamais une deuxième logique d'approbation ici. subassembly_ready reste
-// une navigation classique : la préparation de la liste de pièces vit en
-// profondeur dans l'onglet Sous-assemblages d'un projet, pas extractible
-// proprement dans un tiroir sans dupliquer cet écran.
+// jamais une deuxième logique d'approbation ici. subassembly_ready et
+// purchase_to_order restent une navigation classique : leur suivi (créer la
+// liste de pièces ; fixer la date, marquer commandé/reçu, appliquer au
+// projet) vit en profondeur dans l'écran de son module, pas extractible
+// proprement dans un tiroir sans dupliquer cet écran (26 août 2026, même
+// principe que subassembly_ready).
 function hasActionDrawer(type: ActionItemType): boolean {
-  return type !== "subassembly_ready";
+  return type !== "subassembly_ready" && type !== "purchase_to_order";
 }
 
 function formatDate(iso: string): string {
@@ -105,6 +110,7 @@ export function ActionCenterPage() {
       )}
       {openItem?.type === "purchase_approval" && <PurchaseRequestActionDrawer id={openItem.id} onClose={() => setOpenItem(null)} />}
       {openItem?.type === "invoicing" && <InvoiceActionDrawer id={openItem.id} onClose={() => setOpenItem(null)} />}
+      {openItem?.type === "hours_approval" && <TimeEntryActionDrawer id={openItem.id} onClose={() => setOpenItem(null)} />}
     </div>
   );
 }

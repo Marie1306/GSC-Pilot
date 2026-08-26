@@ -17,10 +17,12 @@ const PERSONA_LABELS: Record<string, string> = {
 const ACTION_TYPE_ICON: Record<ActionItemType, string> = {
   budget_approval: "🧮",
   purchase_approval: "🛒",
+  purchase_to_order: "📦",
   invoicing: "📄",
   client_request_new: "📞",
   client_request_transmitted: "📞",
   subassembly_ready: "🔗",
+  hours_approval: "⏱️",
 };
 
 const FINANCIAL_STATUS_LABELS: Record<string, string> = {
