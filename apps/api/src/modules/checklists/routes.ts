@@ -10,6 +10,7 @@ import {
   listProjectChecklists,
   setChecklistItemStepCompleted,
 } from "./service.js";
+import { listChecklistThicknesses, listChecklistSteps } from "../settings/checklistCatalogs.js";
 
 export const checklistsRouter = Router();
 
@@ -92,6 +93,36 @@ checklistsRouter.get(
   async (_req, res) => {
     const projects = await listProjectsWithActiveChecklists();
     res.json({ projects });
+  },
+);
+
+// Lecture seule des catalogues Épaisseurs/Étapes pour la vue de travail
+// (filtres + colonnes de cases à cocher) — même porte que le reste du
+// module (canAccessProductionChecklist), PAS canAccessSettings (OWNER
+// seulement, réservé à la modification des catalogues dans Paramètres).
+// Écart trouvé et corrigé le 26 août 2026 : ChecklistProjectView appelait
+// jusqu'ici fetchChecklistThicknesses/fetchChecklistSteps de settings/api.ts
+// (routes /api/settings/checklist-*, derrière settingsRouter.use(...,
+// canAccessSettings) — 403 pour tout le monde sauf Direction, donc aucune
+// case à cocher visible et les deux filtres vides pour l'Employé (et aussi
+// Administration/Propriétaire, qui n'avaient pas encore été testés sur
+// cet écran). Réutilise les mêmes fonctions de service, aucune duplication.
+checklistsRouter.get(
+  "/checklists/thicknesses",
+  requireAuth,
+  requirePermission((persona) => canAccessProductionChecklist(persona)),
+  async (_req, res) => {
+    const thicknesses = await listChecklistThicknesses();
+    res.json({ thicknesses });
+  },
+);
+checklistsRouter.get(
+  "/checklists/steps",
+  requireAuth,
+  requirePermission((persona) => canAccessProductionChecklist(persona)),
+  async (_req, res) => {
+    const steps = await listChecklistSteps();
+    res.json({ steps });
   },
 );
 

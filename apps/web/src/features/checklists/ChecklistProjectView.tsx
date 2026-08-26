@@ -2,8 +2,15 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { canManageProductionChecklist } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
-import { fetchChecklistThicknesses, fetchChecklistSteps } from "../settings/api.js";
-import { fetchChecklistsForProject, setChecklistItemStepCompleted, type ChecklistDto, type ChecklistItemDto, type ChecklistWithItemsDto } from "./api.js";
+import {
+  fetchChecklistsForProject,
+  fetchThicknessesForChecklist,
+  fetchStepsForChecklist,
+  setChecklistItemStepCompleted,
+  type ChecklistDto,
+  type ChecklistItemDto,
+  type ChecklistWithItemsDto,
+} from "./api.js";
 import { ChecklistEntryModal } from "./ChecklistEntryModal.js";
 import { ChecklistItemEditModal } from "./ChecklistItemEditModal.js";
 import { pieceSummaryLine } from "./pieceFields.js";
@@ -57,8 +64,12 @@ export function ChecklistProjectView({ projectId, initialChecklistId, onBack }: 
   const [editItem, setEditItem] = useState<ChecklistItemDto | null>(null);
 
   const checklistsQuery = useQuery({ queryKey: ["checklist-project-view", projectId], queryFn: () => fetchChecklistsForProject(projectId) });
-  const stepsQuery = useQuery({ queryKey: ["checklist-steps"], queryFn: fetchChecklistSteps });
-  const thicknessesQuery = useQuery({ queryKey: ["checklist-thicknesses"], queryFn: fetchChecklistThicknesses });
+  // Clés distinctes de celles utilisées par ChecklistCatalogsCard (Paramètres,
+  // ["checklist-steps"]/["checklist-thicknesses"]) — même source de données,
+  // mais servie ici par une route différente (canAccessProductionChecklist,
+  // pas canAccessSettings) ; jamais partager le cache entre les deux.
+  const stepsQuery = useQuery({ queryKey: ["checklist-project-view-steps"], queryFn: fetchStepsForChecklist });
+  const thicknessesQuery = useQuery({ queryKey: ["checklist-project-view-thicknesses"], queryFn: fetchThicknessesForChecklist });
 
   const canManage = !!employee && canManageProductionChecklist(employee.persona);
   const activeSteps = (stepsQuery.data ?? []).filter((s) => s.active);

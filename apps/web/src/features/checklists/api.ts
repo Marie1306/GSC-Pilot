@@ -1,4 +1,5 @@
 import { apiFetch } from "../../lib/apiClient.js";
+import type { ChecklistCatalogDto } from "../settings/api.js";
 
 export interface ChecklistDto {
   id: string;
@@ -124,6 +125,19 @@ export function fetchProjectChecklists(projectId: string): Promise<{ checklists:
 /** Vue de travail (ChecklistProjectView) — canAccessProductionChecklist côté serveur, accessible à l'Employé (tout le monde sauf Magasinier). */
 export function fetchChecklistsForProject(projectId: string): Promise<{ checklists: ChecklistWithItemsDto[] }> {
   return apiFetch(`/api/checklists/projects/${projectId}`);
+}
+
+/**
+ * Lecture seule des catalogues pour la vue de travail — canAccessProductionChecklist,
+ * PAS canAccessSettings (settings/api.ts, OWNER seulement). Ne jamais utiliser
+ * fetchChecklistThicknesses/fetchChecklistSteps de settings/api.ts ici, c'est
+ * exactement l'écart trouvé et corrigé le 26 août 2026.
+ */
+export async function fetchThicknessesForChecklist(): Promise<ChecklistCatalogDto[]> {
+  return (await apiFetch<{ thicknesses: ChecklistCatalogDto[] }>("/api/checklists/thicknesses")).thicknesses;
+}
+export async function fetchStepsForChecklist(): Promise<ChecklistCatalogDto[]> {
+  return (await apiFetch<{ steps: ChecklistCatalogDto[] }>("/api/checklists/steps")).steps;
 }
 
 export function setChecklistItemStepCompleted(itemId: string, stepId: string, completed: boolean): Promise<void> {

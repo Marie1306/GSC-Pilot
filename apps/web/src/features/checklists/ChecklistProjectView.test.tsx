@@ -90,10 +90,10 @@ describe("ChecklistProjectView — groupe sous-assemblage/pièces", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string) => {
-        if (url.includes("/api/settings/checklist-steps")) {
+        if (url.includes("/api/checklists/steps")) {
           return new Response(JSON.stringify({ steps: [{ id: "step-mep", label: "MEP", active: true, sortOrder: 1 }] }), { status: 200 });
         }
-        if (url.includes("/api/settings/checklist-thicknesses")) {
+        if (url.includes("/api/checklists/thicknesses")) {
           return new Response(JSON.stringify({ thicknesses: [] }), { status: 200 });
         }
         if (url.includes("/api/checklists/projects/project-1")) {
@@ -155,10 +155,10 @@ describe("ChecklistProjectView — groupe sous-assemblage/pièces", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string) => {
-        if (url.includes("/api/settings/checklist-steps")) {
+        if (url.includes("/api/checklists/steps")) {
           return new Response(JSON.stringify({ steps: [] }), { status: 200 });
         }
-        if (url.includes("/api/settings/checklist-thicknesses")) {
+        if (url.includes("/api/checklists/thicknesses")) {
           return new Response(JSON.stringify({ thicknesses: [] }), { status: 200 });
         }
         if (url.includes("/api/projects/project-1/checklists")) {
