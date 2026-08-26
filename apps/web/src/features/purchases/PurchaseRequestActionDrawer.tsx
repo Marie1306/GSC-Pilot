@@ -4,13 +4,7 @@ import { canApprovePurchaseRequest, buildFrozenPurchaseThresholdsMap } from "@gs
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { OptionsDrawer } from "../../components/OptionsDrawer.js";
-import {
-  fetchPurchaseRequests,
-  setPurchaseRequestAmount,
-  setPurchaseRequestExpectedReceiptDate,
-  approvePurchaseRequest,
-  rejectPurchaseRequest,
-} from "./api.js";
+import { fetchPurchaseRequests, setPurchaseRequestAmount, approvePurchaseRequest, rejectPurchaseRequest } from "./api.js";
 
 interface PurchaseRequestActionDrawerProps {
   id: string;
@@ -30,7 +24,6 @@ export function PurchaseRequestActionDrawer({ id, onClose }: PurchaseRequestActi
   const listQuery = useQuery({ queryKey: ["purchase-requests"], queryFn: fetchPurchaseRequests });
   const row = listQuery.data?.purchaseRequests.find((r) => r.id === id);
   const [amountDraft, setAmountDraft] = useState("");
-  const [dateDraft, setDateDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const invalidate = () => {
@@ -42,11 +35,6 @@ export function PurchaseRequestActionDrawer({ id, onClose }: PurchaseRequestActi
   const onMutationError = (err: unknown) => setError(err instanceof ApiError ? err.message : "Une erreur est survenue — réessayez.");
 
   const amountMutation = useMutation({ mutationFn: (amount: number) => setPurchaseRequestAmount(id, amount), onSuccess: invalidate, onError: onMutationError });
-  const dateMutation = useMutation({
-    mutationFn: (date: string) => setPurchaseRequestExpectedReceiptDate(id, date),
-    onSuccess: invalidate,
-    onError: onMutationError,
-  });
   const approveMutation = useMutation({
     mutationFn: () => approvePurchaseRequest(id),
     onSuccess: () => {
@@ -98,8 +86,6 @@ export function PurchaseRequestActionDrawer({ id, onClose }: PurchaseRequestActi
         Fournisseur(s) : {row.supplier ?? "—"}
         <br />
         Demandé par : {row.requesterName}
-        <br />
-        Réception visée : {row.expectedReceiptDate ?? "—"}
       </p>
 
       {!canAct && (
@@ -129,22 +115,6 @@ export function PurchaseRequestActionDrawer({ id, onClose }: PurchaseRequestActi
               }}
             >
               Fixer
-            </button>
-          </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <input
-              type="date"
-              value={dateDraft || (row.expectedReceiptDate ?? "")}
-              onChange={(event) => setDateDraft(event.target.value)}
-              style={{ width: 140, flex: "none" }}
-            />
-            <button
-              type="button"
-              className="btn btn-secondary btn-small"
-              style={{ flex: "none", whiteSpace: "nowrap" }}
-              onClick={() => dateDraft && dateMutation.mutate(dateDraft)}
-            >
-              Fixer la date
             </button>
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

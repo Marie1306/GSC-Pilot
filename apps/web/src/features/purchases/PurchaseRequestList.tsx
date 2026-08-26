@@ -112,7 +112,6 @@ export function PurchaseRequestList() {
                 <th>Description</th>
                 <th>Fournisseur(s)</th>
                 <th>Prix</th>
-                <th>Réception visée</th>
                 <th>Proposé par</th>
                 {(pending.some(canActOn) || pending.some((row) => row.requesterId === employee.id)) && <th>Actions</th>}
               </tr>
@@ -156,7 +155,6 @@ export function PurchaseRequestList() {
                       )}
                     </td>
                     <td>{formatRange(row)}</td>
-                    <td>{row.expectedReceiptDate ? formatDate(row.expectedReceiptDate) : "—"}</td>
                     <td>{row.requesterName}</td>
                     {(canAct || isOwn) && (
                       <td>
@@ -182,23 +180,6 @@ export function PurchaseRequestList() {
                               }}
                             >
                               Fixer
-                            </button>
-                            <input
-                              type="date"
-                              style={{ width: 130, flex: "none" }}
-                              value={draftReceiptDates[row.id] ?? (row.expectedReceiptDate ?? "")}
-                              onChange={(event) => setDraftReceiptDates((current) => ({ ...current, [row.id]: event.target.value }))}
-                            />
-                            <button
-                              type="button"
-                              className="btn btn-secondary"
-                              style={{ flex: "none", whiteSpace: "nowrap" }}
-                              onClick={() => {
-                                const value = draftReceiptDates[row.id];
-                                if (value) receiptDateMutation.mutate({ id: row.id, date: value });
-                              }}
-                            >
-                              Fixer la date
                             </button>
                             <button
                               type="button"
@@ -246,6 +227,7 @@ export function PurchaseRequestList() {
                   <th>Projet</th>
                   <th>Description</th>
                   <th>Prix</th>
+                  <th>Réception visée</th>
                   <th>Suivi</th>
                   {canManageFulfillment && <th>Actions</th>}
                 </tr>
@@ -258,6 +240,7 @@ export function PurchaseRequestList() {
                     <td>{row.projectLabel ?? "—"}</td>
                     <td>{row.description}</td>
                     <td>{formatRange(row)}</td>
+                    <td>{row.expectedReceiptDate ? formatDate(row.expectedReceiptDate) : "—"}</td>
                     <td>
                       {canManageFulfillment ? (
                         <select
@@ -275,10 +258,28 @@ export function PurchaseRequestList() {
                       )}
                     </td>
                     {canManageFulfillment && (
-                      <td>
+                      <td style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "nowrap" }}>
+                        <input
+                          type="date"
+                          style={{ width: 130, flex: "none" }}
+                          value={draftReceiptDates[row.id] ?? (row.expectedReceiptDate ?? "")}
+                          onChange={(event) => setDraftReceiptDates((current) => ({ ...current, [row.id]: event.target.value }))}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ flex: "none", whiteSpace: "nowrap" }}
+                          onClick={() => {
+                            const value = draftReceiptDates[row.id];
+                            if (value) receiptDateMutation.mutate({ id: row.id, date: value });
+                          }}
+                        >
+                          Fixer la date
+                        </button>
                         <button
                           type="button"
                           className="btn"
+                          style={{ flex: "none", whiteSpace: "nowrap" }}
                           disabled={row.fulfillmentStatus !== "received" || applyMutation.isPending}
                           onClick={() => applyMutation.mutate(row.id)}
                         >

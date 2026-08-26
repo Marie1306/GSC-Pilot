@@ -124,18 +124,27 @@ purchasesRouter.patch("/purchase-requests/:id/amount", requireAuth, async (req, 
   res.json({ id: updated.id, amount: updated.amount ? Number(updated.amount) : null });
 });
 
-/** Date visée de réception — même porte que le prix (informatif, pas de calcul dépendant). */
-purchasesRouter.patch("/purchase-requests/:id/expected-receipt-date", requireAuth, async (req, res) => {
-  const employee = req.employee!;
-  const { expectedReceiptDate } = z.object({ expectedReceiptDate: z.iso.date().nullable() }).parse(req.body);
-  const id = z.uuid().parse(req.params.id);
+/**
+ * Date visée de réception — informatif, aucun calcul dépendant. Écart
+ * trouvé et corrigé le 26 août 2026 : l'utilisatrice a demandé que ce
+ * réglage vive dans "Autorisées — suivi de commande" (après l'autorisation),
+ * jamais dans "En attente d'approbation" — même porte que le suivi de
+ * commande (canManagePurchaseFulfillment) désormais, plus l'ancienne porte
+ * d'approbation (assertCanActOnRequest, seuil-dépendante) qui ne
+ * correspondait plus à ce nouvel usage.
+ */
+purchasesRouter.patch(
+  "/purchase-requests/:id/expected-receipt-date",
+  requireAuth,
+  requirePermissionWithDelegation((settings, persona) => canManagePurchaseFulfillment(settings, persona)),
+  async (req, res) => {
+    const { expectedReceiptDate } = z.object({ expectedReceiptDate: z.iso.date().nullable() }).parse(req.body);
+    const id = z.uuid().parse(req.params.id);
 
-  const request = await loadRequestOrThrow(id);
-  await assertCanActOnRequest(employee, request);
-
-  const updated = await setPurchaseRequestExpectedReceiptDate(id, expectedReceiptDate ? new Date(expectedReceiptDate) : null);
-  res.json({ id: updated.id, expectedReceiptDate: updated.expectedReceiptDate?.toISOString().slice(0, 10) ?? null });
-});
+    const updated = await setPurchaseRequestExpectedReceiptDate(id, expectedReceiptDate ? new Date(expectedReceiptDate) : null);
+    res.json({ id: updated.id, expectedReceiptDate: updated.expectedReceiptDate?.toISOString().slice(0, 10) ?? null });
+  },
+);
 
 purchasesRouter.post("/purchase-requests/:id/approve", requireAuth, async (req, res) => {
   const employee = req.employee!;
