@@ -97,8 +97,18 @@ export function QuickAdd({ persona }: QuickAddProps) {
 
   return (
     <>
+      {/* Croix en SVG plutôt que le caractère texte "+" (27 août 2026) — un
+          glyphe de police n'est pas centré dans sa propre boîte de ligne
+          (espace de descendante asymétrique), donc le centrage flexbox du
+          bouton le laissait visuellement décalé selon la police système du
+          téléphone (aucune police "Inter" réelle chargée, voir index.html —
+          juste une valeur de repli). Un SVG n'a pas ce problème : sa boîte
+          se centre pixel pour pixel, sur n'importe quel appareil. */}
       <button type="button" className="quickadd-fab" aria-label="Ajouter rapidement" onClick={() => setOpen(true)}>
-        +
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round">
+          <line x1="12" y1="5" x2="12" y2="19" />
+          <line x1="5" y1="12" x2="19" y2="12" />
+        </svg>
       </button>
 
       {open && (
