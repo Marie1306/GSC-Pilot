@@ -156,7 +156,6 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
                     onCreateAmendment();
                   }}
                 />
-                <OptionRow icon="🕒" label="Historique du Budgétaire" disabled disabledNote="Hors de cette phase du module Projet." />
                 <OptionRow icon="📐" label="Accéder au Gantt" onClick={() => navigate("/gantt")} />
                 <OptionRow
                   icon="🔗"
