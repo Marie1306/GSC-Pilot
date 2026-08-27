@@ -48,6 +48,27 @@
   background: var(--gsc-color-surface2);
 }
 
+/* Note de pièce (27 août 2026) — anciennement empilée sous le numéro dans
+   la cellule Pièce elle-même, ce qui forçait la colonne FIGÉE à s'élargir
+   sur cellulaire dès qu'une note était un peu longue (rapporté sur
+   appareil réel). Maintenant une ligne à part, PAS figée (défile
+   horizontalement avec le reste du tableau, contrairement à Pièce) —
+   jamais confondue avec une pièce sans numéro puisqu'elle n'a pas de
+   colonne Pièce à elle (1er <td> vide dans le JSX, sa largeur s'aligne
+   automatiquement sur la vraie colonne Sous-assemblage grâce au calcul de
+   largeur natif du <table>, jamais une valeur en pixels devinée). */
+.checklist-note-row td {
+  padding: 0 8px 6px;
+  border-bottom: none;
+}
+/* Décale le texte de la note jusque sous le 2e chiffre du numéro de CETTE
+   pièce (demande explicite de l'utilisatrice) — reprend le 1er caractère
+   réel du numéro (voir ChecklistProjectView.tsx), jamais une largeur
+   fixe : s'ajuste tout seul peu importe la police/le zoom. */
+.checklist-note-spacer {
+  visibility: hidden;
+}
+
 /* Cases à cocher plus petites et rouges (spec confirmée 21 août 2026 — pas la couleur bleue par défaut du navigateur).
    display:block + margin:auto plutôt que compter sur le text-align:center du td parent seul — certains
    navigateurs mobiles réservent une zone de tap asymétrique autour de la case, qui paraît alors décalée

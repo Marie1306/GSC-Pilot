@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { canManageProductionChecklist } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
@@ -186,12 +186,10 @@ export function ChecklistProjectView({ projectId, initialChecklistId, onBack }: 
               {items.map((item) => {
                 const summary = pieceSummaryLine(item);
                 return (
-                <tr key={item.id} className={item.kind === "subassembly" ? "checklist-row-subassembly" : ""}>
+                <Fragment key={item.id}>
+                <tr className={item.kind === "subassembly" ? "checklist-row-subassembly" : ""}>
                   <td className="checklist-cell-nowrap">{item.parentNumber ?? (item.kind === "subassembly" ? "(sous-assemblage)" : "—")}</td>
-                  <td className="checklist-cell-nowrap">
-                    {item.number}
-                    {summary && <div className="cell-sub">{summary}</div>}
-                  </td>
+                  <td className="checklist-cell-nowrap">{item.number}</td>
                   <td className="num">{item.quantity ?? "—"}</td>
                   <td>{item.thickness ?? "—"}</td>
                   <td>{item.material ?? "—"}</td>
@@ -216,6 +214,28 @@ export function ChecklistProjectView({ projectId, initialChecklistId, onBack }: 
                     </td>
                   )}
                 </tr>
+                {/* Ligne à part plutôt qu'empilée sous le numéro dans la
+                    colonne Pièce (27 août 2026, rapporté sur cellulaire réel :
+                    forçait la colonne FIGÉE à s'élargir). Pas figée — défile
+                    horizontalement avec le reste, jamais confondue avec une
+                    pièce sans numéro puisqu'elle n'a pas de colonne Pièce à
+                    elle (1er <td> vide, largeur alignée sur la vraie colonne
+                    Sous-assemblage). Décalée jusque sous le 2e chiffre du
+                    numéro de cette pièce précise (demande explicite) via un
+                    espaceur invisible qui reprend le 1er caractère réel du
+                    numéro, jamais une valeur en pixels devinée. */}
+                {summary && (
+                  <tr className="checklist-note-row">
+                    <td className="checklist-cell-nowrap" />
+                    <td colSpan={4 + activeSteps.length + (canManage ? 1 : 0)}>
+                      <span className="checklist-note-spacer" aria-hidden="true">
+                        {item.number.charAt(0)}
+                      </span>
+                      <span className="cell-sub">{summary}</span>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
                 );
               })}
             </tbody>
