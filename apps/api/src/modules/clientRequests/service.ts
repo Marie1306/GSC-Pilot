@@ -235,11 +235,16 @@ async function namesByEmployeeId(ids: string[]): Promise<Map<string, string>> {
  * "converted", posé automatiquement dans createBudget ou, depuis le 27 août
  * 2026, dans serviceCalls/service.ts::createServiceCall) exclues aussi
  * (18 août 2026, confirmé) — restent consultables individuellement via
- * getClientRequestDetail, seulement sorties de cette liste active.
+ * getClientRequestDetail, seulement sorties de cette liste active. Demandes
+ * perdues (statut "lost") exclues de la même façon (27 août 2026, rapporté
+ * par l'utilisatrice — une demande perdue n'a plus rien à faire dans le
+ * travail actif) — le rapport Conversion par canal de vente (getChannelConversion,
+ * reports/service.ts) continue de les compter, sa propre requête n'utilise
+ * jamais cette liste.
  */
 export async function listClientRequests(): Promise<ClientRequestListItemDto[]> {
   const rows = await prisma.clientRequest.findMany({
-    where: { deletedAt: null, status: { not: "converted" } },
+    where: { deletedAt: null, status: { notIn: ["converted", "lost"] } },
     include: { salesChannel: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
   });
