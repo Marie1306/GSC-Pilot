@@ -18,9 +18,26 @@ export interface ServiceCallPrefillFromRequest {
   summary: string;
 }
 
+/**
+ * Call lié à un projet, sous-garantie (27 août 2026) — voir ProjectOptionsMenu.
+ * Pas de champ address : contrairement à ClientRequest, Project n'a pas
+ * d'adresse dénormalisée (seulement contactId) — le technicien saisit
+ * l'adresse du site directement si elle diffère de celle du contact.
+ */
+export interface ServiceCallPrefillFromProject {
+  projectId: string;
+  projectLabel: string;
+  contactName: string;
+  company?: string;
+  contactRole?: string;
+  phone?: string;
+  email?: string;
+}
+
 interface ServiceCallFormProps {
   onClose: () => void;
   prefillFromRequest?: ServiceCallPrefillFromRequest;
+  prefillFromProject?: ServiceCallPrefillFromProject;
 }
 
 const EMPTY: CreateServiceCallInput = {
@@ -31,28 +48,45 @@ const EMPTY: CreateServiceCallInput = {
   scheduledAt: "",
 };
 
-function initialForm(prefill?: ServiceCallPrefillFromRequest): CreateServiceCallInput {
-  if (!prefill) return EMPTY;
-  return {
-    newContact: {
-      contactName: prefill.contactName,
-      company: prefill.company ?? "",
-      contactRole: prefill.contactRole ?? "",
-      phone: prefill.phone ?? "",
-      email: prefill.email ?? "",
-    },
-    request: prefill.summary,
-    address: prefill.address ?? "",
-    assignedEmployeeIds: [],
-    scheduledAt: "",
-  };
+function initialForm(prefillFromRequest?: ServiceCallPrefillFromRequest, prefillFromProject?: ServiceCallPrefillFromProject): CreateServiceCallInput {
+  if (prefillFromRequest) {
+    return {
+      newContact: {
+        contactName: prefillFromRequest.contactName,
+        company: prefillFromRequest.company ?? "",
+        contactRole: prefillFromRequest.contactRole ?? "",
+        phone: prefillFromRequest.phone ?? "",
+        email: prefillFromRequest.email ?? "",
+      },
+      request: prefillFromRequest.summary,
+      address: prefillFromRequest.address ?? "",
+      assignedEmployeeIds: [],
+      scheduledAt: "",
+    };
+  }
+  if (prefillFromProject) {
+    return {
+      newContact: {
+        contactName: prefillFromProject.contactName,
+        company: prefillFromProject.company ?? "",
+        contactRole: prefillFromProject.contactRole ?? "",
+        phone: prefillFromProject.phone ?? "",
+        email: prefillFromProject.email ?? "",
+      },
+      request: "",
+      address: "",
+      assignedEmployeeIds: [],
+      scheduledAt: "",
+    };
+  }
+  return EMPTY;
 }
 
 /** Toujours un nouveau contact (comme ClientRequestForm) — ensureContact dédoublonne automatiquement côté serveur si le courriel/nom correspond déjà à un contact existant, y compris en conversion (prefillFromRequest) : jamais un contactId réutilisé directement, même logique partout. */
-export function ServiceCallForm({ onClose, prefillFromRequest }: ServiceCallFormProps) {
+export function ServiceCallForm({ onClose, prefillFromRequest, prefillFromProject }: ServiceCallFormProps) {
   const queryClient = useQueryClient();
   const employeesQuery = useQuery({ queryKey: ["time-entries", "employees"], queryFn: fetchPunchableEmployees });
-  const [form, setForm] = useState<CreateServiceCallInput>(() => initialForm(prefillFromRequest));
+  const [form, setForm] = useState<CreateServiceCallInput>(() => initialForm(prefillFromRequest, prefillFromProject));
   const [error, setError] = useState<string | null>(null);
 
   const mutation = useMutation({
@@ -70,6 +104,7 @@ export function ServiceCallForm({ onClose, prefillFromRequest }: ServiceCallForm
         assignedEmployeeIds: form.assignedEmployeeIds,
         scheduledAt: form.scheduledAt || undefined,
         clientRequestId: prefillFromRequest?.clientRequestId,
+        projectId: prefillFromProject?.projectId,
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["service-calls"] });
@@ -116,11 +151,13 @@ export function ServiceCallForm({ onClose, prefillFromRequest }: ServiceCallForm
       <div className="modal">
         <div className="modal-header">
           <div>
-            <h2>{prefillFromRequest ? "Convertir en call de service" : "Nouvel appel de service"}</h2>
+            <h2>{prefillFromRequest ? "Convertir en call de service" : prefillFromProject ? "Créer un call lié" : "Nouvel appel de service"}</h2>
             <p className="modal-subtitle">
               {prefillFromRequest
                 ? `Pré-rempli depuis la demande ${prefillFromRequest.requestDisplayId} — vérifiez avant de créer.`
-                : "Le contact client sera créé ou mis à jour automatiquement dans le carnet de contacts."}
+                : prefillFromProject
+                  ? `Lié au projet ${prefillFromProject.projectLabel} — les frais (achats et heures punchées) se soustrairont du projet, mais ce call ne sera jamais facturé séparément.`
+                  : "Le contact client sera créé ou mis à jour automatiquement dans le carnet de contacts."}
             </p>
           </div>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Fermer">
@@ -200,7 +237,7 @@ export function ServiceCallForm({ onClose, prefillFromRequest }: ServiceCallForm
               Annuler
             </button>
             <button type="submit" className="btn" disabled={mutation.isPending}>
-              {mutation.isPending ? "Création…" : prefillFromRequest ? "Créer le call de service" : "Créer l'appel de service"}
+              {mutation.isPending ? "Création…" : prefillFromRequest || prefillFromProject ? "Créer le call de service" : "Créer l'appel de service"}
             </button>
           </div>
         </form>

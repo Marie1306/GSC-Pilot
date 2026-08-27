@@ -79,6 +79,9 @@ export interface ProjectDetail {
   contactId: string;
   contactName: string;
   company: string | null;
+  contactRole: string | null;
+  contactPhone: string | null;
+  contactEmail: string | null;
   budgetId: string | null;
   budgetDisplayId: string | null;
   clientRequestId: string | null;

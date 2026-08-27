@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { canManageProject, canArchiveProject, canDeleteProject } from "@gsc-pilot/business-rules";
+import { canManageProject, canArchiveProject, canDeleteProject, canCreateServiceCall } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { OptionsDrawer, OptionRow, OptionSection } from "../../components/OptionsDrawer.js";
@@ -11,6 +11,7 @@ import { ProjectChecklistArchive } from "../checklists/ProjectChecklistArchive.j
 import { ProjectQrCode } from "./ProjectQrCode.js";
 import { ProjectHoursDetail } from "./ProjectHoursDetail.js";
 import { ManualEntryModal } from "../timePunch/ManualEntryModal.js";
+import { ServiceCallForm } from "../serviceCalls/ServiceCallForm.js";
 
 interface ProjectOptionsMenuProps {
   project: ProjectDetail;
@@ -60,6 +61,7 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
   const [showQrCode, setShowQrCode] = useState(false);
   const [showHoursDetail, setShowHoursDetail] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
+  const [showCreateCall, setShowCreateCall] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -102,6 +104,7 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
   const canManage = canManageProject(employee.persona);
   const canArchive = canArchiveProject(employee.persona);
   const canDelete = canDeleteProject(employee.persona);
+  const canCreateCall = canCreateServiceCall(employee.persona);
   const isArchived = !!project.archivedAt;
 
   return (
@@ -190,7 +193,16 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
                     onAddPurchase();
                   }}
                 />
-                <OptionRow icon="📞" label="Créer un call lié" disabled disabledNote="Module Appels de service pas encore construit." />
+                <OptionRow
+                  icon="📞"
+                  label="Créer un call lié"
+                  onClick={() => {
+                    onClose();
+                    setShowCreateCall(true);
+                  }}
+                  disabled={!canCreateCall}
+                  disabledNote="Direction, Administration ou Propriétaire seulement."
+                />
                 <OptionRow
                   icon="🕒"
                   label="Consulter les heures"
@@ -321,6 +333,20 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
         />
       )}
       {showManualEntry && <ManualEntryModal onClose={() => setShowManualEntry(false)} initialProjectId={project.id} />}
+      {showCreateCall && (
+        <ServiceCallForm
+          onClose={() => setShowCreateCall(false)}
+          prefillFromProject={{
+            projectId: project.id,
+            projectLabel: `${project.projectNumber} — ${project.name}`,
+            contactName: project.contactName,
+            company: project.company ?? undefined,
+            contactRole: project.contactRole ?? undefined,
+            phone: project.contactPhone ?? undefined,
+            email: project.contactEmail ?? undefined,
+          }}
+        />
+      )}
     </>
   );
 }

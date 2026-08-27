@@ -535,6 +535,12 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
             </p>
           )}
 
+          {call.projectId && !call.sentToAdminAt && (
+            <p style={{ fontSize: 13, color: "var(--gsc-color-muted)", marginTop: 16 }}>
+              Call lié à un projet (sous-garantie) — les frais s'appliquent au projet, ce call ne sera jamais facturé séparément.
+            </p>
+          )}
+
           {error && <p className="form-error">{error}</p>}
         </div>
 
@@ -576,7 +582,7 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
               {approveMutation.isPending ? "Approbation…" : "Approuver"}
             </button>
           )}
-          {canSend && call.status === "approved" && !call.sentToAdminAt && (
+          {canSend && call.status === "approved" && !call.sentToAdminAt && !call.projectId && (
             <button type="button" className="btn" disabled={sendMutation.isPending} onClick={() => sendMutation.mutate()}>
               {sendMutation.isPending ? "Envoi…" : "Envoyer à l'administration"}
             </button>

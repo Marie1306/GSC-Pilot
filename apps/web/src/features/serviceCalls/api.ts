@@ -41,6 +41,8 @@ export interface CreateServiceCallInput {
   scheduledAt?: string;
   /** Conversion directe depuis une demande client (27 août 2026) — voir ClientRequestOptionsMenu. */
   clientRequestId?: string;
+  /** Call lié à un projet, sous-garantie (27 août 2026) — voir ProjectOptionsMenu. */
+  projectId?: string;
 }
 
 export function createServiceCall(input: CreateServiceCallInput): Promise<{ id: string; displayId: string }> {
@@ -93,6 +95,7 @@ export interface ServiceCallDetailDto {
   company: string | null;
   contactPhone: string | null;
   contactEmail: string | null;
+  projectId: string | null;
   request: string;
   address: string | null;
   assignedEmployees: AssignedEmployeeDto[];

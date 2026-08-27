@@ -455,6 +455,9 @@ export interface ProjectDetailDto {
   contactId: string;
   contactName: string;
   company: string | null;
+  contactRole: string | null;
+  contactPhone: string | null;
+  contactEmail: string | null;
   budgetId: string | null;
   budgetDisplayId: string | null;
   clientRequestId: string | null;
@@ -639,7 +642,7 @@ async function computeProjectFinancials(
 export async function getProjectDetail(id: string, viewerPersona: Persona): Promise<ProjectDetailDto> {
   const project = await prisma.project.findUnique({
     where: { id },
-    include: { contact: { select: { name: true, company: true } }, budget: { select: { displayId: true } } },
+    include: { contact: { select: { name: true, company: true, role: true, phone: true, email: true } }, budget: { select: { displayId: true } } },
   });
   if (!project) throw new HttpError(404, "Projet introuvable.");
 
@@ -673,6 +676,9 @@ export async function getProjectDetail(id: string, viewerPersona: Persona): Prom
     contactId: project.contactId,
     contactName: project.contact.name,
     company: project.contact.company,
+    contactRole: project.contact.role,
+    contactPhone: project.contact.phone,
+    contactEmail: project.contact.email,
     budgetId: project.budgetId,
     budgetDisplayId: project.budget?.displayId ?? null,
     clientRequestId: project.clientRequestId,

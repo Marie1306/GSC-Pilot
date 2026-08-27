@@ -50,6 +50,15 @@ export interface CreateServiceCallInput {
   scheduledAt?: string;
   /** Conversion directe depuis une demande client (27 août 2026) — voir la validation dans createServiceCall. */
   clientRequestId?: string;
+  /**
+   * Call lié à un projet (sous-garantie, 27 août 2026) — plusieurs calls
+   * peuvent viser le même projet (plusieurs visites), donc pas d'assertion
+   * d'unicité comme clientRequestId. Voir resolvePunchTarget (timeEntries/
+   * service.ts) : les heures/achats punchés sur ce call se soustraient quand
+   * même du projet, mais sendServiceCallToAdmin refuse la facturation tant
+   * que projectId est renseigné.
+   */
+  projectId?: string;
 }
 
 async function resolveContactId(input: CreateServiceCallInput): Promise<string> {
@@ -100,6 +109,10 @@ export async function createServiceCall(input: CreateServiceCallInput): Promise<
   if (!input.request?.trim()) throw new HttpError(400, "La description de la demande est requise.");
   const contactId = await resolveContactId(input);
   if (input.clientRequestId) await assertClientRequestConvertible(input.clientRequestId);
+  if (input.projectId) {
+    const project = await prisma.project.findUnique({ where: { id: input.projectId }, select: { id: true } });
+    if (!project) throw new HttpError(404, "Projet introuvable.");
+  }
 
   return prisma.$transaction(async (tx) => {
     const settings = await tx.settings.findFirst();
@@ -110,6 +123,7 @@ export async function createServiceCall(input: CreateServiceCallInput): Promise<
         displayId,
         contactId,
         clientRequestId: input.clientRequestId ?? null,
+        projectId: input.projectId ?? null,
         request: input.request.trim(),
         address: input.address?.trim() || null,
         assignedEmployees: input.assignedEmployeeIds?.length ? { connect: input.assignedEmployeeIds.map((id) => ({ id })) } : undefined,
@@ -222,6 +236,7 @@ export interface ServiceCallDetailDto {
   company: string | null;
   contactPhone: string | null;
   contactEmail: string | null;
+  projectId: string | null;
   request: string;
   address: string | null;
   assignedEmployees: AssignedEmployeeDto[];
@@ -354,6 +369,7 @@ export async function getServiceCallDetail(id: string, viewerPersona: Persona): 
     company: call.contact.company,
     contactPhone: call.contact.phone,
     contactEmail: call.contact.email,
+    projectId: call.projectId,
     request: call.request,
     address: call.address,
     assignedEmployees: call.assignedEmployees,
@@ -500,6 +516,7 @@ export async function sendServiceCallToAdmin(id: string, actorId: string): Promi
   const call = await loadServiceCallOrThrow(id);
   if (!call.ownerApprovedAt) throw new HttpError(400, "Le call doit d'abord être approuvé par la Direction.");
   if (call.sentToAdminAt) throw new HttpError(409, "Déjà envoyé à l'administration.");
+  if (call.projectId) throw new HttpError(400, "Ce call est lié à un projet (sous-garantie) — il ne peut pas être facturé séparément.");
   const financials = await computeServiceCallFinancials(call);
   await prisma.$transaction([
     prisma.serviceCall.update({ where: { id }, data: { sentToAdminAt: new Date() } }),
