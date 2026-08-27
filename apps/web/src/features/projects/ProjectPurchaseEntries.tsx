@@ -13,6 +13,7 @@ import {
   formatCurrency,
   type ProjectPurchaseEntryDto,
 } from "../purchases/api.js";
+import { ApprovedPurchasesDrilldown } from "./ApprovedPurchasesDrilldown.js";
 
 interface ProjectPurchaseEntriesProps {
   projectId: string;
@@ -118,6 +119,17 @@ export function ProjectPurchaseEntries({ projectId, projectLabel, openSignal }: 
       <p style={{ margin: "0 0 10px", color: "var(--gsc-color-muted)", fontSize: 13 }}>
         Saisie Administration ou Direction; approbation Direction seulement.
       </p>
+
+      {/* Combine ce tableau (Achat direct, ProjectPurchaseEntry) avec les
+          Demandes d'achat déjà appliquées au projet (27 août 2026) — sans
+          ça, une demande d'achat approuvée/reçue/appliquée restait invisible
+          ici malgré son montant déjà compté dans la tuile ACHATS RÉELS plus
+          haut (rapporté par l'utilisatrice : "les achats ne s'ajoutent pas
+          au projet jusqu'au bout"). Même source que ce total
+          (getApprovedPurchaseEntries, déjà utilisée par le Post-mortem). */}
+      <div style={{ marginBottom: 14 }}>
+        <ApprovedPurchasesDrilldown projectId={projectId} />
+      </div>
 
       {showForm && (
         <div className="modal-backdrop" onClick={() => setShowForm(false)}>
