@@ -196,6 +196,8 @@ export interface ClientRequestListItemDto {
   budgetId: string | null;
   /** Exposé pour le Centre d'actions (21 août 2026) — une demande transférée, pas encore convertie, doit apparaître au centre d'actions du Propriétaire. */
   transmittedToOwnerAt: string | null;
+  /** Conversion directe en call de service (27 août 2026) — même rôle que budgetId : détecte "déjà convertie" côté interface (ClientRequestOptionsMenu). */
+  serviceCallId: string | null;
 }
 
 type ClientRequestRow = ClientRequest & { salesChannel: { name: string } | null };
@@ -216,6 +218,7 @@ function toListItemDto(row: ClientRequestRow, createdByName: string): ClientRequ
     nextFollowUp: row.nextFollowUp?.toISOString() ?? null,
     budgetId: row.budgetId,
     transmittedToOwnerAt: row.transmittedToOwnerAt?.toISOString() ?? null,
+    serviceCallId: row.serviceCallId,
   };
 }
 
@@ -229,7 +232,8 @@ async function namesByEmployeeId(ids: string[]): Promise<Map<string, string>> {
  * Visibilité : identique pour Direction/Administration/Propriétaire, aucun
  * filtrage par créateur — confirmé le 12 août 2026. Corbeille (deletedAt)
  * exclue, même patron que listProjects. Demandes converties (statut
- * "converted", posé automatiquement dans createBudget) exclues aussi
+ * "converted", posé automatiquement dans createBudget ou, depuis le 27 août
+ * 2026, dans serviceCalls/service.ts::createServiceCall) exclues aussi
  * (18 août 2026, confirmé) — restent consultables individuellement via
  * getClientRequestDetail, seulement sorties de cette liste active.
  */
@@ -327,11 +331,12 @@ export async function updateClientRequestFollowUp(id: string, nextFollowUp: Date
   await prisma.clientRequest.update({ where: { id }, data: { nextFollowUp } });
 }
 
-/** Corbeille — même mécanisme que Project.deletedAt (masqué des listes actives, jamais une suppression physique). Bloqué une fois convertie en budgétaire — l'historique de la conversion doit rester intact. */
+/** Corbeille — même mécanisme que Project.deletedAt (masqué des listes actives, jamais une suppression physique). Bloqué une fois convertie en budgétaire ou en call de service — l'historique de la conversion doit rester intact. */
 export async function deleteClientRequest(id: string): Promise<void> {
   const request = await prisma.clientRequest.findUnique({ where: { id } });
   if (!request) throw new HttpError(404, "Demande client introuvable.");
   if (request.deletedAt) throw new HttpError(400, "Cette demande est déjà dans la corbeille.");
   if (request.budgetId) throw new HttpError(400, "Cette demande a déjà un budgétaire — elle ne peut plus être supprimée.");
+  if (request.serviceCallId) throw new HttpError(400, "Cette demande a déjà un call de service — elle ne peut plus être supprimée.");
   await prisma.clientRequest.update({ where: { id }, data: { deletedAt: new Date() } });
 }

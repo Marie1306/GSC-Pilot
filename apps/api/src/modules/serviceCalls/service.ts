@@ -48,6 +48,8 @@ export interface CreateServiceCallInput {
   address?: string;
   assignedEmployeeIds?: string[];
   scheduledAt?: string;
+  /** Conversion directe depuis une demande client (27 août 2026) — voir la validation dans createServiceCall. */
+  clientRequestId?: string;
 }
 
 async function resolveContactId(input: CreateServiceCallInput): Promise<string> {
@@ -75,9 +77,29 @@ export async function getNextServiceCallDisplayId(): Promise<string> {
   return `CS-${new Date().getFullYear()}-${String(settings.nextServiceCallNumber).padStart(4, "0")}`;
 }
 
+/**
+ * Conversion directe d'une demande client (27 août 2026, demande explicite,
+ * uniquement proposée dans l'interface quand requestType==="service") —
+ * même mécanique que Budget↔ClientRequest (voir budgets/service.ts,
+ * createBudget) : validée AVANT la transaction, puis ClientRequest.status
+ * posé à "converted" + serviceCallId lié DANS la même transaction que la
+ * création du call, pour ne jamais laisser la demande dans un état
+ * incohérent si la création échoue en cours de route.
+ */
+async function assertClientRequestConvertible(clientRequestId: string): Promise<void> {
+  const request = await prisma.clientRequest.findUnique({
+    where: { id: clientRequestId },
+    select: { requestType: true, serviceCallId: true },
+  });
+  if (!request) throw new HttpError(404, "Demande client introuvable.");
+  if (request.requestType !== "service") throw new HttpError(400, "Cette demande n'est pas un call de service.");
+  if (request.serviceCallId) throw new HttpError(400, "Cette demande a déjà un call de service.");
+}
+
 export async function createServiceCall(input: CreateServiceCallInput): Promise<ServiceCall> {
   if (!input.request?.trim()) throw new HttpError(400, "La description de la demande est requise.");
   const contactId = await resolveContactId(input);
+  if (input.clientRequestId) await assertClientRequestConvertible(input.clientRequestId);
 
   return prisma.$transaction(async (tx) => {
     const settings = await tx.settings.findFirst();
@@ -87,6 +109,7 @@ export async function createServiceCall(input: CreateServiceCallInput): Promise<
       data: {
         displayId,
         contactId,
+        clientRequestId: input.clientRequestId ?? null,
         request: input.request.trim(),
         address: input.address?.trim() || null,
         assignedEmployees: input.assignedEmployeeIds?.length ? { connect: input.assignedEmployeeIds.map((id) => ({ id })) } : undefined,
@@ -94,6 +117,9 @@ export async function createServiceCall(input: CreateServiceCallInput): Promise<
       },
     });
     await tx.settings.update({ where: { id: settings.id }, data: { nextServiceCallNumber: settings.nextServiceCallNumber + 1 } });
+    if (input.clientRequestId) {
+      await tx.clientRequest.update({ where: { id: input.clientRequestId }, data: { serviceCallId: call.id, status: "converted" } });
+    }
     return call;
   });
 }

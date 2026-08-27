@@ -166,6 +166,13 @@ model ClientRequest {
   transmittedToOwnerAt DateTime? // visibilité seulement — jamais une porte de permission (voir roles.ts)
   budgetId             String?       @unique
   budget               Budget?       @relation(fields: [budgetId], references: [id])
+  // Conversion directe en call de service (27 août 2026, demande explicite,
+  // uniquement proposée quand requestType==="service") — même mécanique et
+  // même relation gérée que budgetId/budget juste au-dessus : la colonne
+  // miroir simple vit sur ServiceCall.clientRequestId (voir ce champ,
+  // même raison documentée sur Budget.clientRequestId).
+  serviceCallId        String?       @unique
+  serviceCall          ServiceCall?  @relation(fields: [serviceCallId], references: [id])
   convertedType        String? // project | rolling
   convertedProjectId   String?
   convertedRollingId   String?
@@ -807,6 +814,12 @@ model ServiceCall {
   displayId                    String     @unique // format CS-AAAA-NNNN
   contactId                    String
   contact                      Contact    @relation(fields: [contactId], references: [id])
+  // Colonne miroir simple (pas de @relation dessus) quand ce call vient
+  // d'une conversion directe depuis une demande client — la relation Prisma
+  // gérée vit sur ClientRequest.serviceCallId, même patron que
+  // Budget.clientRequestId/ClientRequest.budgetId (voir budgets/service.ts,
+  // commentaire d'en-tête) : gardée synchronisée manuellement en service.ts.
+  clientRequestId              String?
   request                      String
   // Snapshot au moment de la demande, comme ClientRequest.address — Contact
   // n'a volontairement pas de champ adresse (carnet simple, voir spec).
@@ -842,6 +855,10 @@ model ServiceCall {
   photos         ServiceCallPhoto[]
   invoiceEntries InvoicePlanEntry[]
   timeEntries    TimeEntry[]
+  // Opposé requis de ClientRequest.serviceCall (relation gérée côté
+  // ClientRequest, voir serviceCallId juste au-dessus) — jamais lu
+  // directement ici, même patron que Budget.clientRequest.
+  clientRequest  ClientRequest?
 
   @@index([status])
 }
