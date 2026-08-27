@@ -215,19 +215,45 @@ a {
   color: var(--gsc-color-muted);
   font-size: 13px;
 }
+/* Cercle plein rouge + croix blanche dessinée en pseudo-éléments plutôt
+   que le caractère "×" (27 août 2026, demande explicite — même raison que
+   le bouton + de QuickAdd/quickAdd.css) : un glyphe de police n'est pas
+   fiable à centrer (métriques de ligne variables selon police système/
+   appareil) — deux barres positionnées en absolu + tournées à 45° se
+   centrent, elles, pixel pour pixel peu importe la police. Le caractère
+   "×" reste dans le DOM (color:transparent) pour l'accessibilité/la zone
+   de clic, seul son rendu visuel est remplacé — 32 boutons à travers
+   l'appli partagent cette classe, corrigés tous en même temps. */
 .modal-close {
-  border: 1px solid var(--gsc-color-line-strong);
-  background: var(--gsc-color-surface);
+  position: relative;
+  border: none;
+  background: var(--gsc-color-brand);
+  color: transparent;
   border-radius: 50%;
   width: 36px;
   height: 36px;
-  font-size: 18px;
-  line-height: 1;
   cursor: pointer;
   flex: none;
 }
 .modal-close:hover {
-  background: var(--gsc-color-surface2);
+  background: var(--gsc-color-brand-dark);
+}
+.modal-close::before,
+.modal-close::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 15px;
+  height: 3px;
+  background: #fff;
+  border-radius: 2px;
+}
+.modal-close::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.modal-close::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 .modal-body {
