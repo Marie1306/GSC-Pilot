@@ -64,6 +64,7 @@ const newContactSchema = z.object({
 const createSchema = z.object({
   contactId: z.uuid().optional(),
   newContact: newContactSchema.optional(),
+  title: z.string().min(1, "Le titre du call est requis."),
   request: z.string().min(1, "La description de la demande est requise."),
   address: z.string().optional(),
   assignedEmployeeIds: z.array(z.uuid()).optional(),

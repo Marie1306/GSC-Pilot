@@ -15,6 +15,7 @@
  */
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
+import { serviceCallDisplayTitle } from "../serviceCalls/service.js";
 import type { Contact, Prisma } from "../../generated/prisma/client.js";
 
 export interface ContactListItemDto {
@@ -107,7 +108,7 @@ export async function getContactDetail(id: string): Promise<ContactDetailDto> {
       id: row.id,
       displayId: row.displayId,
       status: row.status,
-      label: row.request,
+      label: serviceCallDisplayTitle(row),
       createdAt: row.createdAt.toISOString(),
     })),
     deliveries: contact.deliveries.map((row) => ({

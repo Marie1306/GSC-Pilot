@@ -11,6 +11,7 @@ export interface ServiceCallListItemDto {
   status: string;
   contactName: string;
   company: string | null;
+  title: string;
   request: string;
   assignedEmployees: AssignedEmployeeDto[];
   scheduledAt: string | null;
@@ -35,6 +36,7 @@ export interface NewServiceCallContact {
 
 export interface CreateServiceCallInput {
   newContact: NewServiceCallContact;
+  title: string;
   request: string;
   address?: string;
   assignedEmployeeIds?: string[];
@@ -96,6 +98,7 @@ export interface ServiceCallDetailDto {
   contactPhone: string | null;
   contactEmail: string | null;
   projectId: string | null;
+  title: string;
   request: string;
   address: string | null;
   assignedEmployees: AssignedEmployeeDto[];

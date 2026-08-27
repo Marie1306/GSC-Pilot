@@ -17,6 +17,7 @@
  */
 import { invoiceStatus, type InvoiceLike } from "@gsc-pilot/business-rules";
 import { prisma } from "../../db.js";
+import { serviceCallDisplayTitle } from "../serviceCalls/service.js";
 
 export interface InvoiceEntryDto {
   id: string;
@@ -57,7 +58,7 @@ export async function listInvoiceEntries(): Promise<InvoiceEntryDto[]> {
       clientLabel = row.project.contact.company ?? row.project.contact.name;
     } else if (row.serviceCall) {
       sourceType = "serviceCall";
-      sourceLabel = `${row.serviceCall.displayId} — ${row.serviceCall.request}`;
+      sourceLabel = `${row.serviceCall.displayId} — ${serviceCallDisplayTitle(row.serviceCall)}`;
       clientLabel = row.serviceCall.contact.company ?? row.serviceCall.contact.name;
     } else if (row.rolling) {
       sourceType = "rolling";

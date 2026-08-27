@@ -56,6 +56,7 @@ describe("ServiceCallList", () => {
                   status: "scheduled",
                   contactName: "Alex Client",
                   company: "Client inc.",
+                  title: "Bris de convoyeur",
                   request: "Bris de convoyeur",
                   assignedEmployees: [{ id: "11111111-1111-1111-1111-111111111111", name: "Test" }],
                   scheduledAt: null,

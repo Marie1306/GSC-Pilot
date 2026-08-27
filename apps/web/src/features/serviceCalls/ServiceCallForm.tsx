@@ -42,6 +42,7 @@ interface ServiceCallFormProps {
 
 const EMPTY: CreateServiceCallInput = {
   newContact: { contactName: "", company: "", contactRole: "", phone: "", email: "" },
+  title: "",
   request: "",
   address: "",
   assignedEmployeeIds: [],
@@ -58,6 +59,10 @@ function initialForm(prefillFromRequest?: ServiceCallPrefillFromRequest, prefill
         phone: prefillFromRequest.phone ?? "",
         email: prefillFromRequest.email ?? "",
       },
+      // Toujours vide, jamais copié depuis summary (27 août 2026, demande
+      // explicite) — le texte brut de la demande client (souvent long, en
+      // majuscules) ne doit plus servir de titre affiché partout.
+      title: "",
       request: prefillFromRequest.summary,
       address: prefillFromRequest.address ?? "",
       assignedEmployeeIds: [],
@@ -73,6 +78,7 @@ function initialForm(prefillFromRequest?: ServiceCallPrefillFromRequest, prefill
         phone: prefillFromProject.phone ?? "",
         email: prefillFromProject.email ?? "",
       },
+      title: "",
       request: "",
       address: "",
       assignedEmployeeIds: [],
@@ -99,6 +105,7 @@ export function ServiceCallForm({ onClose, prefillFromRequest, prefillFromProjec
           phone: form.newContact.phone?.trim() || undefined,
           email: form.newContact.email?.trim() || undefined,
         },
+        title: form.title.trim(),
         request: form.request.trim(),
         address: form.address?.trim() || undefined,
         assignedEmployeeIds: form.assignedEmployeeIds,
@@ -167,6 +174,16 @@ export function ServiceCallForm({ onClose, prefillFromRequest, prefillFromProjec
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body form-grid">
+            <div className="field field-full">
+              <label htmlFor="sc-title">Titre du call</label>
+              <input
+                id="sc-title"
+                required
+                placeholder="ex. Bris plasma, panique machine arrêtée"
+                value={form.title}
+                onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+              />
+            </div>
             <ContactSearchField
               id="sc-company"
               label="Entreprise"

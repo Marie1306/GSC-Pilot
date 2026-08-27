@@ -182,7 +182,7 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
               {call.displayId} — {call.company ?? call.contactName}
             </h2>
             <p className="modal-subtitle">
-              {call.request} · Créé le {formatDate(call.createdAt)}
+              {call.title} · Créé le {formatDate(call.createdAt)}
             </p>
           </div>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Fermer">

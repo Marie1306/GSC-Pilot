@@ -38,7 +38,7 @@ export function ServiceCallList({ onOpen, onCreate }: ServiceCallListProps) {
               <tr>
                 <th>Call</th>
                 <th>Client</th>
-                <th>Demande</th>
+                <th>Titre</th>
                 <th>Assigné à</th>
                 <th>Prévu</th>
                 <th>Statut</th>
@@ -56,7 +56,7 @@ export function ServiceCallList({ onOpen, onCreate }: ServiceCallListProps) {
                 <tr key={row.id} onClick={() => onOpen(row.id)} style={{ cursor: "pointer" }}>
                   <td>{row.displayId}</td>
                   <td>{row.company ?? row.contactName}</td>
-                  <td>{row.request}</td>
+                  <td>{row.title}</td>
                   <td>{row.assignedEmployees.length > 0 ? row.assignedEmployees.map((employee) => employee.name).join(", ") : "—"}</td>
                   <td>{formatDate(row.scheduledAt)}</td>
                   <td>

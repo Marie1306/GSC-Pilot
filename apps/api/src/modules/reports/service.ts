@@ -118,7 +118,7 @@ export async function getProfitabilityReport(viewerPersona: Persona, viewerEmplo
       type: "service_call",
       typeLabel: "Call de service",
       displayId: call.displayId,
-      label: call.request,
+      label: call.title,
       clientLabel: call.company ?? call.contactName,
       revenue,
       cost,

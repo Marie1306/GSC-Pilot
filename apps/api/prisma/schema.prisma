@@ -829,6 +829,14 @@ model ServiceCall {
   // service.ts) — être lié suffit à lui seul, aucun champ séparé pour ça.
   projectId                    String?
   project                      Project?   @relation(fields: [projectId], references: [id])
+  // Titre court affiché partout (liste, sous-titre du détail, rapports,
+  // facturation, dossiers liés du contact) — distinct de request : avant ce
+  // champ (27 août 2026), la liste affichait le texte brut de la demande
+  // (souvent long, en majuscules, copié d'un client) comme s'il s'agissait
+  // d'un titre. Nullable pour les calls déjà existants au moment de la
+  // migration (jamais de valeur devinée pour eux) — voir serviceCallDisplayTitle
+  // (serviceCalls/service.ts), qui retombe sur request tant que title est nul.
+  title                        String?
   request                      String
   // Snapshot au moment de la demande, comme ClientRequest.address — Contact
   // n'a volontairement pas de champ adresse (carnet simple, voir spec).

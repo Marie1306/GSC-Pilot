@@ -44,6 +44,8 @@ export interface NewServiceCallContact {
 export interface CreateServiceCallInput {
   contactId?: string;
   newContact?: NewServiceCallContact;
+  /** Titre court (27 août 2026) — toujours saisi par la personne qui crée le call, jamais copié depuis request/summary d'une demande. */
+  title: string;
   request: string;
   address?: string;
   assignedEmployeeIds?: string[];
@@ -59,6 +61,11 @@ export interface CreateServiceCallInput {
    * que projectId est renseigné.
    */
   projectId?: string;
+}
+
+/** Titre affiché partout (liste, sous-titre du détail, rapports, facturation, dossiers liés) — retombe sur request pour les calls créés avant l'ajout de ce champ. */
+export function serviceCallDisplayTitle(call: { title: string | null; request: string }): string {
+  return call.title ?? call.request;
 }
 
 async function resolveContactId(input: CreateServiceCallInput): Promise<string> {
@@ -106,6 +113,7 @@ async function assertClientRequestConvertible(clientRequestId: string): Promise<
 }
 
 export async function createServiceCall(input: CreateServiceCallInput): Promise<ServiceCall> {
+  if (!input.title?.trim()) throw new HttpError(400, "Le titre du call est requis.");
   if (!input.request?.trim()) throw new HttpError(400, "La description de la demande est requise.");
   const contactId = await resolveContactId(input);
   if (input.clientRequestId) await assertClientRequestConvertible(input.clientRequestId);
@@ -124,6 +132,7 @@ export async function createServiceCall(input: CreateServiceCallInput): Promise<
         contactId,
         clientRequestId: input.clientRequestId ?? null,
         projectId: input.projectId ?? null,
+        title: input.title.trim(),
         request: input.request.trim(),
         address: input.address?.trim() || null,
         assignedEmployees: input.assignedEmployeeIds?.length ? { connect: input.assignedEmployeeIds.map((id) => ({ id })) } : undefined,
@@ -149,6 +158,7 @@ export interface ServiceCallListItemDto {
   status: string;
   contactName: string;
   company: string | null;
+  title: string;
   request: string;
   assignedEmployees: AssignedEmployeeDto[];
   scheduledAt: string | null;
@@ -171,6 +181,7 @@ export async function listServiceCalls(viewerPersona: Persona, viewerEmployeeId:
     status: call.status,
     contactName: call.contact.name,
     company: call.contact.company,
+    title: serviceCallDisplayTitle(call),
     request: call.request,
     assignedEmployees: call.assignedEmployees,
     scheduledAt: call.scheduledAt?.toISOString() ?? null,
@@ -237,6 +248,7 @@ export interface ServiceCallDetailDto {
   contactPhone: string | null;
   contactEmail: string | null;
   projectId: string | null;
+  title: string;
   request: string;
   address: string | null;
   assignedEmployees: AssignedEmployeeDto[];
@@ -370,6 +382,7 @@ export async function getServiceCallDetail(id: string, viewerPersona: Persona): 
     contactPhone: call.contact.phone,
     contactEmail: call.contact.email,
     projectId: call.projectId,
+    title: serviceCallDisplayTitle(call),
     request: call.request,
     address: call.address,
     assignedEmployees: call.assignedEmployees,
