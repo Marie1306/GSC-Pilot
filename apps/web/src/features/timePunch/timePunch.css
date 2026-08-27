@@ -5,7 +5,10 @@
   gap: 10px;
   padding: 28px 20px;
   text-align: center;
-  background: var(--gsc-color-ink);
+  /* --gsc-color-ink-fixed : cette carte doit rester sombre peu importe le
+     thème de l'application (mode sombre, 27 août 2026) — voir le
+     commentaire du jeton dans design-tokens.ts. */
+  background: var(--gsc-color-ink-fixed);
 }
 .punch-hero-state {
   font-size: 13px;

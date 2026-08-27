@@ -1,5 +1,9 @@
+/* "light dark" (pas juste "light") : les contrôles natifs (barres de
+   défilement, cases à cocher natives, etc.) suivent alors prefers-color-
+   scheme tout seuls — propriété CSS native, indépendante des jetons de
+   conception posés en JS (voir applyDesignTokens.ts pour le reste). */
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
 }
 
 *,
@@ -78,7 +82,10 @@ a {
   flex-wrap: wrap;
   margin: -20px -20px 16px;
   padding: 14px 20px;
-  background: var(--gsc-color-ink);
+  /* --gsc-color-ink-fixed, pas --gsc-color-ink : ce bandeau doit rester
+     sombre peu importe le thème de l'application (mode sombre, 27 août
+     2026) — voir le commentaire du jeton dans design-tokens.ts. */
+  background: var(--gsc-color-ink-fixed);
   border-radius: var(--gsc-radius-base) var(--gsc-radius-base) 0 0;
 }
 .card-band-header h3 {
@@ -720,7 +727,8 @@ a {
   gap: 10px;
   margin: -18px -18px 12px;
   padding: 12px 16px;
-  background: var(--gsc-color-ink);
+  /* --gsc-color-ink-fixed, même raison que .card-band-header ci-dessus. */
+  background: var(--gsc-color-ink-fixed);
   border-radius: var(--gsc-radius-base) var(--gsc-radius-base) 0 0;
 }
 .project-card-number {

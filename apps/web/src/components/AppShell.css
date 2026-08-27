@@ -4,8 +4,11 @@
 }
 
 /* Colonne de navigation en gris foncé, comme la v19 (fond clair partout
-   ailleurs dans l'app — seule cette colonne passe en thème sombre,
-   demandé explicitement par l'utilisatrice le 24 août 2026). --gsc-color-ink
+   ailleurs dans l'app à l'origine — seule cette colonne passait en thème
+   sombre, demandé explicitement par l'utilisatrice le 24 août 2026;
+   maintenant toute l'appli suit le mode sombre du système — 27 août 2026 —
+   mais cette colonne doit rester sombre dans les DEUX cas). --gsc-color-
+   ink-fixed (pas --gsc-color-ink, qui s'inverse maintenant en mode sombre)
    réutilisé comme fond plutôt qu'une nouvelle teinte inventée : déjà la
    couleur la plus sombre du jeton de conception d'origine (extrait de
    v19), donc plausiblement proche du vrai fond sombre de sa barre
@@ -13,7 +16,7 @@
 .app-sidebar {
   width: var(--gsc-sidebar-width);
   flex-shrink: 0;
-  background: var(--gsc-color-ink);
+  background: var(--gsc-color-ink-fixed);
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
@@ -284,7 +287,8 @@
     left: 0;
     bottom: 0;
     width: min(280px, 84vw);
-    background: var(--gsc-color-ink);
+    /* --gsc-color-ink-fixed, même raison que .app-sidebar plus haut. */
+    background: var(--gsc-color-ink-fixed);
     display: flex;
     flex-direction: column;
     box-shadow: 2px 0 12px rgba(15, 17, 21, 0.15);
