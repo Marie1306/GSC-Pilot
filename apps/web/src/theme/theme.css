@@ -593,6 +593,16 @@ a {
   gap: 12px;
   margin-bottom: 18px;
 }
+/* Même piège que .project-card-grid/.project-card-stats ci-dessous : le
+   plancher de 150px par tuile, multiplié par 3-4 tuiles courantes,
+   dépasse la largeur disponible sur téléphone (utilisé par 11 pages —
+   post-mortem, garantie, appels de service, tableau de bord, etc.).
+   2 colonnes pleines largeur plutôt qu'un plancher fixe. */
+@media (max-width: 880px) {
+  .stat-tile-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 .stat-tile {
   background: var(--gsc-color-surface2);
   border-radius: var(--gsc-radius-base);
@@ -679,6 +689,19 @@ a {
   gap: 16px;
   margin-top: 16px;
 }
+/* Plancher de 300px : dépasse la largeur réellement disponible une fois
+   les marges/padding retirés sur un téléphone étroit — la carte déborde
+   alors de son conteneur (rapporté avec capture réelle le 27 août 2026,
+   "encadré de projet qui déborde à droite" ; confirmé par mesure : grille
+   à 270px mais carte forcée à 300px sur un écran de 360px de large).
+   Règle placée ici (après la définition de base, pas dans le bloc de
+   media query plus haut) pour gagner la cascade — même sélecteur, même
+   spécificité, la dernière déclaration l'emporte. */
+@media (max-width: 880px) {
+  .project-card-grid {
+    grid-template-columns: 1fr;
+  }
+}
 .project-card {
   background: var(--gsc-color-surface);
   border: 1px solid var(--gsc-color-line);
@@ -717,7 +740,12 @@ a {
 }
 .project-card-stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* minmax(0, 1fr), pas juste 1fr : une piste 1fr seule garde un plancher
+     "auto" (min-content de son contenu, ex. le libellé "HEURES RÉELLES"),
+     qui remonte l'encombrement à .project-card et déborde de son
+     conteneur même une fois .project-card-grid réduit à 1 colonne
+     ci-dessus — même piège que le flex min-width:0, ici en grid. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 14px;
 }
