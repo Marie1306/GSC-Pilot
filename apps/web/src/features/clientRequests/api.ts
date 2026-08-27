@@ -47,6 +47,7 @@ export interface ClientRequestListItem {
   createdAt: string;
   nextFollowUp: string | null;
   budgetId: string | null;
+  serviceCallId: string | null;
 }
 
 export interface ClientRequestNote {

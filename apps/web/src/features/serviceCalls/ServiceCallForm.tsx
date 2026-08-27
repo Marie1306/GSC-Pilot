@@ -5,8 +5,22 @@ import { ContactSearchField } from "../contacts/ContactAutocomplete.js";
 import type { ContactListItemDto } from "../contacts/api.js";
 import { createServiceCall, type CreateServiceCallInput } from "./api.js";
 
+/** Conversion directe d'une demande client de type "Call de service" (27 août 2026) — voir ClientRequestOptionsMenu. */
+export interface ServiceCallPrefillFromRequest {
+  clientRequestId: string;
+  requestDisplayId: string;
+  contactName: string;
+  company?: string;
+  contactRole?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  summary: string;
+}
+
 interface ServiceCallFormProps {
   onClose: () => void;
+  prefillFromRequest?: ServiceCallPrefillFromRequest;
 }
 
 const EMPTY: CreateServiceCallInput = {
@@ -17,11 +31,28 @@ const EMPTY: CreateServiceCallInput = {
   scheduledAt: "",
 };
 
-/** Toujours un nouveau contact (comme ClientRequestForm) — ensureContact dédoublonne automatiquement côté serveur si le courriel/nom correspond déjà à un contact existant. */
-export function ServiceCallForm({ onClose }: ServiceCallFormProps) {
+function initialForm(prefill?: ServiceCallPrefillFromRequest): CreateServiceCallInput {
+  if (!prefill) return EMPTY;
+  return {
+    newContact: {
+      contactName: prefill.contactName,
+      company: prefill.company ?? "",
+      contactRole: prefill.contactRole ?? "",
+      phone: prefill.phone ?? "",
+      email: prefill.email ?? "",
+    },
+    request: prefill.summary,
+    address: prefill.address ?? "",
+    assignedEmployeeIds: [],
+    scheduledAt: "",
+  };
+}
+
+/** Toujours un nouveau contact (comme ClientRequestForm) — ensureContact dédoublonne automatiquement côté serveur si le courriel/nom correspond déjà à un contact existant, y compris en conversion (prefillFromRequest) : jamais un contactId réutilisé directement, même logique partout. */
+export function ServiceCallForm({ onClose, prefillFromRequest }: ServiceCallFormProps) {
   const queryClient = useQueryClient();
   const employeesQuery = useQuery({ queryKey: ["time-entries", "employees"], queryFn: fetchPunchableEmployees });
-  const [form, setForm] = useState<CreateServiceCallInput>(EMPTY);
+  const [form, setForm] = useState<CreateServiceCallInput>(() => initialForm(prefillFromRequest));
   const [error, setError] = useState<string | null>(null);
 
   const mutation = useMutation({
@@ -38,6 +69,7 @@ export function ServiceCallForm({ onClose }: ServiceCallFormProps) {
         address: form.address?.trim() || undefined,
         assignedEmployeeIds: form.assignedEmployeeIds,
         scheduledAt: form.scheduledAt || undefined,
+        clientRequestId: prefillFromRequest?.clientRequestId,
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["service-calls"] });
@@ -84,8 +116,12 @@ export function ServiceCallForm({ onClose }: ServiceCallFormProps) {
       <div className="modal">
         <div className="modal-header">
           <div>
-            <h2>Nouvel appel de service</h2>
-            <p className="modal-subtitle">Le contact client sera créé ou mis à jour automatiquement dans le carnet de contacts.</p>
+            <h2>{prefillFromRequest ? "Convertir en call de service" : "Nouvel appel de service"}</h2>
+            <p className="modal-subtitle">
+              {prefillFromRequest
+                ? `Pré-rempli depuis la demande ${prefillFromRequest.requestDisplayId} — vérifiez avant de créer.`
+                : "Le contact client sera créé ou mis à jour automatiquement dans le carnet de contacts."}
+            </p>
           </div>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Fermer">
             ×
@@ -164,7 +200,7 @@ export function ServiceCallForm({ onClose }: ServiceCallFormProps) {
               Annuler
             </button>
             <button type="submit" className="btn" disabled={mutation.isPending}>
-              {mutation.isPending ? "Création…" : "Créer l'appel de service"}
+              {mutation.isPending ? "Création…" : prefillFromRequest ? "Créer le call de service" : "Créer l'appel de service"}
             </button>
           </div>
         </form>

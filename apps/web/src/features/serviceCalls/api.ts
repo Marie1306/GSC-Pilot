@@ -39,6 +39,8 @@ export interface CreateServiceCallInput {
   address?: string;
   assignedEmployeeIds?: string[];
   scheduledAt?: string;
+  /** Conversion directe depuis une demande client (27 août 2026) — voir ClientRequestOptionsMenu. */
+  clientRequestId?: string;
 }
 
 export function createServiceCall(input: CreateServiceCallInput): Promise<{ id: string; displayId: string }> {

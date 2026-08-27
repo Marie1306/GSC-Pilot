@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { canCreateBudgetFromRequest, canDeleteClientRequest } from "@gsc-pilot/business-rules";
+import { canCreateBudgetFromRequest, canCreateServiceCall, canDeleteClientRequest } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { OptionsDrawer, OptionRow, OptionSection } from "../../components/OptionsDrawer.js";
+import { ServiceCallForm } from "../serviceCalls/ServiceCallForm.js";
 import {
   transferClientRequestToOwner,
   updateClientRequestFollowUp,
@@ -47,6 +48,7 @@ export function ClientRequestOptionsMenu({ request, open, onClose, onDeleted }: 
   const [pendingLostReason, setPendingLostReason] = useState(false);
   const [lostReason, setLostReason] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [creatingServiceCall, setCreatingServiceCall] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const invalidate = () => {
@@ -89,9 +91,11 @@ export function ClientRequestOptionsMenu({ request, open, onClose, onDeleted }: 
 
   if (!open || !employee) return null;
   const canCreateBudget = canCreateBudgetFromRequest(employee.persona);
+  const canCreateCall = canCreateServiceCall(employee.persona);
   const canDelete = canDeleteClientRequest(employee.persona);
   const isLost = request.status === "lost";
   const isConverted = !!request.budgetId;
+  const isConvertedToServiceCall = !!request.serviceCallId;
 
   return (
     <OptionsDrawer eyebrow="Options de la demande" title={`${request.displayId} — ${request.company ?? request.contactName}`} onClose={onClose}>
@@ -103,6 +107,18 @@ export function ClientRequestOptionsMenu({ request, open, onClose, onDeleted }: 
         ) : (
           <OptionRow icon="🧮" label="Créer le budgétaire" onClick={() => navigate(`/budgetaire?newFromRequest=${request.id}`)} disabled={!canCreateBudget} disabledNote="Direction ou Propriétaire seulement." />
         )}
+        {request.requestType === "service" &&
+          (isConvertedToServiceCall ? (
+            <OptionRow icon="🔧" label="Call de service déjà créé pour cette demande" disabled disabledNote="Une demande ne peut avoir qu'un seul call de service." />
+          ) : (
+            <OptionRow
+              icon="🔧"
+              label="Créer le call de service"
+              onClick={() => setCreatingServiceCall(true)}
+              disabled={!canCreateCall}
+              disabledNote="Direction, Administration ou Propriétaire seulement."
+            />
+          ))}
       </OptionSection>
 
       <OptionSection title="Suivi">
@@ -159,9 +175,9 @@ export function ClientRequestOptionsMenu({ request, open, onClose, onDeleted }: 
           <p style={{ margin: "0 0 10px", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.04, color: "var(--gsc-color-muted)" }}>
             Actions sensibles
           </p>
-          {isConverted ? (
+          {isConverted || isConvertedToServiceCall ? (
             <p style={{ margin: 0, fontSize: 13, color: "var(--gsc-color-muted)" }}>
-              Cette demande a déjà un budgétaire — elle ne peut plus être supprimée.
+              Cette demande a déjà {isConverted ? "un budgétaire" : "un call de service"} — elle ne peut plus être supprimée.
             </p>
           ) : !confirmDelete ? (
             <button type="button" className="btn btn-secondary btn-small" onClick={() => setConfirmDelete(true)}>
@@ -179,6 +195,26 @@ export function ClientRequestOptionsMenu({ request, open, onClose, onDeleted }: 
             </div>
           )}
         </div>
+      )}
+
+      {creatingServiceCall && (
+        <ServiceCallForm
+          onClose={() => {
+            setCreatingServiceCall(false);
+            invalidate();
+          }}
+          prefillFromRequest={{
+            clientRequestId: request.id,
+            requestDisplayId: request.displayId,
+            contactName: request.contactName,
+            company: request.company ?? undefined,
+            contactRole: request.contactRole ?? undefined,
+            phone: request.phone ?? undefined,
+            email: request.email ?? undefined,
+            address: request.address ?? undefined,
+            summary: request.summary,
+          }}
+        />
       )}
     </OptionsDrawer>
   );
