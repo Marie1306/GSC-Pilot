@@ -29,6 +29,25 @@
   background: var(--gsc-color-surface2);
 }
 
+/* Colonne Pièce (2e) fixe au défilement horizontal — demande explicite de
+   l'utilisatrice le 27 août 2026 : sur cellulaire, elle doit rester
+   visible en défilant vers la droite pour voir les étapes/cases à cocher.
+   Fond opaque obligatoire (th/td n'en ont aucun par défaut) sinon les
+   autres colonnes de la même ligne apparaissent par transparence en
+   glissant dessous — Sous-assemblage (1re colonne) n'est PAS fixée,
+   seulement demandée pour Pièce. */
+.checklist-grid th:nth-child(2),
+.checklist-grid td:nth-child(2) {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--gsc-color-surface);
+  border-right: 1px solid var(--gsc-color-line);
+}
+.checklist-row-subassembly td:nth-child(2) {
+  background: var(--gsc-color-surface2);
+}
+
 /* Cases à cocher plus petites et rouges (spec confirmée 21 août 2026 — pas la couleur bleue par défaut du navigateur).
    display:block + margin:auto plutôt que compter sur le text-align:center du td parent seul — certains
    navigateurs mobiles réservent une zone de tap asymétrique autour de la case, qui paraît alors décalée
