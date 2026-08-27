@@ -452,6 +452,7 @@ export interface ProjectDetailDto {
   projectNumber: string;
   name: string;
   status: string;
+  contactId: string;
   contactName: string;
   company: string | null;
   budgetId: string | null;
@@ -669,6 +670,7 @@ export async function getProjectDetail(id: string, viewerPersona: Persona): Prom
     projectNumber: project.projectNumber,
     name: project.name,
     status: project.status,
+    contactId: project.contactId,
     contactName: project.contact.name,
     company: project.contact.company,
     budgetId: project.budgetId,

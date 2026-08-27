@@ -19,6 +19,8 @@ interface ManualEntryModalProps {
   onClose: () => void;
   /** Présent = mode correction d'un punch existant (canEditOwnPunch/Direction) plutôt que création. */
   entry?: TimeEntryDto;
+  /** Pré-remplit la référence de la première ligne en mode création (27 août 2026) — "Ajouter une entrée manuelle" depuis le menu Options d'un projet. Les lignes ajoutées ensuite au même lot repartent vierges, comme avant. */
+  initialProjectId?: string;
 }
 
 function today(): string {
@@ -29,8 +31,14 @@ function minutesToHours(minutes: number | null): string {
   return minutes ? String(Math.round((minutes / 60) * 100) / 100) : "1";
 }
 
-function makeEmptyRow(key: number): ManualRowState {
-  return { key, value: { projectType: "internal", taskId: "" }, hours: "1", note: "", blockageNote: "" };
+function makeEmptyRow(key: number, initialProjectId?: string): ManualRowState {
+  return {
+    key,
+    value: initialProjectId ? { projectType: "project", projectId: initialProjectId, taskId: "" } : { projectType: "internal", taskId: "" },
+    hours: "1",
+    note: "",
+    blockageNote: "",
+  };
 }
 
 /** Échec en cours de lot — combien de lignes ont déjà été enregistrées avant l'erreur, pour ne jamais les resoumettre en double au prochain essai. */
@@ -56,7 +64,7 @@ class ManualBatchError extends Error {
  *   d'échec en cours de route, les lignes déjà enregistrées sont
  *   retirées du formulaire pour ne jamais les soumettre deux fois.
  */
-export function ManualEntryModal({ onClose, entry }: ManualEntryModalProps) {
+export function ManualEntryModal({ onClose, entry, initialProjectId }: ManualEntryModalProps) {
   const { employee } = useAuth();
   const queryClient = useQueryClient();
   const tasksQuery = useQuery({ queryKey: ["punchable-tasks"], queryFn: fetchPunchableTasks });
@@ -89,7 +97,7 @@ export function ManualEntryModal({ onClose, entry }: ManualEntryModalProps) {
           note: entry.note ?? "",
           blockageNote: entry.blockageNote ?? "",
         }
-      : makeEmptyRow(0),
+      : makeEmptyRow(0, initialProjectId),
   ]);
   const [error, setError] = useState<string | null>(null);
 

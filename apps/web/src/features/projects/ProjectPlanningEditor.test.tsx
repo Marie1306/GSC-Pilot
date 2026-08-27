@@ -28,6 +28,7 @@ const baseProject: ProjectDetail = {
   projectNumber: "42",
   name: "Projet vérif",
   status: "active",
+  contactId: "20000000-0000-0000-0000-000000000000",
   contactName: "Client Vérif",
   company: null,
   budgetId: null,

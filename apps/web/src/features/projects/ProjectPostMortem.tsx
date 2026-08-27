@@ -3,22 +3,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { canManagePostMortem } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
-import {
-  fetchPostMortem,
-  updatePostMortemAnalysis,
-  fetchApprovedTimeEntries,
-  formatCurrency,
-  FINANCIAL_STATUS_LABELS,
-} from "./api.js";
+import { fetchPostMortem, updatePostMortemAnalysis, formatCurrency, FINANCIAL_STATUS_LABELS } from "./api.js";
 import { ApprovedPurchasesDrilldown } from "./ApprovedPurchasesDrilldown.js";
+import { ApprovedHoursDrilldown } from "./ApprovedHoursDrilldown.js";
 
 interface ProjectPostMortemProps {
   projectId: string;
   onClose: () => void;
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" });
 }
 
 /**
@@ -45,11 +36,6 @@ export function ProjectPostMortem({ projectId, onClose }: ProjectPostMortemProps
   const postMortem = detailQuery.data?.postMortem;
 
   const [showHoursDrilldown, setShowHoursDrilldown] = useState(false);
-  const hoursQuery = useQuery({
-    queryKey: ["approved-hours", projectId],
-    queryFn: () => fetchApprovedTimeEntries(projectId),
-    enabled: showHoursDrilldown,
-  });
 
   const [depassements, setDepassements] = useState<string | null>(null);
   const [ameliorations, setAmeliorations] = useState<string | null>(null);
@@ -214,37 +200,8 @@ export function ProjectPostMortem({ projectId, onClose }: ProjectPostMortemProps
                 </button>
               </div>
               {showHoursDrilldown && (
-                <div style={{ overflowX: "auto", marginBottom: 20 }}>
-                  {hoursQuery.isLoading && <p style={{ fontSize: 13, color: "var(--gsc-color-muted)" }}>Chargement…</p>}
-                  {hoursQuery.data && hoursQuery.data.entries.length === 0 && (
-                    <p style={{ fontSize: 13, color: "var(--gsc-color-muted)" }}>Aucune heure approuvée.</p>
-                  )}
-                  {hoursQuery.data && hoursQuery.data.entries.length > 0 && (
-                    <table className="shortlist-table">
-                      <thead>
-                        <tr>
-                          <th>Date</th>
-                          <th>Employé</th>
-                          <th>Catégorie</th>
-                          <th>Tâche</th>
-                          <th className="num">Heures</th>
-                          {hoursQuery.data.entries[0]?.cost !== undefined && <th className="num">Coût</th>}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {hoursQuery.data.entries.map((entry) => (
-                          <tr key={entry.id}>
-                            <td>{formatDate(entry.date)}</td>
-                            <td>{entry.employeeName}</td>
-                            <td>{entry.category}</td>
-                            <td>{entry.taskLabel}</td>
-                            <td className="num">{entry.hours} h</td>
-                            {entry.cost !== undefined && <td className="num">{formatCurrency(entry.cost)}</td>}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
+                <div style={{ marginBottom: 20 }}>
+                  <ApprovedHoursDrilldown projectId={projectId} />
                 </div>
               )}
 

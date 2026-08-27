@@ -9,6 +9,8 @@ import { updateProjectInfo, setProjectArchived, deleteProject, fetchProjectHisto
 import { ProjectPostMortem } from "./ProjectPostMortem.js";
 import { ProjectChecklistArchive } from "../checklists/ProjectChecklistArchive.js";
 import { ProjectQrCode } from "./ProjectQrCode.js";
+import { ProjectHoursDetail } from "./ProjectHoursDetail.js";
+import { ManualEntryModal } from "../timePunch/ManualEntryModal.js";
 
 interface ProjectOptionsMenuProps {
   project: ProjectDetail;
@@ -56,6 +58,8 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
   const [showPostMortem, setShowPostMortem] = useState(false);
   const [showChecklistArchive, setShowChecklistArchive] = useState(false);
   const [showQrCode, setShowQrCode] = useState(false);
+  const [showHoursDetail, setShowHoursDetail] = useState(false);
+  const [showManualEntry, setShowManualEntry] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -171,7 +175,14 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
               </OptionSection>
 
               <OptionSection title="Heures et opérations">
-                <OptionRow icon="🕒" label="Ajouter une entrée manuelle" disabled disabledNote="Module Punch d'heures pas encore construit." />
+                <OptionRow
+                  icon="🕒"
+                  label="Ajouter une entrée manuelle"
+                  onClick={() => {
+                    onClose();
+                    setShowManualEntry(true);
+                  }}
+                />
                 <OptionRow
                   icon="🛒"
                   label="Ajouter un achat"
@@ -181,7 +192,14 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
                   }}
                 />
                 <OptionRow icon="📞" label="Créer un call lié" disabled disabledNote="Module Appels de service pas encore construit." />
-                <OptionRow icon="🕒" label="Consulter les heures" disabled disabledNote="Module Punch d'heures pas encore construit." />
+                <OptionRow
+                  icon="🕒"
+                  label="Consulter les heures"
+                  onClick={() => {
+                    onClose();
+                    setShowHoursDetail(true);
+                  }}
+                />
               </OptionSection>
 
               <OptionSection title="Documents et suivi">
@@ -233,10 +251,18 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
                 </div>
               )}
 
+              {/* Accéder au contact : toujours affiché, contrairement à "Accéder à la
+                  demande" ci-dessous — Project.contactId existe pour TOUT projet
+                  (créé directement ou via une demande client), pas seulement quand
+                  clientRequestId est renseigné (27 août 2026, branché maintenant que
+                  le module Contacts existe). */}
+              <OptionSection title="Contact">
+                <OptionRow icon="👤" label="Accéder au contact" onClick={() => navigate(`/contacts?open=${project.contactId}`)} />
+              </OptionSection>
+
               {project.clientRequestId && (
                 <OptionSection title="Demande client d'origine">
                   <OptionRow icon="📞" label="Accéder à la demande" onClick={() => navigate(`/demandes?open=${project.clientRequestId}`)} />
-                  <OptionRow icon="👤" label="Accéder au contact" disabled disabledNote="Module Contacts pas encore construit (page vide)." />
                 </OptionSection>
               )}
             </>
@@ -289,6 +315,13 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
       {showPostMortem && <ProjectPostMortem projectId={project.id} onClose={() => setShowPostMortem(false)} />}
       {showChecklistArchive && <ProjectChecklistArchive projectId={project.id} onClose={() => setShowChecklistArchive(false)} />}
       {showQrCode && <ProjectQrCode project={{ projectNumber: project.projectNumber, name: project.name }} onClose={() => setShowQrCode(false)} />}
+      {showHoursDetail && (
+        <ProjectHoursDetail
+          project={{ id: project.id, projectNumber: project.projectNumber, name: project.name }}
+          onClose={() => setShowHoursDetail(false)}
+        />
+      )}
+      {showManualEntry && <ManualEntryModal onClose={() => setShowManualEntry(false)} initialProjectId={project.id} />}
     </>
   );
 }

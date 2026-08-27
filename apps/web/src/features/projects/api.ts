@@ -76,6 +76,7 @@ export interface ProjectDetail {
   projectNumber: string;
   name: string;
   status: string;
+  contactId: string;
   contactName: string;
   company: string | null;
   budgetId: string | null;
