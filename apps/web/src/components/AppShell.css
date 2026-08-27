@@ -137,6 +137,19 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Une seule ligne, tronquée avec "…" plutôt que de retomber à la ligne —
+   sans ça, un titre un peu long (ex. "Checklist de production") passe sur
+   2-3 lignes dans une barre de hauteur fixe et déborde ("cadrage décalé"
+   rapporté sur cellulaire réel, 27 août 2026). */
+.app-topbar-eyebrow,
+.app-topbar-heading {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .app-topbar-eyebrow {
@@ -158,6 +171,7 @@
   align-items: center;
   gap: 12px;
   margin-left: auto;
+  flex-shrink: 0;
 }
 
 .app-topbar-name {
@@ -240,6 +254,13 @@
   }
 
   .app-sidebar-toggle {
+    display: none;
+  }
+
+  /* Nom de l'employé retiré seulement ici — décoratif, jamais une action
+     comme Déconnexion (qui reste toujours visible) — pour laisser assez de
+     place au titre de page sur un écran étroit (27 août 2026). */
+  .app-topbar-name {
     display: none;
   }
 
