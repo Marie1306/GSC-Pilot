@@ -6,6 +6,7 @@ import { fetchActionCenterItems, linkFor, type ActionItemDto, type ActionItemTyp
 import { BudgetDetail } from "../budgets/BudgetDetail.js";
 import { ClientRequestDetail } from "../clientRequests/ClientRequestDetail.js";
 import { PurchaseRequestActionDrawer } from "../purchases/PurchaseRequestActionDrawer.js";
+import { PurchaseFulfillmentActionDrawer } from "../purchases/PurchaseFulfillmentActionDrawer.js";
 import { InvoiceActionDrawer } from "../invoicing/InvoiceActionDrawer.js";
 import { TimeEntryActionDrawer } from "../timePunch/TimeEntryActionDrawer.js";
 import "./actionCenter.css";
@@ -24,14 +25,18 @@ const TYPE_ORDER: ActionItemType[] = [
 // Types qui ouvrent directement le détail + les actions réelles sans
 // quitter le Centre d'actions (25 août 2026, demande explicite) — chacun
 // réutilise le composant déjà construit et vérifié de son propre module,
-// jamais une deuxième logique d'approbation ici. subassembly_ready et
-// purchase_to_order restent une navigation classique : leur suivi (créer la
-// liste de pièces ; fixer la date, marquer commandé/reçu, appliquer au
-// projet) vit en profondeur dans l'écran de son module, pas extractible
-// proprement dans un tiroir sans dupliquer cet écran (26 août 2026, même
-// principe que subassembly_ready).
+// jamais une deuxième logique d'approbation ici. Seul subassembly_ready
+// reste une navigation classique : créer la liste de pièces est un
+// formulaire à plusieurs lignes qui vit en profondeur dans l'onglet
+// Sous-assemblages, pas extractible proprement dans un tiroir.
+//
+// purchase_to_order utilisait la même approche (lien vers /achats) jusqu'au
+// 27 août 2026 — rapport de l'utilisatrice : ça amenait sur une page
+// générale sans rien de concret à faire, les demandes s'accumulaient sans
+// façon de les faire disparaître d'ici. Passé en tiroir (comme les autres)
+// avec l'action unique pertinente à cette étape : marquer commandé.
 function hasActionDrawer(type: ActionItemType): boolean {
-  return type !== "subassembly_ready" && type !== "purchase_to_order";
+  return type !== "subassembly_ready";
 }
 
 function formatDate(iso: string): string {
@@ -109,6 +114,7 @@ export function ActionCenterPage() {
         <ClientRequestDetail id={openItem.id} onClose={() => setOpenItem(null)} />
       )}
       {openItem?.type === "purchase_approval" && <PurchaseRequestActionDrawer id={openItem.id} onClose={() => setOpenItem(null)} />}
+      {openItem?.type === "purchase_to_order" && <PurchaseFulfillmentActionDrawer id={openItem.id} onClose={() => setOpenItem(null)} />}
       {openItem?.type === "invoicing" && <InvoiceActionDrawer id={openItem.id} onClose={() => setOpenItem(null)} />}
       {openItem?.type === "hours_approval" && <TimeEntryActionDrawer id={openItem.id} onClose={() => setOpenItem(null)} />}
     </div>
