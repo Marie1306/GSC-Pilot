@@ -328,9 +328,16 @@ a {
   flex: 1;
 }
 
+/* minmax(0, 1fr), pas 1fr seul : une piste 1fr a un minimum automatique
+   égal au contenu le plus large qu'elle contient (ex. un <input>/<select>
+   sans largeur explicite) — un champ un peu large fait alors déborder
+   toute la carte plutôt que de se faire recadrer par la piste (rapporté
+   sur cellulaire réel, 27 août 2026, Demandes d'achat). minmax(0, 1fr)
+   plafonne ce minimum à 0, la piste respecte alors vraiment la largeur
+   disponible. */
 .form-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0 20px;
 }
 .field-full {
@@ -356,13 +363,11 @@ a {
 
 @media (max-width: 880px) {
   /* Même seuil que AppShell.css (barre latérale → tiroir) — un seul point
-     de bascule "mobile" pour toute l'application. Sans ceci, deux colonnes
-     de champs réels (input/select/date, largeur minimale imposée par le
-     navigateur) ne peuvent pas rétrécir sous leur contenu minimal et
-     étirent la page entière plutôt que de s'empiler. */
+     de bascule "mobile" pour toute l'application : les deux colonnes de
+     champs s'empilent en une seule. */
   .form-grid,
   .detail-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .channel-bar-row {
     grid-template-columns: 1fr;
@@ -475,7 +480,7 @@ a {
 
 .detail-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px 20px;
   margin-bottom: 18px;
 }
