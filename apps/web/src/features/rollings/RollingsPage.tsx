@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { canCreateRollingDirectly, canCreateBudgetFromRequest } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
@@ -26,8 +26,10 @@ export function RollingsPage() {
   const { employee } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const rollingsQuery = useQuery({ queryKey: ["rollings"], queryFn: fetchRollings });
-  const [openId, setOpenId] = useState<string | null>(null);
+  // ?open=<id> lu une seule fois au montage (même patron que ProjectsPage) — utilisé par Scan QR.
+  const [openId, setOpenId] = useState<string | null>(() => searchParams.get("open"));
   const [showForm, setShowForm] = useState(false);
   const [contactName, setContactName] = useState("");
   const [company, setCompany] = useState("");

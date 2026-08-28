@@ -15,6 +15,7 @@ import type { InvoicePlanEntryDto, FinancialStatus, ProjectComparatifRow, Approv
 
 export interface RollingListItemDto {
   id: string;
+  rollingNumber: string;
   contactName: string;
   company: string | null;
   status: string;
@@ -30,6 +31,7 @@ export function fetchRollings(): Promise<{ rollings: RollingListItemDto[] }> {
 
 export interface RollingDetailDto {
   id: string;
+  rollingNumber: string;
   contactId: string;
   contactName: string;
   company: string | null;

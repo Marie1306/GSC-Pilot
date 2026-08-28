@@ -29,6 +29,7 @@ const rollingId = "33333333-3333-3333-3333-333333333333";
 
 const rolling: RollingDetailDto = {
   id: rollingId,
+  rollingNumber: "RL-2026-0001",
   contactId: "66666666-6666-6666-6666-666666666666",
   contactName: "Client Test",
   company: "Client Test Inc.",

@@ -7,9 +7,11 @@ import { useAuth } from "../../lib/auth/useAuth.js";
 import { useOnlineStatus } from "../../offline/useOnlineStatus.js";
 import { offlineDb } from "../../offline/db.js";
 import { OfflineBanner } from "../../offline/OfflineBanner.js";
-import { fetchProjectOptions, type ProjectOptionDto } from "../timePunch/api.js";
+import { fetchProjectOptions, fetchRollingOptions, type ProjectOptionDto, type RollingOptionDto } from "../timePunch/api.js";
 import { StartTaskModal } from "../timePunch/StartTaskModal.js";
 import "./qrScan.css";
+
+type PunchTarget = { kind: "project"; project: ProjectOptionDto } | { kind: "rolling"; rolling: RollingOptionDto };
 
 /**
  * Scan QR (23 août 2026, spec confirmée : « étiquette 1×1 po par projet,
@@ -21,10 +23,16 @@ import "./qrScan.css";
  * (choix de tâche). D'où le branchement sur canAccessOverviewViews
  * (owner/admin/boss) plutôt qu'un rôle par rôle.
  *
+ * Étendu aux roulements le 28 août 2026 (rollingNumber RL-AAAA-NNNN, voir
+ * RollingQrCode.tsx) — même résolution, mais SANS cache hors ligne
+ * (contrairement à projectsRef/offlineDb.cachedProjects) : un code de
+ * roulement scanné hors ligne échoue proprement avec un message d'erreur
+ * plutôt que d'étendre le sous-système hors-ligne sans que ce soit demandé.
+ *
  * Caméra via qr-scanner (décision technique confirmée dans le plan de
  * fondation — jamais l'API BarcodeDetector, peu fiable sur iOS), toujours
- * avec la saisie manuelle du numéro de projet en repli, y compris quand la
- * caméra est indisponible ou refusée.
+ * avec la saisie manuelle du numéro en repli, y compris quand la caméra est
+ * indisponible ou refusée.
  */
 export function QrScanPage() {
   const { employee } = useAuth();
@@ -33,15 +41,17 @@ export function QrScanPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const scannerRef = useRef<QrScanner | null>(null);
   const projectsRef = useRef<ProjectOptionDto[]>([]);
+  const rollingsRef = useRef<RollingOptionDto[]>([]);
   const resolveRef = useRef<(code: string) => void>(() => {});
 
   const [manualCode, setManualCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [cameraState, setCameraState] = useState<"checking" | "available" | "unavailable">("checking");
   const [scanning, setScanning] = useState(true);
-  const [punchProject, setPunchProject] = useState<ProjectOptionDto | null>(null);
+  const [punchTarget, setPunchTarget] = useState<PunchTarget | null>(null);
 
   const projectsQuery = useQuery({ queryKey: ["time-entries", "project-options"], queryFn: fetchProjectOptions });
+  const rollingsQuery = useQuery({ queryKey: ["time-entries", "rolling-options"], queryFn: fetchRollingOptions });
 
   // Copie locale (Dexie) de la liste — spec confirmée 23 août 2026 : le
   // raccourci de punch (Employé/Magasinier) doit fonctionner hors ligne, y
@@ -61,26 +71,34 @@ export function QrScanPage() {
   }, [projectsQuery.data, projectsQuery.isLoading]);
 
   useEffect(() => {
+    if (!rollingsQuery.data) return;
+    rollingsRef.current = rollingsQuery.data.rollings;
+  }, [rollingsQuery.data]);
+
+  useEffect(() => {
     resolveRef.current = (code: string) => {
       const trimmed = code.trim();
       if (!trimmed) return;
-      const match = projectsRef.current.find((p) => p.projectNumber.toLowerCase() === trimmed.toLowerCase());
-      if (!match) {
-        setError(`Aucun projet avec le numéro « ${trimmed} ».`);
+      const projectMatch = projectsRef.current.find((p) => p.projectNumber.toLowerCase() === trimmed.toLowerCase());
+      const rollingMatch = rollingsRef.current.find((r) => r.rollingNumber.toLowerCase() === trimmed.toLowerCase());
+      if (!projectMatch && !rollingMatch) {
+        setError(`Aucun projet ou roulement avec le numéro « ${trimmed} ».`);
         return;
       }
       const isOverview = !!employee && canAccessOverviewViews(employee.persona);
       if (isOverview && !online) {
-        setError("Hors ligne — reconnectez-vous pour voir la fiche du projet.");
+        setError("Hors ligne — reconnectez-vous pour voir la fiche.");
         return;
       }
       setError(null);
       scannerRef.current?.stop();
       setScanning(false);
-      if (isOverview) {
-        navigate(`/projets?open=${match.id}`);
-      } else {
-        setPunchProject(match);
+      if (projectMatch) {
+        if (isOverview) navigate(`/projets?open=${projectMatch.id}`);
+        else setPunchTarget({ kind: "project", project: projectMatch });
+      } else if (rollingMatch) {
+        if (isOverview) navigate(`/roulements?open=${rollingMatch.id}`);
+        else setPunchTarget({ kind: "rolling", rolling: rollingMatch });
       }
     };
   });
@@ -112,14 +130,18 @@ export function QrScanPage() {
   }, [cameraState, scanning]);
 
   function restartScanning() {
-    setPunchProject(null);
+    setPunchTarget(null);
     setError(null);
     setManualCode("");
     setScanning(true);
   }
 
-  if (punchProject) {
-    return <StartTaskModal initialValue={{ projectType: "project", projectId: punchProject.id }} onClose={restartScanning} />;
+  if (punchTarget) {
+    const initialValue =
+      punchTarget.kind === "project"
+        ? { projectType: "project" as const, projectId: punchTarget.project.id }
+        : { projectType: "rolling" as const, rollingId: punchTarget.rolling.id };
+    return <StartTaskModal initialValue={initialValue} onClose={restartScanning} />;
   }
 
   return (
@@ -136,7 +158,7 @@ export function QrScanPage() {
         )}
         {cameraState === "unavailable" && (
           <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>
-            Caméra indisponible ou accès refusé — entrez le numéro du projet ci-dessous.
+            Caméra indisponible ou accès refusé — entrez le numéro du projet ou du roulement ci-dessous.
           </p>
         )}
         {cameraState === "checking" && <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Recherche d'une caméra…</p>}
@@ -150,11 +172,16 @@ export function QrScanPage() {
           }}
         >
           <div className="field field-full">
-            <label>Numéro de projet</label>
-            <input value={manualCode} onChange={(e) => setManualCode(e.target.value)} placeholder="ex. 2357" autoFocus={cameraState !== "available"} />
+            <label>Numéro de projet ou de roulement</label>
+            <input
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value)}
+              placeholder="ex. 2357 ou RL-2026-0001"
+              autoFocus={cameraState !== "available"}
+            />
           </div>
           <div className="field field-full">
-            <button type="submit" className="btn btn-small" disabled={!manualCode.trim() || projectsQuery.isLoading}>
+            <button type="submit" className="btn btn-small" disabled={!manualCode.trim() || projectsQuery.isLoading || rollingsQuery.isLoading}>
               Rechercher
             </button>
           </div>

@@ -928,6 +928,11 @@ model ServiceCallPhoto {
 
 model Rolling {
   id                          String         @id @default(uuid())
+  // Numéro d'affichage RL-AAAA-NNNN (28 août 2026, confirmé) — même patron
+  // que BG-AAAA-NNNN/CS-AAAA-NNNN : jamais de remise à zéro annuelle,
+  // l'année est seulement affichée. Utilisé par le Code QR du menu Options
+  // (voir RollingQrCode.tsx) et par Scan QR (QrScanPage.tsx).
+  rollingNumber               String         @unique
   contactId                   String
   contact                     Contact        @relation(fields: [contactId], references: [id])
   clientRequestId             String?        @unique
@@ -1240,6 +1245,7 @@ model Settings {
   nextBudgetNumber             Int      @default(1) // format BG-AAAA-NNNN
   nextDeliveryNumber           Int      @default(1) // format BL-AAAA-NNNN — même patron que nextBudgetNumber (année civile, pas d'année d'affaires)
   nextServiceCallNumber        Int      @default(1) // format CS-AAAA-NNNN — même patron que nextBudgetNumber/nextDeliveryNumber (année civile)
+  nextRollingNumber            Int      @default(1) // format RL-AAAA-NNNN — même patron que nextBudgetNumber/nextDeliveryNumber/nextServiceCallNumber (année civile, confirmé le 28 août 2026)
   nextAmendmentNumber          Int      @default(1) // format AV-NNN — pas d'année (Amendment.displayId, voir amendments/service.ts)
   servicePartsDefaultMarginPct Decimal  @default(20) @db.Decimal(5, 2)
   punchRoundingMinutes         Int      @default(15)

@@ -9,6 +9,7 @@ import { updateContact } from "../contacts/api.js";
 import { setRollingArchived, deleteRolling, type RollingDetailDto } from "./api.js";
 import { RollingPostMortem } from "./RollingPostMortem.js";
 import { RollingHoursDetail } from "./RollingHoursDetail.js";
+import { RollingQrCode } from "./RollingQrCode.js";
 import { ManualEntryModal } from "../timePunch/ManualEntryModal.js";
 import { ServiceCallForm } from "../serviceCalls/ServiceCallForm.js";
 
@@ -28,9 +29,8 @@ function formatDateTime(iso: string): string {
 /**
  * Menu Options du roulement (28 août 2026, demande de l'utilisatrice) —
  * structure calquée sur ProjectOptionsMenu.tsx, section par section. "Code
- * QR" volontairement absent pour l'instant : contrairement à Project, Rolling
- * n'a pas de numéro d'affichage à encoder (question posée à l'utilisatrice,
- * jamais deviné un format). "Modifier les informations" édite le CONTACT du
+ * QR" encode rollingNumber (RL-AAAA-NNNN, format confirmé le 28 août 2026 —
+ * voir RollingQrCode.tsx). "Modifier les informations" édite le CONTACT du
  * roulement (nom/entreprise/téléphone/courriel, via le module Contacts
  * existant) plutôt qu'un nom/échéance propre au dossier — Rolling n'a ni
  * l'un ni l'autre, contrairement à Project.
@@ -46,6 +46,7 @@ export function RollingOptionsMenu({ rolling, open, onClose, onDeleted, onAddPur
   const [email, setEmail] = useState(rolling.contactEmail ?? "");
   const [showPostMortem, setShowPostMortem] = useState(false);
   const [showHoursDetail, setShowHoursDetail] = useState(false);
+  const [showQrCode, setShowQrCode] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [showCreateCall, setShowCreateCall] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -97,7 +98,7 @@ export function RollingOptionsMenu({ rolling, open, onClose, onDeleted, onAddPur
   return (
     <>
       {open && (
-        <OptionsDrawer eyebrow="Options du roulement" title={label} onClose={onClose}>
+        <OptionsDrawer eyebrow="Options du roulement" title={`${rolling.rollingNumber} — ${label}`} onClose={onClose}>
           {error && <p className="form-error">{error}</p>}
 
           {editForm ? (
@@ -181,6 +182,14 @@ export function RollingOptionsMenu({ rolling, open, onClose, onDeleted, onAddPur
 
               <OptionSection title="Documents et suivi">
                 <OptionRow
+                  icon="⬜"
+                  label="Code QR"
+                  onClick={() => {
+                    onClose();
+                    setShowQrCode(true);
+                  }}
+                />
+                <OptionRow
                   icon="📄"
                   label="Post-mortem"
                   onClick={() => {
@@ -246,6 +255,7 @@ export function RollingOptionsMenu({ rolling, open, onClose, onDeleted, onAddPur
         </OptionsDrawer>
       )}
 
+      {showQrCode && <RollingQrCode rolling={{ rollingNumber: rolling.rollingNumber, label }} onClose={() => setShowQrCode(false)} />}
       {showPostMortem && <RollingPostMortem id={rolling.id} onClose={() => setShowPostMortem(false)} />}
       {showHoursDetail && <RollingHoursDetail rolling={{ id: rolling.id, label }} onClose={() => setShowHoursDetail(false)} />}
       {showManualEntry && <ManualEntryModal onClose={() => setShowManualEntry(false)} initialRollingId={rolling.id} />}

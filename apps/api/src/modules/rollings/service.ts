@@ -67,6 +67,7 @@ type RollingFulfillmentMode = typeof FULFILLMENT_MODES.WAREHOUSE | typeof FULFIL
 
 export interface RollingListItemDto {
   id: string;
+  rollingNumber: string;
   contactName: string;
   company: string | null;
   status: string;
@@ -85,6 +86,7 @@ export async function listRollings(viewerPersona: Persona): Promise<RollingListI
   });
   return rollings.map((rolling) => ({
     id: rolling.id,
+    rollingNumber: rolling.rollingNumber,
     contactName: rolling.contact.name,
     company: rolling.contact.company,
     status: rolling.status,
@@ -97,6 +99,7 @@ export async function listRollings(viewerPersona: Persona): Promise<RollingListI
 
 export interface RollingDetailDto {
   id: string;
+  rollingNumber: string;
   contactId: string;
   contactName: string;
   company: string | null;
@@ -257,6 +260,7 @@ export async function getRollingDetail(id: string, viewerPersona: Persona): Prom
 
   return {
     id: rolling.id,
+    rollingNumber: rolling.rollingNumber,
     contactId: rolling.contactId,
     contactName: rolling.contact.name,
     company: rolling.contact.company,
@@ -337,8 +341,12 @@ export async function convertBudgetToRolling(createdById: string, budgetId: stri
   const targetMarginPct = totalSale > 0 ? Math.round(((totalSale - totalBaseCost) / totalSale) * 100 * 100) / 100 : 0;
 
   return prisma.$transaction(async (tx) => {
+    const settings = await tx.settings.findFirst();
+    if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
+    const rollingNumber = `RL-${new Date().getFullYear()}-${String(settings.nextRollingNumber).padStart(4, "0")}`;
     const rolling = await tx.rolling.create({
       data: {
+        rollingNumber,
         contactId: clientRequest.contactId,
         clientRequestId: budget.clientRequestId,
         budgetId: budget.id,
@@ -350,6 +358,7 @@ export async function convertBudgetToRolling(createdById: string, budgetId: stri
         createdById,
       },
     });
+    await tx.settings.update({ where: { id: settings.id }, data: { nextRollingNumber: settings.nextRollingNumber + 1 } });
     await createSinglePaymentPlan(tx, rolling.id, totalSale);
     return rolling;
   });
@@ -366,16 +375,23 @@ export interface NewRollingContactInput {
 /**
  * Création directe (hors budgétaire/demande client) — Direction et
  * Propriétaire seulement (canCreateRollingDirectly, roles.ts). Pas de champ
- * "nom" : contrairement à Project, Rolling n'a pas de displayId/numéro/nom —
- * identifié par son contact (aucun format de numérotation confirmé, jamais
- * deviné — voir la remarque équivalente pour les lignes "roulement" de
- * Rapports).
+ * "nom" : contrairement à Project, Rolling n'a pas de displayId basé sur un
+ * nom — identifié par son contact, mais porte depuis le 28 août 2026 un
+ * numéro d'affichage RL-AAAA-NNNN (même patron que CS-AAAA-NNNN) pour le
+ * Code QR et Scan QR.
  */
 export async function createRollingDirect(createdById: string, newContact: NewRollingContactInput): Promise<Rolling> {
   if (!newContact.contactName?.trim()) throw new HttpError(400, "Le nom du contact est requis.");
   const contact = await ensureContactRow({ ...newContact, requestType: "rolling" });
-  return prisma.rolling.create({
-    data: { contactId: contact.id, status: "active", createdDirectly: true, createdById },
+  return prisma.$transaction(async (tx) => {
+    const settings = await tx.settings.findFirst();
+    if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
+    const rollingNumber = `RL-${new Date().getFullYear()}-${String(settings.nextRollingNumber).padStart(4, "0")}`;
+    const rolling = await tx.rolling.create({
+      data: { rollingNumber, contactId: contact.id, status: "active", createdDirectly: true, createdById },
+    });
+    await tx.settings.update({ where: { id: settings.id }, data: { nextRollingNumber: settings.nextRollingNumber + 1 } });
+    return rolling;
   });
 }
 

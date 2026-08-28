@@ -528,16 +528,20 @@ export async function listProjectOptions(): Promise<ProjectOptionDto[]> {
 export interface RollingOptionDto {
   id: string;
   label: string;
+  rollingNumber: string;
 }
 
-/** Rolling n'a pas de displayId/numéro (voir rollings/service.ts) — même convention d'étiquette que partout ailleurs (company ?? contactName). */
+/** Étiquette = company ?? contactName (même convention que partout ailleurs) ; rollingNumber (RL-AAAA-NNNN, depuis le 28 août 2026) sert à la résolution Scan QR. */
 export async function listRollingOptions(): Promise<RollingOptionDto[]> {
   const rows = await prisma.rolling.findMany({
-    where: { closedAt: null },
-    select: { id: true, contact: { select: { name: true, company: true } } },
+    // archivedAt/deletedAt ajoutés le 28 août 2026 (après ce filtre) — un
+    // roulement archivé/supprimé ne doit pas être une cible de punch ni de
+    // Scan QR, même règle que listRollings (rollings/service.ts).
+    where: { closedAt: null, archivedAt: null, deletedAt: null },
+    select: { id: true, rollingNumber: true, contact: { select: { name: true, company: true } } },
     orderBy: { createdAt: "desc" },
   });
-  return rows.map((row) => ({ id: row.id, label: row.contact.company ?? row.contact.name }));
+  return rows.map((row) => ({ id: row.id, label: row.contact.company ?? row.contact.name, rollingNumber: row.rollingNumber }));
 }
 
 export interface PunchableEmployeeDto {

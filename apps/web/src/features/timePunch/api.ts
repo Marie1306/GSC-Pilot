@@ -27,6 +27,7 @@ export interface ProjectOptionDto {
 export interface RollingOptionDto {
   id: string;
   label: string;
+  rollingNumber: string;
 }
 
 export interface ServiceCallOptionDto {
