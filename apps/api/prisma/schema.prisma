@@ -940,10 +940,17 @@ model Rolling {
   // même esprit que Project.
   plannedHours                Decimal        @default(0) @db.Decimal(10, 2)
   plannedPurchases            Decimal        @default(0) @db.Decimal(12, 2)
-  // Back-up d'heures — gelé à la conversion du budgétaire, même mécanisme
-  // que Project.backupHours/backupHoursCost/backupHourlyRate
-  // (transferBackupToProject, backup.ts, jamais modifié). Nul si le
-  // roulement n'a pas de budgétaire d'origine.
+  // Marge visée — gelée à la conversion du budgétaire (même formule que
+  // Project.targetMarginPct), nulle si le roulement n'a pas de budgétaire
+  // d'origine.
+  targetMarginPct             Decimal?       @db.Decimal(5, 2)
+  // Back-up d'heures — champs gardés pour miroir structurel avec Project
+  // mais VOLONTAIREMENT jamais alimentés ni lus : confirmé par l'utilisatrice
+  // le 28 août 2026, « il n'y a pas de taux back-up sur un roulement ».
+  // convertBudgetToRolling ne les fige jamais (contrairement à
+  // transferBackupToProject) et computeRollingFinancials ne les référence
+  // jamais — restent à 0/nul pour toujours. Ne pas les brancher un jour sans
+  // reconfirmer, ce n'est pas un oubli.
   backupHours                 Decimal        @default(0) @db.Decimal(10, 2)
   backupHoursCost             Decimal        @default(0) @db.Decimal(12, 2)
   backupHourlyRate            Decimal?       @db.Decimal(10, 2)

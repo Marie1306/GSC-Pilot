@@ -13,9 +13,15 @@
  * "ready_invoice" que Project, juste relabellisée côté interface) →
  * Post-mortem.
  *
- * Pas de comparatif planifié/réel ni de coût ici, contrairement à Project :
- * aucune donnée d'heures/achats n'existe pour un roulement (TimeEntry/
- * PurchaseRequest n'ont pas de rollingId) — seul le revenu (sold) est suivi.
+ * Comparatif planifié/réel + coût réel (28 août 2026, demande de
+ * l'utilisatrice — « je veux les mêmes tuiles/Progression/Comparatif/Achats
+ * réels que Projet ») : voir computeRollingFinancials, qui réutilise
+ * computeHoursValueBase (projects/service.ts) telle quelle. SEULE différence
+ * confirmée avec Project : « il n'y a pas de taux back-up sur un roulement »
+ * — computeRollingFinancials appelle computeHoursValueBase avec
+ * backupPct/backupHourlyRate à 0 (jamais Rolling.backupHours*, qui restent
+ * volontairement inutilisés, voir schema.prisma) et n'ajoute aucun terme de
+ * back-up à la Progression.
  *
  * fulfillment.ts est réutilisé tel quel via son interface FulfillmentEntity
  * générique (déjà anticipée : Rolling a exactement les mêmes noms de champs
@@ -28,6 +34,12 @@ import {
   chooseFulfillment as chooseFulfillmentPure,
   confirmFulfillment as confirmFulfillmentPure,
   canSeeFinancialValues,
+  projectMargin,
+  financialStatus,
+  actualHoursByCategory,
+  BUDGET_CATEGORY_LABELS,
+  type BudgetCategorySlug,
+  type FinancialStatus,
   type FulfillmentMode,
   type Persona,
 } from "@gsc-pilot/business-rules";
@@ -35,8 +47,13 @@ import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
 import { getBudgetDetail } from "../budgets/service.js";
 import { ensureContactRow } from "../clientRequests/service.js";
-import { toInvoicePlanEntryDto, type InvoicePlanEntryDto } from "../projects/service.js";
+import { rollingPurchasesActual } from "../purchases/service.js";
+import { toInvoicePlanEntryDto, computeHoursValueBase, type InvoicePlanEntryDto, type ProjectComparatifRow } from "../projects/service.js";
 import type { Rolling } from "../../generated/prisma/client.js";
+
+function round2(value: number): number {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
 
 // N'accepte jamais FULFILLMENT_MODES.INSTALLATION — seuls les 3 modes de
 // livraison classiques ont un sens pour un roulement (spec confirmée).
@@ -83,6 +100,17 @@ export interface RollingDetailDto {
   clientRequestId: string | null;
   createdAt: string;
   sold?: number;
+  plannedHours: number;
+  actualHours: number;
+  hoursUsedPct: number;
+  plannedPurchases?: number;
+  actualPurchases?: number;
+  grossMargin?: number;
+  grossMarginPct?: number;
+  targetMarginPct?: number | null;
+  financialStatus?: FinancialStatus;
+  progressionPct?: number;
+  comparatif: ProjectComparatifRow[];
   productionCompleted: boolean;
   fulfillmentMode: string | null;
   fulfillmentStatus: string | null;
@@ -92,6 +120,99 @@ export interface RollingDetailDto {
   fulfillmentScheduled: string | null;
   fulfillmentConfirmationNote: string | null;
   billingReady: boolean;
+}
+
+interface RollingFinancials {
+  actualHours: number;
+  actualLaborCost: number;
+  purchasesActual: number;
+  grossMargin: number;
+  grossMarginPct: number;
+  status: FinancialStatus;
+  comparatif: ProjectComparatifRow[];
+  plannedHoursValue: number;
+  actualHoursValue: number;
+}
+
+/**
+ * Calcul financier du roulement — même esprit que computeProjectFinancials
+ * (projects/service.ts, réutilisée via computeHoursValueBase, jamais
+ * réimplémentée), adapté à TimeEntry.rollingId/ProjectPurchaseEntry.rollingId
+ * plutôt que projectId. SEULE différence confirmée avec Project : pas de
+ * terme de back-up — computeHoursValueBase appelé avec
+ * backupPct/backupHourlyRate à 0 (voir en-tête de fichier), donc
+ * plannedHoursValue/actualHoursValue ne contiennent jamais de composante
+ * back-up ici. Comparatif regroupé par catégorie seulement (pas de détail
+ * par tâche — jamais demandé pour Roulement, contrairement au post-mortem
+ * projet).
+ */
+async function computeRollingFinancials(
+  rollingId: string,
+  sold: number,
+  budgetId: string | null,
+  showFinancials: boolean,
+): Promise<RollingFinancials> {
+  const [timeEntries, purchasesActual, settings] = await Promise.all([
+    prisma.timeEntry.findMany({
+      where: { rollingId, status: "approved", deletedAt: null },
+      select: { category: true, status: true, roundedMinutes: true, costRate: true },
+    }),
+    rollingPurchasesActual(rollingId),
+    prisma.settings.findFirst(),
+  ]);
+  if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
+
+  const actualByCategory = actualHoursByCategory(
+    timeEntries.map((entry) => ({
+      category: entry.category,
+      status: entry.status,
+      roundedMinutes: entry.roundedMinutes,
+      costRate: Number(entry.costRate),
+    })),
+  );
+  const actualHours = round2(actualByCategory.reduce((sum, row) => sum + row.hours, 0));
+  const actualLaborCost = round2(actualByCategory.reduce((sum, row) => sum + row.cost, 0));
+
+  const marginResult = projectMargin(sold, actualLaborCost, purchasesActual);
+  const grossMargin = marginResult.grossMargin;
+  const grossMarginPct = round2(marginResult.grossMarginPct);
+  const status = financialStatus(grossMarginPct, {
+    conformeThreshold: Number(settings.marginConformeThreshold),
+    atRiskThreshold: Number(settings.marginAtRiskThreshold),
+  });
+
+  let comparatif: ProjectComparatifRow[] = [];
+  let plannedHoursValue = 0;
+  let actualHoursValue = 0;
+  if (budgetId) {
+    const budgetDetail = await getBudgetDetail(budgetId);
+    const actualByCategoryMap = new Map(actualByCategory.map((row) => [row.category, row]));
+    const laborSections = budgetDetail.sections.filter((section) => section.kind === "labor");
+    // Pas de taux back-up sur un roulement (confirmé 28 août 2026) — 0/0
+    // garantit que computeHoursValueBase n'ajoute jamais de composante
+    // back-up, sans dupliquer sa logique.
+    ({ plannedHoursValue, actualHoursValue } = computeHoursValueBase(laborSections, actualByCategoryMap, 0, 0));
+
+    comparatif = laborSections.map((section) => {
+      const actual = actualByCategoryMap.get(section.category);
+      const rowActualHours = actual?.hours ?? 0;
+      const rowActualCost = round2(actual?.cost ?? 0);
+      return {
+        category: section.category,
+        categoryLabel: BUDGET_CATEGORY_LABELS[section.category as BudgetCategorySlug] ?? section.category,
+        plannedHours: section.hours,
+        actualHours: rowActualHours,
+        hoursDelta: round2(rowActualHours - section.hours),
+        ...(showFinancials && {
+          plannedCost: section.baseCost,
+          actualCost: rowActualCost,
+          costDelta: round2(rowActualCost - section.baseCost),
+        }),
+      };
+    });
+  }
+
+  return { actualHours, actualLaborCost, purchasesActual, grossMargin, grossMarginPct, status, comparatif, plannedHoursValue, actualHoursValue };
 }
 
 export async function getRollingDetail(id: string, viewerPersona: Persona): Promise<RollingDetailDto> {
@@ -107,6 +228,23 @@ export async function getRollingDetail(id: string, viewerPersona: Persona): Prom
     ? await prisma.employee.findUnique({ where: { id: rolling.fulfillmentDriverId }, select: { name: true } })
     : null;
 
+  const showFinancials = canSeeFinancialValues(viewerPersona);
+  const sold = Number(rolling.sold);
+  const plannedHours = Number(rolling.plannedHours);
+  const plannedPurchases = Number(rolling.plannedPurchases);
+  const { actualHours, purchasesActual, grossMargin, grossMarginPct, status, comparatif, plannedHoursValue, actualHoursValue } =
+    await computeRollingFinancials(rolling.id, sold, rolling.budgetId, showFinancials);
+
+  // Progression du roulement — jamais de terme de back-up (voir
+  // computeRollingFinancials). plannedHoursValue/actualHoursValue valent 0
+  // sans budgétaire d'origine, donc cette formule reste correcte même pour
+  // un roulement créé directement (aucun repli séparé nécessaire,
+  // contrairement à Project qui doit gérer un plannedHours saisi à la main
+  // sans budgétaire — pas encore possible pour Rolling).
+  const plannedBase = round2(plannedHoursValue + plannedPurchases);
+  const actualBase = round2(actualHoursValue + purchasesActual);
+  const progressionPct = plannedBase > 0 ? round2((actualBase / plannedBase) * 100) : 0;
+
   return {
     id: rolling.id,
     contactName: rolling.contact.name,
@@ -118,6 +256,10 @@ export async function getRollingDetail(id: string, viewerPersona: Persona): Prom
     budgetDisplayId: rolling.budget?.displayId ?? null,
     clientRequestId: rolling.clientRequestId,
     createdAt: rolling.createdAt.toISOString(),
+    plannedHours,
+    actualHours,
+    hoursUsedPct: plannedHours > 0 ? round2((actualHours / plannedHours) * 100) : 0,
+    comparatif,
     productionCompleted: rolling.productionCompleted,
     fulfillmentMode: rolling.fulfillmentMode,
     fulfillmentStatus: rolling.fulfillmentStatus,
@@ -127,7 +269,16 @@ export async function getRollingDetail(id: string, viewerPersona: Persona): Prom
     fulfillmentScheduled: rolling.fulfillmentScheduled?.toISOString() ?? null,
     fulfillmentConfirmationNote: rolling.fulfillmentConfirmationNote,
     billingReady: rolling.billingReady,
-    ...(canSeeFinancialValues(viewerPersona) && { sold: Number(rolling.sold) }),
+    ...(showFinancials && {
+      sold,
+      plannedPurchases,
+      actualPurchases: purchasesActual,
+      grossMargin,
+      grossMarginPct,
+      targetMarginPct: rolling.targetMarginPct !== null ? Number(rolling.targetMarginPct) : null,
+      financialStatus: status,
+      progressionPct,
+    }),
   };
 }
 
@@ -161,6 +312,17 @@ export async function convertBudgetToRolling(createdById: string, budgetId: stri
   const detail = await getBudgetDetail(budgetId);
   const totalSale = detail.totals.totalSale;
 
+  // plannedHours/plannedPurchases figés depuis le budgétaire, même formule
+  // que convertBudgetToProject — mais JAMAIS backupHours/backupHoursCost/
+  // backupHourlyRate (voir en-tête de fichier : pas de taux back-up sur un
+  // roulement, restent à leur défaut du schéma).
+  const laborSections = detail.sections.filter((section) => section.kind === "labor");
+  const purchaseSections = detail.sections.filter((section) => section.kind === "purchase");
+  const plannedHours = laborSections.reduce((sum, section) => sum + section.hours, 0);
+  const plannedPurchases = purchaseSections.reduce((sum, section) => sum + section.baseCost, 0);
+  const totalBaseCost = detail.totals.totalBaseCost;
+  const targetMarginPct = totalSale > 0 ? Math.round(((totalSale - totalBaseCost) / totalSale) * 100 * 100) / 100 : 0;
+
   return prisma.$transaction(async (tx) => {
     const rolling = await tx.rolling.create({
       data: {
@@ -169,6 +331,9 @@ export async function convertBudgetToRolling(createdById: string, budgetId: stri
         budgetId: budget.id,
         status: "active",
         sold: totalSale,
+        plannedHours,
+        plannedPurchases,
+        targetMarginPct,
         createdById,
       },
     });

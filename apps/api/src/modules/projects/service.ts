@@ -599,7 +599,7 @@ interface ProjectFinancials {
  * catégories) × le VRAI pourcentage de CE budgétaire (budget.backupHoursPct,
  * jamais un 10% deviné) × le taux de back-up gelé du projet.
  */
-function computeHoursValueBase(
+export function computeHoursValueBase(
   laborSectionSummaries: { category: string; hours: number; baseCost: number }[],
   actualByCategoryMap: Map<string, { hours: number }>,
   backupPct: number,
