@@ -334,11 +334,16 @@ export function PurchaseRequestList() {
               intrinsèque (large sur plusieurs claviers mobiles) et déborde
               du cadre plutôt que de se partager la rangée. */}
           <div style={{ display: "flex", gap: 10 }}>
-            <div className="field" style={{ marginBottom: 0, flex: "1 1 0", minWidth: 0 }}>
+            {/* width:0 en plus de flex:"1 1 0"/minWidth:0 : un input[type=date]
+                REMPLI a refusé de respecter le partage 50/50 sur Android
+                (rapporté le 28 août 2026, "Du" débordait par-dessus "Au")
+                malgré minWidth:0 seul — combo défensif classique pour un
+                élément remplacé (input/select) récalcitrant en flexbox. */}
+            <div className="field" style={{ marginBottom: 0, flex: "1 1 0", minWidth: 0, width: 0 }}>
               <label>Du</label>
               <input type="date" value={historyDateFrom} onChange={(e) => setHistoryDateFrom(e.target.value)} />
             </div>
-            <div className="field" style={{ marginBottom: 0, flex: "1 1 0", minWidth: 0 }}>
+            <div className="field" style={{ marginBottom: 0, flex: "1 1 0", minWidth: 0, width: 0 }}>
               <label>Au</label>
               <input type="date" value={historyDateTo} onChange={(e) => setHistoryDateTo(e.target.value)} />
             </div>

@@ -119,6 +119,14 @@ a {
 }
 .field input {
   min-height: 39px;
+  width: 100%;
+  /* overflow:hidden : filet de sécurité pour input[type=date] — certains
+     navigateurs mobiles (Android/Samsung Internet, rapporté le 28 août
+     2026) rendent le contenu interne d'un champ de date REMPLI plus large
+     que la boîte qui lui est allouée dans une rangée flex serrée, et
+     laissent ce contenu déborder par-dessus le champ voisin plutôt que de
+     le respecter. Sans effet quand la boîte est déjà assez large. */
+  overflow: hidden;
   padding: 8px 12px;
   border-radius: var(--gsc-radius-sm);
   border: 1px solid var(--gsc-color-line-strong);
