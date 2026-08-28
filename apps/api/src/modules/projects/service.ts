@@ -23,6 +23,8 @@ import {
   canSeeFinancialValues,
   BUDGET_CATEGORY_GROUP,
   BUDGET_CATEGORY_LABELS,
+  BACKUP_ELIGIBLE_ALIAS,
+  sectionSummary,
   computeBillingPlan,
   invoiceStatus,
   type BillingSplitStep,
@@ -339,7 +341,9 @@ export async function listProjects(viewerPersona: Persona): Promise<ProjectListI
   });
   const ids = projects.map((project) => project.id);
 
-  const [timeEntries, appliedRequests, approvedEntries, settings] = await Promise.all([
+  const budgetIds = projects.map((project) => project.budgetId).filter((id): id is string => id !== null);
+
+  const [timeEntries, appliedRequests, approvedEntries, settings, laborSections, budgetsById] = await Promise.all([
     prisma.timeEntry.findMany({
       where: { projectId: { in: ids }, status: "approved", deletedAt: null },
       select: { projectId: true, category: true, status: true, roundedMinutes: true, costRate: true },
@@ -353,8 +357,26 @@ export async function listProjects(viewerPersona: Persona): Promise<ProjectListI
       select: { projectId: true, amount: true },
     }),
     prisma.settings.findFirst(),
+    // "Valeur des heures" (voir computeHoursValueBase) : un seul fetch batché
+    // des sections labor de tous les budgétaires de la liste, jamais un
+    // aller-retour getBudgetDetail par projet (même raison que
+    // timeEntries/achats ci-dessus — voir le commentaire de fonction).
+    budgetIds.length > 0
+      ? prisma.budgetSection.findMany({ where: { budgetId: { in: budgetIds }, kind: "labor" }, include: { rows: true } })
+      : Promise.resolve([]),
+    budgetIds.length > 0
+      ? prisma.budget.findMany({ where: { id: { in: budgetIds } }, select: { id: true, backupHoursPct: true } })
+      : Promise.resolve([]),
   ]);
   if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
+
+  const laborSectionsByBudget = new Map<string, typeof laborSections>();
+  for (const section of laborSections) {
+    const list = laborSectionsByBudget.get(section.budgetId) ?? [];
+    list.push(section);
+    laborSectionsByBudget.set(section.budgetId, list);
+  }
+  const backupPctByBudget = new Map(budgetsById.map((budget) => [budget.id, Number(budget.backupHoursPct)]));
 
   const timeEntriesByProject = new Map<string, typeof timeEntries>();
   for (const entry of timeEntries) {
@@ -393,9 +415,38 @@ export async function listProjects(viewerPersona: Persona): Promise<ProjectListI
     const plannedHours = Number(project.plannedHours);
     const marginResult = projectMargin(sold, actualLaborCost, purchasesActual);
     const grossMarginPct = round2(marginResult.grossMarginPct);
+
+    // Progression — même correction que getProjectDetail (computeHoursValueBase) :
+    // chaque catégorie à son propre taux de ligne, jamais le taux de back-up
+    // appliqué à toutes les heures. Repli sur l'ancien calcul global
+    // seulement si le projet n'a pas de budgétaire (aucune ligne pour
+    // connaître un taux propre).
     const backupRate = project.backupHourlyRate !== null ? Number(project.backupHourlyRate) : 0;
-    const plannedBase = plannedHours * backupRate + Number(project.plannedPurchases);
-    const actualBase = actualHours * backupRate + purchasesActual;
+    let plannedBase: number;
+    let actualBase: number;
+    if (project.budgetId) {
+      const actualByCategoryMap = new Map(actualByCategory.map((row) => [row.category, row]));
+      const sections = (laborSectionsByBudget.get(project.budgetId) ?? []).map((section) =>
+        sectionSummary({
+          category: section.category,
+          kind: "labor",
+          rows: section.rows.map((row) => ({
+            id: row.id,
+            hours: Number(row.hours),
+            hourlyRate: Number(row.hourlyRate),
+            autoFromRowId: row.autoFromRowId,
+            autoPct: row.autoPct !== null ? Number(row.autoPct) : null,
+          })),
+        }),
+      );
+      const backupPct = backupPctByBudget.get(project.budgetId) ?? 0;
+      const { plannedHoursValue, actualHoursValue, actualBackupCost } = computeHoursValueBase(sections, actualByCategoryMap, backupPct, backupRate);
+      plannedBase = round2(plannedHoursValue + Number(project.backupHoursCost) + Number(project.plannedPurchases));
+      actualBase = round2(actualHoursValue + actualBackupCost + purchasesActual);
+    } else {
+      plannedBase = plannedHours * backupRate + Number(project.plannedPurchases);
+      actualBase = actualHours * backupRate + purchasesActual;
+    }
 
     return {
       id: project.id,
@@ -519,6 +570,55 @@ interface ProjectFinancials {
   grossMarginPct: number;
   status: FinancialStatus;
   comparatif: ProjectComparatifRow[];
+  /** Voir computeHoursValueBase — 0/0/0 si le projet n'a pas de budgétaire d'origine (aucun taux par catégorie disponible, voir getProjectDetail pour le repli). */
+  plannedHoursValue: number;
+  actualHoursValue: number;
+  actualBackupCost: number;
+}
+
+/**
+ * « Valeur des heures » (planifiées et réelles) pour la Progression du
+ * projet — CHAQUE catégorie valorisée à SON PROPRE taux de ligne
+ * budgétaire, jamais un taux unique appliqué à tout (bug confirmé le 28
+ * août 2026 par l'utilisatrice, avec exemple chiffré : conception à 117$,
+ * plasma à 116$, peinture à 107$, assemblage à 112$ — jamais le taux de
+ * back-up appliqué uniformément, qui ne revient qu'aux heures de back-up
+ * elles-mêmes). Distinct du coût réel de main-d'oeuvre (actualLaborCost,
+ * ci-dessus, au taux de COÛT de l'employé qui a punché — sert la marge
+ * réelle, un calcul volontairement différent que l'utilisatrice a confirmé
+ * correct et à ne pas toucher).
+ *
+ * Taux "réel" par catégorie = le même taux moyen que le planifié de cette
+ * catégorie (section.baseCost / section.hours) — jamais le coût employé.
+ * Back-up réel = heures réelles des catégories éligibles (voir
+ * BACKUP_ELIGIBLE_ALIAS, categories.ts — section.category est le slug Prisma
+ * réel, ex. "panelProgramming"/"assemblyTest", PAS les noms alias utilisés
+ * par ELIGIBLE_BACKUP_CATEGORIES dans backup.ts, ex. "programmation"/
+ * "assemblage" — comparer contre ce dernier ne matcherait jamais ces deux
+ * catégories) × le VRAI pourcentage de CE budgétaire (budget.backupHoursPct,
+ * jamais un 10% deviné) × le taux de back-up gelé du projet.
+ */
+function computeHoursValueBase(
+  laborSectionSummaries: { category: string; hours: number; baseCost: number }[],
+  actualByCategoryMap: Map<string, { hours: number }>,
+  backupPct: number,
+  backupHourlyRate: number,
+): { plannedHoursValue: number; actualHoursValue: number; actualBackupCost: number } {
+  let plannedHoursValue = 0;
+  let actualHoursValue = 0;
+  let actualEligibleHours = 0;
+  for (const section of laborSectionSummaries) {
+    plannedHoursValue += section.baseCost;
+    const actualHoursInCategory = actualByCategoryMap.get(section.category)?.hours ?? 0;
+    const rate = section.hours > 0 ? section.baseCost / section.hours : 0;
+    actualHoursValue += round2(actualHoursInCategory * rate);
+    if (section.category in BACKUP_ELIGIBLE_ALIAS) {
+      actualEligibleHours += actualHoursInCategory;
+    }
+  }
+  const actualBackupHours = round2((actualEligibleHours * backupPct) / 100);
+  const actualBackupCost = round2(actualBackupHours * backupHourlyRate);
+  return { plannedHoursValue: round2(plannedHoursValue), actualHoursValue: round2(actualHoursValue), actualBackupCost };
 }
 
 /**
@@ -540,6 +640,7 @@ async function computeProjectFinancials(
   sold: number,
   budgetId: string | null,
   showFinancials: boolean,
+  backupHourlyRate: number = 0,
 ): Promise<ProjectFinancials> {
   const [timeEntries, purchasesActual, settings] = await Promise.all([
     prisma.timeEntry.findMany({
@@ -586,6 +687,9 @@ async function computeProjectFinancials(
   });
 
   let comparatif: ProjectComparatifRow[] = [];
+  let plannedHoursValue = 0;
+  let actualHoursValue = 0;
+  let actualBackupCost = 0;
   if (budgetId) {
     const budgetDetail = await getBudgetDetail(budgetId);
     const actualByCategoryMap = new Map(actualByCategory.map((row) => [row.category, row]));
@@ -594,49 +698,65 @@ async function computeProjectFinancials(
       select: { id: true, label: true, budgetModelRowId: true },
     });
     const taskByModelRowId = new Map(punchableTasks.map((task) => [task.budgetModelRowId as string, task]));
+    const laborSections = budgetDetail.sections.filter((section) => section.kind === "labor");
+    ({ plannedHoursValue, actualHoursValue, actualBackupCost } = computeHoursValueBase(
+      laborSections,
+      actualByCategoryMap,
+      budgetDetail.backupHoursPct,
+      backupHourlyRate,
+    ));
 
-    comparatif = budgetDetail.sections
-      .filter((section) => section.kind === "labor")
-      .map((section) => {
-        const actual = actualByCategoryMap.get(section.category);
-        const rowActualHours = actual?.hours ?? 0;
-        const rowActualCost = round2(actual?.cost ?? 0);
-        const tasks: ProjectComparatifTaskRow[] = section.rows.map((row) => {
-          const task = row.modelRowId ? taskByModelRowId.get(row.modelRowId) : undefined;
-          const taskActual = task ? actualByTaskMap.get(task.id) : undefined;
-          const taskActualHours = taskActual?.hours ?? 0;
-          const taskActualCost = round2(taskActual?.cost ?? 0);
-          const taskPlannedCost = round2(row.hours * row.hourlyRate);
-          return {
-            taskId: task?.id ?? row.id,
-            taskLabel: task?.label ?? row.label,
-            plannedHours: row.hours,
-            actualHours: taskActualHours,
-            hoursDelta: round2(taskActualHours - row.hours),
-            ...(showFinancials && {
-              plannedCost: taskPlannedCost,
-              actualCost: taskActualCost,
-              costDelta: round2(taskActualCost - taskPlannedCost),
-            }),
-          };
-        });
+    comparatif = laborSections.map((section) => {
+      const actual = actualByCategoryMap.get(section.category);
+      const rowActualHours = actual?.hours ?? 0;
+      const rowActualCost = round2(actual?.cost ?? 0);
+      const tasks: ProjectComparatifTaskRow[] = section.rows.map((row) => {
+        const task = row.modelRowId ? taskByModelRowId.get(row.modelRowId) : undefined;
+        const taskActual = task ? actualByTaskMap.get(task.id) : undefined;
+        const taskActualHours = taskActual?.hours ?? 0;
+        const taskActualCost = round2(taskActual?.cost ?? 0);
+        const taskPlannedCost = round2(row.hours * row.hourlyRate);
         return {
-          category: section.category,
-          categoryLabel: BUDGET_CATEGORY_LABELS[section.category as BudgetCategorySlug] ?? section.category,
-          plannedHours: section.hours,
-          actualHours: rowActualHours,
-          hoursDelta: round2(rowActualHours - section.hours),
+          taskId: task?.id ?? row.id,
+          taskLabel: task?.label ?? row.label,
+          plannedHours: row.hours,
+          actualHours: taskActualHours,
+          hoursDelta: round2(taskActualHours - row.hours),
           ...(showFinancials && {
-            plannedCost: section.baseCost,
-            actualCost: rowActualCost,
-            costDelta: round2(rowActualCost - section.baseCost),
+            plannedCost: taskPlannedCost,
+            actualCost: taskActualCost,
+            costDelta: round2(taskActualCost - taskPlannedCost),
           }),
-          tasks,
         };
       });
+      return {
+        category: section.category,
+        categoryLabel: BUDGET_CATEGORY_LABELS[section.category as BudgetCategorySlug] ?? section.category,
+        plannedHours: section.hours,
+        actualHours: rowActualHours,
+        hoursDelta: round2(rowActualHours - section.hours),
+        ...(showFinancials && {
+          plannedCost: section.baseCost,
+          actualCost: rowActualCost,
+          costDelta: round2(rowActualCost - section.baseCost),
+        }),
+        tasks,
+      };
+    });
   }
 
-  return { actualHours, actualLaborCost, purchasesActual, grossMargin, grossMarginPct, status, comparatif };
+  return {
+    actualHours,
+    actualLaborCost,
+    purchasesActual,
+    grossMargin,
+    grossMarginPct,
+    status,
+    comparatif,
+    plannedHoursValue,
+    actualHoursValue,
+    actualBackupCost,
+  };
 }
 
 export async function getProjectDetail(id: string, viewerPersona: Persona): Promise<ProjectDetailDto> {
@@ -649,23 +769,42 @@ export async function getProjectDetail(id: string, viewerPersona: Persona): Prom
   const showFinancials = canSeeFinancialValues(viewerPersona);
   const sold = Number(project.sold);
   const plannedHours = Number(project.plannedHours);
-  const { actualHours, purchasesActual, grossMargin, grossMarginPct, status, comparatif } = await computeProjectFinancials(
-    project.id,
-    sold,
-    project.budgetId,
-    showFinancials,
-  );
-
-  // Progression du projet — confirmé le 17 août 2026 : tout converti en $
-  // avec Project.backupHourlyRate (taux gelé du budgétaire d'origine, PAS
-  // le coût réel par employé ni le taux de chaque ligne budgétaire — ceux-là
-  // servent à la marge réelle ci-dessus, un calcul volontairement distinct).
-  // Achats = mêmes achats réels/planifiés que les tuiles (appliquées au
-  // projet, jamais simplement "authorized").
   const backupRate = project.backupHourlyRate !== null ? Number(project.backupHourlyRate) : 0;
+  const {
+    actualHours,
+    purchasesActual,
+    grossMargin,
+    grossMarginPct,
+    status,
+    comparatif,
+    plannedHoursValue,
+    actualHoursValue,
+    actualBackupCost,
+  } = await computeProjectFinancials(project.id, sold, project.budgetId, showFinancials, backupRate);
+
+  // Progression du projet — CORRIGÉ le 28 août 2026 (bug rapporté par
+  // l'utilisatrice, avec exemple chiffré à l'appui) : chaque catégorie de
+  // main-d'oeuvre valorisée à SON PROPRE taux de ligne budgétaire (voir
+  // computeHoursValueBase) + le back-up séparément à son propre taux —
+  // JAMAIS project.backupHourlyRate appliqué à la totalité des heures
+  // planifiées/réelles comme avant (ça revenait à valoriser conception et
+  // installation au taux de back-up, qui ne leur revient jamais — voir
+  // ELIGIBLE_BACKUP_CATEGORIES, backup.ts). Le coût réel de main-d'oeuvre
+  // (actualLaborCost, ci-dessus, au taux de COÛT de l'employé) sert
+  // uniquement la marge réelle — un calcul volontairement distinct,
+  // confirmé correct et inchangé par l'utilisatrice.
+  //
+  // Repli sur l'ancien calcul UNIQUEMENT si le projet n'a pas de budgétaire
+  // d'origine (création directe) : dans ce cas, aucune ligne/catégorie n'existe
+  // pour connaître un taux propre — impossible de faire mieux qu'une
+  // valorisation globale au taux de back-up, seul taux disponible.
   const plannedPurchases = Number(project.plannedPurchases);
-  const plannedBase = plannedHours * backupRate + plannedPurchases;
-  const actualBase = actualHours * backupRate + purchasesActual;
+  const plannedBase = project.budgetId
+    ? round2(plannedHoursValue + Number(project.backupHoursCost) + plannedPurchases)
+    : plannedHours * backupRate + plannedPurchases;
+  const actualBase = project.budgetId
+    ? round2(actualHoursValue + actualBackupCost + purchasesActual)
+    : actualHours * backupRate + purchasesActual;
   const progressionPct = plannedBase > 0 ? round2((actualBase / plannedBase) * 100) : 0;
 
   return {
