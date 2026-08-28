@@ -19,6 +19,7 @@ import {
   createPurchaseShortlist,
   createPurchaseRequest,
   listPurchaseRequests,
+  listPurchaseRequestHistory,
   updatePurchaseRequest,
   setPurchaseRequestAmount,
   setPurchaseRequestExpectedReceiptDate,
@@ -88,11 +89,24 @@ purchasesRouter.post(
   },
 );
 
-/** Centre d'action des demandes d'achat — chacun voit au moins ses propres demandes (voir canViewPurchase dans roles.ts). Sans ?status, retourne tout ce qui est visible (pas seulement en attente) — voir listPurchaseRequests. */
+/** Centre d'action des demandes d'achat — tout le monde voit toutes les demandes depuis le 27 août 2026 (voir listPurchaseRequests). Sans ?status, retourne les demandes actives (pas l'historique — voir /purchase-requests/history). */
 purchasesRouter.get("/purchase-requests", requireAuth, async (req, res) => {
   const status = typeof req.query.status === "string" ? req.query.status : undefined;
   const employee = req.employee!;
   const list = await listPurchaseRequests({ id: employee.id, persona: employee.persona }, status);
+  res.json({ purchaseRequests: list });
+});
+
+const historyQuerySchema = z.object({
+  dateFrom: z.iso.date().optional(),
+  dateTo: z.iso.date().optional(),
+  projectId: z.uuid().optional(),
+});
+
+/** Historique (rejetées + appliquées au projet) — borné aux 35 plus récentes, filtrable par date/projet (voir listPurchaseRequestHistory). */
+purchasesRouter.get("/purchase-requests/history", requireAuth, async (req, res) => {
+  const filter = historyQuerySchema.parse(req.query);
+  const list = await listPurchaseRequestHistory(req.employee!.persona, filter);
   res.json({ purchaseRequests: list });
 });
 

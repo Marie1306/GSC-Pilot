@@ -214,14 +214,31 @@ export async function createPurchaseRequest(requesterId: string, input: CreatePu
   });
 }
 
-/** Visibilité : Direction/Administration/Propriétaire voient tout; chacun des autres rôles ne voit que ses propres demandes (canViewPurchase, roles.ts). Sans `status`, retourne TOUTES les demandes visibles (pas seulement en attente) — Propriétaire doit voir le statut de chacune, Employé/Magasinier le suivi de leurs propres demandes passées (13 août 2026). */
+/**
+ * Visibilité : TOUT LE MONDE voit toutes les demandes d'achat, peu importe
+ * le demandeur (changé le 27 août 2026 — règle d'origine restreignant
+ * Employé/Magasinier à leurs propres demandes abandonnée après tests réels :
+ * "plus simple pour le suivi des commandes" quand tout le monde voit
+ * l'historique complet). canViewPurchase (roles.ts) devient inutilisé par ce
+ * changement mais reste intentionnellement intouché — module d'origine
+ * vérifié, voir CLAUDE.md. La protection réelle reste le masquage du prix
+ * fixé/estimé pour Employé/Magasinier via canSeeFinancialValues, appliqué
+ * dans toPurchaseRequestDto ci-dessous, inchangé par ce changement.
+ *
+ * Sans `status`, exclut les demandes TERMINALES (rejetées, ou autorisées et
+ * déjà appliquées au projet) — ce sont elles qui s'accumulent pour toujours
+ * (voir listPurchaseRequestHistory ci-dessous pour les consulter, bornées).
+ * "En attente"/"autorisée non appliquée" restent naturellement bornées par
+ * ce qui reste à traiter, jamais besoin de pagination ici (28 août 2026,
+ * après avoir constaté qu'aucune limite n'existait nulle part dans la
+ * chaîne). Un `status` explicite (ex. "authorized") n'est pas affecté par
+ * cette exclusion — utilisé tel quel par qui le demande spécifiquement.
+ */
 export async function listPurchaseRequests(viewer: { id: string; persona: Persona }, status?: string): Promise<PurchaseRequestDto[]> {
-  const canSeeAll = ["owner", "admin", "boss"].includes(viewer.persona);
   const rows = await prisma.purchaseRequest.findMany({
-    where: {
-      ...(status ? { status } : {}),
-      ...(canSeeAll ? {} : { requesterId: viewer.id }),
-    },
+    where: status
+      ? { status }
+      : { NOT: [{ status: "rejected" }, { status: "authorized", appliedToProjectAt: { not: null } }] },
     include: {
       requester: { select: { name: true, persona: true } },
       project: { select: { projectNumber: true, name: true } },
@@ -230,6 +247,58 @@ export async function listPurchaseRequests(viewer: { id: string; persona: Person
     orderBy: { requestedAt: "desc" },
   });
   return rows.map((row) => toPurchaseRequestDto(row, viewer.persona));
+}
+
+export interface PurchaseRequestHistoryFilter {
+  /** Date (YYYY-MM-DD) incluse — borne inférieure sur requestedAt. */
+  dateFrom?: string;
+  /** Date (YYYY-MM-DD) incluse — borne supérieure sur requestedAt (jusqu'à 23h59m59 ce jour-là). */
+  dateTo?: string;
+  projectId?: string;
+}
+
+const PURCHASE_HISTORY_PAGE_SIZE = 35;
+
+function purchaseHistoryDateRangeWhere(filter: PurchaseRequestHistoryFilter) {
+  if (!filter.dateFrom && !filter.dateTo) return {};
+  const gte = filter.dateFrom ? new Date(`${filter.dateFrom}T00:00:00.000Z`) : undefined;
+  let lt: Date | undefined;
+  if (filter.dateTo) {
+    lt = new Date(`${filter.dateTo}T00:00:00.000Z`);
+    lt.setUTCDate(lt.getUTCDate() + 1);
+  }
+  return { requestedAt: { ...(gte ? { gte } : {}), ...(lt ? { lt } : {}) } };
+}
+
+/**
+ * Historique (demandes rejetées + achats autorisés déjà appliqués au projet)
+ * — accumule pour toujours contrairement au reste de listPurchaseRequests
+ * ci-dessus. Limité aux 35 plus récentes par défaut (demande du 28 août
+ * 2026, après avoir confirmé qu'aucune limite n'existait) — un filtre par
+ * plage de dates et/ou par projet permet de voir au-delà de ces 35
+ * dernières, toujours triées de la plus récente à la plus ancienne DANS le
+ * filtre choisi (pas un "charger plus" — suffisant pour l'usage confirmé :
+ * retrouver un achat précis, pas parcourir tout l'historique).
+ */
+export async function listPurchaseRequestHistory(
+  viewerPersona: Persona,
+  filter: PurchaseRequestHistoryFilter = {},
+): Promise<PurchaseRequestDto[]> {
+  const rows = await prisma.purchaseRequest.findMany({
+    where: {
+      OR: [{ status: "rejected" }, { status: "authorized", appliedToProjectAt: { not: null } }],
+      ...(filter.projectId ? { projectId: filter.projectId } : {}),
+      ...purchaseHistoryDateRangeWhere(filter),
+    },
+    include: {
+      requester: { select: { name: true, persona: true } },
+      project: { select: { projectNumber: true, name: true } },
+      category: { select: { name: true } },
+    },
+    orderBy: { requestedAt: "desc" },
+    take: PURCHASE_HISTORY_PAGE_SIZE,
+  });
+  return rows.map((row) => toPurchaseRequestDto(row, viewerPersona));
 }
 
 export function toPurchaseRequestDto(row: PurchaseRequestWithRelations, viewerPersona: Persona): PurchaseRequestDto {

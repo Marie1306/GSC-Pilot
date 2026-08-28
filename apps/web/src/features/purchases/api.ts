@@ -97,6 +97,22 @@ export function fetchPurchaseRequests(): Promise<{ purchaseRequests: PurchaseReq
   return apiFetch("/api/purchase-requests");
 }
 
+export interface PurchaseRequestHistoryFilter {
+  dateFrom?: string;
+  dateTo?: string;
+  projectId?: string;
+}
+
+/** Historique — 35 plus récentes par défaut, filtrable par date/projet pour voir plus loin (voir service.ts, API). */
+export function fetchPurchaseRequestHistory(filter: PurchaseRequestHistoryFilter = {}): Promise<{ purchaseRequests: PurchaseRequestDto[] }> {
+  const params = new URLSearchParams();
+  if (filter.dateFrom) params.set("dateFrom", filter.dateFrom);
+  if (filter.dateTo) params.set("dateTo", filter.dateTo);
+  if (filter.projectId) params.set("projectId", filter.projectId);
+  const query = params.toString();
+  return apiFetch(`/api/purchase-requests/history${query ? `?${query}` : ""}`);
+}
+
 export function submitPurchaseRequest(input: NewPurchaseRequestInput): Promise<{ id: string; displayId: string }> {
   return apiFetch("/api/purchase-requests", { method: "POST", body: JSON.stringify(input) });
 }

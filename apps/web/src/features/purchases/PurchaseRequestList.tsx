@@ -5,6 +5,8 @@ import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import {
   fetchPurchaseRequests,
+  fetchPurchaseRequestHistory,
+  fetchProjects,
   setPurchaseRequestAmount,
   setPurchaseRequestExpectedReceiptDate,
   approvePurchaseRequest,
@@ -53,9 +55,28 @@ export function PurchaseRequestList() {
   const [draftReceiptDates, setDraftReceiptDates] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
+  // Historique — requête séparée et bornée (voir api.ts), jamais dérivée de
+  // listQuery ci-dessus : c'est justement ce qui grossissait sans fin avant
+  // le 28 août 2026 (rapport de l'utilisatrice). Filtres appliqués côté
+  // serveur, pas un simple masquage client.
+  const [historyDateFrom, setHistoryDateFrom] = useState("");
+  const [historyDateTo, setHistoryDateTo] = useState("");
+  const [historyProjectId, setHistoryProjectId] = useState("");
+  const historyFilter = {
+    dateFrom: historyDateFrom || undefined,
+    dateTo: historyDateTo || undefined,
+    projectId: historyProjectId || undefined,
+  };
+  const historyQuery = useQuery({
+    queryKey: ["purchase-requests-history", historyFilter],
+    queryFn: () => fetchPurchaseRequestHistory(historyFilter),
+  });
+  const projectsQuery = useQuery({ queryKey: ["projects", "options"], queryFn: fetchProjects });
+
   const invalidate = () => {
     setError(null);
     void queryClient.invalidateQueries({ queryKey: ["purchase-requests"] });
+    void queryClient.invalidateQueries({ queryKey: ["purchase-requests-history"] });
   };
   const onMutationError = (err: unknown) => setError(err instanceof ApiError ? err.message : "Une erreur est survenue — réessayez.");
 
@@ -84,7 +105,9 @@ export function PurchaseRequestList() {
   const rows = listQuery.data?.purchaseRequests ?? [];
   const pending = rows.filter((row) => row.status === "owner_pending" || row.status === "boss_pending");
   const inProgress = rows.filter((row) => row.status === "authorized" && !row.appliedToProjectAt);
-  const history = rows.filter((row) => row.status === "rejected" || (row.status === "authorized" && row.appliedToProjectAt));
+  const history = historyQuery.data?.purchaseRequests ?? [];
+  const projectOptions = projectsQuery.data?.projects ?? [];
+  const historyFilterActive = Boolean(historyDateFrom || historyDateTo || historyProjectId);
 
   function canActOn(row: PurchaseRequestDto): boolean {
     const thresholds = buildFrozenPurchaseThresholdsMap({ category: row.categoryName, thresholdAmountAtSubmission: row.thresholdAmountAtSubmission ?? null });
@@ -296,12 +319,59 @@ export function PurchaseRequestList() {
         </div>
       )}
 
-      {history.length > 0 && (
-        <div className="card" style={{ marginTop: 20 }}>
-          <div className="card-band-header">
-            <h3>Historique</h3>
+      <div className="card" style={{ marginTop: 20 }}>
+        <div className="card-band-header">
+          <h3>Historique</h3>
+        </div>
+
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", padding: "14px 16px 0" }}>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label>Du</label>
+            <input type="date" value={historyDateFrom} onChange={(e) => setHistoryDateFrom(e.target.value)} />
           </div>
-          <div className="table-scroll">
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label>Au</label>
+            <input type="date" value={historyDateTo} onChange={(e) => setHistoryDateTo(e.target.value)} />
+          </div>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label>Projet</label>
+            <select value={historyProjectId} onChange={(e) => setHistoryProjectId(e.target.value)}>
+              <option value="">Tous</option>
+              {projectOptions.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.projectNumber} — {project.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {historyFilterActive && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-small"
+              onClick={() => {
+                setHistoryDateFrom("");
+                setHistoryDateTo("");
+                setHistoryProjectId("");
+              }}
+            >
+              Réinitialiser
+            </button>
+          )}
+        </div>
+
+        {!historyFilterActive && (
+          <p style={{ color: "var(--gsc-color-muted)", fontSize: 12, padding: "8px 16px 0" }}>
+            Les 35 demandes les plus récentes — filtrez par date ou par projet pour voir plus loin.
+          </p>
+        )}
+
+        {history.length === 0 && (
+          <p style={{ color: "var(--gsc-color-muted)", fontSize: 13, padding: 16 }}>
+            {historyQuery.isLoading ? "Chargement…" : "Aucune demande dans l'historique pour ce filtre."}
+          </p>
+        )}
+        {history.length > 0 && (
+          <div className="table-scroll" style={{ marginTop: 10 }}>
           <table className="shortlist-table">
             <thead>
               <tr>
@@ -329,8 +399,8 @@ export function PurchaseRequestList() {
             </tbody>
           </table>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </>
   );
 }
