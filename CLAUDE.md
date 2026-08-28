@@ -44,19 +44,24 @@ confirmée, c'est le principe qui a guidé tout ce projet depuis le début.
 
 ## Ordre de priorité confirmé : fonctionnalité avant peaufinage visuel
 
-Confirmé avec l'utilisatrice le 12 août 2026, **à ne pas oublier** :
-chaque nouvel écran utilise déjà les vrais jetons de conception (couleur
-de marque, police, boutons, cartes — voir `packages/shared/src/design-tokens.ts`),
-mais **pas encore** la mise en page détaillée et le peaufinage exact de
-chaque page du prototype v19. C'est délibéré, pas un oubli : les règles
-métier de chaque module se confirment encore une à une en le construisant
-(champs, statuts, permissions — voir par ex. la section « Demandes
-clients » de la spécification), donc peaufiner le visuel maintenant
-risquerait d'être refait à chaque ajustement. Le plan reste : construire
-la fonctionnalité réelle de tous les modules d'abord, puis faire une
-passe visuelle dédiée écran par écran une fois les règles stabilisées —
-confirmé explicitement avec l'utilisatrice, qui a demandé que ce soit
-noté pour ne pas être oublié.
+Confirmé avec l'utilisatrice le 12 août 2026 : chaque nouvel écran utilise
+déjà les vrais jetons de conception (couleur de marque, police, boutons,
+cartes — voir `packages/shared/src/design-tokens.ts`), et le plan était de
+construire la fonctionnalité réelle de tous les modules d'abord, puis
+faire une passe visuelle dédiée écran par écran une fois les règles
+stabilisées — pour ne pas refaire le visuel à chaque ajustement de règle
+métier pendant la construction.
+
+**Mise à jour du 28 août 2026, confirmée avec l'utilisatrice** : la passe
+visuelle est maintenant considérée à ~95 % complète (faite au fil de la
+construction — thème sombre, bandeaux d'en-tête, tiroirs latéraux,
+plusieurs itérations déjà visibles dans l'historique de commits — jamais
+une seule passe séparée massive comme envisagé initialement). Ce qui reste
+du visuel se rattrape au cas par cas via les tests réels de l'utilisatrice
+(même mécanisme que les corrections fonctionnelles) plutôt que via une
+passe dédiée à part — ne pas assumer qu'une grosse passe visuelle reste à
+faire, mais rester attentif aux rapports ponctuels comme n'importe quel
+autre bug.
 
 ## Commandes utiles
 
