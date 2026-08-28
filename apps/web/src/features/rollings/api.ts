@@ -7,8 +7,10 @@ export {
   recordInvoicePayment,
   type InvoicePlanEntryDto,
   type RecordInvoiceInput,
+  type FinancialStatus,
+  type ProjectComparatifRow,
 } from "../projects/api.js";
-import type { InvoicePlanEntryDto } from "../projects/api.js";
+import type { InvoicePlanEntryDto, FinancialStatus, ProjectComparatifRow } from "../projects/api.js";
 
 export interface RollingListItemDto {
   id: string;
@@ -37,6 +39,17 @@ export interface RollingDetailDto {
   clientRequestId: string | null;
   createdAt: string;
   sold?: number;
+  plannedHours: number;
+  actualHours: number;
+  hoursUsedPct: number;
+  plannedPurchases?: number;
+  actualPurchases?: number;
+  grossMargin?: number;
+  grossMarginPct?: number;
+  targetMarginPct?: number | null;
+  financialStatus?: FinancialStatus;
+  progressionPct?: number;
+  comparatif: ProjectComparatifRow[];
   productionCompleted: boolean;
   fulfillmentMode: string | null;
   fulfillmentStatus: string | null;

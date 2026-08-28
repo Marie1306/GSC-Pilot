@@ -4,6 +4,7 @@ import {
   canCreateRollingDirectly,
   canMarkProductionComplete,
   canChooseFulfillmentMode,
+  canRequestInvoice,
   canCreateInvoiceRecord,
   canRecordPayment,
   canManagePostMortem,
@@ -28,6 +29,7 @@ import {
   type ChooseRollingFulfillmentInput,
 } from "./api.js";
 import { RollingPostMortem } from "./RollingPostMortem.js";
+import { RollingPurchaseEntries } from "./RollingPurchaseEntries.js";
 import "./rollings.css";
 
 interface RollingDetailProps {
@@ -128,6 +130,7 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
   const canEditSold = canCreateRollingDirectly(employee.persona);
   const canComplete = canMarkProductionComplete(employee.persona);
   const canChoose = canChooseFulfillmentMode(employee.persona);
+  const canRequest = canRequestInvoice(employee.persona);
   const canRecord = canCreateInvoiceRecord(employee.persona);
   const canPay = canRecordPayment(employee.persona);
   const canConfirm = canChoose && !!rolling?.fulfillmentMode && CONFIRMABLE_MODES.includes(rolling.fulfillmentMode) && rolling.fulfillmentStatus === "awaiting_confirmation";
@@ -198,6 +201,157 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
           </div>
 
           {error && <p className="form-error">{error}</p>}
+
+          <div className="stat-tile-grid">
+            {rolling.sold !== undefined && (
+              <div className="stat-tile">
+                <span className="stat-tile-label">Prix vendu</span>
+                <span className="stat-tile-value">{formatCurrency(rolling.sold)}</span>
+              </div>
+            )}
+            <div className="stat-tile">
+              <span className="stat-tile-label">Heures planifiées</span>
+              <span className="stat-tile-value">{rolling.plannedHours} h</span>
+            </div>
+            <div className="stat-tile">
+              <span className="stat-tile-label">Heures réelles</span>
+              <span className="stat-tile-value">{rolling.actualHours} h</span>
+            </div>
+            <div className="stat-tile">
+              <span className="stat-tile-label">Utilisation heures</span>
+              <span className="stat-tile-value">{rolling.hoursUsedPct} %</span>
+            </div>
+            {rolling.plannedPurchases !== undefined && (
+              <div className="stat-tile">
+                <span className="stat-tile-label">Achats prévus</span>
+                <span className="stat-tile-value">{formatCurrency(rolling.plannedPurchases)}</span>
+              </div>
+            )}
+            {rolling.actualPurchases !== undefined && (
+              <div className="stat-tile">
+                <span className="stat-tile-label">Achats réels</span>
+                <span className="stat-tile-value">{formatCurrency(rolling.actualPurchases)}</span>
+              </div>
+            )}
+            {rolling.grossMargin !== undefined && (
+              <div className="stat-tile">
+                <span className="stat-tile-label">Marge brute réelle</span>
+                <span className="stat-tile-value">{formatCurrency(rolling.grossMargin)}</span>
+              </div>
+            )}
+            {rolling.grossMarginPct !== undefined && (
+              <div className="stat-tile">
+                <span className="stat-tile-label">Marge brute %</span>
+                <span className="stat-tile-value">{rolling.grossMarginPct} %</span>
+              </div>
+            )}
+            {rolling.targetMarginPct !== undefined && rolling.targetMarginPct !== null && (
+              <div className="stat-tile">
+                <span className="stat-tile-label">Marge visée</span>
+                <span className="stat-tile-value">{rolling.targetMarginPct} %</span>
+              </div>
+            )}
+          </div>
+
+          {rolling.progressionPct !== undefined && (
+            <div className="card" style={{ marginBottom: 20 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 15 }}>Progression du roulement</h3>
+                  <p style={{ margin: "4px 0 0", color: "var(--gsc-color-muted)", fontSize: 13 }}>
+                    Calcul automatique, fondé sur les heures et les achats appliqués.
+                  </p>
+                </div>
+                <span className="badge-pill badge-neutral">Automatique</span>
+              </div>
+
+              <div style={{ marginTop: 16 }}>
+                <div className="progress-row">
+                  <span style={{ color: "var(--gsc-color-muted)" }}>Progression affichée</span>
+                  <strong>{rolling.progressionPct} %</strong>
+                </div>
+                <div className="progress-track">
+                  <div className="progress-fill" style={{ width: `${Math.min(100, Math.max(0, rolling.progressionPct))}%` }} />
+                </div>
+              </div>
+
+              <div className="stat-tile-grid" style={{ marginTop: 14, marginBottom: 0 }}>
+                <div className="stat-tile">
+                  <span className="stat-tile-label">Calcul automatique</span>
+                  <span className="stat-tile-value">{rolling.progressionPct} %</span>
+                </div>
+                <div className="stat-tile">
+                  <span className="stat-tile-label">Heures</span>
+                  <span className="stat-tile-value">
+                    {rolling.actualHours} / {rolling.plannedHours} h
+                  </span>
+                </div>
+                {rolling.actualPurchases !== undefined && rolling.plannedPurchases !== undefined && (
+                  <div className="stat-tile">
+                    <span className="stat-tile-label">Achats</span>
+                    <span className="stat-tile-value">
+                      {formatCurrency(rolling.actualPurchases)} / {formatCurrency(rolling.plannedPurchases)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {rolling.comparatif.length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              <h3 style={{ fontSize: 15, marginBottom: 4 }}>Comparatif planifié vs réel</h3>
+              <p style={{ margin: "0 0 10px", color: "var(--gsc-color-muted)", fontSize: 13 }}>
+                Par catégorie — les valeurs réelles deviennent rouges uniquement lorsqu'elles dépassent le planifié.
+              </p>
+              <div style={{ overflowX: "auto" }}>
+                <table className="comparatif-table">
+                  <thead>
+                    <tr>
+                      <th>Catégorie</th>
+                      <th>H planifiées</th>
+                      <th>H réelles</th>
+                      <th>Écart H</th>
+                      {rolling.comparatif[0]?.plannedCost !== undefined && (
+                        <>
+                          <th>Coût planifié</th>
+                          <th>Coût réel</th>
+                          <th>Écart $</th>
+                        </>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rolling.comparatif.map((row) => (
+                      <tr key={row.category}>
+                        <td>
+                          <strong>{row.categoryLabel}</strong>
+                        </td>
+                        <td>{row.plannedHours} h</td>
+                        <td className={row.hoursDelta > 0 ? "over-budget" : ""}>{row.actualHours} h</td>
+                        <td className={row.hoursDelta > 0 ? "over-budget" : ""}>
+                          {row.hoursDelta > 0 ? "+" : ""}
+                          {row.hoursDelta} h
+                        </td>
+                        {row.plannedCost !== undefined && (
+                          <>
+                            <td>{formatCurrency(row.plannedCost)}</td>
+                            <td className={(row.costDelta ?? 0) > 0 ? "over-budget" : ""}>{formatCurrency(row.actualCost ?? 0)}</td>
+                            <td className={(row.costDelta ?? 0) > 0 ? "over-budget" : ""}>
+                              {(row.costDelta ?? 0) > 0 ? "+" : ""}
+                              {formatCurrency(row.costDelta ?? 0)}
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          <RollingPurchaseEntries rollingId={rolling.id} rollingLabel={rolling.company ?? rolling.contactName} />
 
           {!rolling.budgetId && canEditSold && rolling.sold === 0 && (
             <div className="field" style={{ maxWidth: 220 }}>
@@ -333,9 +487,15 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
                     <td className="num">{formatCurrency(entry.paidAmount)}</td>
                     <td>{entry.status}</td>
                     <td style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                      {!entry.requestedAt && canRecord && (
-                        <button type="button" className="btn btn-secondary btn-small" disabled={requestMutation.isPending} onClick={() => requestMutation.mutate(entry.id)}>
-                          Demander
+                      {!entry.requestedAt && !entry.invoiceNumber && canRequest && (
+                        <button
+                          type="button"
+                          className="btn"
+                          style={{ flex: "none", whiteSpace: "nowrap" }}
+                          disabled={requestMutation.isPending}
+                          onClick={() => requestMutation.mutate(entry.id)}
+                        >
+                          ✉ {requestMutation.isPending ? "…" : "Demander la facturation"}
                         </button>
                       )}
                       {canRecord && (
