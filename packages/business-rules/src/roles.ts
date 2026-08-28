@@ -680,3 +680,31 @@ export function canAccessProductionChecklist(persona: Persona): boolean {
   assertRole(persona);
   return persona !== ROLES.WAREHOUSE;
 }
+
+// ---------------------------------------------------------------------------
+// Rapport d'erreurs (28 août 2026, nouveau module) — un seul palier pour
+// tout le module (voir/créer/le filtrer), confirmé explicitement par
+// l'utilisatrice : « Accessible par propriétaire et Direction seulement »,
+// contrairement à d'autres modules où voir et créer ont des paliers
+// différents (ex. Roulements : Administration voit, seuls Direction/
+// Propriétaire créent) — ici il n'y a qu'un seul groupe nommé, une seule
+// fonction suffit.
+// ---------------------------------------------------------------------------
+
+/** Module Rapport d'erreurs (voir/créer/filtrer) : Propriétaire et Direction seulement. */
+export function canAccessErrorReports(persona: Persona): boolean {
+  assertRole(persona);
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
+}
+
+/** Qui peut être visé par un rapport d'erreur : Employé et Magasinier seulement (rôles de production, confirmé). */
+export function canBeErrorReportSubject(persona: Persona): boolean {
+  assertRole(persona);
+  return ([ROLES.MEMBER, ROLES.WAREHOUSE] as Persona[]).includes(persona);
+}
+
+/** Supprimer un rapport d'erreur (corbeille) : Direction seulement — même palier que canDeleteServiceCall/canDeleteBudget/canDeleteProject/canDeleteClientRequest/canDeleteTimeEntry/canDeleteRolling. */
+export function canDeleteErrorReport(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}

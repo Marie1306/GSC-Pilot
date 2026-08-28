@@ -24,6 +24,7 @@ import { ContactsPage } from "./features/contacts/ContactsPage.js";
 import { ReportsPage } from "./features/reports/ReportsPage.js";
 import { SettingsPage } from "./features/settings/SettingsPage.js";
 import { ChecklistPage } from "./features/checklists/ChecklistPage.js";
+import { ErrorReportsPage } from "./features/errorReports/ErrorReportsPage.js";
 import { initOfflineSync } from "./offline/sync.js";
 
 initOfflineSync();
@@ -46,6 +47,7 @@ const PAGE_BY_KEY: Record<string, ComponentType> = {
   reports: ReportsPage,
   settings: SettingsPage,
   checklist: ChecklistPage,
+  "error-reports": ErrorReportsPage,
 };
 
 export function App() {

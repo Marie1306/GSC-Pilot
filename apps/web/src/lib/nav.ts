@@ -7,6 +7,7 @@ import {
   canCreateInvoiceRecord,
   canViewClientRequests,
   canAccessProductionChecklist,
+  canAccessErrorReports,
   type Persona,
 } from "@gsc-pilot/business-rules";
 
@@ -65,6 +66,8 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "checklist", label: "Checklist de production", path: "/checklist", section: "operations", allow: canAccessProductionChecklist },
   { key: "service-calls", label: "Appels de service", path: "/appels-service", section: "operations", allow: canAccessServiceCalls },
   { key: "purchases", label: "Demandes d'achat", path: "/achats", section: "operations", allow: everyone }, // chacun voit au moins ses propres demandes
+  // Sous Demandes d'achat (spec confirmée le 28 août 2026) — Propriétaire et Direction seulement.
+  { key: "error-reports", label: "Rapports d'erreurs", path: "/rapports-erreurs", section: "operations", allow: canAccessErrorReports },
   { key: "fulfillment", label: "Bons de livraison", path: "/livraisons", section: "operations", allow: canAccessDeliveries },
   // Facturation : Direction et Administration seulement — le Propriétaire en est explicitement exclu (spec confirmée).
   { key: "invoicing", label: "Factures / paiements", path: "/facturation", section: "admin", allow: canCreateInvoiceRecord },

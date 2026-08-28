@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { canAccessErrorReports } from "@gsc-pilot/business-rules";
+import { useAuth } from "../../lib/auth/useAuth.js";
 import { fetchReportsOverview, formatCurrency, FINANCIAL_STATUS_LABELS } from "./api.js";
+import { fetchErrorReportsStats, fetchErrorReportSubjects } from "../errorReports/api.js";
 import "./reports.css";
+
+const MONTH_LABELS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 
 const TYPE_LABELS: Record<string, string> = { project: "Projet", rolling: "Roulement", service_call: "Call de service" };
 
@@ -24,10 +29,35 @@ function formatDate(iso: string): string {
  * action ici, écran entièrement en lecture seule.
  */
 export function ReportsPage() {
+  const { employee } = useAuth();
   const [year, setYear] = useState<number | undefined>(undefined);
   const [showDetail, setShowDetail] = useState(false);
   const overviewQuery = useQuery({ queryKey: ["reports", "overview", year], queryFn: () => fetchReportsOverview(year) });
   const overview = overviewQuery.data;
+
+  // Rapports d'erreurs (28 août 2026) — section plus restrictive que le
+  // reste de cette page : canAccessErrorReports (Propriétaire/Direction)
+  // est un sous-ensemble de canAccessOverviewViews qui gate déjà toute la
+  // page (nav.ts) — Administration voit le reste de Rapports mais jamais
+  // cette section, donc requête séparée activée seulement pour les rôles
+  // autorisés plutôt que de l'inclure dans /reports/overview.
+  const canSeeErrorReports = !!employee && canAccessErrorReports(employee.persona);
+  const [errorReportsMonth, setErrorReportsMonth] = useState<number | undefined>(undefined);
+  const [errorReportsYear, setErrorReportsYear] = useState<number | undefined>(undefined);
+  const [errorReportsEmployeeId, setErrorReportsEmployeeId] = useState<string>("");
+  const errorReportsStatsQuery = useQuery({
+    queryKey: ["error-reports", "stats", errorReportsMonth, errorReportsYear, errorReportsEmployeeId],
+    queryFn: () =>
+      fetchErrorReportsStats({ month: errorReportsMonth, year: errorReportsYear, employeeId: errorReportsEmployeeId || undefined }),
+    enabled: canSeeErrorReports,
+  });
+  const errorReportSubjectsQuery = useQuery({
+    queryKey: ["error-reports", "subjects"],
+    queryFn: fetchErrorReportSubjects,
+    enabled: canSeeErrorReports,
+  });
+  const errorReportsStats = errorReportsStatsQuery.data;
+  const errorReportSubjects = errorReportSubjectsQuery.data?.employees ?? [];
 
   return (
     <div>
@@ -236,6 +266,75 @@ export function ReportsPage() {
           </div>
         )}
       </div>
+
+      {canSeeErrorReports && (
+        <div className="card" style={{ marginTop: 20 }}>
+          <div className="card-band-header">
+            <div>
+              <h3>Rapports d'erreurs</h3>
+              <p className="modal-subtitle">Valeur du matériel en erreur et valeur des heures perdues (temps et $), filtrable mois/année/employé.</p>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
+            <select
+              value={errorReportsMonth ?? ""}
+              onChange={(event) => setErrorReportsMonth(event.target.value ? Number(event.target.value) : undefined)}
+              style={{ maxWidth: 170 }}
+            >
+              <option value="">Tous les mois</option>
+              {MONTH_LABELS.map((label, index) => (
+                <option key={label} value={index + 1}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <select
+              value={errorReportsYear ?? ""}
+              onChange={(event) => setErrorReportsYear(event.target.value ? Number(event.target.value) : undefined)}
+              style={{ maxWidth: 130 }}
+            >
+              <option value="">Toutes les années</option>
+              {(errorReportsStats?.availableYears ?? []).map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+            <select value={errorReportsEmployeeId} onChange={(event) => setErrorReportsEmployeeId(event.target.value)} style={{ maxWidth: 200 }}>
+              <option value="">Tous les employés</option>
+              {errorReportSubjects.map((subject) => (
+                <option key={subject.id} value={subject.id}>
+                  {subject.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {!errorReportsStats ? (
+            <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Chargement…</p>
+          ) : (
+            <div className="stat-tile-grid">
+              <div className="stat-tile">
+                <span className="stat-tile-label">Rapports</span>
+                <span className="stat-tile-value">{errorReportsStats.reportCount}</span>
+              </div>
+              <div className="stat-tile">
+                <span className="stat-tile-label">Valeur matériel</span>
+                <span className="stat-tile-value">{formatCurrency(errorReportsStats.totalMaterialValue)}</span>
+              </div>
+              <div className="stat-tile">
+                <span className="stat-tile-label">Heures perdues</span>
+                <span className="stat-tile-value">{errorReportsStats.totalHoursLost} h</span>
+              </div>
+              <div className="stat-tile">
+                <span className="stat-tile-label">Valeur des heures</span>
+                <span className="stat-tile-value">{formatCurrency(errorReportsStats.totalHoursValue)}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {showDetail && overview && (
         <div className="modal-backdrop" onClick={() => setShowDetail(false)}>

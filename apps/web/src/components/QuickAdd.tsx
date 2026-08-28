@@ -8,6 +8,7 @@ import {
   canCreateServiceCall,
   canCreateRollingDirectly,
   canAccessOverviewViews,
+  canAccessErrorReports,
   type Persona,
 } from "@gsc-pilot/business-rules";
 import { fetchNextClientRequestNumber } from "../features/clientRequests/api.js";
@@ -58,6 +59,7 @@ const CARDS: QuickAddCard[] = [
   { key: "manual-entry", icon: "🕒", label: "Entrée manuelle", path: "/temps", allow: () => true, sub: "Plusieurs tâches" },
   { key: "qr-scan", icon: "⬜", label: "Scanner un projet", path: "/scan", allow: () => true, sub: "Accès direct ou punch" },
   { key: "purchase", icon: "🛒", label: "Demande d'achat", path: "/achats", allow: () => true, sub: "Soumettre" },
+  { key: "error-report", icon: "⚠️", label: "Rapport d'erreur", path: "/rapports-erreurs", allow: canAccessErrorReports, sub: "Nouveau rapport" },
   { key: "contact", icon: "👥", label: "Contact", path: "/contacts", allow: canAccessOverviewViews, sub: "Client ou fournisseur" },
 ];
 

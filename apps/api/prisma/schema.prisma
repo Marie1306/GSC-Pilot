@@ -57,13 +57,15 @@ model Employee {
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
-  delegationsGranted   DelegationGrant[] @relation("DelegationGrantedBy")
-  delegationsHeld      DelegationGrant[] @relation("DelegationDelegate")
-  auditLogEntries      AuditLogEntry[]
-  purchaseRequestsMade PurchaseRequest[] @relation("PurchaseRequestRequester")
-  timeEntries          TimeEntry[]
-  assignedServiceCalls ServiceCall[]
-  assignedProjectTasks ProjectTask[]
+  delegationsGranted    DelegationGrant[] @relation("DelegationGrantedBy")
+  delegationsHeld       DelegationGrant[] @relation("DelegationDelegate")
+  auditLogEntries       AuditLogEntry[]
+  purchaseRequestsMade  PurchaseRequest[] @relation("PurchaseRequestRequester")
+  timeEntries           TimeEntry[]
+  assignedServiceCalls  ServiceCall[]
+  assignedProjectTasks  ProjectTask[]
+  errorReportsAsSubject ErrorReport[]     @relation("ErrorReportSubject")
+  errorReportsCreated   ErrorReport[]     @relation("ErrorReportCreatedBy")
 
   @@index([persona])
 }
@@ -1267,4 +1269,59 @@ model PdfTemplate {
   builtIn     Boolean  @default(false)
   isDefault   Boolean  @default(false)
   importedAt  DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Rapport d'erreurs (28 août 2026, nouveau module demandé par l'utilisatrice)
+// Accessible Propriétaire et Direction seulement (canAccessErrorReports,
+// roles.ts). L'employé "visé" doit être Employé ou Magasinier
+// (canBeErrorReportSubject) — confirmé, ce sont les rôles de production.
+// hourlyRateSnapshot GELÉ au moment de la création (même patron que
+// TimeEntry.costRate) : la valeur des heures perdues reste exacte même si
+// le taux de l'employé change ensuite. hoursValue n'existe PAS en colonne —
+// toujours calculé à la lecture (hoursLost × hourlyRateSnapshot), même
+// principe que Rolling.actualHours/actualPurchases.
+//
+// createdAt sert AUSSI de date de l'incident — verrouillée à la création,
+// jamais modifiable (« date automatique », confirmé le 28 août 2026) : pas
+// de colonne "date" séparée, elle serait toujours identique et risquerait
+// de dériver pour rien.
+//
+// Photos en base64 (imageDataUrl) directement en base, PAS storagePath —
+// confirmé en vérifiant le code : ServiceCallPhoto.storagePath existe au
+// schéma depuis la fondation du projet mais n'a jamais eu de vrai chemin
+// d'écriture (aucune intégration Supabase Storage nulle part dans ce
+// projet). Le seul mécanisme d'image réellement construit et qui fonctionne
+// est ServiceCall.signatureImageUrl (data URL base64 stockée telle quelle) —
+// c'est celui-là qui est reproduit ici, pas le stub inutilisé.
+//
+// Pas d'édition après création (spec de l'utilisatrice ne la demande pas) —
+// seulement créer et envoyer à la corbeille (deletedAt, Direction
+// seulement, même palier que partout ailleurs) : un rapport d'erreur est un
+// constat factuel, pas un document à corriger après coup.
+// ---------------------------------------------------------------------------
+
+model ErrorReport {
+  id                 String             @id @default(uuid())
+  employeeId         String
+  employee           Employee           @relation("ErrorReportSubject", fields: [employeeId], references: [id])
+  materialValue      Decimal            @default(0) @db.Decimal(12, 2)
+  hoursLost          Decimal            @default(0) @db.Decimal(10, 2)
+  hourlyRateSnapshot Decimal            @db.Decimal(10, 2)
+  note               String?
+  createdById        String
+  createdBy          Employee           @relation("ErrorReportCreatedBy", fields: [createdById], references: [id])
+  createdAt          DateTime           @default(now())
+  deletedAt          DateTime?
+  photos             ErrorReportPhoto[]
+
+  @@index([employeeId])
+}
+
+model ErrorReportPhoto {
+  id            String      @id @default(uuid())
+  errorReportId String
+  errorReport   ErrorReport @relation(fields: [errorReportId], references: [id])
+  imageDataUrl  String
+  uploadedAt    DateTime    @default(now())
 }

@@ -520,3 +520,27 @@ describe("Checklist de production (21 août 2026)", () => {
     expect(P.canAccessProductionChecklist(WAREHOUSE)).toBe(false);
   });
 });
+
+describe("Rapport d'erreurs (28 août 2026)", () => {
+  it("Propriétaire et Direction seulement accèdent au module", () => {
+    expect(P.canAccessErrorReports(OWNER)).toBe(true);
+    expect(P.canAccessErrorReports(BOSS)).toBe(true);
+    expect(P.canAccessErrorReports(ADMIN)).toBe(false);
+    expect(P.canAccessErrorReports(MEMBER)).toBe(false);
+    expect(P.canAccessErrorReports(WAREHOUSE)).toBe(false);
+  });
+  it("Seuls Employé et Magasinier peuvent être visés par un rapport", () => {
+    expect(P.canBeErrorReportSubject(MEMBER)).toBe(true);
+    expect(P.canBeErrorReportSubject(WAREHOUSE)).toBe(true);
+    expect(P.canBeErrorReportSubject(OWNER)).toBe(false);
+    expect(P.canBeErrorReportSubject(ADMIN)).toBe(false);
+    expect(P.canBeErrorReportSubject(BOSS)).toBe(false);
+  });
+  it("Direction seulement supprime un rapport d'erreur (corbeille)", () => {
+    expect(P.canDeleteErrorReport(OWNER)).toBe(true);
+    expect(P.canDeleteErrorReport(BOSS)).toBe(false);
+    expect(P.canDeleteErrorReport(ADMIN)).toBe(false);
+    expect(P.canDeleteErrorReport(MEMBER)).toBe(false);
+    expect(P.canDeleteErrorReport(WAREHOUSE)).toBe(false);
+  });
+});
