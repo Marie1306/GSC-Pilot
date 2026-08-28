@@ -9,8 +9,9 @@ export {
   type RecordInvoiceInput,
   type FinancialStatus,
   type ProjectComparatifRow,
+  type ApprovedTimeEntryDto,
 } from "../projects/api.js";
-import type { InvoicePlanEntryDto, FinancialStatus, ProjectComparatifRow } from "../projects/api.js";
+import type { InvoicePlanEntryDto, FinancialStatus, ProjectComparatifRow, ApprovedTimeEntryDto } from "../projects/api.js";
 
 export interface RollingListItemDto {
   id: string;
@@ -29,6 +30,7 @@ export function fetchRollings(): Promise<{ rollings: RollingListItemDto[] }> {
 
 export interface RollingDetailDto {
   id: string;
+  contactId: string;
   contactName: string;
   company: string | null;
   contactPhone: string | null;
@@ -59,6 +61,8 @@ export interface RollingDetailDto {
   fulfillmentScheduled: string | null;
   fulfillmentConfirmationNote: string | null;
   billingReady: boolean;
+  archivedAt: string | null;
+  deletedAt: string | null;
 }
 
 export function fetchRollingDetail(id: string): Promise<{ rolling: RollingDetailDto }> {
@@ -126,6 +130,18 @@ export interface UpdateRollingPostMortemInput {
 
 export function updateRollingPostMortem(id: string, input: UpdateRollingPostMortemInput): Promise<void> {
   return apiFetch(`/api/rollings/${id}/post-mortem`, { method: "PATCH", body: JSON.stringify(input) });
+}
+
+export function fetchApprovedRollingTimeEntries(id: string): Promise<{ entries: ApprovedTimeEntryDto[] }> {
+  return apiFetch(`/api/rollings/${id}/approved-hours`);
+}
+
+export function setRollingArchived(id: string, archived: boolean): Promise<void> {
+  return apiFetch(`/api/rollings/${id}/archived`, { method: "PATCH", body: JSON.stringify({ archived }) });
+}
+
+export function deleteRolling(id: string): Promise<void> {
+  return apiFetch(`/api/rollings/${id}`, { method: "DELETE" });
 }
 
 /** Démarré depuis le Budgétaire (voir BudgetDetail.tsx) — route sur /api/budgets, pas /api/rollings (même patron que convertBudgetToProject). */

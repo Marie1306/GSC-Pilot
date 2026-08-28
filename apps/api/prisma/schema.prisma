@@ -842,6 +842,11 @@ model ServiceCall {
   // service.ts) — être lié suffit à lui seul, aucun champ séparé pour ça.
   projectId                    String?
   project                      Project?   @relation(fields: [projectId], references: [id])
+  // Call "lié" à un roulement (28 août 2026) — même mécanisme exact que
+  // projectId ci-dessus (relation gérée normale, plusieurs calls possibles
+  // par roulement, toujours non-facturable une fois lié).
+  rollingId                    String?
+  rolling                      Rolling?   @relation(fields: [rollingId], references: [id])
   // Titre court affiché partout (liste, sous-titre du détail, rapports,
   // facturation, dossiers liés du contact) — distinct de request : avant ce
   // champ (27 août 2026), la liste affichait le texte brut de la demande
@@ -968,6 +973,13 @@ model Rolling {
   fulfillmentConfirmationNote String?
   createdDirectly             Boolean        @default(false)
   closedAt                    DateTime?
+  // Menu Options du roulement (28 août 2026) — même mécanisme exact que
+  // Project.archivedAt/deletedAt (voir ce commentaire) : archivedAt reste
+  // pleinement accessible, seulement sorti des listes actives; deletedAt est
+  // la corbeille (masqué des listes, restauration 90 jours hors de cette
+  // phase).
+  archivedAt                  DateTime?
+  deletedAt                   DateTime?
   createdById                 String
   createdAt                   DateTime       @default(now())
   // Post-mortem (20 août 2026, confirmé) : « la livraison termine le
@@ -980,6 +992,7 @@ model Rolling {
   deliveries      Delivery[]
   timeEntries     TimeEntry[]
   purchaseEntries ProjectPurchaseEntry[]
+  serviceCalls    ServiceCall[]
 
   @@index([status])
 }

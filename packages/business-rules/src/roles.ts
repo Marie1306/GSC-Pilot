@@ -531,6 +531,29 @@ export function canDeleteProject(persona: Persona): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Menu Options du roulement (28 août 2026) — même structure que le menu
+// Options du projet ci-dessus, fonctions séparées (pas de réutilisation
+// directe des canXProject) même quand le corps est identique, comme partout
+// ailleurs dans ce fichier pour les paliers de suppression/archivage.
+// ---------------------------------------------------------------------------
+
+/** Modifier les informations courantes (contact du roulement) — même palier que canManageProject. */
+export function canManageRolling(persona: Persona): boolean {
+  assertRole(persona);
+  return ([ROLES.OWNER, ROLES.ADMIN] as Persona[]).includes(persona);
+}
+
+/** Archiver/désarchiver, supprimer (corbeille) : Direction seulement — même palier que canArchiveProject/canDeleteProject. */
+export function canArchiveRolling(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}
+export function canDeleteRolling(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}
+
+// ---------------------------------------------------------------------------
 // Post-mortem
 // ---------------------------------------------------------------------------
 

@@ -17,6 +17,8 @@ import {
 interface RollingPurchaseEntriesProps {
   rollingId: string;
   rollingLabel: string;
+  /** Incrémenté par RollingDetail quand "Ajouter un achat" est choisi depuis le menu Options (composant frère, pas parent) — ouvre la modale sans dupliquer l'état showForm. */
+  openSignal?: number;
 }
 
 function formatDate(iso: string): string {
@@ -36,7 +38,7 @@ const emptyForm = { date: new Date().toISOString().slice(0, 10), category: "", s
  * approuvés" filtre donc simplement les entrées déjà chargées, sans requête
  * séparée.
  */
-export function RollingPurchaseEntries({ rollingId, rollingLabel }: RollingPurchaseEntriesProps) {
+export function RollingPurchaseEntries({ rollingId, rollingLabel, openSignal }: RollingPurchaseEntriesProps) {
   const { employee } = useAuth();
   const queryClient = useQueryClient();
   const entriesQuery = useQuery({ queryKey: ["rolling-purchase-entries", rollingId], queryFn: () => fetchRollingPurchaseEntries(rollingId) });
@@ -46,6 +48,15 @@ export function RollingPurchaseEntries({ rollingId, rollingLabel }: RollingPurch
   const [form, setForm] = useState(emptyForm);
   const [amountDrafts, setAmountDrafts] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+
+  // Ouvre la modale depuis le signal externe (menu Options) — voir même
+  // patron dans ProjectPurchaseEntries.tsx (ajustement pendant le rendu,
+  // pas un effect, pour éviter react-hooks/set-state-in-effect).
+  const [lastOpenSignal, setLastOpenSignal] = useState(openSignal);
+  if (openSignal !== lastOpenSignal) {
+    setLastOpenSignal(openSignal);
+    if (openSignal) setShowForm(true);
+  }
 
   const invalidate = () => {
     setError(null);

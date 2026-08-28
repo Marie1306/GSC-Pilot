@@ -22,6 +22,8 @@ interface ManualEntryModalProps {
   entry?: TimeEntryDto;
   /** Pré-remplit la référence de la première ligne en mode création (27 août 2026) — "Ajouter une entrée manuelle" depuis le menu Options d'un projet. Les lignes ajoutées ensuite au même lot repartent vierges, comme avant. */
   initialProjectId?: string;
+  /** Même mécanisme que initialProjectId ci-dessus, pour un roulement (28 août 2026). */
+  initialRollingId?: string;
 }
 
 function today(): string {
@@ -32,14 +34,13 @@ function minutesToHours(minutes: number | null): string {
   return minutes ? String(Math.round((minutes / 60) * 100) / 100) : "1";
 }
 
-function makeEmptyRow(key: number, initialProjectId?: string): ManualRowState {
-  return {
-    key,
-    value: initialProjectId ? { projectType: "project", projectId: initialProjectId, taskId: "" } : { projectType: "internal", taskId: "" },
-    hours: "1",
-    note: "",
-    blockageNote: "",
-  };
+function makeEmptyRow(key: number, initialProjectId?: string, initialRollingId?: string): ManualRowState {
+  const value = initialProjectId
+    ? { projectType: "project" as const, projectId: initialProjectId, taskId: "" }
+    : initialRollingId
+      ? { projectType: "rolling" as const, rollingId: initialRollingId, taskId: "" }
+      : { projectType: "internal" as const, taskId: "" };
+  return { key, value, hours: "1", note: "", blockageNote: "" };
 }
 
 /** Échec en cours de lot — combien de lignes ont déjà été enregistrées avant l'erreur, pour ne jamais les resoumettre en double au prochain essai. */
@@ -65,7 +66,7 @@ class ManualBatchError extends Error {
  *   d'échec en cours de route, les lignes déjà enregistrées sont
  *   retirées du formulaire pour ne jamais les soumettre deux fois.
  */
-export function ManualEntryModal({ onClose, entry, initialProjectId }: ManualEntryModalProps) {
+export function ManualEntryModal({ onClose, entry, initialProjectId, initialRollingId }: ManualEntryModalProps) {
   const { employee } = useAuth();
   const queryClient = useQueryClient();
   const tasksQuery = useQuery({ queryKey: ["punchable-tasks"], queryFn: fetchPunchableTasks });
@@ -100,7 +101,7 @@ export function ManualEntryModal({ onClose, entry, initialProjectId }: ManualEnt
           note: entry.note ?? "",
           blockageNote: entry.blockageNote ?? "",
         }
-      : makeEmptyRow(0, initialProjectId),
+      : makeEmptyRow(0, initialProjectId, initialRollingId),
   ]);
   const [error, setError] = useState<string | null>(null);
 

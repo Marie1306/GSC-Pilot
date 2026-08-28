@@ -48,7 +48,13 @@ import { HttpError } from "../../middleware/errorHandler.js";
 import { getBudgetDetail } from "../budgets/service.js";
 import { ensureContactRow } from "../clientRequests/service.js";
 import { rollingPurchasesActual } from "../purchases/service.js";
-import { toInvoicePlanEntryDto, computeHoursValueBase, type InvoicePlanEntryDto, type ProjectComparatifRow } from "../projects/service.js";
+import {
+  toInvoicePlanEntryDto,
+  computeHoursValueBase,
+  type InvoicePlanEntryDto,
+  type ProjectComparatifRow,
+  type ApprovedTimeEntryDto,
+} from "../projects/service.js";
 import type { Rolling } from "../../generated/prisma/client.js";
 
 function round2(value: number): number {
@@ -73,6 +79,7 @@ export interface RollingListItemDto {
 export async function listRollings(viewerPersona: Persona): Promise<RollingListItemDto[]> {
   const showFinancials = canSeeFinancialValues(viewerPersona);
   const rollings = await prisma.rolling.findMany({
+    where: { archivedAt: null, deletedAt: null },
     include: { contact: { select: { name: true, company: true } } },
     orderBy: { createdAt: "desc" },
   });
@@ -90,6 +97,7 @@ export async function listRollings(viewerPersona: Persona): Promise<RollingListI
 
 export interface RollingDetailDto {
   id: string;
+  contactId: string;
   contactName: string;
   company: string | null;
   contactPhone: string | null;
@@ -120,6 +128,8 @@ export interface RollingDetailDto {
   fulfillmentScheduled: string | null;
   fulfillmentConfirmationNote: string | null;
   billingReady: boolean;
+  archivedAt: string | null;
+  deletedAt: string | null;
 }
 
 interface RollingFinancials {
@@ -247,6 +257,7 @@ export async function getRollingDetail(id: string, viewerPersona: Persona): Prom
 
   return {
     id: rolling.id,
+    contactId: rolling.contactId,
     contactName: rolling.contact.name,
     company: rolling.contact.company,
     contactPhone: rolling.contact.phone,
@@ -269,6 +280,8 @@ export async function getRollingDetail(id: string, viewerPersona: Persona): Prom
     fulfillmentScheduled: rolling.fulfillmentScheduled?.toISOString() ?? null,
     fulfillmentConfirmationNote: rolling.fulfillmentConfirmationNote,
     billingReady: rolling.billingReady,
+    archivedAt: rolling.archivedAt?.toISOString() ?? null,
+    deletedAt: rolling.deletedAt?.toISOString() ?? null,
     ...(showFinancials && {
       sold,
       plannedPurchases,
@@ -385,6 +398,51 @@ export async function updateRollingSold(rollingId: string, sold: number): Promis
       if (existingPlan === 0) await createSinglePaymentPlan(tx, rollingId, sold);
     }
   });
+}
+
+/** "Consulter les heures" du menu Options — même mécanisme exact que getApprovedTimeEntries (projects/service.ts), adapté à rollingId. */
+export async function getApprovedRollingTimeEntries(rollingId: string, showFinancials: boolean): Promise<ApprovedTimeEntryDto[]> {
+  const entries = await prisma.timeEntry.findMany({
+    where: { rollingId, status: "approved", deletedAt: null },
+    select: { id: true, date: true, employeeId: true, category: true, taskId: true, roundedMinutes: true, costRate: true },
+    orderBy: { date: "desc" },
+  });
+  const employeeIds = [...new Set(entries.map((entry) => entry.employeeId))];
+  const taskIds = [...new Set(entries.map((entry) => entry.taskId).filter((id): id is string => id !== null))];
+  const [employees, tasks] = await Promise.all([
+    prisma.employee.findMany({ where: { id: { in: employeeIds } }, select: { id: true, name: true } }),
+    prisma.punchableTask.findMany({ where: { id: { in: taskIds } }, select: { id: true, label: true } }),
+  ]);
+  const nameById = new Map(employees.map((employee) => [employee.id, employee.name]));
+  const taskLabelById = new Map(tasks.map((task) => [task.id, task.label]));
+
+  return entries.map((entry) => {
+    const hours = round2((entry.roundedMinutes ?? 0) / 60);
+    return {
+      id: entry.id,
+      date: entry.date.toISOString(),
+      employeeName: nameById.get(entry.employeeId) ?? "—",
+      category: BUDGET_CATEGORY_LABELS[entry.category as BudgetCategorySlug] ?? entry.category,
+      taskLabel: (entry.taskId ? taskLabelById.get(entry.taskId) : undefined) ?? "—",
+      hours,
+      ...(showFinancials && { cost: round2(hours * Number(entry.costRate)) }),
+    };
+  });
+}
+
+/** Menu Options du roulement (28 août 2026) — même mécanisme exact que setProjectArchived. */
+export async function setRollingArchived(rollingId: string, archived: boolean): Promise<void> {
+  const rolling = await prisma.rolling.findUnique({ where: { id: rollingId } });
+  if (!rolling) throw new HttpError(404, "Roulement introuvable.");
+  await prisma.rolling.update({ where: { id: rollingId }, data: { archivedAt: archived ? new Date() : null } });
+}
+
+/** Corbeille — mécanisme seulement (deletedAt, masqué des listes actives), même patron que deleteProject. */
+export async function deleteRolling(rollingId: string): Promise<void> {
+  const rolling = await prisma.rolling.findUnique({ where: { id: rollingId } });
+  if (!rolling) throw new HttpError(404, "Roulement introuvable.");
+  if (rolling.deletedAt) throw new HttpError(400, "Ce roulement est déjà dans la corbeille.");
+  await prisma.rolling.update({ where: { id: rollingId }, data: { deletedAt: new Date() } });
 }
 
 export async function getRollingInvoicePlan(rollingId: string): Promise<InvoicePlanEntryDto[]> {

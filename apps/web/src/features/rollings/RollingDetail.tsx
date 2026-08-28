@@ -7,7 +7,6 @@ import {
   canRequestInvoice,
   canCreateInvoiceRecord,
   canRecordPayment,
-  canManagePostMortem,
   FULFILLMENT_MODES,
   type FulfillmentMode,
 } from "@gsc-pilot/business-rules";
@@ -28,8 +27,8 @@ import {
   formatCurrency,
   type ChooseRollingFulfillmentInput,
 } from "./api.js";
-import { RollingPostMortem } from "./RollingPostMortem.js";
 import { RollingPurchaseEntries } from "./RollingPurchaseEntries.js";
+import { RollingOptionsMenu } from "./RollingOptionsMenu.js";
 import "./rollings.css";
 
 interface RollingDetailProps {
@@ -60,11 +59,15 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
   const [address, setAddress] = useState("");
   const [scheduled, setScheduled] = useState("");
   const [confirmNote, setConfirmNote] = useState("");
-  const [showPostMortem, setShowPostMortem] = useState(false);
   const [invoiceNumberDraft, setInvoiceNumberDraft] = useState("");
   const [paidAmountDraft, setPaidAmountDraft] = useState("");
   const [expandedEntry, setExpandedEntry] = useState<{ id: string; type: "record" | "payment" } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  // Signal d'ouverture pour le raccourci "Ajouter un achat" du menu Options —
+  // RollingOptionsMenu et RollingPurchaseEntries sont des composants frères,
+  // pas parent-enfant (même patron que ProjectDetail.tsx).
+  const [purchaseOpenSignal, setPurchaseOpenSignal] = useState(0);
 
   const employeesQuery = useQuery({ queryKey: ["time-entries", "employees"], queryFn: fetchPunchableEmployees, enabled: modeForm });
 
@@ -134,7 +137,6 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
   const canRecord = canCreateInvoiceRecord(employee.persona);
   const canPay = canRecordPayment(employee.persona);
   const canConfirm = canChoose && !!rolling?.fulfillmentMode && CONFIRMABLE_MODES.includes(rolling.fulfillmentMode) && rolling.fulfillmentStatus === "awaiting_confirmation";
-  const canOpenPostMortem = canManagePostMortem(employee.persona) && rolling?.status === "ready_invoice";
 
   if (!rolling) {
     return (
@@ -351,7 +353,7 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
             </div>
           )}
 
-          <RollingPurchaseEntries rollingId={rolling.id} rollingLabel={rolling.company ?? rolling.contactName} />
+          <RollingPurchaseEntries rollingId={rolling.id} rollingLabel={rolling.company ?? rolling.contactName} openSignal={purchaseOpenSignal} />
 
           {!rolling.budgetId && canEditSold && rolling.sold === 0 && (
             <div className="field" style={{ maxWidth: 220 }}>
@@ -580,23 +582,25 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
             </form>
           )}
 
-          {canOpenPostMortem && (
-            <div style={{ marginTop: 20 }}>
-              <button type="button" className="btn btn-secondary btn-small" onClick={() => setShowPostMortem(true)}>
-                Voir le post-mortem
-              </button>
-            </div>
-          )}
         </div>
 
         <div className="modal-footer">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Fermer
           </button>
+          <button type="button" className="btn" onClick={() => setOptionsOpen((v) => !v)}>
+            ⚙ Options
+          </button>
         </div>
       </div>
 
-      {showPostMortem && <RollingPostMortem id={id} onClose={() => setShowPostMortem(false)} />}
+      <RollingOptionsMenu
+        rolling={rolling}
+        open={optionsOpen}
+        onClose={() => setOptionsOpen(false)}
+        onDeleted={onClose}
+        onAddPurchase={() => setPurchaseOpenSignal((v) => v + 1)}
+      />
     </div>
   );
 }

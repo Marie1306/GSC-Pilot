@@ -6,6 +6,9 @@ import {
   canMarkProductionComplete,
   canChooseFulfillmentMode,
   canManagePostMortem,
+  canArchiveRolling,
+  canDeleteRolling,
+  canSeeFinancialValues,
 } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import {
@@ -19,6 +22,9 @@ import {
   confirmRollingFulfillment,
   getRollingPostMortem,
   updateRollingPostMortemAnalysis,
+  setRollingArchived,
+  deleteRolling,
+  getApprovedRollingTimeEntries,
 } from "./service.js";
 
 // Monté sur /api directement (voir app.ts) — chaque route applique donc
@@ -133,6 +139,40 @@ const postMortemSchema = z.object({
   ameliorations: z.string().optional(),
   recommandation: z.string().optional(),
 });
+rollingsRouter.get(
+  "/rollings/:id/approved-hours",
+  requireAuth,
+  requirePermission((persona) => canAccessOverviewViews(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const entries = await getApprovedRollingTimeEntries(id, canSeeFinancialValues(req.employee!.persona));
+    res.json({ entries });
+  },
+);
+
+rollingsRouter.patch(
+  "/rollings/:id/archived",
+  requireAuth,
+  requirePermission((persona) => canArchiveRolling(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const { archived } = z.object({ archived: z.boolean() }).parse(req.body);
+    await setRollingArchived(id, archived);
+    res.status(204).end();
+  },
+);
+
+rollingsRouter.delete(
+  "/rollings/:id",
+  requireAuth,
+  requirePermission((persona) => canDeleteRolling(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    await deleteRolling(id);
+    res.status(204).end();
+  },
+);
+
 rollingsRouter.patch(
   "/rollings/:id/post-mortem",
   requireAuth,

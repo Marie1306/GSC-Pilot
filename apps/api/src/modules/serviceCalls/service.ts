@@ -61,6 +61,8 @@ export interface CreateServiceCallInput {
    * que projectId est renseigné.
    */
   projectId?: string;
+  /** Call lié à un roulement (28 août 2026) — même mécanisme exact que projectId ci-dessus. */
+  rollingId?: string;
 }
 
 /** Titre affiché partout (liste, sous-titre du détail, rapports, facturation, dossiers liés) — retombe sur request pour les calls créés avant l'ajout de ce champ. */
@@ -121,6 +123,10 @@ export async function createServiceCall(input: CreateServiceCallInput): Promise<
     const project = await prisma.project.findUnique({ where: { id: input.projectId }, select: { id: true } });
     if (!project) throw new HttpError(404, "Projet introuvable.");
   }
+  if (input.rollingId) {
+    const rolling = await prisma.rolling.findUnique({ where: { id: input.rollingId }, select: { id: true } });
+    if (!rolling) throw new HttpError(404, "Roulement introuvable.");
+  }
 
   return prisma.$transaction(async (tx) => {
     const settings = await tx.settings.findFirst();
@@ -132,6 +138,7 @@ export async function createServiceCall(input: CreateServiceCallInput): Promise<
         contactId,
         clientRequestId: input.clientRequestId ?? null,
         projectId: input.projectId ?? null,
+        rollingId: input.rollingId ?? null,
         title: input.title.trim(),
         request: input.request.trim(),
         address: input.address?.trim() || null,
@@ -248,6 +255,7 @@ export interface ServiceCallDetailDto {
   contactPhone: string | null;
   contactEmail: string | null;
   projectId: string | null;
+  rollingId: string | null;
   title: string;
   request: string;
   address: string | null;
@@ -382,6 +390,7 @@ export async function getServiceCallDetail(id: string, viewerPersona: Persona): 
     contactPhone: call.contact.phone,
     contactEmail: call.contact.email,
     projectId: call.projectId,
+    rollingId: call.rollingId,
     title: serviceCallDisplayTitle(call),
     request: call.request,
     address: call.address,
@@ -530,6 +539,7 @@ export async function sendServiceCallToAdmin(id: string, actorId: string): Promi
   if (!call.ownerApprovedAt) throw new HttpError(400, "Le call doit d'abord être approuvé par la Direction.");
   if (call.sentToAdminAt) throw new HttpError(409, "Déjà envoyé à l'administration.");
   if (call.projectId) throw new HttpError(400, "Ce call est lié à un projet (sous-garantie) — il ne peut pas être facturé séparément.");
+  if (call.rollingId) throw new HttpError(400, "Ce call est lié à un roulement — il ne peut pas être facturé séparément.");
   const financials = await computeServiceCallFinancials(call);
   await prisma.$transaction([
     prisma.serviceCall.update({ where: { id }, data: { sentToAdminAt: new Date() } }),

@@ -45,6 +45,8 @@ export interface CreateServiceCallInput {
   clientRequestId?: string;
   /** Call lié à un projet, sous-garantie (27 août 2026) — voir ProjectOptionsMenu. */
   projectId?: string;
+  /** Call lié à un roulement (28 août 2026) — même mécanisme, voir RollingOptionsMenu. */
+  rollingId?: string;
 }
 
 export function createServiceCall(input: CreateServiceCallInput): Promise<{ id: string; displayId: string }> {

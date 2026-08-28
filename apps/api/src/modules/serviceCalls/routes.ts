@@ -71,6 +71,7 @@ const createSchema = z.object({
   scheduledAt: z.string().optional(),
   clientRequestId: z.uuid().optional(),
   projectId: z.uuid().optional(),
+  rollingId: z.uuid().optional(),
 });
 serviceCallsRouter.post("/service-calls", requireAuth, requirePermission((persona) => canCreateServiceCall(persona)), async (req, res) => {
   const body = createSchema.parse(req.body);

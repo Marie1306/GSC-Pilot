@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ROLES } from "@gsc-pilot/business-rules";
 import type { Employee } from "@gsc-pilot/shared";
@@ -28,6 +29,7 @@ const rollingId = "33333333-3333-3333-3333-333333333333";
 
 const rolling: RollingDetailDto = {
   id: rollingId,
+  contactId: "66666666-6666-6666-6666-666666666666",
   contactName: "Client Test",
   company: "Client Test Inc.",
   contactPhone: null,
@@ -69,6 +71,8 @@ const rolling: RollingDetailDto = {
   fulfillmentScheduled: null,
   fulfillmentConfirmationNote: null,
   billingReady: false,
+  archivedAt: null,
+  deletedAt: null,
 };
 
 const purchaseEntry: ProjectPurchaseEntryDto = {
@@ -101,11 +105,13 @@ function renderDetail() {
     signOut: async () => {},
   };
   return render(
-    <AuthContext.Provider value={authValue}>
-      <QueryClientProvider client={queryClient}>
-        <RollingDetail id={rollingId} onClose={() => {}} />
-      </QueryClientProvider>
-    </AuthContext.Provider>,
+    <MemoryRouter>
+      <AuthContext.Provider value={authValue}>
+        <QueryClientProvider client={queryClient}>
+          <RollingDetail id={rollingId} onClose={() => {}} />
+        </QueryClientProvider>
+      </AuthContext.Provider>
+    </MemoryRouter>,
   );
 }
 

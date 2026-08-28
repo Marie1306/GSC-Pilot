@@ -76,6 +76,8 @@ interface ResolvedPunchTarget {
    * TimeEntry.projectId de suivre automatiquement, sans dupliquer la
    * logique de résolution du call dans les deux appelants. */
   linkedProjectId: string | null;
+  /** Même mécanisme que linkedProjectId ci-dessus, pour ServiceCall.rollingId (28 août 2026). */
+  linkedRollingId: string | null;
 }
 
 /** Dérive catégorie/coût gelé/classe selon la référence — même logique pour un punch minuté et une entrée manuelle. */
@@ -104,7 +106,7 @@ async function resolvePunchTarget(
     // le taux de la classe (rateForType) est le tarif FACTURÉ AU CLIENT, jamais
     // un coût; il reste dérivable via techLevelId+rateType (gelés ci-dessous)
     // pour calculer le prix de vente d'un appel de service, séparément.
-    return { category: task.category, costRate: Number(employee.costRate), techLevelId: eligible.id, rateType, linkedProjectId: call.projectId };
+    return { category: task.category, costRate: Number(employee.costRate), techLevelId: eligible.id, rateType, linkedProjectId: call.projectId, linkedRollingId: call.rollingId };
   }
   if (input.projectType === "project" || input.projectType === "rolling") {
     // Roulement (28 août 2026) : même mécanisme que projet — catalogue de
@@ -123,11 +125,11 @@ async function resolvePunchTarget(
     if (!task.budgetModelRowId) throw new HttpError(400, "Cette tâche n'est pas liée à une catégorie de projet.");
     const row = await prisma.budgetModelRow.findUnique({ where: { id: task.budgetModelRowId } });
     if (!row) throw new HttpError(404, "Ligne de modèle introuvable.");
-    return { category: task.category, costRate: Number(row.hourlyRate), techLevelId: null, rateType: null, linkedProjectId: null };
+    return { category: task.category, costRate: Number(row.hourlyRate), techLevelId: null, rateType: null, linkedProjectId: null, linkedRollingId: null };
   }
   const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
   if (!employee) throw new HttpError(404, "Employé introuvable.");
-  return { category: task.category, costRate: Number(employee.costRate), techLevelId: null, rateType: null, linkedProjectId: null };
+  return { category: task.category, costRate: Number(employee.costRate), techLevelId: null, rateType: null, linkedProjectId: null, linkedRollingId: null };
 }
 
 async function requireActiveTask(taskId: string): Promise<PunchableTask> {
@@ -238,7 +240,7 @@ export async function startTimer(actorEmployeeId: string, actorPersona: Persona,
       // (ServiceCall.projectId) suit automatiquement — jamais forcé à null pour
       // ce cas, contrairement à un call non lié ou une entrée interne.
       projectId: input.projectType === "project" ? (input.projectId ?? null) : resolved.linkedProjectId,
-      rollingId: input.projectType === "rolling" ? (input.rollingId ?? null) : null,
+      rollingId: input.projectType === "rolling" ? (input.rollingId ?? null) : resolved.linkedRollingId,
       serviceCallId: input.projectType === "service" ? input.serviceCallId : null,
       category: resolved.category,
       taskId: task.id,
@@ -314,7 +316,7 @@ export async function createManualEntry(actorEmployeeId: string, actorPersona: P
       projectType: input.projectType,
       // Même raison que startTimer ci-dessus (call de service lié à un projet).
       projectId: input.projectType === "project" ? (input.projectId ?? null) : resolved.linkedProjectId,
-      rollingId: input.projectType === "rolling" ? (input.rollingId ?? null) : null,
+      rollingId: input.projectType === "rolling" ? (input.rollingId ?? null) : resolved.linkedRollingId,
       serviceCallId: input.projectType === "service" ? input.serviceCallId : null,
       category: resolved.category,
       taskId: task.id,
@@ -441,7 +443,7 @@ export async function updateTimeEntry(
     data.projectType = nextProjectType;
     // Même raison que startTimer/createManualEntry (call de service lié à un projet).
     data.projectId = nextProjectType === "project" ? (patch.projectId ?? entry.projectId) : resolved.linkedProjectId;
-    data.rollingId = nextProjectType === "rolling" ? (patch.rollingId ?? entry.rollingId) : null;
+    data.rollingId = nextProjectType === "rolling" ? (patch.rollingId ?? entry.rollingId) : resolved.linkedRollingId;
     data.serviceCallId = nextProjectType === "service" ? patch.serviceCallId ?? entry.serviceCallId : null;
     data.category = resolved.category;
     data.taskId = task.id;
