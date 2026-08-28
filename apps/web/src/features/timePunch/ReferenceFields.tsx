@@ -1,11 +1,12 @@
 import { BUDGET_CATEGORY_SLUGS } from "@gsc-pilot/business-rules";
-import type { PunchableTaskDto, ProjectOptionDto, ServiceCallOptionDto, PunchProjectType, RateType } from "./api.js";
+import type { PunchableTaskDto, ProjectOptionDto, RollingOptionDto, ServiceCallOptionDto, PunchProjectType, RateType } from "./api.js";
 import { RATE_TYPE_LABELS } from "./api.js";
 import type { TechLevelDto } from "../settings/api.js";
 
 export interface ReferenceValue {
   projectType: PunchProjectType;
   projectId?: string;
+  rollingId?: string;
   serviceCallId?: string;
   taskId: string;
   techLevelId?: string;
@@ -17,10 +18,16 @@ interface ReferenceFieldsProps {
   onChange: (patch: Partial<ReferenceValue>) => void;
   tasks: PunchableTaskDto[];
   projects: ProjectOptionDto[];
+  rollings: RollingOptionDto[];
   serviceCalls: ServiceCallOptionDto[];
   employeeTechLevelIds: string[];
   techLevels: TechLevelDto[];
   showRate: boolean;
+}
+
+/** PunchableTaskDto.scope n'a pas de valeur "rolling" dédiée — le catalogue de tâches/catégories est générique par type de dossier, un roulement réutilise donc le scope "project" (28 août 2026, confirmé). */
+function taskScopeFor(projectType: PunchProjectType): PunchableTaskDto["scope"] {
+  return projectType === "rolling" ? "project" : projectType;
 }
 
 /** undefined pour Employé/Magasinier (voir TechLevelDto) — n'est de toute façon affiché que sous showRate. */
@@ -44,12 +51,13 @@ export function ReferenceFields({
   onChange,
   tasks,
   projects,
+  rollings,
   serviceCalls,
   employeeTechLevelIds,
   techLevels,
   showRate,
 }: ReferenceFieldsProps) {
-  const tasksForScope = tasks.filter((task) => task.scope === value.projectType);
+  const tasksForScope = tasks.filter((task) => task.scope === taskScopeFor(value.projectType));
   const eligibleTechLevels = techLevels.filter((techLevel) => employeeTechLevelIds.includes(techLevel.id));
   const selectedTechLevel = eligibleTechLevels.find((techLevel) => techLevel.id === value.techLevelId);
 
@@ -69,10 +77,11 @@ export function ReferenceFields({
   const tasksForCategory = tasksForScope.filter((task) => task.category === selectedCategory);
 
   function handleProjectTypeChange(nextType: PunchProjectType) {
-    const nextTasks = tasks.filter((task) => task.scope === nextType);
+    const nextTasks = tasks.filter((task) => task.scope === taskScopeFor(nextType));
     onChange({
       projectType: nextType,
       projectId: undefined,
+      rollingId: undefined,
       serviceCallId: undefined,
       taskId: nextTasks[0]?.id ?? "",
       techLevelId: undefined,
@@ -95,6 +104,7 @@ export function ReferenceFields({
           onChange={(event) => handleProjectTypeChange(event.target.value as PunchProjectType)}
         >
           <option value="project">Projet</option>
+          <option value="rolling">Roulement</option>
           <option value="service">Appel de service</option>
           <option value="internal">Interne — Amélioration GSC</option>
         </select>
@@ -110,6 +120,22 @@ export function ReferenceFields({
             {projects.map((project) => (
               <option key={project.id} value={project.id}>
                 {project.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {value.projectType === "rolling" && (
+        <div className="field">
+          <label htmlFor="punch-rolling">Roulement</label>
+          <select id="punch-rolling" required value={value.rollingId ?? ""} onChange={(event) => onChange({ rollingId: event.target.value })}>
+            <option value="" disabled>
+              Sélectionner…
+            </option>
+            {rollings.map((rolling) => (
+              <option key={rolling.id} value={rolling.id}>
+                {rolling.label}
               </option>
             ))}
           </select>

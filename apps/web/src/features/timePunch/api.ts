@@ -1,6 +1,6 @@
 import { apiFetch } from "../../lib/apiClient.js";
 
-export type PunchProjectType = "project" | "service" | "internal";
+export type PunchProjectType = "project" | "service" | "internal" | "rolling";
 export type RateType = "regular" | "overtime" | "extra";
 
 export const RATE_TYPE_LABELS: Record<RateType, string> = {
@@ -24,6 +24,11 @@ export interface ProjectOptionDto {
   name: string;
 }
 
+export interface RollingOptionDto {
+  id: string;
+  label: string;
+}
+
 export interface ServiceCallOptionDto {
   id: string;
   label: string;
@@ -43,6 +48,8 @@ export interface TimeEntryDto {
   projectType: PunchProjectType;
   projectId: string | null;
   projectLabel: string | null;
+  rollingId: string | null;
+  rollingLabel: string | null;
   serviceCallId: string | null;
   category: string;
   categoryLabel: string;
@@ -70,6 +77,10 @@ export function fetchProjectOptions(): Promise<{ projects: ProjectOptionDto[] }>
   return apiFetch("/api/time-entries/project-options");
 }
 
+export function fetchRollingOptions(): Promise<{ rollings: RollingOptionDto[] }> {
+  return apiFetch("/api/time-entries/rolling-options");
+}
+
 export function fetchServiceCallOptions(): Promise<{ serviceCalls: ServiceCallOptionDto[] }> {
   return apiFetch("/api/time-entries/service-call-options");
 }
@@ -94,6 +105,7 @@ export interface PunchReferenceInput {
   employeeId?: string;
   projectType: PunchProjectType;
   projectId?: string;
+  rollingId?: string;
   serviceCallId?: string;
   taskId: string;
   techLevelId?: string;
@@ -128,6 +140,7 @@ export interface UpdateTimeEntryInput {
   blockageNote?: string | null;
   projectType?: PunchProjectType;
   projectId?: string;
+  rollingId?: string;
   serviceCallId?: string;
   taskId?: string;
   hours?: number;

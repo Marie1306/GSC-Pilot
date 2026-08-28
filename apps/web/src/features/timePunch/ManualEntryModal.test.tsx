@@ -31,6 +31,8 @@ const existingEntry: TimeEntryDto = {
   projectType: "internal",
   projectId: null,
   projectLabel: null,
+  rollingId: null,
+  rollingLabel: null,
   serviceCallId: null,
   category: "internal",
   categoryLabel: "Interne — Amélioration GSC",

@@ -626,8 +626,16 @@ model InvoicePlanEntry {
 
 model ProjectPurchaseEntry {
   id           String    @id @default(uuid())
-  projectId    String
-  project      Project   @relation(fields: [projectId], references: [id])
+  // projectId/rollingId : exactement un des deux non nul, jamais les deux
+  // (validé côté service, pas en contrainte DB — même convention que
+  // InvoicePlanEntry ci-dessus, qui partage déjà projectId?/rollingId? côte
+  // à côte). Nom du modèle inchangé malgré l'ajout de rollingId (28 août
+  // 2026, achats réels pour un roulement) — même choix qu'InvoicePlanEntry,
+  // jamais renommé non plus pour la même raison.
+  projectId    String?
+  project      Project?  @relation(fields: [projectId], references: [id])
+  rollingId    String?
+  rolling      Rolling?  @relation(fields: [rollingId], references: [id])
   date         DateTime  @db.Date
   category     String
   supplier     String?
@@ -771,11 +779,16 @@ model TimeEntry {
   date           DateTime       @db.Date
   employeeId     String
   employee       Employee       @relation(fields: [employeeId], references: [id])
-  projectType    String // project | service | internal
+  projectType    String // project | service | internal | rolling
   projectId      String?
   project        Project?       @relation(fields: [projectId], references: [id])
   serviceCallId  String?
   serviceCall    ServiceCall?   @relation(fields: [serviceCallId], references: [id])
+  // Punch sur un roulement (28 août 2026, demande de l'utilisatrice) — même
+  // mécanique que projectId/serviceCallId ci-dessus, jamais un dossier
+  // générique partagé : chaque type de dossier garde son propre FK nullable.
+  rollingId      String?
+  rolling        Rolling?       @relation(fields: [rollingId], references: [id])
   category       String
   taskId         String?
   task           PunchableTask? @relation(fields: [taskId], references: [id])
@@ -918,6 +931,22 @@ model Rolling {
   budget                      Budget?        @relation(fields: [budgetId], references: [id])
   status                      String         @default("active")
   sold                        Decimal        @default(0) @db.Decimal(12, 2)
+  // Heures/achats planifiés — nuls tant qu'aucun budgétaire n'est attaché
+  // (création directe sans budgétaire, comme Project). Alimentent la
+  // Progression/le Comparatif/les tuiles financières au même titre que pour
+  // un projet (28 août 2026, demande de l'utilisatrice) — jamais des
+  // colonnes "actualHours"/"actualPurchases" séparées : toujours calculées
+  // à la lecture depuis TimeEntry.rollingId/ProjectPurchaseEntry.rollingId,
+  // même esprit que Project.
+  plannedHours                Decimal        @default(0) @db.Decimal(10, 2)
+  plannedPurchases            Decimal        @default(0) @db.Decimal(12, 2)
+  // Back-up d'heures — gelé à la conversion du budgétaire, même mécanisme
+  // que Project.backupHours/backupHoursCost/backupHourlyRate
+  // (transferBackupToProject, backup.ts, jamais modifié). Nul si le
+  // roulement n'a pas de budgétaire d'origine.
+  backupHours                 Decimal        @default(0) @db.Decimal(10, 2)
+  backupHoursCost             Decimal        @default(0) @db.Decimal(12, 2)
+  backupHourlyRate            Decimal?       @db.Decimal(10, 2)
   productionCompleted         Boolean        @default(false)
   fulfillmentMode             String?
   fulfillmentStatus           String?
@@ -935,16 +964,15 @@ model Rolling {
   createdById                 String
   createdAt                   DateTime       @default(now())
   // Post-mortem (20 août 2026, confirmé) : « la livraison termine le
-  // roulement → statut "Terminé" → apparaît au Post-mortem. » Pas de
-  // comparatif/coût réel ici contrairement à Project — aucune donnée
-  // d'heures/achats n'existe pour un roulement (TimeEntry/PurchaseRequest
-  // n'ont pas de rollingId), seulement le revenu (sold) et ces 3 champs.
+  // roulement → statut "Terminé" → apparaît au Post-mortem. »
   postMortemDepassements      String?
   postMortemAmeliorations     String?
   postMortemRecommandation    String?
 
-  invoiceEntries InvoicePlanEntry[]
-  deliveries     Delivery[]
+  invoiceEntries  InvoicePlanEntry[]
+  deliveries      Delivery[]
+  timeEntries     TimeEntry[]
+  purchaseEntries ProjectPurchaseEntry[]
 
   @@index([status])
 }

@@ -391,6 +391,7 @@ export async function listProjects(viewerPersona: Persona): Promise<ProjectListI
     purchasesByProject.set(request.projectId, round2((purchasesByProject.get(request.projectId) ?? 0) + Number(request.amount ?? 0)));
   }
   for (const entry of approvedEntries) {
+    if (!entry.projectId) continue;
     purchasesByProject.set(entry.projectId, round2((purchasesByProject.get(entry.projectId) ?? 0) + Number(entry.amount)));
   }
 

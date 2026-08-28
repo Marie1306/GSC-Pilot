@@ -454,6 +454,18 @@ export async function projectPurchasesActual(projectId: string): Promise<number>
   return round2(Number(appliedRequests._sum.amount ?? 0) + Number(approvedEntries._sum.amount ?? 0));
 }
 
+/**
+ * Équivalent de projectPurchasesActual pour un roulement — mais SEULEMENT
+ * les ProjectPurchaseEntry approuvées : PurchaseRequest n'a pas de rollingId
+ * (28 août 2026, portée confirmée : Marie a demandé le mécanisme "achats
+ * réels" simple, pas d'étendre tout le flux de demande d'achat/autorisation
+ * à un deuxième type de dossier).
+ */
+export async function rollingPurchasesActual(rollingId: string): Promise<number> {
+  const approvedEntries = await prisma.projectPurchaseEntry.aggregate({ where: { rollingId, status: "approved" }, _sum: { amount: true } });
+  return round2(Number(approvedEntries._sum.amount ?? 0));
+}
+
 // ---------------------------------------------------------------------------
 // ProjectPurchaseEntry — mécanisme simple (Projet 2B, 17 août 2026). Saisie
 // Administration/Direction, approbation Direction seulement (canEnterProjectPurchase/
@@ -466,7 +478,9 @@ export async function projectPurchasesActual(projectId: string): Promise<number>
 
 export interface ProjectPurchaseEntryDto {
   id: string;
-  projectId: string;
+  /** Exactement un des deux non nul (voir schema.prisma) — jamais les deux, jamais aucun. */
+  projectId: string | null;
+  rollingId: string | null;
   date: string;
   category: string;
   supplier: string | null;
@@ -495,6 +509,7 @@ function toProjectPurchaseEntryDto(row: ProjectPurchaseEntry, nameById: Map<stri
   return {
     id: row.id,
     projectId: row.projectId,
+    rollingId: row.rollingId,
     date: row.date.toISOString(),
     category: row.category,
     supplier: row.supplier,
@@ -513,6 +528,13 @@ function toProjectPurchaseEntryDto(row: ProjectPurchaseEntry, nameById: Map<stri
 
 export async function listProjectPurchaseEntries(projectId: string): Promise<ProjectPurchaseEntryDto[]> {
   const rows = await prisma.projectPurchaseEntry.findMany({ where: { projectId }, orderBy: { createdAt: "desc" } });
+  const nameById = await projectPurchaseEntryNamesById(rows);
+  return rows.map((row) => toProjectPurchaseEntryDto(row, nameById));
+}
+
+/** Même mécanisme que listProjectPurchaseEntries — voir l'en-tête de section (rollingId, 28 août 2026, demande de l'utilisatrice). */
+export async function listRollingPurchaseEntries(rollingId: string): Promise<ProjectPurchaseEntryDto[]> {
+  const rows = await prisma.projectPurchaseEntry.findMany({ where: { rollingId }, orderBy: { createdAt: "desc" } });
   const nameById = await projectPurchaseEntryNamesById(rows);
   return rows.map((row) => toProjectPurchaseEntryDto(row, nameById));
 }
@@ -536,6 +558,30 @@ export async function createProjectPurchaseEntry(
   const row = await prisma.projectPurchaseEntry.create({
     data: {
       projectId,
+      date: new Date(input.date),
+      category: input.category,
+      supplier: input.supplier || null,
+      description: input.description,
+      amount: input.amount,
+      enteredById,
+      note: input.note || null,
+    },
+  });
+  const nameById = await projectPurchaseEntryNamesById([row]);
+  return toProjectPurchaseEntryDto(row, nameById);
+}
+
+/** Même mécanisme que createProjectPurchaseEntry — voir l'en-tête de section (rollingId, 28 août 2026). */
+export async function createRollingPurchaseEntry(
+  rollingId: string,
+  enteredById: string,
+  input: CreateProjectPurchaseEntryInput,
+): Promise<ProjectPurchaseEntryDto> {
+  const rolling = await prisma.rolling.findUnique({ where: { id: rollingId }, select: { id: true } });
+  if (!rolling) throw new HttpError(404, "Roulement introuvable.");
+  const row = await prisma.projectPurchaseEntry.create({
+    data: {
+      rollingId,
       date: new Date(input.date),
       category: input.category,
       supplier: input.supplier || null,

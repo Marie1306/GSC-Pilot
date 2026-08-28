@@ -19,6 +19,7 @@ function Harness({ initial }: { initial: ReferenceValue }) {
       onChange={(patch) => setValue((current) => ({ ...current, ...patch }))}
       tasks={TASKS}
       projects={[]}
+      rollings={[]}
       serviceCalls={[]}
       employeeTechLevelIds={[]}
       techLevels={[]}

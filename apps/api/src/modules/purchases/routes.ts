@@ -7,6 +7,7 @@ import {
   canEnterProjectPurchase,
   canApproveProjectPurchase,
   canAccessProject,
+  canAccessOverviewViews,
   buildFrozenPurchaseThresholdsMap,
   type Persona,
 } from "@gsc-pilot/business-rules";
@@ -31,6 +32,8 @@ import {
   type FulfillmentStatus,
   listProjectPurchaseEntries,
   createProjectPurchaseEntry,
+  listRollingPurchaseEntries,
+  createRollingPurchaseEntry,
   updateProjectPurchaseEntryAmount,
   deleteProjectPurchaseEntry,
   approveProjectPurchaseEntry,
@@ -302,6 +305,32 @@ purchasesRouter.post(
     const projectId = z.uuid().parse(req.params.projectId);
     const body = createEntrySchema.parse(req.body);
     const entry = await createProjectPurchaseEntry(projectId, req.employee!.id, body);
+    res.status(201).json({ entry });
+  },
+);
+
+// Même mécanisme que les 2 routes /projects/:projectId/purchase-entries
+// ci-dessus, pour un roulement (28 août 2026) — canAccessOverviewViews est
+// déjà le portier de GET /rollings/:id (rollings/routes.ts), jamais un
+// nouveau contrôle inventé ici.
+purchasesRouter.get(
+  "/rollings/:rollingId/purchase-entries",
+  requireAuth,
+  requirePermission((persona) => canAccessOverviewViews(persona)),
+  async (req, res) => {
+    const rollingId = z.uuid().parse(req.params.rollingId);
+    const entries = await listRollingPurchaseEntries(rollingId);
+    res.json({ entries });
+  },
+);
+purchasesRouter.post(
+  "/rollings/:rollingId/purchase-entries",
+  requireAuth,
+  requirePermission((persona) => canEnterProjectPurchase(persona)),
+  async (req, res) => {
+    const rollingId = z.uuid().parse(req.params.rollingId);
+    const body = createEntrySchema.parse(req.body);
+    const entry = await createRollingPurchaseEntry(rollingId, req.employee!.id, body);
     res.status(201).json({ entry });
   },
 );

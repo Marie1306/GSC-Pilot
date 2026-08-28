@@ -5,11 +5,12 @@ import { useAuth } from "../../lib/auth/useAuth.js";
 import { useOnlineStatus } from "../../offline/useOnlineStatus.js";
 import { startLocalActiveEntry } from "../../offline/localTimer.js";
 import { fetchTechLevels } from "../settings/api.js";
-import { fetchPunchableTasks, fetchProjectOptions, fetchServiceCallOptions, fetchPunchableEmployees, startTimer } from "./api.js";
+import { fetchPunchableTasks, fetchProjectOptions, fetchRollingOptions, fetchServiceCallOptions, fetchPunchableEmployees, startTimer } from "./api.js";
 import { ReferenceFields, type ReferenceValue } from "./ReferenceFields.js";
 
 const PROJECT_TYPE_FALLBACK_LABEL: Record<ReferenceValue["projectType"], string> = {
   project: "Projet",
+  rolling: "Roulement",
   service: "Appel de service",
   internal: "Interne — Amélioration GSC",
 };
@@ -27,6 +28,7 @@ export function StartTaskModal({ onClose, initialValue }: StartTaskModalProps) {
   const online = useOnlineStatus();
   const tasksQuery = useQuery({ queryKey: ["punchable-tasks"], queryFn: fetchPunchableTasks });
   const projectsQuery = useQuery({ queryKey: ["time-entries", "project-options"], queryFn: fetchProjectOptions });
+  const rollingsQuery = useQuery({ queryKey: ["time-entries", "rolling-options"], queryFn: fetchRollingOptions });
   const serviceCallsQuery = useQuery({ queryKey: ["time-entries", "service-call-options"], queryFn: fetchServiceCallOptions });
   const techLevelsQuery = useQuery({ queryKey: ["tech-levels"], queryFn: fetchTechLevels });
   const canChooseEmployee = employee ? canPunchForOtherEmployee(employee.persona) : false;
@@ -43,6 +45,7 @@ export function StartTaskModal({ onClose, initialValue }: StartTaskModalProps) {
 
   const tasks = tasksQuery.data?.tasks ?? [];
   const projects = projectsQuery.data?.projects ?? [];
+  const rollings = rollingsQuery.data?.rollings ?? [];
   const serviceCalls = serviceCallsQuery.data?.serviceCalls ?? [];
   const techLevels = techLevelsQuery.data?.techLevels ?? [];
   const punchableEmployees = employeesQuery.data?.employees ?? [];
@@ -56,6 +59,7 @@ export function StartTaskModal({ onClose, initialValue }: StartTaskModalProps) {
         employeeId,
         projectType: value.projectType,
         projectId: value.projectId,
+        rollingId: value.rollingId,
         serviceCallId: value.serviceCallId,
         taskId: value.taskId,
         techLevelId: value.techLevelId,
@@ -81,13 +85,16 @@ export function StartTaskModal({ onClose, initialValue }: StartTaskModalProps) {
       const referenceLabel =
         value.projectType === "project"
           ? (projects.find((p) => p.id === value.projectId)?.label ?? PROJECT_TYPE_FALLBACK_LABEL.project)
-          : value.projectType === "service"
-            ? (serviceCalls.find((c) => c.id === value.serviceCallId)?.label ?? PROJECT_TYPE_FALLBACK_LABEL.service)
-            : PROJECT_TYPE_FALLBACK_LABEL.internal;
+          : value.projectType === "rolling"
+            ? (rollings.find((r) => r.id === value.rollingId)?.label ?? PROJECT_TYPE_FALLBACK_LABEL.rolling)
+            : value.projectType === "service"
+              ? (serviceCalls.find((c) => c.id === value.serviceCallId)?.label ?? PROJECT_TYPE_FALLBACK_LABEL.service)
+              : PROJECT_TYPE_FALLBACK_LABEL.internal;
       void startLocalActiveEntry({
         employeeId,
         projectType: value.projectType,
         projectId: value.projectId,
+        rollingId: value.rollingId,
         serviceCallId: value.serviceCallId,
         taskId: value.taskId,
         taskLabel,
@@ -133,6 +140,7 @@ export function StartTaskModal({ onClose, initialValue }: StartTaskModalProps) {
               onChange={(patch) => setValue((current) => ({ ...current, ...patch }))}
               tasks={tasks}
               projects={projects}
+              rollings={rollings}
               serviceCalls={serviceCalls}
               employeeTechLevelIds={employeeTechLevelIds}
               techLevels={techLevels}

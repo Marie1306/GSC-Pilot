@@ -39,6 +39,7 @@ function formatDate(iso: string): string {
 
 function referenceLabel(entry: TimeEntryDto): string {
   if (entry.projectType === "project") return entry.projectLabel ?? "Projet";
+  if (entry.projectType === "rolling") return entry.rollingLabel ?? "Roulement";
   if (entry.projectType === "service") return entry.categoryLabel;
   return entry.categoryLabel;
 }
@@ -162,6 +163,7 @@ export function TimePunchPage() {
         employeeId: localActive.employeeId,
         projectType: localActive.projectType,
         projectId: localActive.projectId,
+        rollingId: localActive.rollingId,
         serviceCallId: localActive.serviceCallId,
         taskId: localActive.taskId,
         techLevelId: localActive.techLevelId,

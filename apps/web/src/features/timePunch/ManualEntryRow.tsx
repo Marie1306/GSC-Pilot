@@ -1,5 +1,5 @@
 import { ReferenceFields, type ReferenceValue } from "./ReferenceFields.js";
-import type { PunchableTaskDto, ProjectOptionDto, ServiceCallOptionDto } from "./api.js";
+import type { PunchableTaskDto, ProjectOptionDto, RollingOptionDto, ServiceCallOptionDto } from "./api.js";
 import type { TechLevelDto } from "../settings/api.js";
 import "./timePunch.css";
 
@@ -18,6 +18,7 @@ interface ManualEntryRowProps {
   onRemove?: () => void;
   tasks: PunchableTaskDto[];
   projects: ProjectOptionDto[];
+  rollings: RollingOptionDto[];
   serviceCalls: ServiceCallOptionDto[];
   employeeTechLevelIds: string[];
   techLevels: TechLevelDto[];
@@ -32,6 +33,7 @@ export function ManualEntryRow({
   onRemove,
   tasks,
   projects,
+  rollings,
   serviceCalls,
   employeeTechLevelIds,
   techLevels,
@@ -65,6 +67,7 @@ export function ManualEntryRow({
           onChange={(patch) => onChange({ value: { ...row.value, ...patch } })}
           tasks={tasks}
           projects={projects}
+          rollings={rollings}
           serviceCalls={serviceCalls}
           employeeTechLevelIds={employeeTechLevelIds}
           techLevels={techLevels}

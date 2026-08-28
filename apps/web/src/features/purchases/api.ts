@@ -156,7 +156,9 @@ export function applyPurchaseRequestToProject(id: string): Promise<{ id: string;
 
 export interface ProjectPurchaseEntryDto {
   id: string;
-  projectId: string;
+  /** Exactement un des deux non nul — voir purchases/service.ts (API). */
+  projectId: string | null;
+  rollingId: string | null;
   date: string;
   category: string;
   supplier: string | null;
@@ -190,6 +192,17 @@ export function createProjectPurchaseEntry(
   input: NewProjectPurchaseEntryInput,
 ): Promise<{ entry: ProjectPurchaseEntryDto }> {
   return apiFetch(`/api/projects/${projectId}/purchase-entries`, { method: "POST", body: JSON.stringify(input) });
+}
+
+export function fetchRollingPurchaseEntries(rollingId: string): Promise<{ entries: ProjectPurchaseEntryDto[] }> {
+  return apiFetch(`/api/rollings/${rollingId}/purchase-entries`);
+}
+
+export function createRollingPurchaseEntry(
+  rollingId: string,
+  input: NewProjectPurchaseEntryInput,
+): Promise<{ entry: ProjectPurchaseEntryDto }> {
+  return apiFetch(`/api/rollings/${rollingId}/purchase-entries`, { method: "POST", body: JSON.stringify(input) });
 }
 
 export function updateProjectPurchaseEntryAmount(id: string, amount: number): Promise<{ entry: ProjectPurchaseEntryDto }> {

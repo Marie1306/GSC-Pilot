@@ -59,6 +59,7 @@ async function resolveActingEmployeeId(actorEmployeeId: string, actorPersona: Pe
 interface PunchReferenceInput {
   projectType: string;
   projectId?: string | null;
+  rollingId?: string | null;
   serviceCallId?: string | null;
   techLevelId?: string | null;
   rateType?: string | null;
@@ -105,10 +106,20 @@ async function resolvePunchTarget(
     // pour calculer le prix de vente d'un appel de service, séparément.
     return { category: task.category, costRate: Number(employee.costRate), techLevelId: eligible.id, rateType, linkedProjectId: call.projectId };
   }
-  if (input.projectType === "project") {
-    if (!input.projectId) throw new HttpError(400, "Un projet est requis.");
-    const project = await prisma.project.findUnique({ where: { id: input.projectId } });
-    if (!project) throw new HttpError(404, "Projet introuvable.");
+  if (input.projectType === "project" || input.projectType === "rolling") {
+    // Roulement (28 août 2026) : même mécanisme que projet — catalogue de
+    // tâches/taux générique par catégorie (BudgetModelRow), jamais dépendant
+    // du budgétaire propre au dossier (voir PunchableTaskDto.scope, une
+    // seule valeur "project" partagée par tous les projets ET roulements).
+    if (input.projectType === "project") {
+      if (!input.projectId) throw new HttpError(400, "Un projet est requis.");
+      const project = await prisma.project.findUnique({ where: { id: input.projectId } });
+      if (!project) throw new HttpError(404, "Projet introuvable.");
+    } else {
+      if (!input.rollingId) throw new HttpError(400, "Un roulement est requis.");
+      const rolling = await prisma.rolling.findUnique({ where: { id: input.rollingId } });
+      if (!rolling) throw new HttpError(404, "Roulement introuvable.");
+    }
     if (!task.budgetModelRowId) throw new HttpError(400, "Cette tâche n'est pas liée à une catégorie de projet.");
     const row = await prisma.budgetModelRow.findUnique({ where: { id: task.budgetModelRowId } });
     if (!row) throw new HttpError(404, "Ligne de modèle introuvable.");
@@ -132,9 +143,9 @@ async function requirePunchRoundingMinutes(): Promise<number> {
 }
 
 type TimeEntryWithRelations = Prisma.TimeEntryGetPayload<{
-  include: { employee: true; project: true; task: true; techLevel: true };
+  include: { employee: true; project: true; rolling: { include: { contact: true } }; task: true; techLevel: true };
 }>;
-const ENTRY_INCLUDE = { employee: true, project: true, task: true, techLevel: true } as const;
+const ENTRY_INCLUDE = { employee: true, project: true, rolling: { include: { contact: true } }, task: true, techLevel: true } as const;
 
 export interface TimeEntryDto {
   id: string;
@@ -144,6 +155,8 @@ export interface TimeEntryDto {
   projectType: string;
   projectId: string | null;
   projectLabel: string | null;
+  rollingId: string | null;
+  rollingLabel: string | null;
   serviceCallId: string | null;
   category: string;
   categoryLabel: string;
@@ -172,6 +185,8 @@ function toDto(entry: TimeEntryWithRelations, viewerPersona: Persona): TimeEntry
     projectType: entry.projectType,
     projectId: entry.projectId,
     projectLabel: entry.project ? `${entry.project.projectNumber} — ${entry.project.name}` : null,
+    rollingId: entry.rollingId,
+    rollingLabel: entry.rolling ? (entry.rolling.contact.company ?? entry.rolling.contact.name) : null,
     serviceCallId: entry.serviceCallId,
     category: entry.category,
     categoryLabel: categoryLabel(entry.category),
@@ -195,8 +210,9 @@ function toDto(entry: TimeEntryWithRelations, viewerPersona: Persona): TimeEntry
 
 export interface StartTimerInput {
   employeeId: string;
-  projectType: "project" | "service" | "internal";
+  projectType: "project" | "service" | "internal" | "rolling";
   projectId?: string;
+  rollingId?: string;
   serviceCallId?: string;
   taskId: string;
   note?: string;
@@ -222,6 +238,7 @@ export async function startTimer(actorEmployeeId: string, actorPersona: Persona,
       // (ServiceCall.projectId) suit automatiquement — jamais forcé à null pour
       // ce cas, contrairement à un call non lié ou une entrée interne.
       projectId: input.projectType === "project" ? (input.projectId ?? null) : resolved.linkedProjectId,
+      rollingId: input.projectType === "rolling" ? (input.rollingId ?? null) : null,
       serviceCallId: input.projectType === "service" ? input.serviceCallId : null,
       category: resolved.category,
       taskId: task.id,
@@ -264,8 +281,9 @@ export async function stopTimer(actorEmployeeId: string, actorPersona: Persona, 
 export interface ManualEntryInput {
   employeeId: string;
   date: string;
-  projectType: "project" | "service" | "internal";
+  projectType: "project" | "service" | "internal" | "rolling";
   projectId?: string;
+  rollingId?: string;
   serviceCallId?: string;
   taskId: string;
   hours: number;
@@ -296,6 +314,7 @@ export async function createManualEntry(actorEmployeeId: string, actorPersona: P
       projectType: input.projectType,
       // Même raison que startTimer ci-dessus (call de service lié à un projet).
       projectId: input.projectType === "project" ? (input.projectId ?? null) : resolved.linkedProjectId,
+      rollingId: input.projectType === "rolling" ? (input.rollingId ?? null) : null,
       serviceCallId: input.projectType === "service" ? input.serviceCallId : null,
       category: resolved.category,
       taskId: task.id,
@@ -357,8 +376,9 @@ export async function approveTimeEntry(entryId: string, actorPersona: Persona): 
   return toDto(updated, actorPersona);
 }
 
-function referenceLabel(entry: { projectType: string; projectId: string | null; serviceCallId: string | null }): string {
+function referenceLabel(entry: { projectType: string; projectId: string | null; rollingId: string | null; serviceCallId: string | null }): string {
   if (entry.projectType === "project") return `project:${entry.projectId}`;
+  if (entry.projectType === "rolling") return `rolling:${entry.rollingId}`;
   if (entry.projectType === "service") return `service:${entry.serviceCallId}`;
   return "internal";
 }
@@ -366,8 +386,9 @@ function referenceLabel(entry: { projectType: string; projectId: string | null; 
 export interface UpdateTimeEntryInput {
   note?: string;
   blockageNote?: string | null;
-  projectType?: "project" | "service" | "internal";
+  projectType?: "project" | "service" | "internal" | "rolling";
   projectId?: string;
+  rollingId?: string;
   serviceCallId?: string;
   taskId?: string;
   hours?: number;
@@ -399,6 +420,7 @@ export async function updateTimeEntry(
   const referenceChanged =
     (patch.projectType !== undefined && patch.projectType !== entry.projectType) ||
     (patch.projectId !== undefined && patch.projectId !== entry.projectId) ||
+    (patch.rollingId !== undefined && patch.rollingId !== entry.rollingId) ||
     (patch.serviceCallId !== undefined && patch.serviceCallId !== entry.serviceCallId);
 
   const data: Prisma.TimeEntryUncheckedUpdateInput = {};
@@ -411,6 +433,7 @@ export async function updateTimeEntry(
     const resolved = await resolvePunchTarget(actorPersona, entry.employeeId, task, {
       projectType: nextProjectType,
       projectId: patch.projectId ?? entry.projectId,
+      rollingId: patch.rollingId ?? entry.rollingId,
       serviceCallId: patch.serviceCallId ?? entry.serviceCallId,
       techLevelId: entry.techLevelId,
       rateType: entry.rateType,
@@ -418,6 +441,7 @@ export async function updateTimeEntry(
     data.projectType = nextProjectType;
     // Même raison que startTimer/createManualEntry (call de service lié à un projet).
     data.projectId = nextProjectType === "project" ? (patch.projectId ?? entry.projectId) : resolved.linkedProjectId;
+    data.rollingId = nextProjectType === "rolling" ? (patch.rollingId ?? entry.rollingId) : null;
     data.serviceCallId = nextProjectType === "service" ? patch.serviceCallId ?? entry.serviceCallId : null;
     data.category = resolved.category;
     data.taskId = task.id;
@@ -497,6 +521,21 @@ export async function listProjectOptions(): Promise<ProjectOptionDto[]> {
     orderBy: { projectNumber: "asc" },
   });
   return rows.map((row) => ({ id: row.id, label: `${row.projectNumber} — ${row.name}`, projectNumber: row.projectNumber, name: row.name }));
+}
+
+export interface RollingOptionDto {
+  id: string;
+  label: string;
+}
+
+/** Rolling n'a pas de displayId/numéro (voir rollings/service.ts) — même convention d'étiquette que partout ailleurs (company ?? contactName). */
+export async function listRollingOptions(): Promise<RollingOptionDto[]> {
+  const rows = await prisma.rolling.findMany({
+    where: { closedAt: null },
+    select: { id: true, contact: { select: { name: true, company: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  return rows.map((row) => ({ id: row.id, label: row.contact.company ?? row.contact.name }));
 }
 
 export interface PunchableEmployeeDto {

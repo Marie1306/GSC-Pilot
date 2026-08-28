@@ -27,6 +27,7 @@ export interface LocalActiveEntry {
   employeeId?: string;
   projectType: PunchProjectType;
   projectId?: string;
+  rollingId?: string;
   serviceCallId?: string;
   taskId: string;
   taskLabel: string;

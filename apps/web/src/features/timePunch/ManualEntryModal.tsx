@@ -7,6 +7,7 @@ import { fetchTechLevels } from "../settings/api.js";
 import {
   fetchPunchableTasks,
   fetchProjectOptions,
+  fetchRollingOptions,
   fetchServiceCallOptions,
   fetchPunchableEmployees,
   createManualEntry,
@@ -69,6 +70,7 @@ export function ManualEntryModal({ onClose, entry, initialProjectId }: ManualEnt
   const queryClient = useQueryClient();
   const tasksQuery = useQuery({ queryKey: ["punchable-tasks"], queryFn: fetchPunchableTasks });
   const projectsQuery = useQuery({ queryKey: ["time-entries", "project-options"], queryFn: fetchProjectOptions });
+  const rollingsQuery = useQuery({ queryKey: ["time-entries", "rolling-options"], queryFn: fetchRollingOptions });
   const serviceCallsQuery = useQuery({ queryKey: ["time-entries", "service-call-options"], queryFn: fetchServiceCallOptions });
   const techLevelsQuery = useQuery({ queryKey: ["tech-levels"], queryFn: fetchTechLevels });
   const canChooseEmployee = !entry && employee ? canPunchForOtherEmployee(employee.persona) : false;
@@ -88,6 +90,7 @@ export function ManualEntryModal({ onClose, entry, initialProjectId }: ManualEnt
           value: {
             projectType: entry.projectType,
             projectId: entry.projectId ?? undefined,
+            rollingId: entry.rollingId ?? undefined,
             serviceCallId: entry.serviceCallId ?? undefined,
             taskId: entry.taskId ?? "",
             techLevelId: entry.techLevelId ?? undefined,
@@ -103,6 +106,7 @@ export function ManualEntryModal({ onClose, entry, initialProjectId }: ManualEnt
 
   const tasks = tasksQuery.data?.tasks ?? [];
   const projects = projectsQuery.data?.projects ?? [];
+  const rollings = rollingsQuery.data?.rollings ?? [];
   const serviceCalls = serviceCallsQuery.data?.serviceCalls ?? [];
   const techLevels = techLevelsQuery.data?.techLevels ?? [];
   const punchableEmployees = employeesQuery.data?.employees ?? [];
@@ -130,6 +134,7 @@ export function ManualEntryModal({ onClose, entry, initialProjectId }: ManualEnt
       return updateTimeEntry(entry!.id, {
         projectType: row.value.projectType,
         projectId: row.value.projectId,
+        rollingId: row.value.rollingId,
         serviceCallId: row.value.serviceCallId,
         taskId: row.value.taskId,
         hours: Number(row.hours),
@@ -155,6 +160,7 @@ export function ManualEntryModal({ onClose, entry, initialProjectId }: ManualEnt
             hours: Number(row.hours),
             projectType: row.value.projectType,
             projectId: row.value.projectId,
+            rollingId: row.value.rollingId,
             serviceCallId: row.value.serviceCallId,
             taskId: row.value.taskId,
             techLevelId: row.value.techLevelId,
@@ -256,6 +262,7 @@ export function ManualEntryModal({ onClose, entry, initialProjectId }: ManualEnt
                 onRemove={!entry && rows.length > 1 ? () => removeRow(row.key) : undefined}
                 tasks={tasks}
                 projects={projects}
+                rollings={rollings}
                 serviceCalls={serviceCalls}
                 employeeTechLevelIds={employeeTechLevelIds}
                 techLevels={techLevels}
