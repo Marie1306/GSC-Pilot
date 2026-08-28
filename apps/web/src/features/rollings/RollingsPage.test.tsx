@@ -47,7 +47,7 @@ function renderPage(employee: Employee) {
   );
 }
 
-describe("RollingsPage — lien vers la création d'un budgétaire", () => {
+describe("RollingsPage — option budgétaire dans le flux de création", () => {
   beforeEach(() => {
     vi.stubGlobal(
       "fetch",
@@ -58,31 +58,40 @@ describe("RollingsPage — lien vers la création d'un budgétaire", () => {
     );
   });
 
-  it("affiche « Créer un budgétaire » à côté de « Créer un roulement » pour Direction", async () => {
+  it("le bouton « Créer un budgétaire » n'apparaît pas avant d'ouvrir le formulaire de création", async () => {
     renderPage(direction);
     await waitFor(() => expect(screen.getByText("Aucun roulement pour l'instant.")).toBeInTheDocument());
-    expect(screen.getByRole("button", { name: "🧮 Créer un budgétaire" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "🧮 Construire un budgétaire à la place" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "+ Créer un roulement" })).toBeInTheDocument();
   });
 
-  it("navigue vers /budgetaire au clic sur « Créer un budgétaire »", async () => {
-    renderPage(direction);
-    await waitFor(() => expect(screen.getByText("Aucun roulement pour l'instant.")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: "🧮 Créer un budgétaire" }));
-    expect(await screen.findByText("Page Budgétaire (destination)")).toBeInTheDocument();
-  });
-
-  it("le formulaire de création directe reste fonctionnel (+ Créer un roulement)", async () => {
+  it("« + Créer un roulement » ouvre le formulaire, qui propose alors « Construire un budgétaire à la place »", async () => {
     renderPage(direction);
     await waitFor(() => expect(screen.getByText("Aucun roulement pour l'instant.")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "+ Créer un roulement" }));
     expect(screen.getByText("Nouveau roulement")).toBeInTheDocument();
-    expect(screen.getByText(/Création directe, sans passer par un budgétaire/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "🧮 Construire un budgétaire à la place" })).toBeInTheDocument();
   });
 
-  it("cache « Créer un budgétaire » pour Administration (canCreateBudgetFromRequest = Direction/Propriétaire seulement)", async () => {
+  it("navigue vers /budgetaire au clic sur « Construire un budgétaire à la place »", async () => {
+    renderPage(direction);
+    await waitFor(() => expect(screen.getByText("Aucun roulement pour l'instant.")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "+ Créer un roulement" }));
+    fireEvent.click(screen.getByRole("button", { name: "🧮 Construire un budgétaire à la place" }));
+    expect(await screen.findByText("Page Budgétaire (destination)")).toBeInTheDocument();
+  });
+
+  it("le formulaire de création directe reste fonctionnel", async () => {
+    renderPage(direction);
+    await waitFor(() => expect(screen.getByText("Aucun roulement pour l'instant.")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "+ Créer un roulement" }));
+    expect(screen.getByText(/Création directe : heures\/achats\/prix restent à zéro/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Créer" })).toBeInTheDocument();
+  });
+
+  it("cache « Construire un budgétaire à la place » pour Administration (canCreateBudgetFromRequest = Direction/Propriétaire seulement)", async () => {
     renderPage({ ...direction, persona: ROLES.ADMIN });
     await waitFor(() => expect(screen.getByText("Roulements")).toBeInTheDocument());
-    expect(screen.queryByRole("button", { name: "🧮 Créer un budgétaire" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "+ Créer un roulement" })).not.toBeInTheDocument();
   });
 });

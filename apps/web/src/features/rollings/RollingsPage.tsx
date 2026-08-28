@@ -66,10 +66,24 @@ export function RollingsPage() {
       {showForm && canCreate && (
         <div className="card">
           <h3 style={{ marginTop: 0, fontSize: 15 }}>Nouveau roulement</h3>
+
+          {canCreateBudget && (
+            <div style={{ margin: "0 0 14px" }}>
+              <p style={{ margin: "0 0 8px", color: "var(--gsc-color-muted)", fontSize: 13 }}>
+                Pour un roulement chiffré à l'avance (heures, achats, prix de vente), construisez plutôt un budgétaire —
+                il deviendra ce roulement via « Convertir en roulement » une fois le contrat obtenu.
+              </p>
+              <button type="button" className="btn btn-secondary btn-small" onClick={() => navigate("/budgetaire")}>
+                🧮 Construire un budgétaire à la place
+              </button>
+              <p style={{ margin: "14px 0 0", color: "var(--gsc-color-muted)", fontSize: 13, fontWeight: 600 }}>
+                — ou créez directement, sans budgétaire —
+              </p>
+            </div>
+          )}
+
           <p style={{ margin: "0 0 10px", color: "var(--gsc-color-muted)", fontSize: 13 }}>
-            Création directe, sans passer par un budgétaire — heures/achats/prix restent à zéro tant qu'ils ne sont pas
-            saisis manuellement. Pour un roulement chiffré à l'avance, utilisez plutôt « Créer un budgétaire » puis
-            « Convertir en roulement » une fois le contrat obtenu.
+            Création directe : heures/achats/prix restent à zéro tant qu'ils ne sont pas saisis manuellement.
           </p>
           <form
             className="form-grid"
@@ -111,19 +125,10 @@ export function RollingsPage() {
       <div className="card" style={{ marginTop: showForm && canCreate ? 20 : 0 }}>
         <div className="card-band-header">
           <h3>Roulements</h3>
-          {!showForm && (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {canCreateBudget && (
-                <button type="button" className="btn btn-secondary btn-small" onClick={() => navigate("/budgetaire")}>
-                  🧮 Créer un budgétaire
-                </button>
-              )}
-              {canCreate && (
-                <button type="button" className="btn btn-small" onClick={() => setShowForm(true)}>
-                  + Créer un roulement
-                </button>
-              )}
-            </div>
+          {canCreate && !showForm && (
+            <button type="button" className="btn btn-small" onClick={() => setShowForm(true)}>
+              + Créer un roulement
+            </button>
           )}
         </div>
         {rollingsQuery.isError ? (
