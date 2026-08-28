@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { canCreateRollingDirectly } from "@gsc-pilot/business-rules";
+import { canCreateRollingDirectly, canCreateBudgetFromRequest } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { fetchRollings, createRollingDirect, formatCurrency } from "./api.js";
@@ -23,6 +24,7 @@ function formatDate(iso: string): string {
  */
 export function RollingsPage() {
   const { employee } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const rollingsQuery = useQuery({ queryKey: ["rollings"], queryFn: fetchRollings });
   const [openId, setOpenId] = useState<string | null>(null);
@@ -56,6 +58,7 @@ export function RollingsPage() {
 
   if (!employee) return null;
   const canCreate = canCreateRollingDirectly(employee.persona);
+  const canCreateBudget = canCreateBudgetFromRequest(employee.persona);
   const rollings = rollingsQuery.data?.rollings ?? [];
 
   return (
@@ -63,6 +66,11 @@ export function RollingsPage() {
       {showForm && canCreate && (
         <div className="card">
           <h3 style={{ marginTop: 0, fontSize: 15 }}>Nouveau roulement</h3>
+          <p style={{ margin: "0 0 10px", color: "var(--gsc-color-muted)", fontSize: 13 }}>
+            Création directe, sans passer par un budgétaire — heures/achats/prix restent à zéro tant qu'ils ne sont pas
+            saisis manuellement. Pour un roulement chiffré à l'avance, utilisez plutôt « Créer un budgétaire » puis
+            « Convertir en roulement » une fois le contrat obtenu.
+          </p>
           <form
             className="form-grid"
             onSubmit={(event) => {
@@ -103,10 +111,19 @@ export function RollingsPage() {
       <div className="card" style={{ marginTop: showForm && canCreate ? 20 : 0 }}>
         <div className="card-band-header">
           <h3>Roulements</h3>
-          {canCreate && !showForm && (
-            <button type="button" className="btn btn-small" onClick={() => setShowForm(true)}>
-              + Créer un roulement
-            </button>
+          {!showForm && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {canCreateBudget && (
+                <button type="button" className="btn btn-secondary btn-small" onClick={() => navigate("/budgetaire")}>
+                  🧮 Créer un budgétaire
+                </button>
+              )}
+              {canCreate && (
+                <button type="button" className="btn btn-small" onClick={() => setShowForm(true)}>
+                  + Créer un roulement
+                </button>
+              )}
+            </div>
           )}
         </div>
         {rollingsQuery.isError ? (
