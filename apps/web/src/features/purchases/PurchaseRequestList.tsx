@@ -324,16 +324,31 @@ export function PurchaseRequestList() {
           <h3>Historique</h3>
         </div>
 
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", padding: "14px 16px 0" }}>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label>Du</label>
-            <input type="date" value={historyDateFrom} onChange={(e) => setHistoryDateFrom(e.target.value)} />
+        <div style={{ padding: "14px 16px 0" }}>
+          {/* Du/Au : rangée dédiée qui ne s'enroule jamais (pas de
+              flexWrap), même sur cellulaire (demande explicite de
+              l'utilisatrice le 28 août 2026, rapportée sur appareil réel).
+              minWidth:0 sur chaque .field est l'équivalent flex du
+              minmax(0,1fr) déjà utilisé pour .form-grid/.detail-grid — sans
+              lui, un <input type="date"> non stylé impose sa largeur
+              intrinsèque (large sur plusieurs claviers mobiles) et déborde
+              du cadre plutôt que de se partager la rangée. */}
+          <div style={{ display: "flex", gap: 10 }}>
+            <div className="field" style={{ marginBottom: 0, flex: "1 1 0", minWidth: 0 }}>
+              <label>Du</label>
+              <input type="date" value={historyDateFrom} onChange={(e) => setHistoryDateFrom(e.target.value)} />
+            </div>
+            <div className="field" style={{ marginBottom: 0, flex: "1 1 0", minWidth: 0 }}>
+              <label>Au</label>
+              <input type="date" value={historyDateTo} onChange={(e) => setHistoryDateTo(e.target.value)} />
+            </div>
           </div>
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label>Au</label>
-            <input type="date" value={historyDateTo} onChange={(e) => setHistoryDateTo(e.target.value)} />
-          </div>
-          <div className="field" style={{ marginBottom: 0 }}>
+          {/* Projet sur sa propre rangée pleine largeur (jamais dans la
+              rangée flex ci-dessus) — même raisonnement que Du/Au : hors
+              d'un conteneur flex partagé, .field remplit naturellement la
+              largeur disponible du cadre (mise en page de bloc normale),
+              plus besoin de contrainte flex spéciale. */}
+          <div className="field" style={{ marginBottom: 0, marginTop: 12 }}>
             <label>Projet</label>
             <select value={historyProjectId} onChange={(e) => setHistoryProjectId(e.target.value)}>
               <option value="">Tous</option>
@@ -348,6 +363,7 @@ export function PurchaseRequestList() {
             <button
               type="button"
               className="btn btn-secondary btn-small"
+              style={{ marginTop: 12 }}
               onClick={() => {
                 setHistoryDateFrom("");
                 setHistoryDateTo("");
