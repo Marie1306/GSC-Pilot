@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { canCreateRollingDirectly, canCreateBudgetFromRequest } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
+import { ContactSearchField } from "../contacts/ContactAutocomplete.js";
+import type { ContactListItemDto } from "../contacts/api.js";
 import { fetchRollings, createRollingDirect, formatCurrency } from "./api.js";
 import { RollingDetail } from "./RollingDetail.js";
 import "./rollings.css";
@@ -58,6 +60,18 @@ export function RollingsPage() {
     onError: (err: unknown) => setError(err instanceof ApiError ? err.message : "Une erreur est survenue — réessayez."),
   });
 
+  // Remplissage automatique depuis le carnet de contacts (rapporté manquant
+  // par l'utilisatrice le 29 août 2026 — présent partout ailleurs :
+  // ClientRequestForm/BudgetForm/ProjectForm/ServiceCallForm — jamais
+  // branché ici lors de la création de ce formulaire). Même mécanisme : une
+  // suggestion sélectionnée remplit aussi les autres champs.
+  function applyContact(contact: ContactListItemDto) {
+    setContactName(contact.name);
+    setCompany(contact.company ?? "");
+    setPhone(contact.phone ?? "");
+    setEmail(contact.email ?? "");
+  }
+
   if (!employee) return null;
   const canCreate = canCreateRollingDirectly(employee.persona);
   const canCreateBudget = canCreateBudgetFromRequest(employee.persona);
@@ -95,14 +109,22 @@ export function RollingsPage() {
               createMutation.mutate();
             }}
           >
-            <div className="field">
-              <label>Nom du contact</label>
-              <input value={contactName} onChange={(e) => setContactName(e.target.value)} autoFocus />
-            </div>
-            <div className="field">
-              <label>Entreprise (facultatif)</label>
-              <input value={company} onChange={(e) => setCompany(e.target.value)} />
-            </div>
+            <ContactSearchField
+              id="rl-contactName"
+              label="Nom du contact"
+              field="name"
+              value={contactName}
+              onChange={setContactName}
+              onSelect={applyContact}
+            />
+            <ContactSearchField
+              id="rl-company"
+              label="Entreprise (facultatif)"
+              field="company"
+              value={company}
+              onChange={setCompany}
+              onSelect={applyContact}
+            />
             <div className="field">
               <label>Téléphone (facultatif)</label>
               <input value={phone} onChange={(e) => setPhone(e.target.value)} />

@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -57,6 +57,18 @@ function formatDate(iso: string): string {
 
 function toDateInputValue(iso: string | null): string {
   return iso ? iso.slice(0, 10) : "";
+}
+
+/**
+ * L'enregistrement d'une ligne se déclenche au blur (voir onBlur des champs
+ * ci-dessous) — sur certains claviers numériques mobiles, le bouton
+ * « Terminé »/coche ferme le clavier sans toujours déclencher un vrai blur
+ * DOM (rapporté par l'utilisatrice, 29 août 2026 : heures saisies jamais
+ * prises en compte). Entrée force ce même chemin d'enregistrement déjà
+ * existant, sans changer son fonctionnement.
+ */
+function blurOnEnter(e: KeyboardEvent<HTMLInputElement>) {
+  if (e.key === "Enter") e.currentTarget.blur();
 }
 
 /** Une ligne "labor" ou marquée directionOnly exige Direction seulement; sinon Direction ET Propriétaire — voir service.ts, même règle côté serveur. */
@@ -149,6 +161,8 @@ function BudgetSectionCard({
                       placeholder="Nom de l'article / dépense"
                       defaultValue={row.label}
                       disabled={!editable}
+                      enterKeyHint="done"
+                      onKeyDown={blurOnEnter}
                       onBlur={(e) => {
                         const label = e.target.value.trim();
                         if (label !== row.label) onUpdateRow(row.id, { label });
@@ -173,7 +187,9 @@ function BudgetSectionCard({
                       step={section.kind === "labor" ? 0.25 : 1}
                       defaultValue={section.kind === "labor" ? row.hours : row.qty}
                       disabled={!editable}
+                      enterKeyHint="done"
                       onFocus={(e) => e.target.select()}
+                      onKeyDown={blurOnEnter}
                       onBlur={(e) => {
                         const value = Number(e.target.value || 0);
                         if (section.kind === "labor") {
@@ -194,7 +210,9 @@ function BudgetSectionCard({
                       step={0.01}
                       defaultValue={row.unitPrice}
                       disabled={!editable}
+                      enterKeyHint="done"
                       onFocus={(e) => e.target.select()}
+                      onKeyDown={blurOnEnter}
                       onBlur={(e) => {
                         const unitPrice = Number(e.target.value || 0);
                         if (unitPrice !== row.unitPrice) onUpdateRow(row.id, { unitPrice });
@@ -208,6 +226,8 @@ function BudgetSectionCard({
                     placeholder="Risque, hypothèse ou note"
                     defaultValue={row.risk ?? ""}
                     disabled={!editable}
+                    enterKeyHint="done"
+                    onKeyDown={blurOnEnter}
                     onBlur={(e) => {
                       const risk = e.target.value.trim() || null;
                       if (risk !== row.risk) onUpdateRow(row.id, { risk });
