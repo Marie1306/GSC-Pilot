@@ -98,6 +98,13 @@ const PATHS: Record<string, (props: SVGProps<SVGSVGElement>) => React.JSX.Elemen
       <circle cx="14" cy="17" r="1" fill="currentColor" stroke="none" />
     </Base>
   ),
+  "error-reports": (props) => (
+    <Base {...props}>
+      <path d="M10 3 17.5 16H2.5L10 3Z" />
+      <path d="M10 8.5v3.4" />
+      <circle cx="10" cy="14.3" r="0.9" fill="currentColor" stroke="none" />
+    </Base>
+  ),
   fulfillment: (props) => (
     <Base {...props}>
       <rect x="2.5" y="6" width="9" height="7.5" rx="0.8" />

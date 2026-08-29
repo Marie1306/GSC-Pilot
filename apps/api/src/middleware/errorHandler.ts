@@ -25,6 +25,15 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     res.status(err.status).json({ error: err.message });
     return;
   }
+  // PayloadTooLargeError (body-parser/raw-body) — sans cette branche,
+  // dépasser la limite de express.json() (voir app.ts) tombait dans le 500
+  // générique ci-dessous, affiché à l'utilisatrice comme "internal_error"
+  // sans piste (bogue réel rapporté le 28 août 2026, photos de Rapport
+  // d'erreurs).
+  if ((err as { type?: string })?.type === "entity.too.large") {
+    res.status(413).json({ error: "Fichier trop volumineux — réduisez la taille ou le nombre de photos." });
+    return;
+  }
   req.log?.error({ err }, "Erreur non gérée");
   res.status(500).json({ error: "internal_error" });
 };

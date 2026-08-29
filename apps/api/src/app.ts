@@ -54,7 +54,15 @@ export function createApp() {
       credentials: true,
     }),
   );
-  app.use(express.json());
+  // Limite par défaut d'Express (100kb) trop petite pour les photos en
+  // base64 (Rapport d'erreurs, ErrorReportPhoto.imageDataUrl — bogue réel
+  // rapporté par l'utilisatrice le 28 août 2026 : "internal_error" à
+  // l'ajout d'une photo, causé par un PayloadTooLargeError générique non
+  // distingué de errorHandler.ts). Une seule photo compressée
+  // (readAndCompressImage.ts, 1280px/JPEG 0.8) dépasse déjà souvent 100kb
+  // une fois encodée en base64 (+33%) — 15mb laisse une vraie marge pour
+  // plusieurs photos par rapport.
+  app.use(express.json({ limit: "15mb" }));
   app.use(
     pinoHttp({
       level: env.NODE_ENV === "production" ? "info" : "debug",
