@@ -60,6 +60,12 @@ const CARDS: QuickAddCard[] = [
   { key: "qr-scan", icon: "⬜", label: "Scanner un projet", path: "/scan", allow: () => true, sub: "Accès direct ou punch" },
   { key: "purchase", icon: "🛒", label: "Demande d'achat", path: "/achats", allow: () => true, sub: "Soumettre" },
   { key: "error-report", icon: "⚠️", label: "Rapport d'erreur", path: "/rapports-erreurs", allow: canAccessErrorReports, sub: "Nouveau rapport" },
+  // Seule carte qui ouvre une modale au lieu de la page de son module (29
+  // août 2026, demande explicite de l'utilisatrice : « une fenêtre
+  // contextuelle ouvre » directement) — Notes n'a pas de page dédiée, ?compose=note
+  // déclenche l'ouverture depuis ActionCenterPage.tsx (même patron que
+  // ?open=id ailleurs), QuickAdd garde son invariant "toujours naviguer".
+  { key: "send-note", icon: "✉️", label: "Envoyer une note", path: "/centre-actions?compose=note", allow: () => true, sub: "Note interne" },
   { key: "contact", icon: "👥", label: "Contact", path: "/contacts", allow: canAccessOverviewViews, sub: "Client ou fournisseur" },
 ];
 

@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link, useSearchParams } from "react-router-dom";
+import { canAccessOverviewViews } from "@gsc-pilot/business-rules";
+import { useAuth } from "../../lib/auth/useAuth.js";
 import { formatCurrency } from "../projects/api.js";
 import { fetchActionCenterItems, linkFor, type ActionItemDto, type ActionItemType } from "./api.js";
 import { BudgetDetail } from "../budgets/BudgetDetail.js";
@@ -9,6 +11,8 @@ import { PurchaseRequestActionDrawer } from "../purchases/PurchaseRequestActionD
 import { PurchaseFulfillmentActionDrawer } from "../purchases/PurchaseFulfillmentActionDrawer.js";
 import { InvoiceActionDrawer } from "../invoicing/InvoiceActionDrawer.js";
 import { TimeEntryActionDrawer } from "../timePunch/TimeEntryActionDrawer.js";
+import { SendNoteModal } from "../teamNotes/SendNoteModal.js";
+import { fetchTeamNotesInbox, fetchAllArchivedTeamNotes, markTeamNoteRead, PERSONA_LABELS, type TeamNoteDto } from "../teamNotes/api.js";
 import "./actionCenter.css";
 
 const TYPE_ORDER: ActionItemType[] = [
@@ -43,6 +47,40 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" });
 }
 
+/** Historique complet des notes archivées — "Afficher toutes les notes" (29 août 2026). */
+function AllArchivedNotesModal({ onClose }: { onClose: () => void }) {
+  const query = useQuery({ queryKey: ["team-notes", "archive"], queryFn: fetchAllArchivedTeamNotes });
+  const notes = query.data?.notes ?? [];
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Toutes les notes reçues</h2>
+          <button type="button" className="modal-close" onClick={onClose} aria-label="Fermer">
+            ×
+          </button>
+        </div>
+        <div className="modal-body">
+          {query.isSuccess && notes.length === 0 && <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucune note archivée.</p>}
+          <div className="action-item-list">
+            {notes.map((note) => (
+              <div key={note.id} className="action-item-row" style={{ cursor: "default" }}>
+                <div className="action-item-main">
+                  <span className="action-item-label">
+                    {note.senderName} <span className="cell-sub">({PERSONA_LABELS[note.senderPersona]})</span>
+                  </span>
+                  <span className="action-item-sublabel">{note.body}</span>
+                </div>
+                <span className="action-item-date">{formatDate(note.readAt ?? note.createdAt)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /**
  * Centre d'actions (21 août 2026, spec confirmée) — point central pour
  * Direction/Administration/Propriétaire : agrège les items déjà calculés
@@ -50,9 +88,35 @@ function formatDate(iso: string): string {
  * d'autorisation de son module d'origine, jamais une approximation ici).
  */
 export function ActionCenterPage() {
-  const itemsQuery = useQuery({ queryKey: ["action-center", "items"], queryFn: fetchActionCenterItems });
+  const { employee } = useAuth();
+  const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  // Les 8 catégories existantes restent Direction/Administration/Propriétaire
+  // (canAccessOverviewViews) — sans ce enabled, Employé/Magasinier (qui
+  // atteignent maintenant la page, voir nav.ts canAccessActionCenter)
+  // recevraient un 403 sur cette requête et verraient un message d'erreur
+  // trompeur au lieu de simplement ne rien voir ici.
+  const itemsQuery = useQuery({
+    queryKey: ["action-center", "items"],
+    queryFn: fetchActionCenterItems,
+    enabled: !!employee && canAccessOverviewViews(employee.persona),
+  });
   const items = itemsQuery.data?.items ?? [];
   const [openItem, setOpenItem] = useState<ActionItemDto | null>(null);
+
+  // Notes reçues — accessible à tous les rôles, toujours affichée en haut
+  // (29 août 2026, demande de l'utilisatrice), distincte du mécanisme
+  // ActionItemDto ci-dessus : personnelle (par employé, pas par permission),
+  // avec un bouton d'acquittement inline et un historique, pas un tiroir.
+  const notesQuery = useQuery({ queryKey: ["team-notes", "inbox"], queryFn: fetchTeamNotesInbox });
+  const activeNotes = notesQuery.data?.active ?? [];
+  const recentArchivedNotes = notesQuery.data?.recentArchived ?? [];
+  const [composeOpen, setComposeOpen] = useState(() => searchParams.get("compose") === "note");
+  const [showAllArchived, setShowAllArchived] = useState(false);
+  const markReadMutation = useMutation({
+    mutationFn: markTeamNoteRead,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["team-notes"] }),
+  });
 
   const groups = TYPE_ORDER.map((type) => ({ type, items: items.filter((item) => item.type === type) })).filter(
     (group) => group.items.length > 0,
@@ -60,6 +124,57 @@ export function ActionCenterPage() {
 
   return (
     <div>
+      <div className="card" style={{ marginBottom: 20 }}>
+        <div className="card-band-header">
+          <h3>
+            Notes reçues {activeNotes.length > 0 && <span className="cell-sub">({activeNotes.length})</span>}
+          </h3>
+        </div>
+        {activeNotes.length === 0 && recentArchivedNotes.length === 0 && (
+          <p style={{ color: "var(--gsc-color-muted)", fontSize: 13, margin: "12px 16px" }}>Aucune note pour l'instant.</p>
+        )}
+        {activeNotes.length > 0 && (
+          <div className="action-item-list">
+            {activeNotes.map((note: TeamNoteDto) => (
+              <div key={note.id} className="action-item-row" style={{ cursor: "default" }}>
+                <div className="action-item-main">
+                  <span className="action-item-label">
+                    {note.senderName} <span className="cell-sub">({PERSONA_LABELS[note.senderPersona]})</span>
+                  </span>
+                  <span className="action-item-sublabel">{note.body}</span>
+                </div>
+                <div className="action-item-side">
+                  <span className="action-item-date">{formatDate(note.createdAt)}</span>
+                  <button type="button" className="btn btn-secondary btn-small" disabled={markReadMutation.isPending} onClick={() => markReadMutation.mutate(note.id)}>
+                    ✓ Reçu
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {recentArchivedNotes.length > 0 && (
+          <div style={{ borderTop: "1px solid var(--gsc-color-border)", marginTop: activeNotes.length > 0 ? 8 : 0 }}>
+            <div className="action-item-list">
+              {recentArchivedNotes.map((note: TeamNoteDto) => (
+                <div key={note.id} className="action-item-row" style={{ cursor: "default", opacity: 0.6 }}>
+                  <div className="action-item-main">
+                    <span className="action-item-label">{note.senderName}</span>
+                    <span className="action-item-sublabel">{note.body}</span>
+                  </div>
+                  <span className="action-item-date">{formatDate(note.readAt ?? note.createdAt)}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: "8px 16px 12px" }}>
+              <button type="button" className="btn btn-secondary btn-small" onClick={() => setShowAllArchived(true)}>
+                Afficher toutes les notes
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {itemsQuery.isError && (
         <div className="card">
           <p className="form-error">Impossible de charger le centre d'actions.</p>
@@ -117,6 +232,9 @@ export function ActionCenterPage() {
       {openItem?.type === "purchase_to_order" && <PurchaseFulfillmentActionDrawer id={openItem.id} onClose={() => setOpenItem(null)} />}
       {openItem?.type === "invoicing" && <InvoiceActionDrawer id={openItem.id} onClose={() => setOpenItem(null)} />}
       {openItem?.type === "hours_approval" && <TimeEntryActionDrawer id={openItem.id} onClose={() => setOpenItem(null)} />}
+
+      {composeOpen && <SendNoteModal onClose={() => setComposeOpen(false)} />}
+      {showAllArchived && <AllArchivedNotesModal onClose={() => setShowAllArchived(false)} />}
     </div>
   );
 }

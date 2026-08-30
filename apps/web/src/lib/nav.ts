@@ -8,6 +8,7 @@ import {
   canViewClientRequests,
   canAccessProductionChecklist,
   canAccessErrorReports,
+  canAccessActionCenter,
   type Persona,
 } from "@gsc-pilot/business-rules";
 
@@ -50,7 +51,12 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "dashboard", label: "Tableau de bord", path: "/", section: "overview", allow: everyone },
   // Même accès que les items qu'il agrège (budgétaires/achats/facturation/
   // demandes transmises) — Direction/Administration/Propriétaire.
-  { key: "action-center", label: "Centre d'actions", path: "/centre-actions", section: "overview", allow: canAccessOverviewViews },
+  // Accessible à tous les rôles depuis le 29 août 2026 (canAccessActionCenter,
+  // pas canAccessOverviewViews comme le Tableau de bord voisin) : Employé/
+  // Magasinier n'y voient que leurs notes reçues, les 8 autres catégories
+  // restent filtrées une à une par leur propre permission d'origine côté
+  // serveur (voir actionCenter/service.ts) — jamais vides pour eux par accident.
+  { key: "action-center", label: "Centre d'actions", path: "/centre-actions", section: "overview", allow: canAccessActionCenter },
   { key: "client-requests", label: "Demandes clients", path: "/demandes", section: "sales", allow: canViewClientRequests },
   { key: "projects", label: "Projets", path: "/projets", section: "sales", allow: backOfficeOnly },
   { key: "budgets", label: "Budgétaires", path: "/budgetaire", section: "sales", allow: canAccessBudget },

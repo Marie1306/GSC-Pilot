@@ -66,6 +66,8 @@ model Employee {
   assignedProjectTasks  ProjectTask[]
   errorReportsAsSubject ErrorReport[]     @relation("ErrorReportSubject")
   errorReportsCreated   ErrorReport[]     @relation("ErrorReportCreatedBy")
+  teamNotesSent         TeamNote[]        @relation("TeamNoteSender")
+  teamNotesReceived     TeamNote[]        @relation("TeamNoteRecipient")
 
   @@index([persona])
 }
@@ -1324,4 +1326,34 @@ model ErrorReportPhoto {
   errorReport   ErrorReport @relation(fields: [errorReportId], references: [id])
   imageDataUrl  String
   uploadedAt    DateTime    @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Note interne (29 août 2026, nouveau module demandé par l'utilisatrice) —
+// message court d'un employé à un autre, OU à tout un rôle à la fois (chaque
+// personne de ce rôle reçoit alors sa PROPRE copie, archivée individuellement
+// — jamais une note "partagée" que n'importe qui du rôle pourrait acquitter à
+// la place des autres). recipientId est toujours un employé précis, même
+// pour un envoi "par rôle" : la résolution du rôle en liste d'employés se
+// fait à L'ENVOI (teamNotes/service.ts), jamais stockée comme telle — un rôle
+// qui change de composition plus tard n'affecte jamais les notes déjà
+// envoyées. Accessible à tous les rôles — aucune permission dédiée dans
+// roles.ts, seulement requireAuth (comme /api/me).
+//
+// readAt fait double emploi (confirmé par l'utilisatrice) : NULL = active
+// (Centre d'actions), non NULL = archivée (bouton "Reçu", un crochet) — sert
+// aussi de date d'archivage pour l'historique des 5 dernières notes.
+// ---------------------------------------------------------------------------
+
+model TeamNote {
+  id          String    @id @default(uuid())
+  senderId    String
+  sender      Employee  @relation("TeamNoteSender", fields: [senderId], references: [id])
+  recipientId String
+  recipient   Employee  @relation("TeamNoteRecipient", fields: [recipientId], references: [id])
+  body        String
+  createdAt   DateTime  @default(now())
+  readAt      DateTime?
+
+  @@index([recipientId, readAt])
 }

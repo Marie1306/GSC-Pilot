@@ -544,3 +544,13 @@ describe("Rapport d'erreurs (28 août 2026)", () => {
     expect(P.canDeleteErrorReport(WAREHOUSE)).toBe(false);
   });
 });
+
+describe("Notes internes (29 août 2026)", () => {
+  it("Tout le monde accède au Centre d'actions (pour y voir au moins ses notes reçues)", () => {
+    expect(P.canAccessActionCenter(OWNER)).toBe(true);
+    expect(P.canAccessActionCenter(ADMIN)).toBe(true);
+    expect(P.canAccessActionCenter(BOSS)).toBe(true);
+    expect(P.canAccessActionCenter(MEMBER)).toBe(true);
+    expect(P.canAccessActionCenter(WAREHOUSE)).toBe(true);
+  });
+});

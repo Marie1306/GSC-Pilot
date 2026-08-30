@@ -580,6 +580,19 @@ export function canAccessOverviewViews(persona: Persona): boolean {
   return ([ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
+/**
+ * Centre d'actions — page accessible à TOUS les rôles (29 août 2026, demande
+ * de l'utilisatrice pour la catégorie « Notes reçues », accessible à tout le
+ * monde). Distincte de canAccessOverviewViews : les 8 autres catégories du
+ * Centre d'actions restent chacune filtrées par leur propre permission
+ * d'origine (voir actionCenter/service.ts) — Employé/Magasinier ouvrent donc
+ * la page mais n'y voient jamais ces catégories, seulement leurs notes.
+ */
+export function canAccessActionCenter(persona: Persona): boolean {
+  assertRole(persona);
+  return true;
+}
+
 /** Créer une demande client : Direction, Administration, Propriétaire — jamais Employé/Magasinier. */
 export function canCreateClientRequest(persona: Persona): boolean {
   assertRole(persona);
