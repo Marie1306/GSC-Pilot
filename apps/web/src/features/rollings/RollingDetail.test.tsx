@@ -74,6 +74,9 @@ const rolling: RollingDetailDto = {
   billingReady: false,
   archivedAt: null,
   deletedAt: null,
+  priority: 0,
+  dueDate: null,
+  enteredGanttAt: null,
 };
 
 const purchaseEntry: ProjectPurchaseEntryDto = {

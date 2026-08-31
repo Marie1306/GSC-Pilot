@@ -68,6 +68,7 @@ model Employee {
   errorReportsCreated   ErrorReport[]     @relation("ErrorReportCreatedBy")
   teamNotesSent         TeamNote[]        @relation("TeamNoteSender")
   teamNotesReceived     TeamNote[]        @relation("TeamNoteRecipient")
+  interruptions         Interruption[]
 
   @@index([persona])
 }
@@ -460,6 +461,16 @@ model Project {
   billingSplitOverride        Json?
   deadline                    DateTime?
   desiredStart                DateTime?
+  // Entrée au Gantt de production (31 août 2026) — geste explicite de
+  // Direction via la fenêtre contextuelle : "tout le projet, maintenant et
+  // pour l'avenir" (les tâches déjà là ET toutes les futures deviennent
+  // planifiables). Condition d'ÉLIGIBILITÉ lue à chaque calcul du Gantt
+  // (gantt/service.ts), jamais un rattrapage écrit sur ProjectTask — pour
+  // ne jamais avoir à toucher subassemblies/service.ts ni
+  // amendments/service.ts quand une nouvelle tâche apparaît plus tard.
+  // L'entrée incrémentale (un lot précis) vit sur ProjectTask.enteredGanttAt
+  // à la place, sans ce flag.
+  ganttAutoEnter              Boolean        @default(false)
   productionCompleted         Boolean        @default(false)
   fulfillmentMode             String?
   fulfillmentStatus           String?
@@ -560,8 +571,15 @@ model ProjectTeamMember {
 
 model ProjectTask {
   id                 String       @id @default(uuid())
-  projectId          String
-  project            Project      @relation(fields: [projectId], references: [id])
+  // Optionnel depuis le 31 août 2026 (Gantt de production, Roulement) —
+  // une tâche appartient à un Projet OU un Roulement, jamais les deux,
+  // même patron déjà établi par TimeEntry/ProjectPurchaseEntry/
+  // InvoicePlanEntry (projectId?/rollingId? nullables, exactement un des
+  // deux non nul, validé en service.ts — jamais une contrainte DB).
+  projectId          String?
+  project            Project?     @relation(fields: [projectId], references: [id])
+  rollingId          String?
+  rolling            Rolling?     @relation(fields: [rollingId], references: [id])
   subassemblyId      String?
   subassembly        Subassembly? @relation(fields: [subassemblyId], references: [id])
   amendmentId        String?
@@ -570,9 +588,12 @@ model ProjectTask {
   category           String
   subcategory        String?
   skill              String?
-  // Affectation manuelle (Direction seulement, voir canEditGanttSchedule) —
-  // nullable : tant qu'aucun employé n'est assigné, la tâche reste non
-  // planifiable (pas d'auto-répartition dans cette phase, voir gantt/service.ts).
+  // Affectation manuelle — devient une dérogation/pin OPTIONNEL depuis le
+  // moteur automatique (31 août 2026) : nul = le moteur choisit lui-même
+  // l'employé qualifié le plus disponible ce jour-là (voir
+  // gantt-schedule.ts, runGanttSchedule) ; rempli = dérogation volontaire
+  // qui force cet employé précis, même sans la compétence déclarée
+  // (aucune vérification, comme avant — canEditGanttSchedule).
   assignedEmployeeId String?
   assignedEmployee   Employee?    @relation(fields: [assignedEmployeeId], references: [id])
   plannedHours       Decimal      @default(0) @db.Decimal(10, 2)
@@ -583,12 +604,21 @@ model ProjectTask {
   maxPeople          Int?
   minPeople          Int?
   desiredStart       DateTime?
+  // Entrée au Gantt par lot précis (assemblage ou avenant) — geste
+  // explicite de Direction, lu en OR avec Project.ganttAutoEnter par le
+  // moteur (une tâche est éligible si son projet a le flag global, OU si
+  // elle a été entrée individuellement ici). Toujours renseigné pour une
+  // tâche de Roulement (qui n'a pas d'équivalent au flag global — un
+  // Roulement entre toujours en entier via activateRollingGantt).
+  enteredGanttAt     DateTime?
+  enteredGanttById   String?
   ganttCompleted     Boolean      @default(false) // geste explicite — jamais un effet de bord des heures consommées
 
   dependsOn    ProjectTaskDependency[] @relation("TaskDependsOn")
   dependedOnBy ProjectTaskDependency[] @relation("TaskDependedOnBy")
 
   @@index([projectId])
+  @@index([rollingId])
   @@index([assignedEmployeeId])
 }
 
@@ -600,6 +630,33 @@ model ProjectTaskDependency {
   dependsOnTask ProjectTask @relation("TaskDependedOnBy", fields: [dependsOnId], references: [id])
 
   @@unique([taskId, dependsOnId])
+}
+
+/// Interruption de capacité (31 août 2026) — un mécanisme "Ajouter une
+/// interruption" était déjà prévu (jamais construit), en fonction des
+/// absences/vacances/appels de service urgents. employeeId nul = tout
+/// l'atelier (ex. jour férié), sinon un employé précis. hours : heures
+/// partielles retirées de la capacité de base de CE jour précis (validée
+/// côté serveur contre la vraie capacité du jour — semaine québécoise,
+/// voir baseDailyCapacityHours/validateInterruptionHours,
+/// gantt-schedule.ts — jamais un maximum arbitraire côté client). Direction
+/// seulement (canEditGanttSchedule, même porte que l'édition du Gantt) —
+/// modifie directement la capacité disponible, donc recalcule
+/// naturellement le Gantt à la prochaine lecture (aucun recalcul stocké,
+/// voir gantt/service.ts).
+model Interruption {
+  id          String    @id @default(uuid())
+  employeeId  String?
+  employee    Employee? @relation(fields: [employeeId], references: [id])
+  date        DateTime  @db.Date
+  hours       Decimal   @default(0) @db.Decimal(10, 2)
+  reason      String
+  reference   String?
+  createdById String
+  createdAt   DateTime  @default(now())
+
+  @@index([date])
+  @@index([employeeId, date])
 }
 
 // ---------------------------------------------------------------------------
@@ -1012,12 +1069,33 @@ model Rolling {
   postMortemDepassements      String?
   postMortemAmeliorations     String?
   postMortemRecommandation    String?
+  // Planification Gantt (31 août 2026) — équivalent de Project.priority/
+  // deadline, mais le moteur (gantt-schedule.ts, ROLLING_PRIORITY_BONUS)
+  // ajoute un bonus structurel aux tâches de Roulement par-dessus cette
+  // valeur : « presque toujours » avant un Projet, jamais une règle
+  // absolue (un Projet à priorité manuelle assez haute passe quand même
+  // devant). dueDate : date communiquée au client, sert de départage
+  // (comme Project.deadline) — pas le moteur principal de planification,
+  // qui reste le geste "Activer" ci-dessous (un Roulement n'entre au
+  // Gantt qu'une fois son stock physiquement arrivé, confirmé par
+  // l'utilisatrice).
+  priority                    Int            @default(0)
+  dueDate                     DateTime?
+  // Geste explicite "Activer" — un Roulement entre TOUJOURS en entier
+  // (jamais incrémentalement, contrairement à un Projet). Avant ce geste,
+  // aucune tâche n'existe encore (voir activateRollingGantt,
+  // gantt/service.ts) — pas un flag d'éligibilité comme
+  // Project.ganttAutoEnter, la création des ProjectTask elle-même attend
+  // ce moment.
+  enteredGanttAt              DateTime?
+  enteredGanttById            String?
 
   invoiceEntries  InvoicePlanEntry[]
   deliveries      Delivery[]
   timeEntries     TimeEntry[]
   purchaseEntries ProjectPurchaseEntry[]
   serviceCalls    ServiceCall[]
+  tasks           ProjectTask[]
 
   @@index([status])
 }

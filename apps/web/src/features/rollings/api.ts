@@ -65,6 +65,10 @@ export interface RollingDetailDto {
   billingReady: boolean;
   archivedAt: string | null;
   deletedAt: string | null;
+  /** Planification Gantt (31 août 2026) — voir gantt-schedule.ts, ROLLING_PRIORITY_BONUS. */
+  priority: number;
+  dueDate: string | null;
+  enteredGanttAt: string | null;
 }
 
 export function fetchRollingDetail(id: string): Promise<{ rolling: RollingDetailDto }> {

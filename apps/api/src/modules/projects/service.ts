@@ -567,6 +567,10 @@ export interface ProjectDetailDto {
   warrantyEndsAt: string | null;
   lifecycleTab: ProjectLifecycleTab;
   deadline: string | null;
+  /** Priorité manuelle du Gantt de production (31 août 2026) — voir gantt-schedule.ts, runGanttSchedule. */
+  priority: number;
+  /** "Tout le projet, maintenant et pour l'avenir" — voir gantt/service.ts, gatherEligibleTasks. */
+  ganttAutoEnter: boolean;
   archivedAt: string | null;
   deletedAt: string | null;
 }
@@ -863,6 +867,8 @@ export async function getProjectDetail(id: string, viewerPersona: Persona): Prom
     warrantyEndsAt: project.warrantyEndsAt?.toISOString() ?? null,
     lifecycleTab: projectLifecycleTab(project),
     deadline: project.deadline?.toISOString() ?? null,
+    priority: project.priority,
+    ganttAutoEnter: project.ganttAutoEnter,
     archivedAt: project.archivedAt?.toISOString() ?? null,
     deletedAt: project.deletedAt?.toISOString() ?? null,
     ...(showFinancials && {
@@ -1300,6 +1306,19 @@ export async function updateProjectInfo(projectId: string, input: UpdateProjectI
       ...(input.deadline !== undefined && { deadline: input.deadline ? new Date(input.deadline) : null }),
     },
   });
+}
+
+/**
+ * Priorité manuelle du Gantt de production (31 août 2026) — levier de
+ * planification, gardé par canEditGanttSchedule et non canManageProject
+ * (délibérément distinct de updateProjectInfo ci-dessus, une info
+ * administrative) : voir gantt-schedule.ts, runGanttSchedule (tri priorité
+ * DESC puis Project.deadline en départage).
+ */
+export async function updateProjectGanttPriority(projectId: string, priority: number): Promise<void> {
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  if (!project) throw new HttpError(404, "Projet introuvable.");
+  await prisma.project.update({ where: { id: projectId }, data: { priority } });
 }
 
 /** Archiver/désarchiver — distinct de Fermer (closedAt) : reste pleinement accessible par lien direct, seulement sorti des listes actives (listProjects). */

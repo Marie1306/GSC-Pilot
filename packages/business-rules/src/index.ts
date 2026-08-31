@@ -15,3 +15,4 @@ export * from "./project-actuals.js";
 export * from "./warranty.js";
 export * from "./punch.js";
 export * from "./service-calls.js";
+export * from "./gantt-schedule.js";

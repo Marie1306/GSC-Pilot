@@ -114,6 +114,10 @@ export interface ProjectDetail {
   warrantyEndsAt: string | null;
   lifecycleTab: ProjectLifecycleTab;
   deadline: string | null;
+  /** Priorité manuelle du Gantt de production (31 août 2026) — voir gantt-schedule.ts, runGanttSchedule. */
+  priority: number;
+  /** "Tout le projet, maintenant et pour l'avenir" — voir gantt/service.ts, gatherEligibleTasks. */
+  ganttAutoEnter: boolean;
   archivedAt: string | null;
   deletedAt: string | null;
 }

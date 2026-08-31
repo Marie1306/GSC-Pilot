@@ -1,29 +1,55 @@
 import { Router } from "express";
 import { z } from "zod";
-import { canAccessOverviewViews, canAccessProject, canEditGanttSchedule } from "@gsc-pilot/business-rules";
+import { canAccessOverviewViews, canEditGanttSchedule } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
-import { listProductionTasks, listProjectProductionTasks, assignProductionTask, setProductionTaskCompleted } from "./service.js";
+import {
+  computeProductionSchedule,
+  listGanttReadyQueue,
+  previewGanttEntry,
+  assignProductionTask,
+  setProductionTaskCompleted,
+} from "./service.js";
 
 export const ganttRouter = Router();
 
 ganttRouter.get(
-  "/gantt/tasks",
+  "/gantt/schedule",
   requireAuth,
   requirePermission((persona) => canAccessOverviewViews(persona)),
   async (_req, res) => {
-    const tasks = await listProductionTasks();
-    res.json({ tasks });
+    const schedule = await computeProductionSchedule();
+    res.json({ schedule });
   },
 );
 
 ganttRouter.get(
-  "/projects/:projectId/gantt-tasks",
+  "/gantt/ready-queue",
   requireAuth,
-  requirePermission((persona) => canAccessProject(persona)),
+  requirePermission((persona) => canAccessOverviewViews(persona)),
+  async (_req, res) => {
+    const queue = await listGanttReadyQueue();
+    res.json({ queue });
+  },
+);
+
+// Réservé à Direction (canEditGanttSchedule) — Administration/Propriétaire
+// n'ont qu'un accès visuel au Gantt (roles.ts, doc de canEditGanttSchedule),
+// jamais le geste d'entrée que cet aperçu prépare.
+const previewSchema = z.object({
+  ownerType: z.enum(["project", "rolling"]),
+  ownerId: z.uuid(),
+  batchId: z.string().optional(),
+  hoursByCategory: z.record(z.string(), z.number().nonnegative()).optional(),
+  priority: z.number().int().optional(),
+});
+ganttRouter.post(
+  "/gantt/preview",
+  requireAuth,
+  requirePermission((persona) => canEditGanttSchedule(persona)),
   async (req, res) => {
-    const projectId = z.uuid().parse(req.params.projectId);
-    const tasks = await listProjectProductionTasks(projectId);
-    res.json({ tasks });
+    const body = previewSchema.parse(req.body);
+    const preview = await previewGanttEntry(body);
+    res.json({ preview });
   },
 );
 

@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { canManageProject, canArchiveProject, canDeleteProject, canCreateServiceCall } from "@gsc-pilot/business-rules";
+import { canManageProject, canArchiveProject, canDeleteProject, canCreateServiceCall, canEditGanttSchedule } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { OptionsDrawer, OptionRow, OptionSection } from "../../components/OptionsDrawer.js";
 import { updateProjectInfo, setProjectArchived, deleteProject, fetchProjectHistory, type ProjectDetail } from "./api.js";
+import { updateProjectGanttPriority } from "../gantt/api.js";
 import { ProjectPostMortem } from "./ProjectPostMortem.js";
 import { ProjectChecklistArchive } from "../checklists/ProjectChecklistArchive.js";
 import { ProjectQrCode } from "./ProjectQrCode.js";
@@ -55,6 +56,7 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
   const [editForm, setEditForm] = useState(false);
   const [name, setName] = useState(project.name);
   const [deadline, setDeadline] = useState(project.deadline?.slice(0, 10) ?? "");
+  const [priorityInput, setPriorityInput] = useState(String(project.priority));
   const [showHistory, setShowHistory] = useState(false);
   const [showPostMortem, setShowPostMortem] = useState(false);
   const [showChecklistArchive, setShowChecklistArchive] = useState(false);
@@ -99,12 +101,18 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
     },
     onError: onMutationError,
   });
+  const priorityMutation = useMutation({
+    mutationFn: (priority: number) => updateProjectGanttPriority(project.id, priority),
+    onSuccess: invalidate,
+    onError: onMutationError,
+  });
 
   if (!employee) return null;
   const canManage = canManageProject(employee.persona);
   const canArchive = canArchiveProject(employee.persona);
   const canDelete = canDeleteProject(employee.persona);
   const canCreateCall = canCreateServiceCall(employee.persona);
+  const canEditGantt = canEditGanttSchedule(employee.persona);
   const isArchived = !!project.archivedAt;
 
   return (
@@ -174,6 +182,30 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
                     setShowChecklistArchive(true);
                   }}
                 />
+                {canEditGantt && (
+                  <div className="field" style={{ marginTop: 8, paddingLeft: 2 }}>
+                    <label htmlFor="project-gantt-priority">Priorité Gantt</label>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input
+                        id="project-gantt-priority"
+                        type="number"
+                        step={1}
+                        value={priorityInput}
+                        onChange={(e) => setPriorityInput(e.target.value)}
+                        style={{ maxWidth: 100 }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-small"
+                        disabled={priorityMutation.isPending || Number(priorityInput) === project.priority}
+                        onClick={() => priorityMutation.mutate(Number(priorityInput) || 0)}
+                      >
+                        {priorityMutation.isPending ? "…" : "Enregistrer"}
+                      </button>
+                    </div>
+                    <span className="cell-sub">Plus élevé = plus prioritaire dans le Gantt de production. Départage par date d'échéance.</span>
+                  </div>
+                )}
               </OptionSection>
 
               <OptionSection title="Heures et opérations">

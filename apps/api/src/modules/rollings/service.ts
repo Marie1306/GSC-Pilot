@@ -133,6 +133,10 @@ export interface RollingDetailDto {
   billingReady: boolean;
   archivedAt: string | null;
   deletedAt: string | null;
+  /** Planification Gantt (31 août 2026) — voir gantt-schedule.ts, ROLLING_PRIORITY_BONUS. */
+  priority: number;
+  dueDate: string | null;
+  enteredGanttAt: string | null;
 }
 
 interface RollingFinancials {
@@ -286,6 +290,9 @@ export async function getRollingDetail(id: string, viewerPersona: Persona): Prom
     billingReady: rolling.billingReady,
     archivedAt: rolling.archivedAt?.toISOString() ?? null,
     deletedAt: rolling.deletedAt?.toISOString() ?? null,
+    priority: rolling.priority,
+    dueDate: rolling.dueDate?.toISOString() ?? null,
+    enteredGanttAt: rolling.enteredGanttAt?.toISOString() ?? null,
     ...(showFinancials && {
       sold,
       plannedPurchases,
@@ -666,6 +673,30 @@ export async function updateRollingPostMortemAnalysis(rollingId: string, input: 
       ...(input.depassements !== undefined && { postMortemDepassements: input.depassements || null }),
       ...(input.ameliorations !== undefined && { postMortemAmeliorations: input.ameliorations || null }),
       ...(input.recommandation !== undefined && { postMortemRecommandation: input.recommandation || null }),
+    },
+  });
+}
+
+export interface UpdateRollingGanttPlanningInput {
+  priority?: number;
+  dueDate?: string | null;
+}
+
+/**
+ * Priorité/échéance client du Gantt de production (31 août 2026) — même
+ * esprit que Project.priority/deadline (updateProjectGanttPriority,
+ * projects/service.ts), plus le bonus structurel ROLLING_PRIORITY_BONUS
+ * ajouté par le moteur (gantt-schedule.ts) au moment du calcul, jamais
+ * stocké ici.
+ */
+export async function updateRollingGanttPlanning(rollingId: string, input: UpdateRollingGanttPlanningInput): Promise<void> {
+  const rolling = await prisma.rolling.findUnique({ where: { id: rollingId } });
+  if (!rolling) throw new HttpError(404, "Roulement introuvable.");
+  await prisma.rolling.update({
+    where: { id: rollingId },
+    data: {
+      ...(input.priority !== undefined && { priority: input.priority }),
+      ...(input.dueDate !== undefined && { dueDate: input.dueDate ? new Date(input.dueDate) : null }),
     },
   });
 }

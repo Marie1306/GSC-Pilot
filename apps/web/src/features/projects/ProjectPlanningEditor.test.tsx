@@ -60,6 +60,8 @@ const baseProject: ProjectDetail = {
   warrantyEndsAt: null,
   lifecycleTab: "active",
   deadline: null,
+  priority: 0,
+  ganttAutoEnter: false,
   archivedAt: null,
   deletedAt: null,
 };

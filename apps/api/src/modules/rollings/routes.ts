@@ -9,6 +9,7 @@ import {
   canArchiveRolling,
   canDeleteRolling,
   canSeeFinancialValues,
+  canEditGanttSchedule,
 } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import {
@@ -22,10 +23,12 @@ import {
   confirmRollingFulfillment,
   getRollingPostMortem,
   updateRollingPostMortemAnalysis,
+  updateRollingGanttPlanning,
   setRollingArchived,
   deleteRolling,
   getApprovedRollingTimeEntries,
 } from "./service.js";
+import { activateRollingGantt } from "../gantt/service.js";
 
 // Monté sur /api directement (voir app.ts) — chaque route applique donc
 // requireAuth/requirePermission elle-même, même patron que deliveries/reports.
@@ -182,6 +185,37 @@ rollingsRouter.patch(
     const id = z.uuid().parse(req.params.id);
     const body = postMortemSchema.parse(req.body);
     await updateRollingPostMortemAnalysis(id, body);
+    res.status(204).end();
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Gantt de production (31 août 2026) — voir gantt/service.ts pour la logique
+// de planification elle-même, jamais dupliquée ici.
+// ---------------------------------------------------------------------------
+
+const ganttPrioritySchema = z.object({ priority: z.number().int().optional(), dueDate: z.iso.date().nullable().optional() });
+rollingsRouter.patch(
+  "/rollings/:id/gantt-priority",
+  requireAuth,
+  requirePermission((persona) => canEditGanttSchedule(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const body = ganttPrioritySchema.parse(req.body);
+    await updateRollingGanttPlanning(id, body);
+    res.status(204).end();
+  },
+);
+
+const enterRollingGanttSchema = z.object({ hoursByCategory: z.record(z.string(), z.number().nonnegative()) });
+rollingsRouter.post(
+  "/rollings/:id/enter-gantt",
+  requireAuth,
+  requirePermission((persona) => canEditGanttSchedule(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const { hoursByCategory } = enterRollingGanttSchema.parse(req.body);
+    await activateRollingGantt(id, req.employee!.id, hoursByCategory);
     res.status(204).end();
   },
 );

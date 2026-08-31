@@ -27,6 +27,7 @@ import { actionCenterRouter } from "./modules/actionCenter/routes.js";
 import { subassembliesRouter } from "./modules/subassemblies/routes.js";
 import { amendmentsRouter } from "./modules/amendments/routes.js";
 import { ganttRouter } from "./modules/gantt/routes.js";
+import { interruptionsRouter } from "./modules/interruptions/routes.js";
 import { checklistsRouter } from "./modules/checklists/routes.js";
 import { errorReportsRouter } from "./modules/errorReports/routes.js";
 import { teamNotesRouter } from "./modules/teamNotes/routes.js";
@@ -91,6 +92,7 @@ export function createApp() {
   app.use("/api", subassembliesRouter);
   app.use("/api", amendmentsRouter);
   app.use("/api", ganttRouter);
+  app.use("/api", interruptionsRouter);
   app.use("/api", checklistsRouter);
   app.use("/api", errorReportsRouter);
   app.use("/api", teamNotesRouter);

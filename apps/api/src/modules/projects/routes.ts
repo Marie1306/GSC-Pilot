@@ -16,6 +16,7 @@ import {
   canDeleteProject,
   canManagePostMortem,
   canSeeFinancialValues,
+  canEditGanttSchedule,
   FULFILLMENT_MODES,
   type FulfillmentMode,
 } from "@gsc-pilot/business-rules";
@@ -41,6 +42,7 @@ import {
   activateOrUpdateWarranty,
   getWarrantyHistory,
   updateProjectInfo,
+  updateProjectGanttPriority,
   setProjectArchived,
   deleteProject,
   getProjectHistory,
@@ -49,6 +51,7 @@ import {
   getApprovedTimeEntries,
   getApprovedPurchaseEntries,
 } from "./service.js";
+import { enterProjectGanttBatch } from "../gantt/service.js";
 
 export const projectsRouter = Router();
 
@@ -332,6 +335,37 @@ projectsRouter.patch(
     const id = z.uuid().parse(req.params.id);
     const body = updateProjectInfoSchema.parse(req.body);
     await updateProjectInfo(id, body);
+    res.status(204).end();
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Gantt de production (31 août 2026) — voir gantt/service.ts pour la logique
+// de planification elle-même, jamais dupliquée ici.
+// ---------------------------------------------------------------------------
+
+const ganttPrioritySchema = z.object({ priority: z.number().int() });
+projectsRouter.patch(
+  "/projects/:id/gantt-priority",
+  requireAuth,
+  requirePermission((persona) => canEditGanttSchedule(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const { priority } = ganttPrioritySchema.parse(req.body);
+    await updateProjectGanttPriority(id, priority);
+    res.status(204).end();
+  },
+);
+
+const enterProjectGanttSchema = z.object({ scope: z.enum(["batch", "whole_project"]), batchId: z.string().optional() });
+projectsRouter.post(
+  "/projects/:id/enter-gantt",
+  requireAuth,
+  requirePermission((persona) => canEditGanttSchedule(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const body = enterProjectGanttSchema.parse(req.body);
+    await enterProjectGanttBatch(id, req.employee!.id, body);
     res.status(204).end();
   },
 );

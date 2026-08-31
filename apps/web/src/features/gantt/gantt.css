@@ -6,3 +6,26 @@
   text-decoration: line-through;
   text-decoration-color: var(--gsc-color-muted2);
 }
+
+/* Calendrier chronologique (31 août 2026) — un <table> plutôt qu'une grille
+   CSS pure : mêmes classes .table-scroll/.shortlist-table que les 44 autres
+   tableaux du site (défilement horizontal cohérent, mobile compris). Les
+   colonnes de jour restent étroites (l'horizon fait ~30 jours ouvrables) —
+   seules les heures allouées y tiennent, jamais de texte long. */
+.gantt-calendar th,
+.gantt-calendar td {
+  text-align: center;
+  min-width: 34px;
+  white-space: nowrap;
+}
+.gantt-calendar th:first-child,
+.gantt-calendar td:first-child {
+  text-align: left;
+  min-width: 160px;
+  white-space: normal;
+}
+
+.gantt-cell-busy {
+  background: var(--gsc-color-brand-soft);
+  font-weight: 600;
+}
