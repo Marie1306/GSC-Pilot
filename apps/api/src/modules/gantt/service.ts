@@ -1,8 +1,9 @@
 /**
  * GSC Pilot — Gantt de production (21 août 2026, phase A)
  *
- * Tableau de production réel : tâches issues des sous-assemblages (module
- * Sous-assemblages) et des avenants (module Avenants), leurs dépendances,
+ * Tableau de production réel : tâches issues des assemblages (module
+ * Sous-assemblages en interne — voir subassemblies/, "Assemblage" affiché
+ * depuis le 31 août 2026) et des avenants (module Avenants), leurs dépendances,
  * l'affectation d'employé et la complétion — geste explicite, jamais un
  * effet de bord des heures consommées (ganttCompleted, voir schema.prisma).
  *

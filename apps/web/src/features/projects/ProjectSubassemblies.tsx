@@ -36,10 +36,14 @@ interface HoursRow {
 const emptyRow = (): HoursRow => ({ category: FABRICATION_SUBCATEGORIES[0]!.value, hours: "" });
 
 /**
- * Sous-assemblages (21 août 2026) — réutilise subassembly.ts tel quel côté
- * serveur. Déclarer reste ouvert à tout employé (geste de terrain, pas une
- * approbation); créer la liste de pièces et déclarer l'assemblage prêt
- * restent Direction seulement (spec confirmée).
+ * Assemblages (21 août 2026, terme affiché renommé le 31 août 2026 — demande
+ * explicite de l'utilisatrice, « sous-assemblage » réservé au module
+ * Checklist désormais) — réutilise subassembly.ts tel quel côté serveur
+ * (types/fonctions internes inchangés, voir CLAUDE.md). Déclarer reste
+ * Propriétaire seulement (Marc, le seul designer — canDeclareSubassembly,
+ * corrigé le 21 août 2026); créer la liste de pièces et déclarer l'assemblage
+ * prêt (geste distinct de Direction, jamais renommé — spec confirmée)
+ * restent Direction seulement.
  */
 export function ProjectSubassemblies({ projectId }: ProjectSubassembliesProps) {
   const { employee } = useAuth();
@@ -97,9 +101,9 @@ export function ProjectSubassemblies({ projectId }: ProjectSubassembliesProps) {
 
   return (
     <div className="card" style={{ marginBottom: 20 }}>
-      <h3 style={{ margin: 0, fontSize: 15 }}>Sous-assemblages</h3>
+      <h3 style={{ margin: 0, fontSize: 15 }}>Assemblages</h3>
       <p style={{ margin: "4px 0 10px", color: "var(--gsc-color-muted)", fontSize: 13 }}>
-        Le Propriétaire (seul designer/conception) déclare un sous-assemblage dès qu'il est vraiment prêt (numéro libre, sa propre logique
+        Le Propriétaire (seul designer/conception) déclare un assemblage dès qu'il est vraiment prêt (numéro libre, sa propre logique
         d'ingénierie) — aucune description requise. Direction crée ensuite la liste de pièces (heures réelles) pour le rendre planifiable
         en production.
       </p>
@@ -122,7 +126,7 @@ export function ProjectSubassemblies({ projectId }: ProjectSubassembliesProps) {
       )}
 
       {subassemblies.length === 0 ? (
-        <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucun sous-assemblage déclaré.</p>
+        <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucun assemblage déclaré.</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {subassemblies.map((sa) => (

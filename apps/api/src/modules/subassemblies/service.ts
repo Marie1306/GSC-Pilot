@@ -129,7 +129,7 @@ export async function declareSubassemblyForProject(projectId: string, number: st
   if (!project) throw new HttpError(404, "Projet introuvable.");
 
   const trimmed = number?.trim();
-  if (!trimmed) throw new HttpError(400, "Le numéro du sous-assemblage est requis.");
+  if (!trimmed) throw new HttpError(400, "Le numéro de l'assemblage est requis.");
 
   const existing = await prisma.subassembly.findMany({ where: { projectId } });
   let entry: PureSubassembly;
@@ -178,7 +178,7 @@ export async function markSubassemblyPartsListReady(
   hoursByCategory: Record<string, number>,
 ): Promise<SubassemblyDto> {
   const row = await prisma.subassembly.findUnique({ where: { id } });
-  if (!row) throw new HttpError(404, "Sous-assemblage introuvable.");
+  if (!row) throw new HttpError(404, "Assemblage introuvable.");
 
   const pure = toPure(row);
   try {
@@ -206,8 +206,8 @@ export async function markSubassemblyPartsListReady(
 
 export async function declareSubassemblyAssemblyReady(id: string, declaredById: string): Promise<SubassemblyDto> {
   const row = await prisma.subassembly.findUnique({ where: { id } });
-  if (!row) throw new HttpError(404, "Sous-assemblage introuvable.");
-  if (row.assemblyReadyDeclaredById) throw new HttpError(400, "L'assemblage est déjà déclaré prêt pour ce sous-assemblage.");
+  if (!row) throw new HttpError(404, "Assemblage introuvable.");
+  if (row.assemblyReadyDeclaredById) throw new HttpError(400, "L'assemblage est déjà déclaré prêt pour cet assemblage.");
 
   const pure = toPure(row);
   try {

@@ -462,10 +462,21 @@ export function canModifyEmployeeRate(persona: Persona): boolean {
 // le suivi manuel — permanent, pas d'intégration prévue pour ne pas
 // alourdir l'application. Direction et Administration peuvent toutes les
 // deux créer une facture et enregistrer un paiement (reflète la pratique
-// réelle de l'équipe); seul le Propriétaire en est exclu. Demander la
+// réelle de l'équipe); le Propriétaire en est exclu pour TOUTE action
+// (créer/enregistrer un paiement/mettre en suspens/demander). Demander la
 // facturation d'un jalon (vers le centre d'actions d'Administration)
-// reste Direction seulement.
+// reste Direction seulement. Le Propriétaire a accès en CONSULTATION
+// seulement au module consolidé (canViewInvoicing, demande explicite de
+// l'utilisatrice le 31 août 2026) — distinct des permissions d'action
+// ci-dessous, qui restent inchangées.
 // ---------------------------------------------------------------------------
+/** Voir le module Facturation (vue consolidée) : Direction, Administration
+ * et Propriétaire — mais le Propriétaire n'y a aucune action (voir les
+ * fonctions ci-dessous, toutes encore Direction/Administration seulement). */
+export function canViewInvoicing(persona: Persona): boolean {
+  assertRole(persona);
+  return ([ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS] as Persona[]).includes(persona);
+}
 export function canModifyBillingCycle(persona: Persona): boolean {
   assertRole(persona);
   return persona === ROLES.OWNER;

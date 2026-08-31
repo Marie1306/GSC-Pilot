@@ -235,6 +235,17 @@ describe("Facturation", () => {
   it("Propriétaire ne met jamais en suspens", () => {
     expect(P.canHoldInvoice(BOSS)).toBe(false);
   });
+  it("Propriétaire voit la facturation en consultation (demande de l'utilisatrice, 31 août 2026)", () => {
+    expect(P.canViewInvoicing(BOSS)).toBe(true);
+  });
+  it("Direction et Administration voient aussi la facturation", () => {
+    expect(P.canViewInvoicing(OWNER)).toBe(true);
+    expect(P.canViewInvoicing(ADMIN)).toBe(true);
+  });
+  it("Employé et Magasinier n'ont jamais accès à la facturation", () => {
+    expect(P.canViewInvoicing(MEMBER)).toBe(false);
+    expect(P.canViewInvoicing(WAREHOUSE)).toBe(false);
+  });
 });
 
 describe("Livraisons / Roulements", () => {

@@ -4,7 +4,7 @@ import {
   canAccessSettings,
   canAccessOverviewViews,
   canAccessDeliveries,
-  canCreateInvoiceRecord,
+  canViewInvoicing,
   canViewClientRequests,
   canAccessProductionChecklist,
   canAccessErrorReports,
@@ -75,8 +75,11 @@ export const NAV_ITEMS: NavItem[] = [
   // Sous Demandes d'achat (spec confirmée le 28 août 2026) — Propriétaire et Direction seulement.
   { key: "error-reports", label: "Rapports d'erreurs", path: "/rapports-erreurs", section: "operations", allow: canAccessErrorReports },
   { key: "fulfillment", label: "Bons de livraison", path: "/livraisons", section: "operations", allow: canAccessDeliveries },
-  // Facturation : Direction et Administration seulement — le Propriétaire en est explicitement exclu (spec confirmée).
-  { key: "invoicing", label: "Factures / paiements", path: "/facturation", section: "admin", allow: canCreateInvoiceRecord },
+  // Facturation : Direction, Administration et Propriétaire (consultation
+  // seulement pour ce dernier — demande de l'utilisatrice le 31 août 2026,
+  // voir canViewInvoicing/roles.ts ; les boutons d'action restent gardés
+  // séparément par canCreateInvoiceRecord/canRecordPayment/canHoldInvoice).
+  { key: "invoicing", label: "Factures / paiements", path: "/facturation", section: "admin", allow: canViewInvoicing },
   { key: "contacts", label: "Contacts", path: "/contacts", section: "admin", allow: canAccessOverviewViews },
   { key: "settings", label: "Paramètres", path: "/parametres", section: "admin", allow: canAccessSettings },
 ];

@@ -32,8 +32,9 @@ const TYPE_ORDER: ActionItemType[] = [
 // réutilise le composant déjà construit et vérifié de son propre module,
 // jamais une deuxième logique d'approbation ici. Seul subassembly_ready
 // reste une navigation classique : créer la liste de pièces est un
-// formulaire à plusieurs lignes qui vit en profondeur dans l'onglet
-// Sous-assemblages, pas extractible proprement dans un tiroir.
+// formulaire à plusieurs lignes qui vit en profondeur dans la carte
+// Assemblages (module Sous-assemblages en interne), pas extractible
+// proprement dans un tiroir.
 //
 // purchase_to_order utilisait la même approche (lien vers /achats) jusqu'au
 // 27 août 2026 — rapport de l'utilisatrice : ça amenait sur une page

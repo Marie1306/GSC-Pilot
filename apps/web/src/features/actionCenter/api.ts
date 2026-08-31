@@ -19,6 +19,9 @@ export interface ActionItemDto {
   sublabel: string;
   amount?: number;
   createdAt: string;
+  // Seul subassembly_ready en a besoin (voir linkFor) — son id est celui de
+  // l'assemblage (identifiant composé), pas le projet.
+  projectId?: string;
 }
 
 export function fetchActionCenterItems(): Promise<{ items: ActionItemDto[] }> {
@@ -43,7 +46,9 @@ export function linkFor(item: ActionItemDto): string {
     case "followup_due":
       return `/demandes?open=${item.id}`;
     case "subassembly_ready":
-      return "/projets";
+      // projectId toujours présent pour ce type (voir actionCenter/service.ts) —
+      // 31 août 2026, corrige le lien qui amenait sur la liste complète des projets.
+      return `/projets?open=${item.projectId}`;
     case "hours_approval":
       return "/temps";
   }

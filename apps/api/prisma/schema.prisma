@@ -1096,7 +1096,8 @@ model Amendment {
 
 // ---------------------------------------------------------------------------
 // Checklist de production (21 août 2026) — indépendant du module
-// Sous-assemblages (confirmé par l'utilisatrice, aucun lien). Suit les
+// Subassembly ci-dessus ("Assemblage" affiché depuis le 31 août 2026,
+// confirmé par l'utilisatrice, aucun lien). Suit les
 // pièces FABRIQUÉES à l'interne (pas les pièces achetées — voir
 // PurchaseRequest via la liste rapide déjà existante, réutilisée telle
 // quelle depuis l'interface, aucun lien de schéma nécessaire ici).

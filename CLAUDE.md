@@ -31,6 +31,34 @@ jamais être modifié — mais ne jamais assumer que `persona === "owner"`
 signifie "le propriétaire". Toujours vérifier ce fichier avant d'écrire une
 nouvelle vérification de permission plutôt que de deviner.
 
+## Piège de nommage — Assemblage vs Sous-assemblage (module Subassembly)
+
+Depuis le 31 août 2026 (demande explicite de l'utilisatrice), le module où
+le Propriétaire (Marc, seul designer/conception) déclare une unité prête
+s'affiche **« Assemblage »** dans l'interface (`ProjectSubassemblies.tsx`,
+Centre d'actions). **Rien n'a changé en interne** : le modèle Prisma reste
+`Subassembly`, le fichier reste `subassembly.ts`/`subassemblies/`, les
+fonctions restent `declareSubassemblyReady`/`markPartsListReady`/etc. — même
+principe que le piège owner/boss ci-dessus, ne jamais renommer le code pour
+suivre un renommage d'affichage.
+
+Deux confusions à éviter, toutes les deux déjà soulevées et tranchées avec
+l'utilisatrice :
+- **`declareAssemblyReady` (Direction) ≠ la déclaration de Marc.** C'est un
+  geste séparé et déjà existant, sans lien de nommage voulu : Direction
+  déclare que la tâche PHYSIQUE d'assemblage (une catégorie d'heures parmi
+  d'autres) peut démarrer dans le Gantt, après la liste de pièces. Marie a
+  choisi explicitement de garder ce texte tel quel (« Déclarer l'assemblage
+  prêt », option B) plutôt que de le reformuler pour éviter la ressemblance
+  avec le nouveau terme de l'unité de Marc — les deux mots coexistent dans
+  la même carte à l'écran, volontairement.
+- **Le module Checklist a son propre « sous-assemblage »**, un concept
+  totalement différent (regroupement de pièces dans une checklist de
+  production) et SANS lien avec le modèle `Subassembly` ci-dessus (confirmé
+  dans le schéma). Ce terme n'a jamais été renommé et ne doit jamais
+  l'être : `ChecklistProjectView.tsx`, `ChecklistItemEditModal.tsx`,
+  `checklist.css`, `checklists/service.ts`.
+
 ## Règle de reuse — ne jamais réécrire les modules métier
 
 Les 9 modules dans `packages/business-rules/src/` (portés depuis

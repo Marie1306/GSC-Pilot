@@ -164,7 +164,7 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
                   icon="🔗"
                   label="Gérer les dépendances"
                   disabled
-                  disabledNote="Générées automatiquement par les sous-assemblages — aucune édition manuelle pour l'instant."
+                  disabledNote="Générées automatiquement par les assemblages — aucune édition manuelle pour l'instant."
                 />
                 <OptionRow
                   icon="✅"

@@ -20,10 +20,10 @@
  *     (transferClientRequestToOwner, déjà construit — voir clientRequests/
  *     service.ts, rien à ajouter côté mécanisme) — signal séparé et
  *     complémentaire du précédent, réservé au Propriétaire (spec confirmée).
- *   - Sous-assemblages déclarés prêts par le designer, en attente que
- *     Direction crée la liste de pièces (module Sous-assemblages, 21 août
- *     2026 — canPrepareSubassemblyPartsList, même geste qui débloque
- *     l'item ici).
+ *   - Assemblages déclarés prêts par le designer, en attente que Direction
+ *     crée la liste de pièces (module Sous-assemblages en interne — voir
+ *     subassemblies/, "Assemblage" affiché depuis le 31 août 2026 —
+ *     canPrepareSubassemblyPartsList, même geste qui débloque l'item ici).
  *   - Achats autorisés mais pas encore commandés (fulfillmentStatus ===
  *     "waiting", canManagePurchaseFulfillment) — "Commande à passer",
  *     distinct de "Achat à approuver" ci-dessus (26 août 2026, demande de
@@ -72,6 +72,11 @@ export interface ActionItemDto {
   sublabel: string;
   amount?: number;
   createdAt: string;
+  // Seul subassembly_ready en a besoin — son id est celui de l'assemblage
+  // (identifiant composé, pas un uuid de projet), donc linkFor (web) ne peut
+  // pas en dériver le projet autrement (rapport de l'utilisatrice, 31 août
+  // 2026 : le lien amenait sur /projets, liste complète, pas le bon projet).
+  projectId?: string;
 }
 
 export async function getActionCenterItems(viewerPersona: Persona, viewerEmployeeId: string): Promise<ActionItemDto[]> {
@@ -235,10 +240,11 @@ export async function getActionCenterItems(viewerPersona: Persona, viewerEmploye
       items.push({
         id: subassembly.id,
         type: "subassembly_ready",
-        typeLabel: "Sous-assemblage à préparer",
+        typeLabel: "Assemblage à préparer",
         label: `${subassembly.projectNumber} — ${subassembly.projectName} · ${subassembly.number}`,
         sublabel: `Déclaré par ${subassembly.declaredByName}`,
         createdAt: subassembly.declaredAt,
+        projectId: subassembly.projectId,
       });
     }
   }

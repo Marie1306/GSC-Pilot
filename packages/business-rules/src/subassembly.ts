@@ -57,7 +57,7 @@ export function declareSubassemblyReady(
   }
   const id = `${projectId}-${number}`;
   if (subassemblies.some((item) => item.id === id)) {
-    throw new Error(`Sous-assemblage ${id} déjà déclaré.`);
+    throw new Error(`Assemblage ${id} déjà déclaré.`);
   }
   const entry: Subassembly = {
     id,
@@ -90,7 +90,7 @@ export function markPartsListReady(
 ): Subassembly {
   if (subassembly.status !== "pending_parts_list") {
     throw new Error(
-      `Sous-assemblage ${subassembly.id} n'est pas en attente de liste de pièces (statut actuel : ${subassembly.status}).`,
+      `Assemblage ${subassembly.id} n'est pas en attente de liste de pièces (statut actuel : ${subassembly.status}).`,
     );
   }
   if (!hoursByCategory || Object.keys(hoursByCategory).length === 0) {
@@ -114,10 +114,10 @@ export function markPartsListReady(
  */
 export function declareAssemblyReady(subassembly: Subassembly, declaredBy: string): Subassembly {
   if (subassembly.status !== "ready_for_production") {
-    throw new Error(`Sous-assemblage ${subassembly.id} n'a pas encore de liste de pièces.`);
+    throw new Error(`Assemblage ${subassembly.id} n'a pas encore de liste de pièces.`);
   }
   if (!("assemblage" in (subassembly.hoursByCategory || {}))) {
-    throw new Error(`Sous-assemblage ${subassembly.id} n'a pas d'heures d'assemblage déclarées.`);
+    throw new Error(`Assemblage ${subassembly.id} n'a pas d'heures d'assemblage déclarées.`);
   }
   subassembly.assemblyReadyDeclaredBy = declaredBy;
   subassembly.assemblyReadyDeclaredAt = new Date().toISOString();
@@ -147,7 +147,7 @@ export function declareAssemblyReady(subassembly: Subassembly, declaredBy: strin
  */
 export function subassemblyGanttTasks(subassembly: Subassembly): GanttTask[] {
   if (subassembly.status !== "ready_for_production") {
-    throw new Error(`Sous-assemblage ${subassembly.id} n'est pas prêt pour la production.`);
+    throw new Error(`Assemblage ${subassembly.id} n'est pas prêt pour la production.`);
   }
   const isFabrication = (category: string) => category === "fabrication" || category.startsWith("fabrication-");
   const hoursByCategory = subassembly.hoursByCategory || {};
