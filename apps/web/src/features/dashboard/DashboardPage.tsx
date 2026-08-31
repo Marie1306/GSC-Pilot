@@ -23,6 +23,7 @@ const ACTION_TYPE_ICON: Record<ActionItemType, string> = {
   client_request_transmitted: "📞",
   subassembly_ready: "🔗",
   hours_approval: "⏱️",
+  followup_due: "📅",
 };
 
 const FINANCIAL_STATUS_LABELS: Record<string, string> = {

@@ -61,7 +61,8 @@ export type ActionItemType =
   | "client_request_new"
   | "client_request_transmitted"
   | "subassembly_ready"
-  | "hours_approval";
+  | "hours_approval"
+  | "followup_due";
 
 export interface ActionItemDto {
   id: string;
@@ -182,6 +183,30 @@ export async function getActionCenterItems(viewerPersona: Persona, viewerEmploye
           label: `${request.displayId} — ${request.company ?? request.contactName}`,
           sublabel: request.summary,
           createdAt: request.createdAt,
+        });
+      }
+    }
+  }
+
+  // Suivi dossier — la date de relance arrivée ou dépassée ("Planifier un
+  // suivi", ClientRequestOptionsMenu.tsx). Même trio que les 2 items
+  // ci-dessus (canCreateClientRequest) : même document, même audience.
+  // listClientRequests() exclut déjà converted/lost/deletedAt (voir sa
+  // documentation), donc un suivi ne peut jamais rester affiché après
+  // résolution de la demande — rien à filtrer ici en plus (demande de
+  // l'utilisatrice, 31 août 2026).
+  if (canCreateClientRequest(viewerPersona)) {
+    const requests = await listClientRequests();
+    const now = new Date();
+    for (const request of requests) {
+      if (request.nextFollowUp && new Date(request.nextFollowUp) <= now) {
+        items.push({
+          id: request.id,
+          type: "followup_due",
+          typeLabel: "Suivi dossier",
+          label: `${request.displayId} — ${request.company ?? request.contactName}`,
+          sublabel: `Relance prévue le ${request.nextFollowUp.slice(0, 10)}`,
+          createdAt: request.nextFollowUp,
         });
       }
     }

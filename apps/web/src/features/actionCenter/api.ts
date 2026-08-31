@@ -8,7 +8,8 @@ export type ActionItemType =
   | "client_request_new"
   | "client_request_transmitted"
   | "subassembly_ready"
-  | "hours_approval";
+  | "hours_approval"
+  | "followup_due";
 
 export interface ActionItemDto {
   id: string;
@@ -39,6 +40,7 @@ export function linkFor(item: ActionItemDto): string {
       return "/facturation";
     case "client_request_new":
     case "client_request_transmitted":
+    case "followup_due":
       return `/demandes?open=${item.id}`;
     case "subassembly_ready":
       return "/projets";

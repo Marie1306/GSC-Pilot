@@ -17,6 +17,7 @@ import "./actionCenter.css";
 
 const TYPE_ORDER: ActionItemType[] = [
   "client_request_new",
+  "followup_due",
   "budget_approval",
   "hours_approval",
   "purchase_approval",
@@ -247,7 +248,7 @@ export function ActionCenterPage() {
       ))}
 
       {openItem?.type === "budget_approval" && <BudgetDetail id={openItem.id} onClose={() => setOpenItem(null)} />}
-      {(openItem?.type === "client_request_new" || openItem?.type === "client_request_transmitted") && (
+      {(openItem?.type === "client_request_new" || openItem?.type === "client_request_transmitted" || openItem?.type === "followup_due") && (
         <ClientRequestDetail id={openItem.id} onClose={() => setOpenItem(null)} />
       )}
       {openItem?.type === "purchase_approval" && <PurchaseRequestActionDrawer id={openItem.id} onClose={() => setOpenItem(null)} />}
