@@ -167,7 +167,7 @@ export function ActionCenterPage() {
                 </div>
                 <div className="action-item-side">
                   <span className="action-item-date">{formatDate(note.createdAt)}</span>
-                  <button type="button" className="btn btn-secondary btn-small" disabled={markReadMutation.isPending} onClick={() => markReadMutation.mutate(note.id)}>
+                  <button type="button" className="btn btn-small" disabled={markReadMutation.isPending} onClick={() => markReadMutation.mutate(note.id)}>
                     ✓ Reçu
                   </button>
                 </div>
