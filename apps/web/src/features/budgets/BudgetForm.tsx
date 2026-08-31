@@ -10,6 +10,17 @@ interface BudgetFormProps {
   onCreated: (id: string) => void;
   /** Pré-sélection depuis "Créer le budgétaire" du menu Options d'une demande client (18 août 2026). */
   initialRequestId?: string;
+  /** "Construire un budgétaire" depuis le menu Options d'un roulement déjà créé directement (31 août 2026) — voir RollingOptionsMenu.tsx. */
+  prefillFromRolling?: BudgetPrefillFromRolling;
+}
+
+export interface BudgetPrefillFromRolling {
+  rollingId: string;
+  rollingNumber: string;
+  contactName: string;
+  company?: string;
+  phone?: string;
+  email?: string;
 }
 
 type NewRequestType = NewClientRequestForBudget["requestType"];
@@ -34,18 +45,38 @@ const EMPTY_NEW_REQUEST: NewClientRequestForBudget = {
   summary: "",
 };
 
+function initialNewRequest(prefillFromRolling?: BudgetPrefillFromRolling): NewClientRequestForBudget {
+  if (!prefillFromRolling) return EMPTY_NEW_REQUEST;
+  return {
+    ...EMPTY_NEW_REQUEST,
+    company: prefillFromRolling.company ?? "",
+    contactName: prefillFromRolling.contactName,
+    phone: prefillFromRolling.phone ?? "",
+    email: prefillFromRolling.email ?? "",
+    requestType: "rolling",
+  };
+}
+
 /**
  * Flux de création unifié vérifié dans le prototype v19 (budgetStartModal) :
  * un seul formulaire, soit on choisit une demande existante, soit on laisse
  * l'application créer le contact et la demande client automatiquement — pas
  * deux mécanismes séparés.
+ *
+ * prefillFromRolling (31 août 2026, « la création du budgétaire d'un nouveau
+ * roulement doit se faire après la création de celle-ci ») — force le mode
+ * "nouvelle demande" (le sélecteur de demande existante n'a pas de sens ici,
+ * ce budgétaire est construit spécifiquement pour CE roulement), préaffiche
+ * le contact déjà connu du roulement. Une fois les chiffres prêts, « Lier au
+ * roulement » depuis ce budgétaire (BudgetDetail.tsx) l'associera au
+ * roulement déjà existant plutôt que d'en créer un nouveau.
  */
-export function BudgetForm({ onClose, onCreated, initialRequestId }: BudgetFormProps) {
+export function BudgetForm({ onClose, onCreated, initialRequestId, prefillFromRolling }: BudgetFormProps) {
   const queryClient = useQueryClient();
   const requestsQuery = useQuery({ queryKey: ["client-requests"], queryFn: fetchClientRequests });
   const channelsQuery = useQuery({ queryKey: ["sales-channels"], queryFn: fetchSalesChannels });
-  const [selectedRequestId, setSelectedRequestId] = useState(initialRequestId ?? "");
-  const [newRequest, setNewRequest] = useState<NewClientRequestForBudget>(EMPTY_NEW_REQUEST);
+  const [selectedRequestId, setSelectedRequestId] = useState(prefillFromRolling ? "" : (initialRequestId ?? ""));
+  const [newRequest, setNewRequest] = useState<NewClientRequestForBudget>(() => initialNewRequest(prefillFromRolling));
   const [error, setError] = useState<string | null>(null);
 
   const availableRequests = (requestsQuery.data?.clientRequests ?? []).filter(
@@ -64,6 +95,7 @@ export function BudgetForm({ onClose, onCreated, initialRequestId }: BudgetFormP
                 address: newRequest.address?.trim() || undefined,
                 sourceDetail: newRequest.sourceDetail?.trim() || undefined,
               },
+              rollingId: prefillFromRolling?.rollingId,
             },
       ),
     onSuccess: (result) => {
@@ -101,9 +133,11 @@ export function BudgetForm({ onClose, onCreated, initialRequestId }: BudgetFormP
       <div className="modal client-request-modal">
         <div className="modal-header">
           <div>
-            <h2>Débuter un budgétaire</h2>
+            <h2>{prefillFromRolling ? `Budgétaire pour ${prefillFromRolling.rollingNumber}` : "Débuter un budgétaire"}</h2>
             <p className="modal-subtitle">
-              Sélectionnez une demande existante. Sans demande, l'application créera automatiquement le contact et la demande client.
+              {prefillFromRolling
+                ? `Pré-rempli depuis le roulement ${prefillFromRolling.rollingNumber} — une fois les chiffres prêts, utilisez « Lier au roulement » sur ce budgétaire pour l'associer.`
+                : "Sélectionnez une demande existante. Sans demande, l'application créera automatiquement le contact et la demande client."}
             </p>
           </div>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Fermer">
@@ -113,17 +147,19 @@ export function BudgetForm({ onClose, onCreated, initialRequestId }: BudgetFormP
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body form-grid">
-            <div className="field field-full">
-              <label htmlFor="bg-request">Demande client existante (recommandé)</label>
-              <select id="bg-request" value={selectedRequestId} onChange={(e) => setSelectedRequestId(e.target.value)}>
-                <option value="">— Nouveau contact et nouvelle demande —</option>
-                {availableRequests.map((request) => (
-                  <option key={request.id} value={request.id}>
-                    {request.displayId} — {request.company ?? request.contactName} — {request.summary.slice(0, 70)}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {!prefillFromRolling && (
+              <div className="field field-full">
+                <label htmlFor="bg-request">Demande client existante (recommandé)</label>
+                <select id="bg-request" value={selectedRequestId} onChange={(e) => setSelectedRequestId(e.target.value)}>
+                  <option value="">— Nouveau contact et nouvelle demande —</option>
+                  {availableRequests.map((request) => (
+                    <option key={request.id} value={request.id}>
+                      {request.displayId} — {request.company ?? request.contactName} — {request.summary.slice(0, 70)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {!selectedRequestId && (
               <>

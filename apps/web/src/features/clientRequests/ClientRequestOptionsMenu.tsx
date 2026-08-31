@@ -269,7 +269,6 @@ export function ClientRequestOptionsMenu({ request, open, onClose, onDeleted }: 
 
       {creatingRolling && (
         <RollingForm
-          persona={employee.persona}
           onClose={() => setCreatingRolling(false)}
           onCreated={() => {
             setCreatingRolling(false);

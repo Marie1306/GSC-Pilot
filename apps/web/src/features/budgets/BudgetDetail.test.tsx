@@ -71,6 +71,8 @@ function makeBudget(pliageHours: number): BudgetDetailDto {
     sentAt: null,
     contractWonAt: null,
     readOnly: false,
+    rollingId: null,
+    rollingNumber: null,
     sections: [
       {
         id: "66666666-6666-6666-6666-666666666666",

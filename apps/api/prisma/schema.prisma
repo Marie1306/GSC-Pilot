@@ -304,6 +304,16 @@ model Budget {
   // (un SEUL budgétaire actif par demande) vit sur ClientRequest.budgetId,
   // @unique celui-là.
   clientRequestId         String?
+  // Nullable — budgétaire construit APRÈS coup pour un roulement déjà créé
+  // directement (31 août 2026, demande explicite : « la création du
+  // budgétaire d'un nouveau roulement doit se faire après la création de
+  // celle-ci »). Même patron que clientRequestId ci-dessus : scalaire
+  // simple, PAS de @relation (la relation vraiment gérée — un SEUL
+  // budgétaire actif par roulement — vit sur Rolling.budgetId, @unique
+  // celui-là, posée seulement une fois convertBudgetToRolling exécuté).
+  // Distinct du cas normal demande-client→budgétaire→roulement (celui-là
+  // n'a jamais rollingId — voir convertBudgetToRolling, rollings/service.ts).
+  rollingId               String?
   status                  String    @default("draft")
   // Back-up D'HEURES — réserve calculée automatiquement depuis les heures
   // admissibles (Fab+Prog+Assemblage), voir backup.ts. Gelé au premier calcul.

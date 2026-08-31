@@ -67,6 +67,7 @@ const createSchema = z
   .object({
     clientRequestId: z.uuid().optional(),
     newClientRequest: newClientRequestSchema.optional(),
+    rollingId: z.uuid().optional(),
   })
   .refine((body) => Boolean(body.clientRequestId) !== Boolean(body.newClientRequest), {
     message: "Choisir une demande existante OU en créer une nouvelle, pas les deux ni aucune.",

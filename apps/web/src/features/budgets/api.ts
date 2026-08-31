@@ -45,6 +45,8 @@ export interface NewClientRequestForBudget {
 export interface CreateBudgetInput {
   clientRequestId?: string;
   newClientRequest?: NewClientRequestForBudget;
+  /** Budgétaire construit après coup pour un roulement déjà créé directement (31 août 2026) — voir BudgetPrefillFromRolling, BudgetForm.tsx. */
+  rollingId?: string;
 }
 
 export interface BudgetListItem {
@@ -124,6 +126,9 @@ export interface BudgetDetail extends BudgetListItem {
   sentAt: string | null;
   contractWonAt: string | null;
   readOnly: boolean;
+  /** Roulement déjà existant pour lequel ce budgétaire a été construit après coup (31 août 2026) — null pour un budgétaire normal. */
+  rollingId: string | null;
+  rollingNumber: string | null;
   sections: BudgetSectionData[];
   backup: BudgetBackupData;
   projectBackup: ProjectBackupData;

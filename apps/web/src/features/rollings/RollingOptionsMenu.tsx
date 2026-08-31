@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { canManageRolling, canArchiveRolling, canDeleteRolling, canCreateServiceCall } from "@gsc-pilot/business-rules";
+import { canManageRolling, canArchiveRolling, canDeleteRolling, canCreateServiceCall, canCreateBudgetFromRequest } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { OptionsDrawer, OptionRow, OptionSection } from "../../components/OptionsDrawer.js";
@@ -92,6 +92,7 @@ export function RollingOptionsMenu({ rolling, open, onClose, onDeleted, onAddPur
   const canArchive = canArchiveRolling(employee.persona);
   const canDelete = canDeleteRolling(employee.persona);
   const canCreateCall = canCreateServiceCall(employee.persona);
+  const canBuildBudget = canCreateBudgetFromRequest(employee.persona);
   const isArchived = !!rolling.archivedAt;
   const label = rolling.company ?? rolling.contactName;
 
@@ -140,6 +141,17 @@ export function RollingOptionsMenu({ rolling, open, onClose, onDeleted, onAddPur
               {canManage && (
                 <OptionSection title="Roulement">
                   <OptionRow icon="✏️" label="Modifier les informations" onClick={() => setEditForm(true)} />
+                  {rolling.budgetId ? (
+                    <OptionRow icon="🧮" label="Budgétaire déjà attaché à ce roulement" disabled disabledNote="Un roulement ne peut avoir qu'un seul budgétaire." />
+                  ) : (
+                    <OptionRow
+                      icon="🧮"
+                      label="Construire un budgétaire"
+                      onClick={() => navigate(`/budgetaire?newFromRolling=${rolling.id}`)}
+                      disabled={!canBuildBudget}
+                      disabledNote="Direction ou Propriétaire seulement."
+                    />
+                  )}
                 </OptionSection>
               )}
 

@@ -398,12 +398,12 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
   const [showConvertRollingConfirm, setShowConvertRollingConfirm] = useState(false);
   const convertRollingMutation = useMutation({
     mutationFn: () => convertBudgetToRolling(id),
-    onSuccess: () => {
-      // RollingsPage ouvre le détail via un état local (pas de route dédiée
-      // par id, même patron que Livraisons/Facturation) — on navigue donc
-      // vers la liste, pas un lien direct.
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["rollings"] });
-      navigate("/roulements");
+      // RollingsPage lit ?open=<id> au montage (même patron que Scan QR) —
+      // fonctionne aussi bien pour un roulement flambant neuf que pour un
+      // roulement déjà existant auquel ce budgétaire vient d'être lié.
+      navigate(`/roulements?open=${result.id}`);
     },
     onError: onMutationError,
   });
@@ -871,18 +871,22 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                 </div>
               )}
 
-              {budget.status === "won" && canConvertRolling && !budget.readOnly && (
+              {(budget.status === "won" || budget.rollingId) && canConvertRolling && !budget.readOnly && (
                 <div className="status-row">
                   <span className="detail-label">Roulement</span>
                   {!showConvertRollingConfirm ? (
                     <div>
                       <button type="button" className="btn btn-small" disabled={busy} onClick={() => setShowConvertRollingConfirm(true)}>
-                        Convertir en roulement
+                        {budget.rollingId ? `Lier au roulement ${budget.rollingNumber}` : "Convertir en roulement"}
                       </button>
                     </div>
                   ) : (
                     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <span style={{ fontSize: 13 }}>Un roulement n'a pas de nom/numéro distinct — identifié par le client.</span>
+                      <span style={{ fontSize: 13 }}>
+                        {budget.rollingId
+                          ? `Le solde/heures/achats planifiés du roulement ${budget.rollingNumber} (actuellement à zéro) seront remplacés par ceux de ce budgétaire.`
+                          : "Un roulement n'a pas de nom/numéro distinct — identifié par le client."}
+                      </span>
                       <button
                         type="button"
                         className="btn btn-small"

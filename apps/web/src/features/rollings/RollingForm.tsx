@@ -1,7 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { canCreateBudgetFromRequest, type Persona } from "@gsc-pilot/business-rules";
 import { ApiError } from "../../lib/apiClient.js";
 import { ContactSearchField } from "../contacts/ContactAutocomplete.js";
 import type { ContactListItemDto } from "../contacts/api.js";
@@ -18,7 +16,6 @@ export interface RollingPrefillFromRequest {
 }
 
 interface RollingFormProps {
-  persona: Persona;
   onClose: () => void;
   onCreated: (id: string) => void;
   prefillFromRequest?: RollingPrefillFromRequest;
@@ -27,25 +24,26 @@ interface RollingFormProps {
 /**
  * Extrait de RollingsPage.tsx (31 août 2026, demande explicite de
  * l'utilisatrice : « il faut que ce soit aussi une fenêtre contextuelle
- * plutôt que directement à l'écran ») — même contenu/logique qu'avant, y
- * compris le bouton "Construire un budgétaire à la place" (son
- * repositionnement reste une correction séparée, en attente de son analyse
- * — voir CLAUDE.md/historique des tâches). Seul le conteneur change :
- * section intégrée à la page → modale, même patron que
- * ClientRequestForm/BudgetForm/ProjectForm.
+ * plutôt que directement à l'écran ») — même contenu/logique qu'avant. Seul
+ * le conteneur change : section intégrée à la page → modale, même patron
+ * que ClientRequestForm/BudgetForm/ProjectForm.
  *
  * prefillFromRequest (même jour, demande de convertir aussi les demandes
  * clients en roulement depuis Options) — même patron que
- * ServiceCallForm.tsx : contact préaffiché depuis la demande, nudge "ou
- * construisez un budgétaire" masqué (déjà choisi cette voie en cliquant
- * l'option), toujours un nouveau contact via ensureContactRow côté serveur
- * (dédoublonne automatiquement, jamais un contactId réutilisé directement,
- * même logique partout).
+ * ServiceCallForm.tsx : contact préaffiché depuis la demande, toujours un
+ * nouveau contact via ensureContactRow côté serveur (dédoublonne
+ * automatiquement, jamais un contactId réutilisé directement, même logique
+ * partout).
+ *
+ * Plus de nudge "Construire un budgétaire à la place" ici (31 août 2026,
+ * demande explicite : « la création du budgétaire d'un nouveau roulement
+ * doit se faire après la création de celle-ci »). Le formulaire de création
+ * directe est maintenant la toute première chose visible, sans détour — la
+ * construction d'un budgétaire après coup se fait depuis le menu Options du
+ * roulement déjà créé (voir RollingOptionsMenu.tsx).
  */
-export function RollingForm({ persona, onClose, onCreated, prefillFromRequest }: RollingFormProps) {
-  const navigate = useNavigate();
+export function RollingForm({ onClose, onCreated, prefillFromRequest }: RollingFormProps) {
   const queryClient = useQueryClient();
-  const canCreateBudget = canCreateBudgetFromRequest(persona) && !prefillFromRequest;
   const [contactName, setContactName] = useState(prefillFromRequest?.contactName ?? "");
   const [company, setCompany] = useState(prefillFromRequest?.company ?? "");
   const [phone, setPhone] = useState(prefillFromRequest?.phone ?? "");
@@ -97,28 +95,6 @@ export function RollingForm({ persona, onClose, onCreated, prefillFromRequest }:
             ×
           </button>
         </div>
-
-        {canCreateBudget && (
-          <div style={{ margin: "0 24px 14px" }}>
-            <p style={{ margin: "0 0 8px", color: "var(--gsc-color-muted)", fontSize: 13 }}>
-              Pour un roulement chiffré à l'avance (heures, achats, prix de vente), construisez plutôt un budgétaire —
-              il deviendra ce roulement via « Convertir en roulement » une fois le contrat obtenu.
-            </p>
-            <button
-              type="button"
-              className="btn btn-secondary btn-small"
-              onClick={() => {
-                onClose();
-                navigate("/budgetaire");
-              }}
-            >
-              🧮 Construire un budgétaire à la place
-            </button>
-            <p style={{ margin: "14px 0 0", color: "var(--gsc-color-muted)", fontSize: 13, fontWeight: 600 }}>
-              — ou créez directement, sans budgétaire —
-            </p>
-          </div>
-        )}
 
         <form
           onSubmit={(event) => {

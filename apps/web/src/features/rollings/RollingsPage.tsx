@@ -107,7 +107,6 @@ export function RollingsPage() {
 
       {showForm && canCreate && (
         <RollingForm
-          persona={employee.persona}
           onClose={closeForm}
           onCreated={(id) => {
             closeForm();

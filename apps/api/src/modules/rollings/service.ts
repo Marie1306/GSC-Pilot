@@ -55,7 +55,7 @@ import {
   type ProjectComparatifRow,
   type ApprovedTimeEntryDto,
 } from "../projects/service.js";
-import type { Rolling } from "../../generated/prisma/client.js";
+import type { Budget, Rolling } from "../../generated/prisma/client.js";
 
 function round2(value: number): number {
   return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
@@ -308,17 +308,66 @@ async function createSinglePaymentPlan(tx: Parameters<Parameters<typeof prisma.$
   });
 }
 
-export async function convertBudgetToRolling(createdById: string, budgetId: string): Promise<Rolling> {
-  const budget = await prisma.budget.findUnique({ where: { id: budgetId } });
-  if (!budget) throw new HttpError(404, "Budgétaire introuvable.");
-  if (budget.status !== "won") throw new HttpError(400, "Seul un budgétaire au statut « Contrat obtenu » peut être converti en roulement.");
-
+async function assertBudgetNotAlreadyConverted(budgetId: string): Promise<void> {
   const [existingProject, existingRolling] = await Promise.all([
     prisma.project.findUnique({ where: { budgetId } }),
     prisma.rolling.findUnique({ where: { budgetId } }),
   ]);
   if (existingProject) throw new HttpError(400, "Ce budgétaire a déjà été converti en projet.");
   if (existingRolling) throw new HttpError(400, "Ce budgétaire a déjà été converti en roulement.");
+}
+
+/** plannedHours/plannedPurchases/targetMarginPct figés depuis le budgétaire — même formule pour une conversion normale et une liaison à un roulement déjà existant (jamais backupHours/backupHoursCost/backupHourlyRate, voir en-tête de fichier : pas de taux back-up sur un roulement). */
+async function computeRollingFieldsFromBudget(budgetId: string) {
+  const detail = await getBudgetDetail(budgetId);
+  const totalSale = detail.totals.totalSale;
+  const laborSections = detail.sections.filter((section) => section.kind === "labor");
+  const purchaseSections = detail.sections.filter((section) => section.kind === "purchase");
+  const plannedHours = laborSections.reduce((sum, section) => sum + section.hours, 0);
+  const plannedPurchases = purchaseSections.reduce((sum, section) => sum + section.baseCost, 0);
+  const totalBaseCost = detail.totals.totalBaseCost;
+  const targetMarginPct = totalSale > 0 ? Math.round(((totalSale - totalBaseCost) / totalSale) * 100 * 100) / 100 : 0;
+  return { totalSale, plannedHours, plannedPurchases, targetMarginPct };
+}
+
+/**
+ * Budgétaire construit APRÈS coup pour un roulement créé directement (31
+ * août 2026, demande explicite : « la création du budgétaire d'un nouveau
+ * roulement doit se faire après la création de celle-ci »). Contrairement à
+ * la conversion normale ci-dessous, MET À JOUR le roulement déjà existant
+ * (même id, même rollingNumber) au lieu d'en créer un nouveau — et n'exige
+ * PAS le statut « Gagné » : le roulement existe déjà, donc le contrat est
+ * déjà confirmé dans les faits (confirmé avec l'utilisatrice).
+ */
+async function attachBudgetToExistingRolling(budget: Budget): Promise<Rolling> {
+  const rolling = await prisma.rolling.findUnique({ where: { id: budget.rollingId! } });
+  if (!rolling) throw new HttpError(404, "Roulement introuvable pour ce budgétaire.");
+  if (rolling.budgetId) throw new HttpError(400, "Ce roulement a déjà un budgétaire attaché.");
+
+  const { totalSale, plannedHours, plannedPurchases, targetMarginPct } = await computeRollingFieldsFromBudget(budget.id);
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.rolling.update({
+      where: { id: rolling.id },
+      data: { budgetId: budget.id, sold: totalSale, plannedHours, plannedPurchases, targetMarginPct },
+    });
+    const existingPlan = await tx.invoicePlanEntry.count({ where: { rollingId: rolling.id } });
+    if (existingPlan === 0) await createSinglePaymentPlan(tx, rolling.id, totalSale);
+    return updated;
+  });
+}
+
+export async function convertBudgetToRolling(createdById: string, budgetId: string): Promise<Rolling> {
+  const budget = await prisma.budget.findUnique({ where: { id: budgetId } });
+  if (!budget) throw new HttpError(404, "Budgétaire introuvable.");
+
+  await assertBudgetNotAlreadyConverted(budgetId);
+
+  if (budget.rollingId) {
+    return attachBudgetToExistingRolling(budget);
+  }
+
+  if (budget.status !== "won") throw new HttpError(400, "Seul un budgétaire au statut « Contrat obtenu » peut être converti en roulement.");
 
   if (!budget.clientRequestId) {
     throw new HttpError(500, "Ce budgétaire n'a pas de demande client associée — impossible de déterminer le contact du roulement.");
@@ -326,19 +375,7 @@ export async function convertBudgetToRolling(createdById: string, budgetId: stri
   const clientRequest = await prisma.clientRequest.findUnique({ where: { id: budget.clientRequestId }, select: { contactId: true } });
   if (!clientRequest) throw new HttpError(500, "Demande client introuvable pour ce budgétaire.");
 
-  const detail = await getBudgetDetail(budgetId);
-  const totalSale = detail.totals.totalSale;
-
-  // plannedHours/plannedPurchases figés depuis le budgétaire, même formule
-  // que convertBudgetToProject — mais JAMAIS backupHours/backupHoursCost/
-  // backupHourlyRate (voir en-tête de fichier : pas de taux back-up sur un
-  // roulement, restent à leur défaut du schéma).
-  const laborSections = detail.sections.filter((section) => section.kind === "labor");
-  const purchaseSections = detail.sections.filter((section) => section.kind === "purchase");
-  const plannedHours = laborSections.reduce((sum, section) => sum + section.hours, 0);
-  const plannedPurchases = purchaseSections.reduce((sum, section) => sum + section.baseCost, 0);
-  const totalBaseCost = detail.totals.totalBaseCost;
-  const targetMarginPct = totalSale > 0 ? Math.round(((totalSale - totalBaseCost) / totalSale) * 100 * 100) / 100 : 0;
+  const { totalSale, plannedHours, plannedPurchases, targetMarginPct } = await computeRollingFieldsFromBudget(budgetId);
 
   return prisma.$transaction(async (tx) => {
     const settings = await tx.settings.findFirst();

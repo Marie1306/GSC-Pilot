@@ -83,6 +83,8 @@ export interface NewClientRequestForBudget {
 export interface CreateBudgetInput {
   clientRequestId?: string;
   newClientRequest?: NewClientRequestForBudget;
+  /** Budgétaire construit après coup pour un roulement déjà créé directement (31 août 2026) — voir Budget.rollingId, schema.prisma. */
+  rollingId?: string;
 }
 
 /** Aperçu du prochain numéro — jamais incrémenté (voir /projects/next-number, même patron). */
@@ -122,6 +124,12 @@ export async function createBudget(createdById: string, input: CreateBudgetInput
     if (existingClientRequest.budgetId) throw new HttpError(400, "Cette demande a déjà un budgétaire.");
   }
 
+  if (input.rollingId) {
+    const rolling = await prisma.rolling.findUnique({ where: { id: input.rollingId }, select: { id: true, budgetId: true } });
+    if (!rolling) throw new HttpError(404, "Roulement introuvable.");
+    if (rolling.budgetId) throw new HttpError(400, "Ce roulement a déjà un budgétaire attaché.");
+  }
+
   const model = await prisma.budgetModel.findFirst({
     include: { sections: { include: { rows: { where: { active: true }, orderBy: { sortOrder: "asc" } } } } },
   });
@@ -141,6 +149,7 @@ export async function createBudget(createdById: string, input: CreateBudgetInput
       data: {
         displayId,
         clientRequestId,
+        rollingId: input.rollingId ?? null,
         createdById,
         status: "draft",
         backupHourlyRate: model.backupHourlyRate,
@@ -342,6 +351,9 @@ export interface BudgetDetailDto extends BudgetListItemDto {
   contractWonAt: string | null;
   /** true si déjà converti en projet ou en roulement — voir assertBudgetNotConverted côté serveur, seule source de vérité pour le blocage réel; ce champ sert seulement à désactiver l'édition côté interface (rapport de l'utilisatrice, 24 août 2026 : elle pouvait encore modifier un budgétaire déjà converti). */
   readOnly: boolean;
+  /** Roulement déjà existant pour lequel ce budgétaire a été construit après coup (31 août 2026) — null pour un budgétaire normal (demande client ou autonome). Voir Budget.rollingId, schema.prisma. */
+  rollingId: string | null;
+  rollingNumber: string | null;
   sections: BudgetSectionDto[];
   backup: BackupSummary;
   projectBackup: ProjectBackupSummary;
@@ -385,6 +397,15 @@ export async function getBudgetDetail(id: string): Promise<BudgetDetailDto> {
     ? await prisma.clientRequest.findUnique({ where: { id: budget.clientRequestId } })
     : null;
 
+  // Budget.rollingId (scalaire simple, comme clientRequestId ci-dessus) — le
+  // roulement déjà existant pour lequel ce budgétaire a été construit après
+  // coup, distinct de la relation gérée budget.rolling (celle-là suit le
+  // roulement RÉELLEMENT converti, posée seulement une fois "Lier au
+  // roulement" exécuté — voir convertBudgetToRolling, rollings/service.ts).
+  const rollingOrigin = budget.rollingId
+    ? await prisma.rolling.findUnique({ where: { id: budget.rollingId }, select: { rollingNumber: true } })
+    : null;
+
   const sections = budget.sections as SectionWithRows[];
   const sectionSummaries = sections.map(toSectionSummary);
   const backup = toBackupSummary(budget, sections);
@@ -421,6 +442,8 @@ export async function getBudgetDetail(id: string): Promise<BudgetDetailDto> {
     sentAt: budget.sentAt?.toISOString() ?? null,
     contractWonAt: budget.contractWonAt?.toISOString() ?? null,
     readOnly: !!(budget.project || budget.rolling),
+    rollingId: budget.rollingId,
+    rollingNumber: rollingOrigin?.rollingNumber ?? null,
     sections: sections
       .sort((a, b) => BUDGET_CATEGORIES.indexOf(a.category as BudgetCategoryValue) - BUDGET_CATEGORIES.indexOf(b.category as BudgetCategoryValue))
       .map((section) => ({

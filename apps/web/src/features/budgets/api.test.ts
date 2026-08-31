@@ -43,6 +43,8 @@ function budget(sections: BudgetSectionData[], totals: { totalHours: number; tot
     sentAt: null,
     contractWonAt: null,
     readOnly: false,
+    rollingId: null,
+    rollingNumber: null,
     notes: [],
     sections,
     backup: { hours: 0, baseCost: 0, sale: 0, pct: 10, complexity: 0, margin: 20, rate: 112 },
