@@ -54,6 +54,7 @@ import {
   type InvoicePlanEntryDto,
   type ProjectComparatifRow,
   type ApprovedTimeEntryDto,
+  type PostMortemCostRow,
 } from "../projects/service.js";
 import type { Budget, Rolling } from "../../generated/prisma/client.js";
 
@@ -629,9 +630,19 @@ export async function confirmRollingFulfillment(rollingId: string, note?: string
 
 export interface RollingPostMortemDto {
   id: string;
+  rollingNumber: string;
   contactName: string;
   company: string | null;
+  plannedHours: number;
+  actualHours: number;
+  comparatif: ProjectComparatifRow[];
   sold?: number;
+  plannedPurchases?: number;
+  actualPurchases?: number;
+  grossMargin?: number;
+  grossMarginPct?: number;
+  financialStatus?: FinancialStatus;
+  costBreakdown?: PostMortemCostRow[];
   postMortemDepassements: string | null;
   postMortemAmeliorations: string | null;
   postMortemRecommandation: string | null;
@@ -639,22 +650,57 @@ export interface RollingPostMortemDto {
 
 /**
  * Post-mortem (spec confirmée : « la livraison termine le roulement →
- * statut "Terminé" → apparaît au Post-mortem »). Volontairement SANS
- * comparatif/coût réel contrairement à getPostMortem (projects/service.ts)
- * — aucune donnée d'heures/achats n'existe pour un roulement, seul le
- * revenu est réel ici.
+ * statut "Terminé" → apparaît au Post-mortem »). Depuis le 1er septembre
+ * 2026 (demande de l'utilisatrice — même niveau de détail que le
+ * Post-mortem Projet), réutilise computeRollingFinancials tel quel (déjà
+ * utilisée par getRollingDetail, jamais recalculée différemment ici) :
+ * comparatif planifié/réel par catégorie + répartition des coûts. AUCUNE
+ * ligne back-up (contrairement à getPostMortem côté Projet) — pas de taux
+ * back-up sur un roulement, confirmé (voir en-tête de fichier).
  */
 export async function getRollingPostMortem(id: string, viewerPersona: Persona): Promise<RollingPostMortemDto> {
   const rolling = await prisma.rolling.findUnique({ where: { id }, include: { contact: { select: { name: true, company: true } } } });
   if (!rolling) throw new HttpError(404, "Roulement introuvable.");
+
+  const showFinancials = canSeeFinancialValues(viewerPersona);
+  const sold = Number(rolling.sold);
+  const plannedHours = Number(rolling.plannedHours);
+  const plannedPurchases = Number(rolling.plannedPurchases);
+  const { actualHours, actualLaborCost, purchasesActual, grossMargin, grossMarginPct, status, comparatif } = await computeRollingFinancials(
+    rolling.id,
+    sold,
+    rolling.budgetId,
+    showFinancials,
+  );
+
+  // Coût planifié de main-d'oeuvre = somme du comparatif (déjà calculé par
+  // section budgétaire) — jamais un deuxième calcul séparé qui pourrait
+  // diverger, même principe que getPostMortem (projects/service.ts).
+  const plannedLaborCost = round2(comparatif.reduce((sum, row) => sum + (row.plannedCost ?? 0), 0));
+
   return {
     id: rolling.id,
+    rollingNumber: rolling.rollingNumber,
     contactName: rolling.contact.name,
     company: rolling.contact.company,
+    plannedHours,
+    actualHours,
+    comparatif,
     postMortemDepassements: rolling.postMortemDepassements,
     postMortemAmeliorations: rolling.postMortemAmeliorations,
     postMortemRecommandation: rolling.postMortemRecommandation,
-    ...(canSeeFinancialValues(viewerPersona) && { sold: Number(rolling.sold) }),
+    ...(showFinancials && {
+      sold,
+      plannedPurchases,
+      actualPurchases: purchasesActual,
+      grossMargin,
+      grossMarginPct,
+      financialStatus: status,
+      costBreakdown: [
+        { label: "Main-d'oeuvre", planned: plannedLaborCost, actual: actualLaborCost },
+        { label: "Achats et frais", planned: plannedPurchases, actual: purchasesActual },
+      ],
+    }),
   };
 }
 

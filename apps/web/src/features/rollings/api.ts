@@ -5,13 +5,15 @@ export {
   requestInvoice,
   recordInvoice,
   recordInvoicePayment,
+  FINANCIAL_STATUS_LABELS,
   type InvoicePlanEntryDto,
   type RecordInvoiceInput,
   type FinancialStatus,
   type ProjectComparatifRow,
   type ApprovedTimeEntryDto,
+  type PostMortemCostRow,
 } from "../projects/api.js";
-import type { InvoicePlanEntryDto, FinancialStatus, ProjectComparatifRow, ApprovedTimeEntryDto } from "../projects/api.js";
+import type { InvoicePlanEntryDto, FinancialStatus, ProjectComparatifRow, ApprovedTimeEntryDto, PostMortemCostRow } from "../projects/api.js";
 
 export interface RollingListItemDto {
   id: string;
@@ -117,9 +119,19 @@ export function confirmRollingFulfillment(id: string, note?: string): Promise<vo
 
 export interface RollingPostMortemDto {
   id: string;
+  rollingNumber: string;
   contactName: string;
   company: string | null;
+  plannedHours: number;
+  actualHours: number;
+  comparatif: ProjectComparatifRow[];
   sold?: number;
+  plannedPurchases?: number;
+  actualPurchases?: number;
+  grossMargin?: number;
+  grossMarginPct?: number;
+  financialStatus?: FinancialStatus;
+  costBreakdown?: PostMortemCostRow[];
   postMortemDepassements: string | null;
   postMortemAmeliorations: string | null;
   postMortemRecommandation: string | null;
