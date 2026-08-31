@@ -156,7 +156,9 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
       <div className="modal" style={{ maxWidth: 720 }}>
         <div className="modal-header">
           <div>
-            <h2>{rolling.company ?? rolling.contactName}</h2>
+            <h2>
+              {rolling.rollingNumber} — {rolling.company ?? rolling.contactName}
+            </h2>
             <p className="modal-subtitle">Roulement créé le {formatDate(rolling.createdAt)}</p>
           </div>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Fermer">

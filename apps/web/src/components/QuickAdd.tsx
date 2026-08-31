@@ -58,9 +58,13 @@ interface QuickAddCard {
  * projects/service.ts et rollings/service.ts) — construire cette carte
  * suggérerait une action qui n'existe pas.
  *
- * Roulement n'a délibérément aucun numéro (RL-2026-0002 dans v19 est
- * fictif) — confirmé ailleurs dans le code : « Un roulement n'a pas de
- * nom/numéro distinct — identifié par le client. »
+ * Roulement a un rollingNumber (RL-AAAA-NNNN, ajouté le 28 août 2026 pour
+ * le Code QR — voir rollings/service.ts) mais reste sans aperçu "prochain
+ * numéro" ici : contrairement aux 4 autres, aucune route next-number n'a
+ * été demandée pour ce module — sub reste le texte statique confirmé
+ * initialement (« Un roulement n'a pas de nom/numéro distinct — identifié
+ * par le client », maintenant nuancé par l'ajout du rollingNumber, mais
+ * jamais revisité pour cette modale précise).
  */
 const CARDS: QuickAddCard[] = [
   { key: "client-request", icon: "📞", label: "Demande client", path: "/demandes?create=1", allow: canCreateClientRequest, nextNumber: "clientRequest" },

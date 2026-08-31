@@ -72,6 +72,7 @@ export function RollingsPage() {
             <table className="shortlist-table">
               <thead>
                 <tr>
+                  <th>Roulement</th>
                   <th>Client</th>
                   <th className="num">Revenu</th>
                   <th>Statut</th>
@@ -82,6 +83,7 @@ export function RollingsPage() {
               <tbody>
                 {rollings.map((rolling) => (
                   <tr key={rolling.id}>
+                    <td>{rolling.rollingNumber}</td>
                     <td>{rolling.company ?? rolling.contactName}</td>
                     <td className="num">{rolling.sold !== undefined ? formatCurrency(rolling.sold) : "—"}</td>
                     <td>
