@@ -1023,6 +1023,9 @@ model Delivery {
   status            String    @default("planned")
   signatureCaptured Boolean   @default(false)
   signatureImageUrl String?
+  // Déclaration + nom du signataire obligatoires à la capture (31 août 2026,
+  // sur demande de l'utilisatrice) — même patron que ServiceCall.signatureSignerName.
+  signatureSignerName String?
   conditionNote     String?
   kmTraveled        Decimal?  @db.Decimal(10, 2)
   completedAt       DateTime?

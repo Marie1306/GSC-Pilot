@@ -45,7 +45,7 @@ export function DeliveryDetail({ id, onClose }: DeliveryDetailProps) {
     onError: onMutationError,
   });
   const confirmMutation = useMutation({
-    mutationFn: (dataUrl: string) => confirmDelivery(id, dataUrl),
+    mutationFn: ({ dataUrl, signerName }: { dataUrl: string; signerName: string }) => confirmDelivery(id, dataUrl, signerName),
     onSuccess: () => {
       setSigning(false);
       invalidate();
@@ -175,12 +175,15 @@ export function DeliveryDetail({ id, onClose }: DeliveryDetailProps) {
           {delivery.signatureCaptured && delivery.signatureImageUrl ? (
             <div>
               <img src={delivery.signatureImageUrl} alt="Signature du client" className="signature-pad-preview" />
+              {delivery.signatureSignerName && (
+                <p style={{ margin: "6px 0 0", fontSize: 13, color: "var(--gsc-color-muted)" }}>Signé par {delivery.signatureSignerName}.</p>
+              )}
               {delivery.completedAt && (
-                <p style={{ margin: "6px 0 0", fontSize: 13, color: "var(--gsc-color-muted)" }}>Livré le {formatDate(delivery.completedAt)}.</p>
+                <p style={{ margin: "2px 0 0", fontSize: 13, color: "var(--gsc-color-muted)" }}>Livré le {formatDate(delivery.completedAt)}.</p>
               )}
             </div>
           ) : (
-            <button type="button" className="btn btn-secondary" onClick={() => setSigning(true)}>
+            <button type="button" className="btn" onClick={() => setSigning(true)}>
               Faire signer le client
             </button>
           )}
@@ -199,7 +202,7 @@ export function DeliveryDetail({ id, onClose }: DeliveryDetailProps) {
         <DeliverySignatureModal
           displayId={delivery.displayId}
           onClose={() => setSigning(false)}
-          onSave={(dataUrl) => confirmMutation.mutate(dataUrl)}
+          onSave={(dataUrl, signerName) => confirmMutation.mutate({ dataUrl, signerName })}
           saving={confirmMutation.isPending}
         />
       )}

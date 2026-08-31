@@ -85,6 +85,7 @@ export interface DeliveryDetailDto {
   driverEmployeeName: string | null;
   signatureCaptured: boolean;
   signatureImageUrl: string | null;
+  signatureSignerName: string | null;
   conditionNote: string | null;
   kmTraveled: number | null;
   completedAt: string | null;
@@ -110,6 +111,7 @@ export async function getDeliveryDetail(id: string): Promise<DeliveryDetailDto> 
     driverEmployeeName: driverEmployee?.name ?? null,
     signatureCaptured: delivery.signatureCaptured,
     signatureImageUrl: delivery.signatureImageUrl,
+    signatureSignerName: delivery.signatureSignerName,
     conditionNote: delivery.conditionNote,
     kmTraveled: delivery.kmTraveled !== null ? Number(delivery.kmTraveled) : null,
     completedAt: delivery.completedAt?.toISOString() ?? null,
@@ -142,17 +144,20 @@ export async function updateDelivery(id: string, patch: UpdateDeliveryInput): Pr
  * un roulement échouait toujours ici (delivery.projectId nul par
  * construction pour ce cas). La note de confirmation reprend le
  * conditionNote déjà saisi (updateDelivery), pas un champ séparé — même
- * donnée, jamais dupliquée.
+ * donnée, jamais dupliquée. Déclaration + nom du signataire obligatoires
+ * (31 août 2026, sur demande de l'utilisatrice) — même patron que
+ * captureServiceCallSignature.
  */
-export async function confirmDelivery(id: string, dataUrl: string): Promise<void> {
+export async function confirmDelivery(id: string, dataUrl: string, signerName: string): Promise<void> {
   const delivery = await loadDeliveryOrThrow(id);
   if (delivery.status === "completed") throw new HttpError(409, "Cette livraison est déjà confirmée.");
   if (!dataUrl?.startsWith("data:image/")) throw new HttpError(400, "Signature invalide.");
+  if (!signerName?.trim()) throw new HttpError(400, "Le nom du signataire est requis.");
   if (!delivery.projectId && !delivery.rollingId) throw new HttpError(400, "Aucun projet ou roulement lié à cette livraison — confirmation impossible.");
 
   const deliveryUpdate = prisma.delivery.update({
     where: { id },
-    data: { signatureCaptured: true, signatureImageUrl: dataUrl, status: "completed", completedAt: new Date() },
+    data: { signatureCaptured: true, signatureImageUrl: dataUrl, signatureSignerName: signerName.trim(), status: "completed", completedAt: new Date() },
   });
 
   if (delivery.projectId) {

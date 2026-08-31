@@ -40,3 +40,13 @@
 .delivery-contact-line {
   margin-top: 4px;
 }
+
+.delivery-signature-declaration {
+  background: var(--gsc-color-danger-soft);
+  color: var(--gsc-color-danger);
+  border-left: 3px solid var(--gsc-color-danger);
+  border-radius: var(--gsc-radius-base);
+  padding: 12px 14px;
+  margin: 0 0 16px;
+  font-size: 13px;
+}

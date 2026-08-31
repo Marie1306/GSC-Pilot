@@ -33,15 +33,15 @@ deliveriesRouter.patch("/deliveries/:id", requireAuth, requirePermission((person
   res.status(204).end();
 });
 
-const confirmSchema = z.object({ dataUrl: z.string().min(1) });
+const confirmSchema = z.object({ dataUrl: z.string().min(1), signerName: z.string().min(1) });
 deliveriesRouter.post(
   "/deliveries/:id/confirm",
   requireAuth,
   requirePermission((persona) => canAccessDeliveries(persona)),
   async (req, res) => {
     const id = z.uuid().parse(req.params.id);
-    const { dataUrl } = confirmSchema.parse(req.body);
-    await confirmDelivery(id, dataUrl);
+    const { dataUrl, signerName } = confirmSchema.parse(req.body);
+    await confirmDelivery(id, dataUrl, signerName);
     res.status(204).end();
   },
 );

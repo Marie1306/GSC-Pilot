@@ -29,6 +29,7 @@ export interface DeliveryDetailDto {
   driverEmployeeName: string | null;
   signatureCaptured: boolean;
   signatureImageUrl: string | null;
+  signatureSignerName: string | null;
   conditionNote: string | null;
   kmTraveled: number | null;
   completedAt: string | null;
@@ -50,6 +51,6 @@ export function updateDelivery(id: string, patch: UpdateDeliveryInput): Promise<
   return apiFetch(`/api/deliveries/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
 }
 
-export function confirmDelivery(id: string, dataUrl: string): Promise<void> {
-  return apiFetch(`/api/deliveries/${id}/confirm`, { method: "POST", body: JSON.stringify({ dataUrl }) });
+export function confirmDelivery(id: string, dataUrl: string, signerName: string): Promise<void> {
+  return apiFetch(`/api/deliveries/${id}/confirm`, { method: "POST", body: JSON.stringify({ dataUrl, signerName }) });
 }
