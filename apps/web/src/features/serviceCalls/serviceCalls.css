@@ -94,6 +94,14 @@
   font-size: 13px;
   font-weight: 400;
 }
+/* Case à cocher plus petite et rouge (rapporté 31 août 2026) — même
+   traitement que .checklist-grid (checklists/checklist.css), pas la
+   couleur bleue par défaut du navigateur. */
+.service-call-employee-checklist input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--gsc-color-brand);
+}
 
 .service-call-btn-small {
   font-size: 12px;
