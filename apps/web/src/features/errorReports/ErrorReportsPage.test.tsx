@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ROLES } from "@gsc-pilot/business-rules";
 import type { Employee } from "@gsc-pilot/shared";
@@ -60,11 +61,13 @@ function renderPage() {
     signOut: async () => {},
   };
   return render(
-    <AuthContext.Provider value={authValue}>
-      <QueryClientProvider client={queryClient}>
-        <ErrorReportsPage />
-      </QueryClientProvider>
-    </AuthContext.Provider>,
+    <MemoryRouter>
+      <AuthContext.Provider value={authValue}>
+        <QueryClientProvider client={queryClient}>
+          <ErrorReportsPage />
+        </QueryClientProvider>
+      </AuthContext.Provider>
+    </MemoryRouter>,
   );
 }
 

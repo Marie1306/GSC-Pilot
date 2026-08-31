@@ -13,26 +13,44 @@ import "./budgets.css";
  * budgétaire" depuis le menu Options d'une demande client (18 août 2026)
  * navigue vers /budgetaire?newFromRequest=<id> — ouvre le formulaire avec
  * cette demande déjà présélectionnée plutôt que de la faire rechercher dans
- * la liste déroulante. */
+ * la liste déroulante. "Budgétaire" depuis Ajouter rapidement (31 août
+ * 2026) navigue vers /budgetaire?create=1 — sans demande présélectionnée.
+ * Les deux derniers sont dérivés de searchParams à chaque rendu (jamais un
+ * état capturé une seule fois au montage) — voir ClientRequestsPage.tsx
+ * pour l'explication du patron. */
 export function BudgetsPage() {
   const { employee } = useAuth();
-  const [searchParams] = useSearchParams();
-  const [newFromRequestId] = useState<string | null>(() => searchParams.get("newFromRequest"));
-  const [showForm, setShowForm] = useState(() => !!newFromRequestId);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const newFromRequestId = searchParams.get("newFromRequest");
+  const [localShowForm, setLocalShowForm] = useState(false);
+  const showForm = localShowForm || searchParams.get("create") === "1" || !!newFromRequestId;
   const [openId, setOpenId] = useState<string | null>(() => searchParams.get("open"));
+
+  function closeForm() {
+    setLocalShowForm(false);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("create");
+        next.delete("newFromRequest");
+        return next;
+      },
+      { replace: true },
+    );
+  }
 
   if (!employee) return null;
 
   return (
     <div>
-      <BudgetList onOpen={setOpenId} onCreate={() => setShowForm(true)} canCreate={canCreateBudgetFromRequest(employee.persona)} />
+      <BudgetList onOpen={setOpenId} onCreate={() => setLocalShowForm(true)} canCreate={canCreateBudgetFromRequest(employee.persona)} />
 
       {showForm && (
         <BudgetForm
           initialRequestId={newFromRequestId ?? undefined}
-          onClose={() => setShowForm(false)}
+          onClose={closeForm}
           onCreated={(id) => {
-            setShowForm(false);
+            closeForm();
             setOpenId(id);
           }}
         />

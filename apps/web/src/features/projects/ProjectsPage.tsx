@@ -4,21 +4,37 @@ import { ProjectList } from "./ProjectList.js";
 import { ProjectDetail } from "./ProjectDetail.js";
 import { ProjectForm } from "./ProjectForm.js";
 
-/** ?open=<id> lu une seule fois au montage (23 août 2026, même patron que Budgétaire/Demandes clients) — utilisé par le Scan QR pour Direction/Administration/Propriétaire. */
+/** ?open=<id> lu une seule fois au montage (23 août 2026, même patron que Budgétaire/Demandes clients) — utilisé par le Scan QR pour Direction/Administration/Propriétaire.
+ * ?create=1 (31 août 2026, Ajouter rapidement) dérivé de searchParams à
+ * chaque rendu — voir ClientRequestsPage.tsx pour l'explication du même
+ * patron (remontage impossible si on est déjà sur /projets). */
 export function ProjectsPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [openId, setOpenId] = useState<string | null>(() => searchParams.get("open"));
-  const [creating, setCreating] = useState(false);
+  const [localCreating, setLocalCreating] = useState(false);
+  const creating = localCreating || searchParams.get("create") === "1";
+
+  function closeForm() {
+    setLocalCreating(false);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("create");
+        return next;
+      },
+      { replace: true },
+    );
+  }
 
   return (
     <div>
-      <ProjectList onOpen={setOpenId} onCreate={() => setCreating(true)} />
+      <ProjectList onOpen={setOpenId} onCreate={() => setLocalCreating(true)} />
       {openId && <ProjectDetail id={openId} onClose={() => setOpenId(null)} />}
       {creating && (
         <ProjectForm
-          onClose={() => setCreating(false)}
+          onClose={closeForm}
           onCreated={(id) => {
-            setCreating(false);
+            closeForm();
             setOpenId(id);
           }}
         />

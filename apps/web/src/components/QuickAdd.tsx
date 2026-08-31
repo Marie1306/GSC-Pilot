@@ -35,9 +35,22 @@ interface QuickAddCard {
  * après comparaison avec v19 : « le bouton + visible de chacune des pages…
  * adapté selon les modules visibles pour chacun »). Chaque carte réutilise
  * la permission réelle qui gouverne déjà la route de création correspondante
- * — jamais une nouvelle règle inventée pour cette modale. Navigue vers la
- * page du module (pas d'ouverture automatique du formulaire pour l'instant
- * — chaque page a déjà son propre bouton "+ Nouveau").
+ * — jamais une nouvelle règle inventée pour cette modale.
+ *
+ * Mise à jour du 31 août 2026 (demande explicite de l'utilisatrice : cliquer
+ * une carte doit ouvrir directement la fenêtre contextuelle de création, pas
+ * seulement atterrir sur la liste du module en laissant l'usager cliquer un
+ * deuxième "+ Nouveau") : chaque carte "création d'un dossier" navigue avec
+ * ?create=1, un signal que la page de destination lit pour ouvrir tout de
+ * suite le même formulaire modal que son propre bouton "+ Nouveau" (même
+ * mécanisme que ?compose=note ci-dessous, déjà en place). Punch/Entrée
+ * manuelle distinguent plutôt laquelle des deux modales de TimePunchPage
+ * ouvrir via ?quickadd=punch|manual, puisque les deux partagent la page /temps.
+ *
+ * Scanner un projet et Demande d'achat restent de simples navigations : la
+ * première ouvre déjà directement la caméra, la seconde affiche déjà son
+ * formulaire en premier sur la page — aucune fenêtre contextuelle à
+ * déclencher en plus (confirmé avec l'utilisatrice).
  *
  * Livraison délibérément absente malgré v19 (BL-2026-0002) : aucune création
  * manuelle n'existe dans le vrai système — un bon de livraison est TOUJOURS
@@ -50,23 +63,18 @@ interface QuickAddCard {
  * nom/numéro distinct — identifié par le client. »
  */
 const CARDS: QuickAddCard[] = [
-  { key: "client-request", icon: "📞", label: "Demande client", path: "/demandes", allow: canCreateClientRequest, nextNumber: "clientRequest" },
-  { key: "budget", icon: "🧮", label: "Budgétaire", path: "/budgetaire", allow: canCreateBudgetFromRequest, nextNumber: "budget" },
-  { key: "project", icon: "📁", label: "Projet", path: "/projets", allow: canCreateProjectDirectly, nextNumber: "project" },
-  { key: "service-call", icon: "🔧", label: "Appel de service", path: "/appels-service", allow: canCreateServiceCall, nextNumber: "serviceCall" },
-  { key: "rolling", icon: "🔁", label: "Roulement", path: "/roulements", allow: canCreateRollingDirectly, sub: "Identifié par le client" },
-  { key: "punch", icon: "▶️", label: "Punch", path: "/temps", allow: () => true, sub: "Débuter une tâche" },
-  { key: "manual-entry", icon: "🕒", label: "Entrée manuelle", path: "/temps", allow: () => true, sub: "Plusieurs tâches" },
+  { key: "client-request", icon: "📞", label: "Demande client", path: "/demandes?create=1", allow: canCreateClientRequest, nextNumber: "clientRequest" },
+  { key: "budget", icon: "🧮", label: "Budgétaire", path: "/budgetaire?create=1", allow: canCreateBudgetFromRequest, nextNumber: "budget" },
+  { key: "project", icon: "📁", label: "Projet", path: "/projets?create=1", allow: canCreateProjectDirectly, nextNumber: "project" },
+  { key: "service-call", icon: "🔧", label: "Appel de service", path: "/appels-service?create=1", allow: canCreateServiceCall, nextNumber: "serviceCall" },
+  { key: "rolling", icon: "🔁", label: "Roulement", path: "/roulements?create=1", allow: canCreateRollingDirectly, sub: "Identifié par le client" },
+  { key: "punch", icon: "▶️", label: "Punch", path: "/temps?quickadd=punch", allow: () => true, sub: "Débuter une tâche" },
+  { key: "manual-entry", icon: "🕒", label: "Entrée manuelle", path: "/temps?quickadd=manual", allow: () => true, sub: "Plusieurs tâches" },
   { key: "qr-scan", icon: "⬜", label: "Scanner un projet", path: "/scan", allow: () => true, sub: "Accès direct ou punch" },
   { key: "purchase", icon: "🛒", label: "Demande d'achat", path: "/achats", allow: () => true, sub: "Soumettre" },
-  { key: "error-report", icon: "⚠️", label: "Rapport d'erreur", path: "/rapports-erreurs", allow: canAccessErrorReports, sub: "Nouveau rapport" },
-  // Seule carte qui ouvre une modale au lieu de la page de son module (29
-  // août 2026, demande explicite de l'utilisatrice : « une fenêtre
-  // contextuelle ouvre » directement) — Notes n'a pas de page dédiée, ?compose=note
-  // déclenche l'ouverture depuis ActionCenterPage.tsx (même patron que
-  // ?open=id ailleurs), QuickAdd garde son invariant "toujours naviguer".
+  { key: "error-report", icon: "⚠️", label: "Rapport d'erreur", path: "/rapports-erreurs?create=1", allow: canAccessErrorReports, sub: "Nouveau rapport" },
   { key: "send-note", icon: "✉️", label: "Envoyer une note", path: "/centre-actions?compose=note", allow: () => true, sub: "Note interne" },
-  { key: "contact", icon: "👥", label: "Contact", path: "/contacts", allow: canAccessOverviewViews, sub: "Client ou fournisseur" },
+  { key: "contact", icon: "👥", label: "Contact", path: "/contacts?create=1", allow: canAccessOverviewViews, sub: "Client ou fournisseur" },
 ];
 
 interface QuickAddProps {

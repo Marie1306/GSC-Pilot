@@ -1,13 +1,11 @@
 import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { canCreateRollingDirectly, canCreateBudgetFromRequest } from "@gsc-pilot/business-rules";
+import { useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { canCreateRollingDirectly } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
-import { ApiError } from "../../lib/apiClient.js";
-import { ContactSearchField } from "../contacts/ContactAutocomplete.js";
-import type { ContactListItemDto } from "../contacts/api.js";
-import { fetchRollings, createRollingDirect, formatCurrency } from "./api.js";
+import { fetchRollings, formatCurrency } from "./api.js";
 import { RollingDetail } from "./RollingDetail.js";
+import { RollingForm } from "./RollingForm.js";
 import "./rollings.css";
 
 const STATUS_LABELS: Record<string, string> = { active: "Actif", ready_invoice: "Terminé" };
@@ -23,134 +21,44 @@ function formatDate(iso: string): string {
  * Direction et Propriétaire seulement (canCreateRollingDirectly).
  * Administration garde l'accès à la page pour gérer les roulements déjà
  * créés, sans le bouton de création (spec confirmée le 9 août 2026).
+ *
+ * Création en fenêtre contextuelle (31 août 2026, demande explicite de
+ * l'utilisatrice — auparavant une section intégrée à la page) — voir
+ * RollingForm.tsx. ?create=1 (Ajouter rapidement) dérivé de searchParams à
+ * chaque rendu — voir ClientRequestsPage.tsx pour l'explication du patron.
  */
 export function RollingsPage() {
   const { employee } = useAuth();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const rollingsQuery = useQuery({ queryKey: ["rollings"], queryFn: fetchRollings });
   // ?open=<id> lu une seule fois au montage (même patron que ProjectsPage) — utilisé par Scan QR.
   const [openId, setOpenId] = useState<string | null>(() => searchParams.get("open"));
-  const [showForm, setShowForm] = useState(false);
-  const [contactName, setContactName] = useState("");
-  const [company, setCompany] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [localShowForm, setLocalShowForm] = useState(false);
+  const showForm = localShowForm || searchParams.get("create") === "1";
 
-  const createMutation = useMutation({
-    mutationFn: () =>
-      createRollingDirect({
-        contactName: contactName.trim(),
-        company: company.trim() || undefined,
-        phone: phone.trim() || undefined,
-        email: email.trim() || undefined,
-      }),
-    onSuccess: ({ rolling }) => {
-      setShowForm(false);
-      setContactName("");
-      setCompany("");
-      setPhone("");
-      setEmail("");
-      setError(null);
-      void queryClient.invalidateQueries({ queryKey: ["rollings"] });
-      setOpenId(rolling.id);
-    },
-    onError: (err: unknown) => setError(err instanceof ApiError ? err.message : "Une erreur est survenue — réessayez."),
-  });
-
-  // Remplissage automatique depuis le carnet de contacts (rapporté manquant
-  // par l'utilisatrice le 29 août 2026 — présent partout ailleurs :
-  // ClientRequestForm/BudgetForm/ProjectForm/ServiceCallForm — jamais
-  // branché ici lors de la création de ce formulaire). Même mécanisme : une
-  // suggestion sélectionnée remplit aussi les autres champs.
-  function applyContact(contact: ContactListItemDto) {
-    setContactName(contact.name);
-    setCompany(contact.company ?? "");
-    setPhone(contact.phone ?? "");
-    setEmail(contact.email ?? "");
+  function closeForm() {
+    setLocalShowForm(false);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("create");
+        return next;
+      },
+      { replace: true },
+    );
   }
 
   if (!employee) return null;
   const canCreate = canCreateRollingDirectly(employee.persona);
-  const canCreateBudget = canCreateBudgetFromRequest(employee.persona);
   const rollings = rollingsQuery.data?.rollings ?? [];
 
   return (
     <div>
-      {showForm && canCreate && (
-        <div className="card">
-          <h3 style={{ marginTop: 0, fontSize: 15 }}>Nouveau roulement</h3>
-
-          {canCreateBudget && (
-            <div style={{ margin: "0 0 14px" }}>
-              <p style={{ margin: "0 0 8px", color: "var(--gsc-color-muted)", fontSize: 13 }}>
-                Pour un roulement chiffré à l'avance (heures, achats, prix de vente), construisez plutôt un budgétaire —
-                il deviendra ce roulement via « Convertir en roulement » une fois le contrat obtenu.
-              </p>
-              <button type="button" className="btn btn-secondary btn-small" onClick={() => navigate("/budgetaire")}>
-                🧮 Construire un budgétaire à la place
-              </button>
-              <p style={{ margin: "14px 0 0", color: "var(--gsc-color-muted)", fontSize: 13, fontWeight: 600 }}>
-                — ou créez directement, sans budgétaire —
-              </p>
-            </div>
-          )}
-
-          <p style={{ margin: "0 0 10px", color: "var(--gsc-color-muted)", fontSize: 13 }}>
-            Création directe : heures/achats/prix restent à zéro tant qu'ils ne sont pas saisis manuellement.
-          </p>
-          <form
-            className="form-grid"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!contactName.trim()) return;
-              createMutation.mutate();
-            }}
-          >
-            <ContactSearchField
-              id="rl-contactName"
-              label="Nom du contact"
-              field="name"
-              value={contactName}
-              onChange={setContactName}
-              onSelect={applyContact}
-            />
-            <ContactSearchField
-              id="rl-company"
-              label="Entreprise (facultatif)"
-              field="company"
-              value={company}
-              onChange={setCompany}
-              onSelect={applyContact}
-            />
-            <div className="field">
-              <label>Téléphone (facultatif)</label>
-              <input value={phone} onChange={(e) => setPhone(e.target.value)} />
-            </div>
-            <div className="field">
-              <label>Courriel (facultatif)</label>
-              <input value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-            <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button type="submit" className="btn btn-small" disabled={!contactName.trim() || createMutation.isPending}>
-                {createMutation.isPending ? "Création…" : "Créer"}
-              </button>
-              <button type="button" className="btn btn-secondary btn-small" onClick={() => setShowForm(false)}>
-                Annuler
-              </button>
-            </div>
-          </form>
-          {error && <p className="form-error">{error}</p>}
-        </div>
-      )}
-
-      <div className="card" style={{ marginTop: showForm && canCreate ? 20 : 0 }}>
+      <div className="card">
         <div className="card-band-header">
           <h3>Roulements</h3>
-          {canCreate && !showForm && (
-            <button type="button" className="btn btn-small" onClick={() => setShowForm(true)}>
+          {canCreate && (
+            <button type="button" className="btn btn-small" onClick={() => setLocalShowForm(true)}>
               + Créer un roulement
             </button>
           )}
@@ -195,6 +103,16 @@ export function RollingsPage() {
         )}
       </div>
 
+      {showForm && canCreate && (
+        <RollingForm
+          persona={employee.persona}
+          onClose={closeForm}
+          onCreated={(id) => {
+            closeForm();
+            setOpenId(id);
+          }}
+        />
+      )}
       {openId && <RollingDetail id={openId} onClose={() => setOpenId(null)} />}
     </div>
   );

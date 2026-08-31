@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { canDeleteErrorReport } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
@@ -23,10 +24,26 @@ const MONTH_LABELS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Ju
  */
 export function ErrorReportsPage() {
   const { employee } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [month, setMonth] = useState<number | undefined>(undefined);
   const [year, setYear] = useState<number | undefined>(undefined);
-  const [showCreate, setShowCreate] = useState(false);
+  const [localShowCreate, setLocalShowCreate] = useState(false);
+  // ?create=1 (31 août 2026, Ajouter rapidement) dérivé de searchParams à
+  // chaque rendu — voir ClientRequestsPage.tsx pour l'explication du patron.
+  const showCreate = localShowCreate || searchParams.get("create") === "1";
   const [openEmployeeId, setOpenEmployeeId] = useState<string | null>(null);
+
+  function closeForm() {
+    setLocalShowCreate(false);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("create");
+        return next;
+      },
+      { replace: true },
+    );
+  }
 
   const byEmployeeQuery = useQuery({
     queryKey: ["error-reports", "by-employee", month, year],
@@ -47,7 +64,7 @@ export function ErrorReportsPage() {
             <h3>Rapports d'erreurs</h3>
             <p className="modal-subtitle">Groupé par employé — ouvrez une ligne pour voir le détail de ses rapports.</p>
           </div>
-          <button type="button" className="btn btn-small" onClick={() => setShowCreate(true)}>
+          <button type="button" className="btn btn-small" onClick={() => setLocalShowCreate(true)}>
             + Nouveau rapport d'erreur
           </button>
         </div>
@@ -112,7 +129,7 @@ export function ErrorReportsPage() {
         )}
       </div>
 
-      {showCreate && <ErrorReportForm onClose={() => setShowCreate(false)} />}
+      {showCreate && <ErrorReportForm onClose={closeForm} />}
       {openEmployeeId && openEmployee && (
         <ErrorReportEmployeeDetail
           employeeId={openEmployeeId}

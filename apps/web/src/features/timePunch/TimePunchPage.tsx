@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { canApprovePunch, canEditOwnPunch, canPunchForOtherEmployee, canDeleteTimeEntry } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
@@ -117,6 +118,7 @@ function TimerHero({
  */
 export function TimePunchPage() {
   const { employee } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const online = useOnlineStatus();
   const { localActive, pendingStopIds } = useLocalTimer();
@@ -125,11 +127,42 @@ export function TimePunchPage() {
   const myEntriesQuery = useQuery({ queryKey: ["time-entries", "mine"], queryFn: fetchMyTimeEntries });
   const allEntriesQuery = useQuery({ queryKey: ["time-entries", "all"], queryFn: fetchAllTimeEntries, enabled: isDirection });
 
-  const [startOpen, setStartOpen] = useState(false);
-  const [manualOpen, setManualOpen] = useState(false);
+  const [localStartOpen, setLocalStartOpen] = useState(false);
+  const [localManualOpen, setLocalManualOpen] = useState(false);
+  // Punch / Entrée manuelle depuis Ajouter rapidement (31 août 2026) —
+  // ?quickadd=punch|manual dérivé de searchParams à chaque rendu (jamais un
+  // état capturé une seule fois au montage) — voir ClientRequestsPage.tsx
+  // pour l'explication du patron. Les deux cartes partagent /temps, d'où le
+  // paramètre à deux valeurs plutôt que deux clés booléennes distinctes.
+  const quickadd = searchParams.get("quickadd");
+  const startOpen = localStartOpen || quickadd === "punch";
+  const manualOpen = localManualOpen || quickadd === "manual";
   const [editingEntry, setEditingEntry] = useState<TimeEntryDto | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [stoppingLocal, setStoppingLocal] = useState(false);
+
+  function closeStart() {
+    setLocalStartOpen(false);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("quickadd");
+        return next;
+      },
+      { replace: true },
+    );
+  }
+  function closeManual() {
+    setLocalManualOpen(false);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("quickadd");
+        return next;
+      },
+      { replace: true },
+    );
+  }
 
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: ["time-entries"] });
   const stopMutation = useMutation({ mutationFn: stopTimer, onSuccess: invalidate });
@@ -204,8 +237,8 @@ export function TimePunchPage() {
       <div className="grid grid-3">
         <TimerHero
           activeEntry={displayActive}
-          onStart={() => setStartOpen(true)}
-          onManual={() => setManualOpen(true)}
+          onStart={() => setLocalStartOpen(true)}
+          onManual={() => setLocalManualOpen(true)}
           onStop={() => void handleStop()}
           stopping={stopMutation.isPending || stoppingLocal}
         />
@@ -327,8 +360,8 @@ export function TimePunchPage() {
         </div>
       </section>
 
-      {startOpen && <StartTaskModal onClose={() => setStartOpen(false)} />}
-      {manualOpen && <ManualEntryModal onClose={() => setManualOpen(false)} />}
+      {startOpen && <StartTaskModal onClose={closeStart} />}
+      {manualOpen && <ManualEntryModal onClose={closeManual} />}
       {editingEntry && <ManualEntryModal entry={editingEntry} onClose={() => setEditingEntry(null)} />}
     </div>
   );
