@@ -188,7 +188,7 @@ function toDto(entry: TimeEntryWithRelations, viewerPersona: Persona): TimeEntry
     projectId: entry.projectId,
     projectLabel: entry.project ? `${entry.project.projectNumber} — ${entry.project.name}` : null,
     rollingId: entry.rollingId,
-    rollingLabel: entry.rolling ? (entry.rolling.contact.company ?? entry.rolling.contact.name) : null,
+    rollingLabel: entry.rolling ? `${entry.rolling.rollingNumber} — ${entry.rolling.contact.company ?? entry.rolling.contact.name}` : null,
     serviceCallId: entry.serviceCallId,
     category: entry.category,
     categoryLabel: categoryLabel(entry.category),
@@ -531,7 +531,7 @@ export interface RollingOptionDto {
   rollingNumber: string;
 }
 
-/** Étiquette = company ?? contactName (même convention que partout ailleurs) ; rollingNumber (RL-AAAA-NNNN, depuis le 28 août 2026) sert à la résolution Scan QR. */
+/** Étiquette = rollingNumber — company ?? contactName (31 août 2026, demande de l'utilisatrice — le sélecteur de punch n'affichait que le nom du client, jamais le numéro, contrairement aux autres écrans du roulement). */
 export async function listRollingOptions(): Promise<RollingOptionDto[]> {
   const rows = await prisma.rolling.findMany({
     // archivedAt/deletedAt ajoutés le 28 août 2026 (après ce filtre) — un
@@ -541,7 +541,7 @@ export async function listRollingOptions(): Promise<RollingOptionDto[]> {
     select: { id: true, rollingNumber: true, contact: { select: { name: true, company: true } } },
     orderBy: { createdAt: "desc" },
   });
-  return rows.map((row) => ({ id: row.id, label: row.contact.company ?? row.contact.name, rollingNumber: row.rollingNumber }));
+  return rows.map((row) => ({ id: row.id, label: `${row.rollingNumber} — ${row.contact.company ?? row.contact.name}`, rollingNumber: row.rollingNumber }));
 }
 
 export interface PunchableEmployeeDto {
