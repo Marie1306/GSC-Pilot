@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, createMemoryRouter, RouterProvider } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ROLES } from "@gsc-pilot/business-rules";
 import type { Employee } from "@gsc-pilot/shared";
@@ -107,5 +107,47 @@ describe("ActionCenterPage — Notes reçues (accessible à tous les rôles)", (
     await waitFor(() => expect(read).toBe(true));
     await waitFor(() => expect(screen.queryByRole("button", { name: "✓ Reçu" })).not.toBeInTheDocument());
     expect(screen.getByText("Afficher toutes les notes")).toBeInTheDocument();
+  });
+
+  /**
+   * Rapporté le 31 août 2026 : « parfois la fenêtre contextuelle n'ouvre
+   * pas » en cliquant "Envoyer une note" dans Ajouter rapidement. Cause
+   * confirmée : ce bouton est accessible depuis N'IMPORTE QUELLE page — en
+   * cliquant dessus alors qu'on est DÉJÀ sur Centre d'actions, React Router
+   * ne démonte jamais ce composant (même route), donc un useState(() =>
+   * searchParams.get("compose")) qui ne s'évalue qu'au montage ne se
+   * redéclenche jamais. Reproduit ici avec createMemoryRouter : on démarre
+   * SANS ?compose=note (déjà sur Centre d'actions), puis on navigue vers la
+   * même route AVEC ?compose=note (exactement ce que fait QuickAdd.tsx) —
+   * la modale doit s'ouvrir.
+   */
+  it("ouvre la modale d'envoi même en renaviguant vers Centre d'actions depuis Centre d'actions lui-même", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const authValue: AuthContextValue = {
+      session: null,
+      employee: employe,
+      loading: false,
+      error: null,
+      signIn: async () => ({ error: null }),
+      signOut: async () => {},
+    };
+    const router = createMemoryRouter([{ path: "/centre-actions", element: <ActionCenterPage /> }], {
+      initialEntries: ["/centre-actions"],
+    });
+    render(
+      <AuthContext.Provider value={authValue}>
+        <QueryClientProvider client={queryClient}>
+          <RouterProvider router={router} />
+        </QueryClientProvider>
+      </AuthContext.Provider>,
+    );
+
+    await screen.findByText("Bien joué");
+    expect(screen.queryByText("✉️ Envoyer une note")).not.toBeInTheDocument();
+
+    // Même navigation que QuickAdd.tsx : navigate("/centre-actions?compose=note").
+    router.navigate("/centre-actions?compose=note");
+
+    await waitFor(() => expect(screen.getByText("✉️ Envoyer une note")).toBeInTheDocument());
   });
 });

@@ -90,7 +90,7 @@ function AllArchivedNotesModal({ onClose }: { onClose: () => void }) {
 export function ActionCenterPage() {
   const { employee } = useAuth();
   const queryClient = useQueryClient();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   // Les 8 catégories existantes restent Direction/Administration/Propriétaire
   // (canAccessOverviewViews) — sans ce enabled, Employé/Magasinier (qui
   // atteignent maintenant la page, voir nav.ts canAccessActionCenter)
@@ -111,7 +111,29 @@ export function ActionCenterPage() {
   const notesQuery = useQuery({ queryKey: ["team-notes", "inbox"], queryFn: fetchTeamNotesInbox });
   const activeNotes = notesQuery.data?.active ?? [];
   const recentArchivedNotes = notesQuery.data?.recentArchived ?? [];
-  const [composeOpen, setComposeOpen] = useState(() => searchParams.get("compose") === "note");
+  // Dérivé de l'URL à chaque rendu (pas un useState/useEffect séparé) —
+  // Ajouter rapidement est un bouton global, accessible depuis N'IMPORTE
+  // QUELLE page, y compris Centre d'actions lui-même. Cliquer "Envoyer une
+  // note" alors qu'on y est déjà navigue vers la MÊME route : React Router
+  // ne démonte jamais ce composant, donc un état initialisé une seule fois
+  // au montage ne se redéclencherait jamais (bogue réel rapporté par
+  // l'utilisatrice le 31 août 2026 : "parfois la fenêtre ne s'ouvre pas",
+  // seulement depuis cette page). En dérivant directement de searchParams,
+  // chaque navigation vers ?compose=note (même vers la page déjà montée)
+  // rouvre fiablement la modale. Fermer retire le paramètre (replace, pas
+  // d'entrée d'historique) — un clic ultérieur sur la même carte redevient
+  // alors une valeur différente de l'URL courante, donc se redéclenche.
+  const composeOpen = searchParams.get("compose") === "note";
+  function closeCompose() {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("compose");
+        return next;
+      },
+      { replace: true },
+    );
+  }
   const [showAllArchived, setShowAllArchived] = useState(false);
   const markReadMutation = useMutation({
     mutationFn: markTeamNoteRead,
@@ -233,7 +255,7 @@ export function ActionCenterPage() {
       {openItem?.type === "invoicing" && <InvoiceActionDrawer id={openItem.id} onClose={() => setOpenItem(null)} />}
       {openItem?.type === "hours_approval" && <TimeEntryActionDrawer id={openItem.id} onClose={() => setOpenItem(null)} />}
 
-      {composeOpen && <SendNoteModal onClose={() => setComposeOpen(false)} />}
+      {composeOpen && <SendNoteModal onClose={closeCompose} />}
       {showAllArchived && <AllArchivedNotesModal onClose={() => setShowAllArchived(false)} />}
     </div>
   );
