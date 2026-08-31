@@ -373,24 +373,44 @@ export interface NewRollingContactInput {
 }
 
 /**
- * Création directe (hors budgétaire/demande client) — Direction et
- * Propriétaire seulement (canCreateRollingDirectly, roles.ts). Pas de champ
- * "nom" : contrairement à Project, Rolling n'a pas de displayId basé sur un
- * nom — identifié par son contact, mais porte depuis le 28 août 2026 un
- * numéro d'affichage RL-AAAA-NNNN (même patron que CS-AAAA-NNNN) pour le
- * Code QR et Scan QR.
+ * Conversion directe d'une demande client en roulement (31 août 2026,
+ * demande explicite de l'utilisatrice) — même mécanique que Budget/
+ * ServiceCall↔ClientRequest : validée AVANT la transaction, puis
+ * ClientRequest.status posé à "converted" DANS la même transaction que la
+ * création du roulement. Contrairement à budgetId/serviceCallId (colonnes
+ * directes sur ClientRequest), la relation gérée vit sur
+ * Rolling.clientRequestId (@unique) — voir schema.prisma.
  */
-export async function createRollingDirect(createdById: string, newContact: NewRollingContactInput): Promise<Rolling> {
+async function assertClientRequestConvertibleToRolling(clientRequestId: string): Promise<void> {
+  const request = await prisma.clientRequest.findUnique({ where: { id: clientRequestId }, select: { id: true } });
+  if (!request) throw new HttpError(404, "Demande client introuvable.");
+  const existing = await prisma.rolling.findUnique({ where: { clientRequestId }, select: { id: true } });
+  if (existing) throw new HttpError(400, "Cette demande a déjà un roulement.");
+}
+
+/**
+ * Création directe (hors budgétaire, avec ou sans demande client) —
+ * Direction et Propriétaire seulement (canCreateRollingDirectly, roles.ts).
+ * Pas de champ "nom" : contrairement à Project, Rolling n'a pas de
+ * displayId basé sur un nom — identifié par son contact, mais porte depuis
+ * le 28 août 2026 un numéro d'affichage RL-AAAA-NNNN (même patron que
+ * CS-AAAA-NNNN) pour le Code QR et Scan QR.
+ */
+export async function createRollingDirect(createdById: string, newContact: NewRollingContactInput, clientRequestId?: string): Promise<Rolling> {
   if (!newContact.contactName?.trim()) throw new HttpError(400, "Le nom du contact est requis.");
+  if (clientRequestId) await assertClientRequestConvertibleToRolling(clientRequestId);
   const contact = await ensureContactRow({ ...newContact, requestType: "rolling" });
   return prisma.$transaction(async (tx) => {
     const settings = await tx.settings.findFirst();
     if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
     const rollingNumber = `RL-${new Date().getFullYear()}-${String(settings.nextRollingNumber).padStart(4, "0")}`;
     const rolling = await tx.rolling.create({
-      data: { rollingNumber, contactId: contact.id, status: "active", createdDirectly: true, createdById },
+      data: { rollingNumber, contactId: contact.id, clientRequestId: clientRequestId ?? null, status: "active", createdDirectly: true, createdById },
     });
     await tx.settings.update({ where: { id: settings.id }, data: { nextRollingNumber: settings.nextRollingNumber + 1 } });
+    if (clientRequestId) {
+      await tx.clientRequest.update({ where: { id: clientRequestId }, data: { status: "converted" } });
+    }
     return rolling;
   });
 }

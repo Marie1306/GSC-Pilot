@@ -173,6 +173,24 @@ export interface CreateProjectDirectInput {
   /** Même règle que ConvertBudgetToProjectInput.projectNumber ci-dessus. */
   projectNumber?: string;
   newContact: NewProjectContactInput;
+  /** Conversion directe depuis une demande client (31 août 2026) — voir la validation dans createProjectDirect. */
+  clientRequestId?: string;
+}
+
+/**
+ * Conversion directe d'une demande client en projet (31 août 2026, demande
+ * explicite de l'utilisatrice) — même mécanique que Budget/ServiceCall/
+ * Rolling↔ClientRequest : validée AVANT la transaction, puis
+ * ClientRequest.status posé à "converted" DANS la même transaction que la
+ * création du projet. Contrairement à budgetId/serviceCallId (colonnes
+ * directes sur ClientRequest), la relation gérée vit sur
+ * Project.clientRequestId (@unique) — voir schema.prisma.
+ */
+async function assertClientRequestConvertibleToProject(clientRequestId: string): Promise<void> {
+  const request = await prisma.clientRequest.findUnique({ where: { id: clientRequestId }, select: { id: true } });
+  if (!request) throw new HttpError(404, "Demande client introuvable.");
+  const existing = await prisma.project.findUnique({ where: { clientRequestId }, select: { id: true } });
+  if (existing) throw new HttpError(400, "Cette demande a déjà un projet.");
 }
 
 /**
@@ -197,6 +215,7 @@ export async function createProjectDirect(createdById: string, input: CreateProj
   const name = input.name?.trim();
   if (!name) throw new HttpError(400, "Le nom du projet est requis.");
   if (!input.newContact?.contactName?.trim()) throw new HttpError(400, "Le nom du contact est requis.");
+  if (input.clientRequestId) await assertClientRequestConvertibleToProject(input.clientRequestId);
 
   const requestedNumber = input.projectNumber?.trim();
   if (requestedNumber !== undefined && requestedNumber !== "" && !/^\d+$/.test(requestedNumber)) {
@@ -221,12 +240,17 @@ export async function createProjectDirect(createdById: string, input: CreateProj
         projectNumber,
         name,
         contactId: contact.id,
+        clientRequestId: input.clientRequestId ?? null,
         status: "active",
         createdById,
       },
     });
 
     await tx.settings.update({ where: { id: settings.id }, data: { nextProjectNumber: nextAfter } });
+
+    if (input.clientRequestId) {
+      await tx.clientRequest.update({ where: { id: input.clientRequestId }, data: { status: "converted" } });
+    }
 
     return project;
   });

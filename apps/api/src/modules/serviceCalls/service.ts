@@ -96,21 +96,24 @@ export async function getNextServiceCallDisplayId(): Promise<string> {
 }
 
 /**
- * Conversion directe d'une demande client (27 août 2026, demande explicite,
- * uniquement proposée dans l'interface quand requestType==="service") —
- * même mécanique que Budget↔ClientRequest (voir budgets/service.ts,
- * createBudget) : validée AVANT la transaction, puis ClientRequest.status
- * posé à "converted" + serviceCallId lié DANS la même transaction que la
- * création du call, pour ne jamais laisser la demande dans un état
- * incohérent si la création échoue en cours de route.
+ * Conversion directe d'une demande client — même mécanique que
+ * Budget↔ClientRequest (voir budgets/service.ts, createBudget) : validée
+ * AVANT la transaction, puis ClientRequest.status posé à "converted" +
+ * serviceCallId lié DANS la même transaction que la création du call, pour
+ * ne jamais laisser la demande dans un état incohérent si la création
+ * échoue en cours de route. Offerte pour toute demande quel que soit son
+ * requestType déclaré (31 août 2026, demande de l'utilisatrice — même
+ * logique que "Créer le budgétaire", jamais restreinte au type initial :
+ * la disposition réelle d'une demande est une décision de Direction, pas
+ * figée par ce que le client a coché au départ) — restreint uniquement à
+ * requestType==="service" du 27 août au 31 août 2026, retiré depuis.
  */
 async function assertClientRequestConvertible(clientRequestId: string): Promise<void> {
   const request = await prisma.clientRequest.findUnique({
     where: { id: clientRequestId },
-    select: { requestType: true, serviceCallId: true },
+    select: { serviceCallId: true },
   });
   if (!request) throw new HttpError(404, "Demande client introuvable.");
-  if (request.requestType !== "service") throw new HttpError(400, "Cette demande n'est pas un call de service.");
   if (request.serviceCallId) throw new HttpError(400, "Cette demande a déjà un call de service.");
 }
 

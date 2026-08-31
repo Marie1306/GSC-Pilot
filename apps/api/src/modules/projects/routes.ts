@@ -93,6 +93,7 @@ const createProjectSchema = z.object({
   name: z.string().min(1),
   projectNumber: z.string().optional(),
   newContact: newProjectContactSchema,
+  clientRequestId: z.uuid().optional(),
 });
 /** Création directe, hors conversion d'un budgétaire — Direction et Propriétaire seulement (confirmé le 9 août 2026). */
 projectsRouter.post("/projects", requireAuth, requirePermission((persona) => canCreateProjectDirectly(persona)), async (req, res) => {

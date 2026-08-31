@@ -49,9 +49,10 @@ const newContactSchema = z.object({
   phone: z.string().optional(),
   email: z.string().optional(),
 });
+const createRollingSchema = z.object({ newContact: newContactSchema, clientRequestId: z.uuid().optional() });
 rollingsRouter.post("/rollings", requireAuth, requirePermission((persona) => canCreateRollingDirectly(persona)), async (req, res) => {
-  const newContact = newContactSchema.parse(req.body);
-  const rolling = await createRollingDirect(req.employee!.id, newContact);
+  const { newContact, clientRequestId } = createRollingSchema.parse(req.body);
+  const rolling = await createRollingDirect(req.employee!.id, newContact, clientRequestId);
   res.status(201).json({ rolling });
 });
 

@@ -79,8 +79,9 @@ export interface NewRollingContactInput {
   email?: string;
 }
 
-export function createRollingDirect(newContact: NewRollingContactInput): Promise<{ rolling: { id: string } }> {
-  return apiFetch("/api/rollings", { method: "POST", body: JSON.stringify(newContact) });
+/** clientRequestId (31 août 2026) — conversion directe depuis une demande client, voir ClientRequestOptionsMenu.tsx. */
+export function createRollingDirect(newContact: NewRollingContactInput, clientRequestId?: string): Promise<{ rolling: { id: string } }> {
+  return apiFetch("/api/rollings", { method: "POST", body: JSON.stringify({ newContact, clientRequestId }) });
 }
 
 export function updateRollingSold(id: string, sold: number): Promise<void> {

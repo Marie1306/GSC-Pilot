@@ -269,6 +269,17 @@ export interface ClientRequestDetailDto extends ClientRequestListItemDto {
   lostReason: string | null;
   notes: ClientRequestNoteDto[];
   deletedAt: string | null;
+  /**
+   * Conversion directe en projet/roulement (31 août 2026, demande de
+   * l'utilisatrice — même trio que "Créer le budgétaire"/"Créer le call de
+   * service"). Contrairement à budgetId/serviceCallId (colonnes directes
+   * sur ClientRequest), la relation gérée vit sur Project.clientRequestId/
+   * Rolling.clientRequestId (@unique) — recherche inverse ici, seulement
+   * pour le détail (jamais dans listClientRequests, qui resterait
+   * autrement en N+1 pour un usage que seul le menu Options a besoin).
+   */
+  projectId: string | null;
+  rollingId: string | null;
 }
 
 export async function getClientRequestDetail(id: string): Promise<ClientRequestDetailDto> {
@@ -279,6 +290,10 @@ export async function getClientRequestDetail(id: string): Promise<ClientRequestD
   if (!row) throw new HttpError(404, "Demande client introuvable.");
 
   const nameById = await namesByEmployeeId([row.createdById, ...row.notes.map((note) => note.authorId)]);
+  const [linkedProject, linkedRolling] = await Promise.all([
+    prisma.project.findUnique({ where: { clientRequestId: id }, select: { id: true } }),
+    prisma.rolling.findUnique({ where: { clientRequestId: id }, select: { id: true } }),
+  ]);
 
   return {
     ...toListItemDto(row, nameById.get(row.createdById) ?? "—"),
@@ -296,6 +311,8 @@ export async function getClientRequestDetail(id: string): Promise<ClientRequestD
       createdAt: note.createdAt.toISOString(),
     })),
     deletedAt: row.deletedAt?.toISOString() ?? null,
+    projectId: linkedProject?.id ?? null,
+    rollingId: linkedRolling?.id ?? null,
   };
 }
 
@@ -336,12 +353,25 @@ export async function updateClientRequestFollowUp(id: string, nextFollowUp: Date
   await prisma.clientRequest.update({ where: { id }, data: { nextFollowUp } });
 }
 
-/** Corbeille — même mécanisme que Project.deletedAt (masqué des listes actives, jamais une suppression physique). Bloqué une fois convertie en budgétaire ou en call de service — l'historique de la conversion doit rester intact. */
+/**
+ * Corbeille — même mécanisme que Project.deletedAt (masqué des listes
+ * actives, jamais une suppression physique). Bloqué une fois convertie en
+ * budgétaire, roulement, projet ou call de service — l'historique de la
+ * conversion doit rester intact. Roulement/Projet n'ont pas de FK miroir sur
+ * ClientRequest (contrairement à budgetId/serviceCallId) — vérifiés par
+ * relation inverse, même patron que getClientRequestDetail() (31 août 2026).
+ */
 export async function deleteClientRequest(id: string): Promise<void> {
   const request = await prisma.clientRequest.findUnique({ where: { id } });
   if (!request) throw new HttpError(404, "Demande client introuvable.");
   if (request.deletedAt) throw new HttpError(400, "Cette demande est déjà dans la corbeille.");
   if (request.budgetId) throw new HttpError(400, "Cette demande a déjà un budgétaire — elle ne peut plus être supprimée.");
   if (request.serviceCallId) throw new HttpError(400, "Cette demande a déjà un call de service — elle ne peut plus être supprimée.");
+  const [linkedRolling, linkedProject] = await Promise.all([
+    prisma.rolling.findUnique({ where: { clientRequestId: id }, select: { id: true } }),
+    prisma.project.findUnique({ where: { clientRequestId: id }, select: { id: true } }),
+  ]);
+  if (linkedRolling) throw new HttpError(400, "Cette demande a déjà un roulement — elle ne peut plus être supprimée.");
+  if (linkedProject) throw new HttpError(400, "Cette demande a déjà un projet — elle ne peut plus être supprimée.");
   await prisma.clientRequest.update({ where: { id }, data: { deletedAt: new Date() } });
 }

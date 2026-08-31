@@ -68,6 +68,10 @@ export interface ClientRequestDetail extends ClientRequestListItem {
   notes: ClientRequestNote[];
   transmittedToOwnerAt: string | null;
   deletedAt: string | null;
+  // Détail seulement (jamais sur ClientRequestListItem — éviterait un N+1
+  // dans listClientRequests) : voir getClientRequestDetail côté API.
+  projectId: string | null;
+  rollingId: string | null;
 }
 
 export interface CreateClientRequestInput {

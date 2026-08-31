@@ -205,6 +205,8 @@ export interface CreateProjectInput {
   name: string;
   projectNumber?: string;
   newContact: NewProjectContactInput;
+  /** Conversion directe depuis une demande client (31 août 2026) — voir ClientRequestOptionsMenu.tsx. */
+  clientRequestId?: string;
 }
 
 /** Création directe, hors conversion d'un budgétaire — Direction et Propriétaire seulement (canCreateProjectDirectly). */

@@ -7,10 +7,21 @@ import { ContactSearchField } from "../contacts/ContactAutocomplete.js";
 import type { ContactListItemDto } from "../contacts/api.js";
 import { createRollingDirect } from "./api.js";
 
+/** Conversion directe d'une demande client en roulement (31 août 2026) — voir ClientRequestOptionsMenu. */
+export interface RollingPrefillFromRequest {
+  clientRequestId: string;
+  requestDisplayId: string;
+  contactName: string;
+  company?: string;
+  phone?: string;
+  email?: string;
+}
+
 interface RollingFormProps {
   persona: Persona;
   onClose: () => void;
   onCreated: (id: string) => void;
+  prefillFromRequest?: RollingPrefillFromRequest;
 }
 
 /**
@@ -22,27 +33,42 @@ interface RollingFormProps {
  * — voir CLAUDE.md/historique des tâches). Seul le conteneur change :
  * section intégrée à la page → modale, même patron que
  * ClientRequestForm/BudgetForm/ProjectForm.
+ *
+ * prefillFromRequest (même jour, demande de convertir aussi les demandes
+ * clients en roulement depuis Options) — même patron que
+ * ServiceCallForm.tsx : contact préaffiché depuis la demande, nudge "ou
+ * construisez un budgétaire" masqué (déjà choisi cette voie en cliquant
+ * l'option), toujours un nouveau contact via ensureContactRow côté serveur
+ * (dédoublonne automatiquement, jamais un contactId réutilisé directement,
+ * même logique partout).
  */
-export function RollingForm({ persona, onClose, onCreated }: RollingFormProps) {
+export function RollingForm({ persona, onClose, onCreated, prefillFromRequest }: RollingFormProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const canCreateBudget = canCreateBudgetFromRequest(persona);
-  const [contactName, setContactName] = useState("");
-  const [company, setCompany] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
+  const canCreateBudget = canCreateBudgetFromRequest(persona) && !prefillFromRequest;
+  const [contactName, setContactName] = useState(prefillFromRequest?.contactName ?? "");
+  const [company, setCompany] = useState(prefillFromRequest?.company ?? "");
+  const [phone, setPhone] = useState(prefillFromRequest?.phone ?? "");
+  const [email, setEmail] = useState(prefillFromRequest?.email ?? "");
   const [error, setError] = useState<string | null>(null);
 
   const createMutation = useMutation({
     mutationFn: () =>
-      createRollingDirect({
-        contactName: contactName.trim(),
-        company: company.trim() || undefined,
-        phone: phone.trim() || undefined,
-        email: email.trim() || undefined,
-      }),
+      createRollingDirect(
+        {
+          contactName: contactName.trim(),
+          company: company.trim() || undefined,
+          phone: phone.trim() || undefined,
+          email: email.trim() || undefined,
+        },
+        prefillFromRequest?.clientRequestId,
+      ),
     onSuccess: ({ rolling }) => {
       void queryClient.invalidateQueries({ queryKey: ["rollings"] });
+      if (prefillFromRequest) {
+        void queryClient.invalidateQueries({ queryKey: ["client-request", prefillFromRequest.clientRequestId] });
+        void queryClient.invalidateQueries({ queryKey: ["client-requests"] });
+      }
       onCreated(rolling.id);
     },
     onError: (err: unknown) => setError(err instanceof ApiError ? err.message : "Une erreur est survenue — réessayez."),
@@ -60,8 +86,12 @@ export function RollingForm({ persona, onClose, onCreated }: RollingFormProps) {
       <div className="modal" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <h2>Nouveau roulement</h2>
-            <p className="modal-subtitle">Création directe : heures/achats/prix restent à zéro tant qu'ils ne sont pas saisis manuellement.</p>
+            <h2>{prefillFromRequest ? "Convertir en roulement" : "Nouveau roulement"}</h2>
+            <p className="modal-subtitle">
+              {prefillFromRequest
+                ? `Pré-rempli depuis la demande ${prefillFromRequest.requestDisplayId} — vérifiez avant de créer.`
+                : "Création directe : heures/achats/prix restent à zéro tant qu'ils ne sont pas saisis manuellement."}
+            </p>
           </div>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Fermer">
             ×

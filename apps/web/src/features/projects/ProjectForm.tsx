@@ -5,16 +5,39 @@ import { ContactSearchField } from "../contacts/ContactAutocomplete.js";
 import type { ContactListItemDto } from "../contacts/api.js";
 import { createProject, fetchNextProjectNumber, type CreateProjectInput } from "./api.js";
 
+/** Conversion directe d'une demande client en projet (31 août 2026) — voir ClientRequestOptionsMenu. */
+export interface ProjectPrefillFromRequest {
+  clientRequestId: string;
+  requestDisplayId: string;
+  contactName: string;
+  company?: string;
+  contactRole?: string;
+  phone?: string;
+  email?: string;
+}
+
 interface ProjectFormProps {
   onClose: () => void;
   onCreated: (id: string) => void;
+  prefillFromRequest?: ProjectPrefillFromRequest;
 }
 
-const EMPTY: CreateProjectInput = {
-  name: "",
-  projectNumber: "",
-  newContact: { contactName: "", company: "", contactRole: "", phone: "", email: "" },
-};
+function initialForm(prefillFromRequest?: ProjectPrefillFromRequest): CreateProjectInput {
+  if (prefillFromRequest) {
+    return {
+      name: "",
+      projectNumber: "",
+      newContact: {
+        contactName: prefillFromRequest.contactName,
+        company: prefillFromRequest.company ?? "",
+        contactRole: prefillFromRequest.contactRole ?? "",
+        phone: prefillFromRequest.phone ?? "",
+        email: prefillFromRequest.email ?? "",
+      },
+    };
+  }
+  return { name: "", projectNumber: "", newContact: { contactName: "", company: "", contactRole: "", phone: "", email: "" } };
+}
 
 /**
  * Création directe, hors conversion d'un budgétaire (spécification confirmée,
@@ -23,11 +46,16 @@ const EMPTY: CreateProjectInput = {
  * (ProjectList) — même blocage refait ici à la soumission par le serveur
  * (canCreateProjectDirectly), jamais un seul des deux (le code v19 d'origine
  * n'avait ni l'un ni l'autre, corrigé dans la spécification).
+ *
+ * prefillFromRequest (31 août 2026, conversion depuis Options d'une demande
+ * client) — même patron que ServiceCallForm.tsx : contact préaffiché, "name"
+ * (nom du projet, distinct du nom du contact) toujours saisi manuellement,
+ * jamais copié depuis la demande.
  */
-export function ProjectForm({ onClose, onCreated }: ProjectFormProps) {
+export function ProjectForm({ onClose, onCreated, prefillFromRequest }: ProjectFormProps) {
   const queryClient = useQueryClient();
   const nextNumberQuery = useQuery({ queryKey: ["next-project-number"], queryFn: fetchNextProjectNumber });
-  const [form, setForm] = useState<CreateProjectInput>(EMPTY);
+  const [form, setForm] = useState<CreateProjectInput>(() => initialForm(prefillFromRequest));
   const [numberOverride, setNumberOverride] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,9 +73,14 @@ export function ProjectForm({ onClose, onCreated }: ProjectFormProps) {
           phone: form.newContact.phone?.trim() || undefined,
           email: form.newContact.email?.trim() || undefined,
         },
+        clientRequestId: prefillFromRequest?.clientRequestId,
       }),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["projects"] });
+      if (prefillFromRequest) {
+        void queryClient.invalidateQueries({ queryKey: ["client-request", prefillFromRequest.clientRequestId] });
+        void queryClient.invalidateQueries({ queryKey: ["client-requests"] });
+      }
       onCreated(result.id);
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : "Erreur lors de la création — vérifiez les champs et réessayez."),
@@ -81,8 +114,12 @@ export function ProjectForm({ onClose, onCreated }: ProjectFormProps) {
       <div className="modal">
         <div className="modal-header">
           <div>
-            <h2>Nouveau projet</h2>
-            <p className="modal-subtitle">Création directe, sans passer par un budgétaire. Le contact client sera créé ou mis à jour automatiquement dans le carnet de contacts.</p>
+            <h2>{prefillFromRequest ? "Convertir en projet" : "Nouveau projet"}</h2>
+            <p className="modal-subtitle">
+              {prefillFromRequest
+                ? `Pré-rempli depuis la demande ${prefillFromRequest.requestDisplayId} — vérifiez avant de créer.`
+                : "Création directe, sans passer par un budgétaire. Le contact client sera créé ou mis à jour automatiquement dans le carnet de contacts."}
+            </p>
           </div>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Fermer">
             ×
