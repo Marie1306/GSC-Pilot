@@ -24,6 +24,14 @@ export function fetchMySubassemblies(): Promise<{ subassemblies: SubassemblyDto[
   return apiFetch("/api/subassemblies/mine");
 }
 
+/** Nul si le projet n'a pas de budgétaire d'origine — rien à afficher dans ce cas. */
+export function fetchRemainingHoursByCategory(
+  projectId: string,
+  excludeSubassemblyId: string,
+): Promise<{ remainingHoursByCategory: Record<string, number> | null }> {
+  return apiFetch(`/api/projects/${projectId}/subassemblies/remaining-hours?exclude=${excludeSubassemblyId}`);
+}
+
 export function declareSubassembly(projectId: string, number: string): Promise<{ subassembly: SubassemblyDto }> {
   return apiFetch(`/api/projects/${projectId}/subassemblies`, { method: "POST", body: JSON.stringify({ number }) });
 }

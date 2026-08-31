@@ -8,6 +8,7 @@ import {
   declareSubassemblyForProject,
   markSubassemblyPartsListReady,
   declareSubassemblyAssemblyReady,
+  getRemainingHoursByCategory,
 } from "./service.js";
 
 export const subassembliesRouter = Router();
@@ -31,6 +32,20 @@ subassembliesRouter.get("/subassemblies/mine", requireAuth, async (req, res) => 
   const subassemblies = await listMySubassemblies(req.employee!.id);
   res.json({ subassemblies });
 });
+
+// Reste planifié au budgétaire, par catégorie de liste de pièces (31 août
+// 2026) — même porte que qui remplit la liste de pièces (Direction).
+subassembliesRouter.get(
+  "/projects/:projectId/subassemblies/remaining-hours",
+  requireAuth,
+  requirePermission((persona) => canPrepareSubassemblyPartsList(persona)),
+  async (req, res) => {
+    const projectId = z.uuid().parse(req.params.projectId);
+    const excludeSubassemblyId = typeof req.query.exclude === "string" ? req.query.exclude : undefined;
+    const remainingHoursByCategory = await getRemainingHoursByCategory(projectId, excludeSubassemblyId);
+    res.json({ remainingHoursByCategory });
+  },
+);
 
 const declareSchema = z.object({ number: z.string().min(1) });
 // Déclarer un sous-assemblage prêt : Propriétaire seulement (Marc, le seul

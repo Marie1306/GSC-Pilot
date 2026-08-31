@@ -99,6 +99,27 @@ export const BACKUP_ELIGIBLE_ALIAS: Partial<Record<BudgetCategorySlug, string>> 
 });
 
 /**
+ * Reste planifié à la liste de pièces d'un Assemblage (31 août 2026) —
+ * quelles lignes RÉELLES du budgétaire (BudgetRow.slug) nourrissent
+ * chacune des 7 catégories de la liste de pièces (subassembly.ts, jamais
+ * modifié). Les 5 catégories de fabrication correspondent 1-pour-1 (même
+ * slug des deux côtés, confirmé dans le seed) ; Programmation et
+ * Assemblage regroupent plusieurs lignes budgétaires distinctes sous UNE
+ * seule catégorie Gantt (confirmé par l'utilisatrice : le Gantt garde son
+ * découpage actuel à 7 catégories, seul le suivi du reste doit voir le
+ * détail complet du budgétaire).
+ */
+export const PARTS_LIST_BUDGET_SLUGS: Readonly<Record<string, readonly string[]>> = Object.freeze({
+  "fabrication-plasma": ["fabrication-plasma"],
+  "fabrication-pliage": ["fabrication-pliage"],
+  "fabrication-usinage": ["fabrication-usinage"],
+  "fabrication-soudage": ["fabrication-soudage"],
+  "fabrication-peinture": ["fabrication-peinture"],
+  programmation: ["panel-programmation", "panel-schemas"],
+  assemblage: ["assembly-assemblage", "assembly-tests", "assembly-emballage", "assembly-menage"],
+});
+
+/**
  * Statuts d'une demande d'achat — confirmés par lecture directe du
  * mécanisme actif dans la référence v19 (pas seulement la prose de la
  * spécification) : en attente Direction, puis soit autorisée directement

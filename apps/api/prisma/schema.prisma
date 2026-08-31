@@ -384,6 +384,12 @@ model BudgetRow {
   sectionId     String
   section       BudgetSection @relation(fields: [sectionId], references: [id])
   modelRowId    String? // traçabilité seulement, absent pour une ligne ajoutée à la main — label/taux ci-dessous sont des copies gelées
+  // Copié de BudgetModelRow.slug à la création (comme label/hourlyRate),
+  // nul pour une ligne ajoutée à la main (sans modelRowId). Sert à relier
+  // une ligne planifiée à sa catégorie Gantt/Assemblage exacte (ex.
+  // "fabrication-plasma") pour le reste planifié affiché à la liste de
+  // pièces — voir getRemainingHoursByCategory, subassemblies/service.ts.
+  slug          String?
   label         String
   hourlyRate    Decimal       @default(0) @db.Decimal(10, 2) // lignes "labor" seulement
   hours         Decimal       @default(0) @db.Decimal(10, 2) // lignes "labor" seulement (ou calculé, voir autoFromRowId)

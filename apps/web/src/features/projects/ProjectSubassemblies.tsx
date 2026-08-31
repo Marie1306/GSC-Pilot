@@ -3,7 +3,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { canDeclareSubassembly, canPrepareSubassemblyPartsList, canDeclareAssemblyReady } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
-import { fetchProjectSubassemblies, declareSubassembly, markPartsListReady, declareAssemblyReady } from "../subassemblies/api.js";
+import {
+  fetchProjectSubassemblies,
+  fetchRemainingHoursByCategory,
+  declareSubassembly,
+  markPartsListReady,
+  declareAssemblyReady,
+} from "../subassemblies/api.js";
 
 interface ProjectSubassembliesProps {
   projectId: string;
@@ -29,11 +35,9 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" });
 }
 
-interface HoursRow {
-  category: string;
-  hours: string;
+function emptyHours(): Record<string, string> {
+  return Object.fromEntries(FABRICATION_SUBCATEGORIES.map((c) => [c.value, ""]));
 }
-const emptyRow = (): HoursRow => ({ category: FABRICATION_SUBCATEGORIES[0]!.value, hours: "" });
 
 /**
  * Assemblages (21 août 2026, terme affiché renommé le 31 août 2026 — demande
@@ -51,8 +55,14 @@ export function ProjectSubassemblies({ projectId }: ProjectSubassembliesProps) {
   const listQuery = useQuery({ queryKey: ["subassemblies", projectId], queryFn: () => fetchProjectSubassemblies(projectId) });
   const [newNumber, setNewNumber] = useState("");
   const [partsListForId, setPartsListForId] = useState<string | null>(null);
-  const [rows, setRows] = useState<HoursRow[]>([emptyRow()]);
+  const [hours, setHours] = useState<Record<string, string>>(emptyHours);
   const [error, setError] = useState<string | null>(null);
+  const remainingQuery = useQuery({
+    queryKey: ["subassemblies", projectId, "remaining-hours", partsListForId],
+    queryFn: () => fetchRemainingHoursByCategory(projectId, partsListForId!),
+    enabled: !!partsListForId,
+  });
+  const remaining = remainingQuery.data?.remainingHoursByCategory ?? null;
 
   const invalidate = () => {
     setError(null);
@@ -73,7 +83,7 @@ export function ProjectSubassemblies({ projectId }: ProjectSubassembliesProps) {
     mutationFn: (hoursByCategory: Record<string, number>) => markPartsListReady(partsListForId!, hoursByCategory),
     onSuccess: () => {
       setPartsListForId(null);
-      setRows([emptyRow()]);
+      setHours(emptyHours());
       invalidate();
     },
     onError: onMutationError,
@@ -88,9 +98,9 @@ export function ProjectSubassemblies({ projectId }: ProjectSubassembliesProps) {
 
   function submitPartsList() {
     const hoursByCategory: Record<string, number> = {};
-    for (const row of rows) {
-      const hours = Number(row.hours);
-      if (row.category && hours > 0) hoursByCategory[row.category] = hours;
+    for (const category of Object.keys(hours)) {
+      const value = Number(hours[category]);
+      if (value > 0) hoursByCategory[category] = value;
     }
     if (Object.keys(hoursByCategory).length === 0) {
       setError("Au moins une catégorie d'heures est requise.");
@@ -156,59 +166,19 @@ export function ProjectSubassemblies({ projectId }: ProjectSubassembliesProps) {
                 </div>
               )}
 
-              {sa.status === "pending_parts_list" && canPrepare && partsListForId !== sa.id && (
-                <button type="button" className="btn btn-small" style={{ marginTop: 10 }} onClick={() => setPartsListForId(sa.id)}>
+              {sa.status === "pending_parts_list" && canPrepare && (
+                <button
+                  type="button"
+                  className="btn btn-small"
+                  style={{ marginTop: 10 }}
+                  onClick={() => {
+                    setError(null);
+                    setHours(emptyHours());
+                    setPartsListForId(sa.id);
+                  }}
+                >
                   Créer la liste de pièces
                 </button>
-              )}
-
-              {partsListForId === sa.id && (
-                <div style={{ marginTop: 10 }}>
-                  {rows.map((row, index) => (
-                    <div key={index} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-                      <select
-                        value={row.category}
-                        onChange={(e) => setRows(rows.map((r, i) => (i === index ? { ...r, category: e.target.value } : r)))}
-                        style={{ flex: 1 }}
-                      >
-                        {FABRICATION_SUBCATEGORIES.map((c) => (
-                          <option key={c.value} value={c.value}>
-                            {c.label}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        type="number"
-                        min={0}
-                        step="0.1"
-                        placeholder="Heures"
-                        value={row.hours}
-                        onChange={(e) => setRows(rows.map((r, i) => (i === index ? { ...r, hours: e.target.value } : r)))}
-                        style={{ width: 100 }}
-                      />
-                      <button
-                        type="button"
-                        className="icon-btn"
-                        title="Retirer"
-                        onClick={() => setRows(rows.filter((_, i) => i !== index))}
-                        disabled={rows.length === 1}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <button type="button" className="btn btn-secondary btn-small" onClick={() => setRows([...rows, emptyRow()])}>
-                      + Catégorie
-                    </button>
-                    <button type="button" className="btn btn-small" disabled={partsListMutation.isPending} onClick={submitPartsList}>
-                      {partsListMutation.isPending ? "…" : "Confirmer la liste de pièces"}
-                    </button>
-                    <button type="button" className="btn btn-secondary btn-small" onClick={() => setPartsListForId(null)}>
-                      Annuler
-                    </button>
-                  </div>
-                </div>
               )}
 
               {sa.status === "ready_for_production" &&
@@ -227,6 +197,61 @@ export function ProjectSubassemblies({ projectId }: ProjectSubassembliesProps) {
                 )}
             </div>
           ))}
+        </div>
+      )}
+
+      {partsListForId && (
+        <div className="modal-backdrop" onClick={() => setPartsListForId(null)}>
+          <div className="modal" style={{ maxWidth: 640 }} onClick={(event) => event.stopPropagation()}>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                submitPartsList();
+              }}
+            >
+              <div className="modal-header">
+                <div>
+                  <h2>Liste de pièces</h2>
+                  <p className="modal-subtitle">Heures réelles par catégorie — jamais un prix vendu ici.</p>
+                </div>
+                <button type="button" className="modal-close" aria-label="Fermer" onClick={() => setPartsListForId(null)}>
+                  ×
+                </button>
+              </div>
+
+              <div className="modal-body">
+                {error && <p className="form-error">{error}</p>}
+                <div className="form-grid">
+                  {FABRICATION_SUBCATEGORIES.map((category) => (
+                    <div className="field" key={category.value}>
+                      <label htmlFor={`pl-hours-${category.value}`}>{category.label}</label>
+                      <input
+                        id={`pl-hours-${category.value}`}
+                        type="number"
+                        min={0}
+                        step="0.1"
+                        value={hours[category.value]}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => setHours((current) => ({ ...current, [category.value]: e.target.value }))}
+                      />
+                      {remaining && remaining[category.value] !== undefined && (
+                        <span className="cell-sub">Reste planifié : {remaining[category.value]} h</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setPartsListForId(null)}>
+                  Annuler
+                </button>
+                <button type="submit" className="btn" disabled={partsListMutation.isPending}>
+                  {partsListMutation.isPending ? "…" : "Confirmer la liste de pièces"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

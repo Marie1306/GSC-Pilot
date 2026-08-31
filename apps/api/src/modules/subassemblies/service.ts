@@ -22,6 +22,7 @@ import {
   subassemblyGanttTasks,
   designerHistory,
   productionCategoryLabel,
+  PARTS_LIST_BUDGET_SLUGS,
   type Subassembly as PureSubassembly,
   type SubassemblyStatus,
   type GanttTask,
@@ -31,6 +32,10 @@ import { HttpError } from "../../middleware/errorHandler.js";
 import type { Subassembly, PrismaClient } from "../../generated/prisma/client.js";
 
 type Tx = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">;
+
+function round2(value: number): number {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
 
 function toPure(row: Subassembly): PureSubassembly {
   return {
@@ -84,6 +89,54 @@ async function toDtos(rows: Subassembly[]): Promise<SubassemblyDto[]> {
 export async function listSubassembliesForProject(projectId: string): Promise<SubassemblyDto[]> {
   const rows = await prisma.subassembly.findMany({ where: { projectId }, orderBy: { declaredAt: "asc" } });
   return toDtos(rows);
+}
+
+/**
+ * Reste planifié au budgétaire d'origine, par catégorie de liste de
+ * pièces (31 août 2026, demande de l'utilisatrice après un test réel) —
+ * total de la/des ligne(s) budgétaire(s) réelle(s) (voir
+ * PARTS_LIST_BUDGET_SLUGS) moins ce que les AUTRES assemblages du même
+ * projet ont déjà déclaré pour cette catégorie. Calcul STATIQUE (pas un
+ * décompte en direct pendant la saisie du formulaire courant, confirmé).
+ * Nul si le projet n'a pas de budgétaire d'origine (création directe) —
+ * jamais un 0 trompeur, rien à afficher dans ce cas.
+ */
+export async function getRemainingHoursByCategory(
+  projectId: string,
+  excludeSubassemblyId?: string,
+): Promise<Record<string, number> | null> {
+  const project = await prisma.project.findUnique({ where: { id: projectId }, select: { budgetId: true } });
+  if (!project) throw new HttpError(404, "Projet introuvable.");
+  if (!project.budgetId) return null;
+
+  const [budgetRows, otherSubassemblies] = await Promise.all([
+    prisma.budgetRow.findMany({ where: { section: { budgetId: project.budgetId } }, select: { slug: true, hours: true } }),
+    prisma.subassembly.findMany({
+      where: { projectId, ...(excludeSubassemblyId ? { id: { not: excludeSubassemblyId } } : {}) },
+      select: { hoursByCategory: true },
+    }),
+  ]);
+
+  const hoursBySlug = new Map<string, number>();
+  for (const row of budgetRows) {
+    if (!row.slug) continue;
+    hoursBySlug.set(row.slug, (hoursBySlug.get(row.slug) ?? 0) + Number(row.hours));
+  }
+
+  const alreadyDeclared: Record<string, number> = {};
+  for (const sa of otherSubassemblies) {
+    const hoursByCategory = (sa.hoursByCategory as Record<string, number> | null) ?? {};
+    for (const [category, hours] of Object.entries(hoursByCategory)) {
+      alreadyDeclared[category] = (alreadyDeclared[category] ?? 0) + Number(hours);
+    }
+  }
+
+  const remaining: Record<string, number> = {};
+  for (const [category, slugs] of Object.entries(PARTS_LIST_BUDGET_SLUGS)) {
+    const planned = slugs.reduce((sum, slug) => sum + (hoursBySlug.get(slug) ?? 0), 0);
+    remaining[category] = round2(planned - (alreadyDeclared[category] ?? 0));
+  }
+  return remaining;
 }
 
 /** Le mini Gantt du designer (spec confirmée) — tous ses sous-assemblages, tous projets confondus, dans l'ordre réel de déclaration. */
