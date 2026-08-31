@@ -286,8 +286,17 @@ export function recordInvoice(entryId: string, input: RecordInvoiceInput): Promi
   return apiFetch(`/api/invoice-plan/${entryId}/record`, { method: "POST", body: JSON.stringify(input) });
 }
 
-export function recordInvoicePayment(entryId: string, paidAmount: number): Promise<{ entry: InvoicePlanEntryDto }> {
-  return apiFetch(`/api/invoice-plan/${entryId}/payment`, { method: "PATCH", body: JSON.stringify({ paidAmount }) });
+/** amount = montant de CE versement (s'ajoute au paidAmount déjà reçu côté serveur — voir projects/service.ts) — jamais le cumulatif à ressaisir. */
+export function recordInvoicePayment(entryId: string, amount: number): Promise<{ entry: InvoicePlanEntryDto }> {
+  return apiFetch(`/api/invoice-plan/${entryId}/payment`, { method: "PATCH", body: JSON.stringify({ amount }) });
+}
+
+export function holdInvoiceEntry(entryId: string): Promise<{ entry: InvoicePlanEntryDto }> {
+  return apiFetch(`/api/invoice-plan/${entryId}/hold`, { method: "PATCH" });
+}
+
+export function releaseInvoiceHold(entryId: string): Promise<{ entry: InvoicePlanEntryDto }> {
+  return apiFetch(`/api/invoice-plan/${entryId}/release-hold`, { method: "PATCH" });
 }
 
 // ---------------------------------------------------------------------------

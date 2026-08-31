@@ -69,7 +69,7 @@ export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
     onError: onMutationError,
   });
   const paymentMutation = useMutation({
-    mutationFn: ({ id, paidAmount }: { id: string; paidAmount: number }) => recordInvoicePayment(id, paidAmount),
+    mutationFn: ({ id, amount }: { id: string; amount: number }) => recordInvoicePayment(id, amount),
     onSuccess: invalidate,
     onError: onMutationError,
   });
@@ -115,7 +115,7 @@ export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
   }
   function openPayment(entry: InvoicePlanEntryDto) {
     setExpanded({ id: entry.id, type: "payment" });
-    setPaidAmountDraft(entry.paidAmount ? String(entry.paidAmount) : "");
+    setPaidAmountDraft("");
   }
 
   // Même condition que le blocage 409 côté serveur (updateProjectBillingPlan)
@@ -339,13 +339,13 @@ export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
                         onSubmit={(event) => {
                           event.preventDefault();
                           const value = Number(paidAmountDraft);
-                          if (!(value >= 0)) return;
-                          paymentMutation.mutate({ id: entry.id, paidAmount: value });
+                          if (!(value > 0)) return;
+                          paymentMutation.mutate({ id: entry.id, amount: value });
                         }}
                       >
                         <div className="field">
-                          <label>Montant payé à ce jour ($)</label>
-                          <input type="number" min={0} step="0.01" value={paidAmountDraft} onChange={(e) => setPaidAmountDraft(e.target.value)} />
+                          <label>Montant reçu ($)</label>
+                          <input type="number" min={0.01} step="0.01" value={paidAmountDraft} onChange={(e) => setPaidAmountDraft(e.target.value)} />
                         </div>
                         <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                           <button type="submit" className="btn btn-small" disabled={paymentMutation.isPending}>

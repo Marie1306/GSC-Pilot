@@ -4,6 +4,8 @@ export {
   requestInvoice,
   recordInvoice,
   recordInvoicePayment,
+  holdInvoiceEntry,
+  releaseInvoiceHold,
   formatCurrency,
   INVOICE_STATUS_LABELS,
   INVOICE_STATUS_BADGE,

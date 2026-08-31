@@ -41,7 +41,7 @@ export function InvoiceActionDrawer({ id, onClose }: InvoiceActionDrawerProps) {
     onError: onMutationError,
   });
   const paymentMutation = useMutation({
-    mutationFn: (paidAmount: number) => recordInvoicePayment(id, paidAmount),
+    mutationFn: (amount: number) => recordInvoicePayment(id, amount),
     onSuccess: invalidate,
     onError: onMutationError,
   });
@@ -96,14 +96,8 @@ export function InvoiceActionDrawer({ id, onClose }: InvoiceActionDrawerProps) {
       {canPay && entry.invoiceNumber && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div className="field">
-            <label>Montant payé à ce jour ($)</label>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={paidAmountDraft || (entry.paidAmount ? String(entry.paidAmount) : "")}
-              onChange={(event) => setPaidAmountDraft(event.target.value)}
-            />
+            <label>Montant reçu ($)</label>
+            <input type="number" min={0.01} step="0.01" value={paidAmountDraft} onChange={(event) => setPaidAmountDraft(event.target.value)} />
           </div>
           <button
             type="button"
@@ -111,7 +105,7 @@ export function InvoiceActionDrawer({ id, onClose }: InvoiceActionDrawerProps) {
             disabled={paymentMutation.isPending}
             onClick={() => {
               const value = Number(paidAmountDraft);
-              if (value >= 0) paymentMutation.mutate(value);
+              if (value > 0) paymentMutation.mutate(value);
             }}
           >
             {paymentMutation.isPending ? "…" : "✓ Enregistrer le paiement"}

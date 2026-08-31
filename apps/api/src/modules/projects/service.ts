@@ -1117,11 +1117,41 @@ export async function recordInvoice(entryId: string, processedById: string, inpu
   return toInvoicePlanEntryDto(row);
 }
 
-/** Montant payé À CE JOUR (pas un historique de paiements séparé — un seul champ, mis à jour à chaque versement). */
-export async function recordInvoicePayment(entryId: string, paidAmount: number): Promise<InvoicePlanEntryDto> {
+/**
+ * Montant du NOUVEAU versement reçu — s'ajoute au paidAmount déjà accumulé
+ * (pas un historique de paiements séparé, toujours un seul champ cumulatif —
+ * seule la façon de le faire progresser change). Avant le 31 août 2026,
+ * l'usager devait ressaisir le total cumulatif à chaque versement (recalculé
+ * de tête à chaque fois) — corrigé sur rapport de l'utilisatrice : la case
+ * n'accepte maintenant QUE le montant de ce versement, additionné ici.
+ */
+export async function recordInvoicePayment(entryId: string, amount: number): Promise<InvoicePlanEntryDto> {
+  if (!(amount > 0)) throw new HttpError(400, "Le montant du paiement doit être positif.");
   const entry = await prisma.invoicePlanEntry.findUnique({ where: { id: entryId } });
   if (!entry) throw new HttpError(404, "Jalon de facturation introuvable.");
-  const row = await prisma.invoicePlanEntry.update({ where: { id: entryId }, data: { paidAmount, paidAt: new Date() } });
+  if (!entry.invoiceNumber) throw new HttpError(400, "Cette facture n'est pas encore enregistrée.");
+  const row = await prisma.invoicePlanEntry.update({
+    where: { id: entryId },
+    data: { paidAmount: Number(entry.paidAmount) + amount, paidAt: new Date() },
+  });
+  return toInvoicePlanEntryDto(row);
+}
+
+/** Suspendre le suivi d'une facture (litige, attente d'un changement — voir canHoldInvoice, roles.ts). */
+export async function holdInvoiceEntry(entryId: string): Promise<InvoicePlanEntryDto> {
+  const entry = await prisma.invoicePlanEntry.findUnique({ where: { id: entryId } });
+  if (!entry) throw new HttpError(404, "Jalon de facturation introuvable.");
+  if (!entry.invoiceNumber) throw new HttpError(400, "Cette facture n'est pas encore enregistrée.");
+  const row = await prisma.invoicePlanEntry.update({ where: { id: entryId }, data: { status: "on_hold" } });
+  return toInvoicePlanEntryDto(row);
+}
+
+/** Retire la suspension — restaure "sent", d'où invoiceStatus() (billing.ts) recalcule normalement payé/en retard/envoyée depuis les autres champs, rien à mémoriser en plus. */
+export async function releaseInvoiceHold(entryId: string): Promise<InvoicePlanEntryDto> {
+  const entry = await prisma.invoicePlanEntry.findUnique({ where: { id: entryId } });
+  if (!entry) throw new HttpError(404, "Jalon de facturation introuvable.");
+  if (entry.status !== "on_hold") throw new HttpError(400, "Cette facture n'est pas en suspens.");
+  const row = await prisma.invoicePlanEntry.update({ where: { id: entryId }, data: { status: "sent" } });
   return toInvoicePlanEntryDto(row);
 }
 

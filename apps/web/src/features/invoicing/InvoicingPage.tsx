@@ -1,18 +1,7 @@
-import { Fragment, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { canCreateInvoiceRecord, canRecordPayment } from "@gsc-pilot/business-rules";
-import { useAuth } from "../../lib/auth/useAuth.js";
-import { ApiError } from "../../lib/apiClient.js";
-import {
-  fetchInvoiceEntries,
-  recordInvoice,
-  recordInvoicePayment,
-  formatCurrency,
-  INVOICE_STATUS_LABELS,
-  INVOICE_STATUS_BADGE,
-  type InvoiceEntryDto,
-  type InvoiceEntryStatus,
-} from "./api.js";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchInvoiceEntries, formatCurrency, INVOICE_STATUS_LABELS, INVOICE_STATUS_BADGE, type InvoiceEntryStatus } from "./api.js";
+import { InvoiceDetailDrawer } from "./InvoiceDetailDrawer.js";
 import "./invoicing.css";
 
 function formatDate(iso: string | null): string {
@@ -27,8 +16,6 @@ const TABS: { key: InvoiceEntryStatus | "all"; label: string }[] = [
   { key: "paid", label: "Payées" },
 ];
 
-type ExpandedAction = { id: string; type: "record" | "payment" } | null;
-
 /**
  * Facturation — vue consolidée (20 août 2026, sur demande explicite de
  * l'utilisatrice). Regroupe les jalons de projet déjà demandés et les
@@ -36,40 +23,17 @@ type ExpandedAction = { id: string; type: "record" | "payment" } | null;
  * backend) — un jalon jamais demandé n'apparaît jamais ici, seulement dans
  * le Cycle de facturation du projet lui-même (comportement voulu). Suivi
  * manuel — Sage reste la source réelle de la facture, jamais générée ici.
- * Demander/Enregistrer/Paiement réutilisent exactement les fonctions déjà
- * vérifiées du cycle de facturation projet (ProjectInvoicePlan.tsx) —
- * jamais réimplémentées.
+ *
+ * Sélectionner une ligne ouvre le détail en tiroir latéral droit (31 août
+ * 2026, demande explicite de l'utilisatrice, mise en page inspirée de v19)
+ * — remplace l'ancien accordéon en ligne. Voir InvoiceDetailDrawer.tsx pour
+ * les tuiles/échéancier/fenêtre de paiement.
  */
 export function InvoicingPage() {
-  const { employee } = useAuth();
-  const queryClient = useQueryClient();
   const entriesQuery = useQuery({ queryKey: ["invoicing", "entries"], queryFn: fetchInvoiceEntries });
   const [tab, setTab] = useState<InvoiceEntryStatus | "all">("all");
   const [search, setSearch] = useState("");
-  const [expanded, setExpanded] = useState<ExpandedAction>(null);
-  const [invoiceNumberDraft, setInvoiceNumberDraft] = useState("");
-  const [dueDateDraft, setDueDateDraft] = useState("");
-  const [paidAmountDraft, setPaidAmountDraft] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  const invalidate = () => {
-    setError(null);
-    setExpanded(null);
-    void queryClient.invalidateQueries({ queryKey: ["invoicing", "entries"] });
-  };
-  const onMutationError = (err: unknown) => setError(err instanceof ApiError ? err.message : "Une erreur est survenue — réessayez.");
-
-  const recordMutation = useMutation({
-    mutationFn: ({ id, invoiceNumber, dueDate }: { id: string; invoiceNumber: string; dueDate?: string }) =>
-      recordInvoice(id, { invoiceNumber, dueDate }),
-    onSuccess: invalidate,
-    onError: onMutationError,
-  });
-  const paymentMutation = useMutation({
-    mutationFn: ({ id, paidAmount }: { id: string; paidAmount: number }) => recordInvoicePayment(id, paidAmount),
-    onSuccess: invalidate,
-    onError: onMutationError,
-  });
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const entries = entriesQuery.data?.entries ?? [];
 
@@ -95,20 +59,6 @@ export function InvoicingPage() {
       entry.sourceLabel.toLowerCase().includes(needle)
     );
   });
-
-  if (!employee) return null;
-  const canRecord = canCreateInvoiceRecord(employee.persona);
-  const canPay = canRecordPayment(employee.persona);
-
-  function openRecord(entry: InvoiceEntryDto) {
-    setExpanded({ id: entry.id, type: "record" });
-    setInvoiceNumberDraft(entry.invoiceNumber ?? "");
-    setDueDateDraft(entry.dueDate?.slice(0, 10) ?? "");
-  }
-  function openPayment(entry: InvoiceEntryDto) {
-    setExpanded({ id: entry.id, type: "payment" });
-    setPaidAmountDraft(entry.paidAmount ? String(entry.paidAmount) : "");
-  }
 
   return (
     <div>
@@ -159,14 +109,12 @@ export function InvoicingPage() {
           <input placeholder="Facture ou client…" value={search} onChange={(event) => setSearch(event.target.value)} style={{ maxWidth: 220 }} />
         </div>
 
-        {error && <p className="form-error">{error}</p>}
-
         {entriesQuery.isError ? (
           <p className="form-error">Impossible de charger la facturation.</p>
         ) : filtered.length === 0 ? (
           <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucune facture pour ce filtre.</p>
         ) : (
-          <div style={{ overflowX: "auto" }}>
+          <div className="table-scroll">
             <table className="shortlist-table">
               <thead>
                 <tr>
@@ -178,117 +126,33 @@ export function InvoicingPage() {
                   <th className="num">Payé</th>
                   <th className="num">Solde</th>
                   <th>Statut</th>
-                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((entry) => (
-                  <Fragment key={entry.id}>
-                    <tr>
-                      <td>{entry.invoiceNumber ?? "—"}</td>
-                      <td>
-                        <div>{entry.clientLabel}</div>
-                        <div className="cell-sub">{entry.sourceLabel}</div>
-                      </td>
-                      <td>{formatDate(entry.processedAt)}</td>
-                      <td>{formatDate(entry.dueDate)}</td>
-                      <td className="num">{formatCurrency(entry.amount)}</td>
-                      <td className="num">{formatCurrency(entry.paidAmount)}</td>
-                      <td className="num">{formatCurrency(entry.amount - entry.paidAmount)}</td>
-                      <td>
-                        <span className={`badge-pill ${INVOICE_STATUS_BADGE[entry.status]}`}>{INVOICE_STATUS_LABELS[entry.status]}</span>
-                      </td>
-                      <td style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                        {canRecord && (
-                          <button type="button" className="btn btn-secondary btn-small" onClick={() => openRecord(entry)}>
-                            {entry.invoiceNumber ? "Modifier" : "Enregistrer"}
-                          </button>
-                        )}
-                        {entry.invoiceNumber && canPay && (
-                          <button type="button" className="btn btn-small" onClick={() => openPayment(entry)}>
-                            Paiement
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                    {expanded?.id === entry.id && expanded.type === "record" && (
-                      <tr>
-                        <td colSpan={9}>
-                          <form
-                            className="form-grid"
-                            style={{ margin: "8px 0" }}
-                            onSubmit={(event) => {
-                              event.preventDefault();
-                              if (!invoiceNumberDraft.trim()) return;
-                              recordMutation.mutate({
-                                id: entry.id,
-                                invoiceNumber: invoiceNumberDraft.trim(),
-                                dueDate: dueDateDraft || undefined,
-                              });
-                            }}
-                          >
-                            <div className="field">
-                              <label>Numéro de facture</label>
-                              <input value={invoiceNumberDraft} onChange={(event) => setInvoiceNumberDraft(event.target.value)} />
-                            </div>
-                            <div className="field">
-                              <label>Échéance (facultatif)</label>
-                              <input type="date" value={dueDateDraft} onChange={(event) => setDueDateDraft(event.target.value)} />
-                            </div>
-                            <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                              <button type="submit" className="btn btn-small" disabled={!invoiceNumberDraft.trim() || recordMutation.isPending}>
-                                {recordMutation.isPending ? "…" : "Enregistrer"}
-                              </button>
-                              <button type="button" className="btn btn-secondary btn-small" onClick={() => setExpanded(null)}>
-                                Annuler
-                              </button>
-                            </div>
-                          </form>
-                        </td>
-                      </tr>
-                    )}
-                    {expanded?.id === entry.id && expanded.type === "payment" && (
-                      <tr>
-                        <td colSpan={9}>
-                          <form
-                            className="form-grid"
-                            style={{ margin: "8px 0" }}
-                            onSubmit={(event) => {
-                              event.preventDefault();
-                              const value = Number(paidAmountDraft);
-                              if (!(value >= 0)) return;
-                              paymentMutation.mutate({ id: entry.id, paidAmount: value });
-                            }}
-                          >
-                            <div className="field">
-                              <label>Montant payé à ce jour ($)</label>
-                              <input
-                                type="number"
-                                min={0}
-                                step="0.01"
-                                value={paidAmountDraft}
-                                onChange={(event) => setPaidAmountDraft(event.target.value)}
-                              />
-                            </div>
-                            <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                              <button type="submit" className="btn btn-small" disabled={paymentMutation.isPending}>
-                                {paymentMutation.isPending ? "…" : "Enregistrer le paiement"}
-                              </button>
-                              <button type="button" className="btn btn-secondary btn-small" onClick={() => setExpanded(null)}>
-                                Annuler
-                              </button>
-                            </div>
-                          </form>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
+                  <tr key={entry.id} className="clickable-row" onClick={() => setOpenId(entry.id)}>
+                    <td>{entry.invoiceNumber ?? "—"}</td>
+                    <td>
+                      <div>{entry.clientLabel}</div>
+                      <div className="cell-sub">{entry.sourceLabel}</div>
+                    </td>
+                    <td>{formatDate(entry.processedAt)}</td>
+                    <td>{formatDate(entry.dueDate)}</td>
+                    <td className="num">{formatCurrency(entry.amount)}</td>
+                    <td className="num">{formatCurrency(entry.paidAmount)}</td>
+                    <td className="num">{formatCurrency(entry.amount - entry.paidAmount)}</td>
+                    <td>
+                      <span className={`badge-pill ${INVOICE_STATUS_BADGE[entry.status]}`}>{INVOICE_STATUS_LABELS[entry.status]}</span>
+                    </td>
+                  </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      {openId && <InvoiceDetailDrawer id={openId} onClose={() => setOpenId(null)} />}
     </div>
   );
 }

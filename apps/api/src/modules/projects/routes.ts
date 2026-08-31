@@ -9,6 +9,7 @@ import {
   canRequestInvoice,
   canCreateInvoiceRecord,
   canRecordPayment,
+  canHoldInvoice,
   canManageWarranty,
   canManageProject,
   canArchiveProject,
@@ -34,6 +35,8 @@ import {
   requestInvoice,
   recordInvoice,
   recordInvoicePayment,
+  holdInvoiceEntry,
+  releaseInvoiceHold,
   setWarrantyExpected,
   activateOrUpdateWarranty,
   getWarrantyHistory,
@@ -243,8 +246,30 @@ projectsRouter.patch(
   requirePermission((persona) => canRecordPayment(persona)),
   async (req, res) => {
     const entryId = z.uuid().parse(req.params.entryId);
-    const { paidAmount } = z.object({ paidAmount: z.number().nonnegative() }).parse(req.body);
-    const entry = await recordInvoicePayment(entryId, paidAmount);
+    const { amount } = z.object({ amount: z.number().positive() }).parse(req.body);
+    const entry = await recordInvoicePayment(entryId, amount);
+    res.json({ entry });
+  },
+);
+
+projectsRouter.patch(
+  "/invoice-plan/:entryId/hold",
+  requireAuth,
+  requirePermission((persona) => canHoldInvoice(persona)),
+  async (req, res) => {
+    const entryId = z.uuid().parse(req.params.entryId);
+    const entry = await holdInvoiceEntry(entryId);
+    res.json({ entry });
+  },
+);
+
+projectsRouter.patch(
+  "/invoice-plan/:entryId/release-hold",
+  requireAuth,
+  requirePermission((persona) => canHoldInvoice(persona)),
+  async (req, res) => {
+    const entryId = z.uuid().parse(req.params.entryId);
+    const entry = await releaseInvoiceHold(entryId);
     res.json({ entry });
   },
 );
