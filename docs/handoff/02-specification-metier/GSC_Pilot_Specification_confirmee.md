@@ -1700,3 +1700,280 @@ Vérifié contre le code actuellement en place (`actionCenter/service.ts`,
 `dashboard/service.ts`, `contacts/service.ts`, `projects/service.ts`) —
 cette mise à jour du document découle d'une relecture directe, jamais
 d'une supposition.
+
+---
+
+# Sous-assemblages (« Assemblage »), Avenants, Gantt de production
+
+Les RÈGLES pures de `subassembly.ts` (voir plus haut, section « Le
+sous-assemblage de conception ») et `amendments.ts` (voir plus haut,
+section « Avenants ») ont été **confirmées le 9 août 2026** — mais
+jamais construites (schéma/API/interface) avant le **21 août 2026**,
+avec le Gantt de production v1. Ce qui suit couvre uniquement cette
+construction et ce qui a changé depuis.
+
+## Sous-assemblages / Assemblage — construction (confirmé le 21 août 2026)
+
+- **`canDeclareSubassembly` — corrigé le 21 août 2026** (rapport de
+  l'utilisatrice : « sous-assemblage toujours Marc (propriétaire) ») :
+  Propriétaire réel SEULEMENT (persona `boss`) — jamais Direction,
+  Administration, Employé ou Magasinier, contrairement à un premier jet
+  qui l'ouvrait à tout employé. `canPrepareSubassemblyPartsList` (créer
+  la liste de pièces) et `canDeclareAssemblyReady` (débloquer la tâche
+  d'Assemblage) restent Direction seulement (`ROLES.OWNER`) — trois
+  gestes, trois rôles différents.
+- **Centre d'actions** : un sous-assemblage déclaré prêt (`pending_parts_list`)
+  atterrit sous « Assemblage à préparer » (`subassembly_ready`, voir
+  section Centre d'actions ci-dessus).
+- **Renommage « Assemblage » — 31 août 2026, UI seulement** : le module
+  s'affiche désormais « Assemblage » dans l'interface
+  (`ProjectSubassemblies.tsx`, Centre d'actions) — **rien n'a changé en
+  interne** (modèle Prisma `Subassembly`, fichiers, fonctions
+  `declareSubassemblyReady`/`markPartsListReady`, tous inchangés). Voir
+  CLAUDE.md pour le détail complet du piège de nommage et les deux
+  confusions déjà tranchées avec l'utilisatrice (`declareAssemblyReady`
+  ≠ la déclaration de Marc; le « sous-assemblage » du module Checklist
+  est un concept totalement différent et sans lien).
+- **Partie 1 — liste de pièces : fenêtre contextuelle + reste planifié
+  (confirmé le 31 août 2026)**, en réaction à un rapport de test de
+  Marie : la création de la liste de pièces (Direction, sept champs fixes —
+  les 5 Fabrication-X, Programmation, Assemblage — jamais de marge/achats/
+  description, seulement des heures) affiche maintenant, sous chaque
+  champ, le **reste planifié au budgétaire du projet** pour cette
+  catégorie : la ligne budgétaire correspondante (Fabrication-X exacte;
+  Programmation = « Programmation » + « Panneau & Schémas » additionnées;
+  Assemblage = « Assemblage » + « Test & Finition » + « Emballage » +
+  « Ménage » additionnées), **moins ce que les AUTRES assemblages du même
+  projet ont déjà déclaré** pour cette même sous-catégorie
+  (`getRemainingHoursByCategory`, `subassemblies/service.ts`) — calcul
+  STATIQUE (basé sur ce qui est déjà soumis), pas un décompte en direct
+  pendant la saisie du formulaire courant. Repose sur `BudgetRow.slug`
+  (copié depuis `BudgetModelRow.slug` à la création du budgétaire,
+  existait déjà en seed mais n'avait jamais de consommateur avant cette
+  date). **Rien affiché si le projet n'a pas de budgétaire d'origine**
+  (création directe) — jamais une erreur ni un 0 trompeur.
+
+## Avenants — construction (confirmé le 21 août 2026)
+
+Règles inchangées (voir section « Avenants » plus haut, 9 août 2026) —
+construction du schéma (`Project.nextAmendmentNumber`), de l'API et de
+l'interface (`ProjectAmendments.tsx`). Compléments confirmés
+individuellement après coup :
+
+- **Fenêtre contextuelle avec catégories fixes et totaux en direct**
+  (24 août 2026) — remplace un formulaire à lignes dynamiques.
+- **Marge par défaut = marge visée du projet** (`Project.targetMarginPct`,
+  20 août 2026) plutôt qu'une valeur neutre à ressaisir à chaque fois.
+- **Sous-catégories de Fabrication restaurées** (plasma/pliage/usinage/
+  soudage/peinture, 24 août 2026) et **champ description facultative**
+  (24 août 2026).
+
+## Gantt de production — v1, tableau simple (confirmé le 21 août 2026)
+
+Version volontairement simple à la construction initiale : un tableau à
+dépendances (`ProjectTask.assignedEmployeeId`, affectation manuelle
+directe), **sans dates ni capacité** — le moteur automatique était
+délibérément reporté à une phase séparée. `canEditGanttSchedule`
+(Direction seulement) garde l'édition; les autres rôles consultent.
+
+## Gantt de production — moteur de planification automatique (confirmé le 31 août 2026)
+
+Nouveau module de règles pures, `gantt-schedule.ts` (`packages/business-rules`)
+— reprend la forme du moteur déjà conçu et validé dans la référence v19
+(jamais construit dans GSC Pilot avant cette date), en particulier le cas
+du goulot d'étranglement à un seul employé qualifié, vérifié correct dès
+le 9 août 2026. **Explicitement HORS scope** : le mini Gantt de conception
+de Marc (`subassembly.ts`, jamais touché) — ce moteur planifie
+uniquement les tâches déjà générées par les Assemblages ou les Avenants,
+jamais leur création.
+
+- **Principe central** : une date ici est TOUJOURS PRÉDITE (sert à
+  enchaîner les tâches dépendantes et à afficher les barres), **jamais**
+  la complétion réelle — qui reste `ProjectTask.ganttCompleted`, un
+  geste 100 % manuel de Direction. Le calendrier est toujours recalculé
+  au complet à la lecture, jamais une date stockée (même principe que
+  `progressionPct`/statut financier ailleurs dans l'application).
+- **Semaine québécoise** : lundi-jeudi 8,5 h, vendredi 4 h, week-end 0.
+  **Horizon dynamique** : toujours 30 jours ouvrables à partir
+  d'aujourd'hui, jamais une plage calendaire fixe.
+- **Entrée au Gantt — geste explicite, jamais automatique** :
+  - Un **Roulement** entre TOUJOURS en entier, via `activateRollingGantt`
+    (bouton « Activer », avec heures par catégorie saisies à ce moment —
+    les `ProjectTask` n'existent pas avant ce geste, contrairement à un
+    Projet).
+  - Un **Projet** entre par choix de Direction (`enterProjectGanttBatch`,
+    fenêtre contextuelle à deux boutons) : soit un LOT précis (assemblage
+    ou avenant, tamponne les `ProjectTask` déjà créées via
+    `enteredGanttAt`/`enteredGanttById`), soit `whole_project` (pose
+    `Project.ganttAutoEnter = true` — tout, maintenant et pour l'avenir,
+    lu à chaque calcul). Ce geste ne touche **jamais**
+    `subassemblies/service.ts` ni `amendments/service.ts`.
+  - `listGanttReadyQueue` — file « prêt mais pas encore entré » (lots de
+    projet + roulements pas encore activés), toujours visible.
+- **Priorité et départage** : `Project.priority` (Direction, éditable
+  manuellement, `updateProjectGanttPriority`, `canEditGanttSchedule` —
+  délibérément DISTINCT de `canManageProject`, un levier de planification
+  pas une info administrative) ou `Rolling.priority` **+ un bonus
+  structurel de +2** (`ROLLING_PRIORITY_BONUS`, repris tel quel du moteur
+  v19) — un Roulement passe « presque toujours » avant un Projet (son
+  stock est physiquement arrivé, il est réellement prêt à démarrer
+  MAINTENANT), jamais une règle absolue : un Projet à priorité manuelle
+  assez élevée peut encore passer devant. Départage ensuite par échéance
+  (`Project.deadline`/`Rolling.dueDate`).
+- **Algorithme** — jour par jour dans l'horizon : tâches admissibles
+  (dépendances déjà prédites complétées STRICTEMENT AVANT ce jour, jamais
+  un enchaînement le jour même) triées priorité DESC puis échéance ASC,
+  consommant la capacité disponible des employés qualifiés dans cet
+  ordre. Une tâche = un seul employé à la fois (`ProjectTask.minPeople`/
+  `maxPeople` existent dans le schéma mais restent hors scope, aucune
+  exigence confirmée ne le demande).
+- **Efficacité par compétence** (`Employee.skillEfficiencies`, 0-200 %) —
+  étire ou compresse le calendrier (20 h réelles à 50 % d'efficacité =
+  40 h de calendrier), mais n'affecte JAMAIS le budgétaire/heures/
+  post-mortem, qui restent sur les heures réelles. Sans pourcentage
+  explicite mais compétence listée : 100 % par défaut; sans la compétence
+  du tout : 0 (pas qualifié).
+- **`pinnedEmployeeId`** (`ProjectTask.assignedEmployeeId`) — depuis le
+  moteur automatique, une affectation manuelle devient une **dérogation
+  optionnelle** (le moteur choisit seul si vide), jamais une affectation
+  obligatoire comme en v1. Une compétence absente ne bloque pas un
+  employé imposé — dérogation volontaire déjà permise, traitée comme
+  100 % plutôt que 0 (sinon aucune heure ne serait jamais consommée).
+- **Interruptions** (`Interruption`, nouveau module `interruptions/`) —
+  employé précis OU tout l'atelier (`employeeId` nul), heures partielles,
+  validées contre la vraie capacité de CE jour précis
+  (`validateInterruptionHours` — jamais un maximum arbitraire côté
+  client, ex. 8,5 h un vendredi où la vraie capacité n'est que 4 h).
+  Direction seulement (`canEditGanttSchedule`), lecture pour tous. Huit
+  motifs (`INTERRUPTION_REASONS`) : absence, vacances, appel de service
+  urgent, livraison, formation, maintenance interne, **jour férié**, autre
+  — ce dernier motif a été AJOUTÉ (aucun équivalent dans la liste
+  d'origine confirmée) plutôt que de glisser un jour férié sous
+  « Autre »; **non re-confirmé mot pour mot avec l'utilisatrice**, à
+  signaler si elle préfère l'inverse. Aucun jour férié québécois
+  pré-rempli — un seul mécanisme uniforme, Direction les entre comme
+  n'importe quelle interruption tout-atelier.
+
+Vérifié contre le code actuellement en place
+(`packages/business-rules/src/{subassembly,amendments,gantt-schedule}.ts`,
+`apps/api/src/modules/{subassemblies,gantt,interruptions}/service.ts`,
+`roles.ts`) — cette mise à jour du document découle d'une relecture
+directe, jamais d'une supposition. Les décisions notées ci-dessus comme
+« non re-confirmées mot pour mot » restent des interprétations
+raisonnables du plan approuvé avec l'utilisatrice avant construction, pas
+des confirmations verbatim — à vérifier avec elle si un doute survient.
+
+---
+
+# Module Checklist de production (confirmé le 21 août 2026)
+
+NOUVEAU module (aucun port), **indépendant du module Sous-assemblages** —
+confirmé explicitement par l'utilisatrice, aucun lien de schéma malgré le
+nom proche (voir CLAUDE.md, piège de nommage). Suit les pièces
+**fabriquées à l'interne** (catalogue configurable d'étapes, ex.
+MEP→DXF→Plasma→Pliage→Usinage→Soudage→CQ→Peinture) — jamais les pièces
+achetées, qui restent la liste rapide d'achats déjà existante.
+
+- **Modèle** : une checklist = un contenant (projet + assemblage libre
+  optionnel, texte libre). Un item = une pièce OU un sous-assemblage
+  (regroupement propre à CE module, sans lien avec `Subassembly`) — un
+  item « pièce » peut avoir un parent « sous-assemblage » de la même
+  checklist; un « sous-assemblage » reste toujours racine.
+- **États à 3 niveaux par étape** (`ProductionChecklistItemStep`) :
+  inactive (grisée, ne s'applique pas) / active + non complétée / active +
+  complétée. `active` se choisit UNE FOIS par Direction à la création —
+  cocher une étape à la création **ne la marque jamais complétée**
+  (précision explicite du 21 août 2026).
+- **Un item disparaît de la vue active** une fois toutes ses étapes
+  actives complétées, mais reste enregistré en permanence (vue archive
+  par projet, jamais supprimé) — confirmé le 26 août 2026 : un
+  sous-assemblage ET ses pièces enfants disparaissent ensemble de la vue
+  active.
+- **`canManageProductionChecklist`** (créer/ajouter) = Direction
+  seulement; **`canAccessProductionChecklist`** (voir, cocher une étape) =
+  tout le monde SAUF Magasinier (« le Magasinier n'a pas de travail
+  d'atelier de fabrication »).
+- **Unicité du numéro de pièce par PROJET**, tous checklists confondus
+  (deux projets différents peuvent réutiliser le même numéro, jamais
+  deux items du même projet) — **avertissement contournable**
+  (`force: true`, « Ajouter quand même »), jamais un blocage définitif.
+- **Rework de navigation (26 août 2026)** : structure à 3 niveaux
+  (projets actifs avec checklist → checklists du projet → items filtrés),
+  remplace une vue transversale unique — 3 catalogues Paramètres
+  (Épaisseur/Matériau/Étape) fusionnés visuellement en une seule section
+  à cette occasion (présentation seulement, restent 3 modèles Prisma
+  séparés). Catalogues : « supprimer » = désactiver seulement (même
+  patron que les catégories d'achat) — les items déjà créés gardent leur
+  valeur figée en texte, jamais invalidée rétroactivement.
+
+# Module Scan QR (confirmé le 23 août 2026)
+
+Étiquette 1×1 po par projet, scannable (caméra, `qr-scanner` — jamais
+`BarcodeDetector`, peu fiable sur iOS, décision technique du plan de
+fondation) ou saisie manuelle en repli, toujours disponible même caméra
+indisponible/refusée.
+
+- **Résolution par rôle, un seul branchement (`canAccessOverviewViews`)** :
+  Direction/Administration/Propriétaire → ouvre la fiche projet (et ses
+  achats); Employé/Magasinier → ouvre directement le choix de tâche à
+  puncher (Propriétaire et Magasinier non nommés dans la spec d'origine,
+  confirmés séparément le 23 août 2026 : Propriétaire suit Direction/
+  Administration, Magasinier suit Employé).
+- **Étendu aux roulements le 28 août 2026** (`rollingNumber RL-AAAA-NNNN`)
+  — même résolution, mais **sans cache hors ligne** contrairement aux
+  projets : un code de roulement scanné hors ligne échoue proprement avec
+  un message d'erreur plutôt que d'étendre le sous-système hors-ligne
+  sans que ce soit demandé.
+
+# Mode hors ligne (confirmé le 23 août 2026)
+
+**Limité à 3 tâches de terrain**, spec confirmée : punch d'heures
+(chronomètre en direct inclus), scan QR (raccourci de punch seulement),
+appel de service (données terrain seulement). Isolé dans
+`apps/web/src/offline/` — aucun autre écran n'importe ce dossier,
+impossible d'écrire hors ligne ailleurs par accident.
+
+- **Outbox** (Dexie/IndexedDB, `apps/web/src/offline/db.ts`) — chaque
+  action est un item **indépendant et ré-essayable** (jamais un gros item
+  combiné), pour ne jamais rejouer une pièce déjà ajoutée si une étape
+  suivante échoue à la synchronisation. Cinq types :
+  démarrer/arrêter un punch, modifier un call, ajouter une pièce à un
+  call, capturer une signature.
+  `flushOutbox` rejoue dans l'ordre de création, un item à la fois — un
+  échec n'empêche pas d'essayer les suivants.
+  - **Chronomètre local** (`LocalActiveEntry`, clé fixe `"active"`) —
+    démarré hors ligne, lu en plus de l'entrée active du serveur.
+  - **Copie locale des projets/roulements punchables** (`cachedProjects`)
+    — rafraîchie à chaque chargement en ligne, pour que le Scan QR et le
+    punch fonctionnent hors ligne même après un redémarrage sans réseau.
+  - **`PendingStop`** — une entrée serveur arrêtée hors ligne reste cachée
+    de l'affichage « active » jusqu'à ce que la synchronisation confirme
+    l'arrêt côté serveur (évite un double-arrêt visuel).
+
+# Délégation d'approbation (confirmé le 7-8 août 2026, construite le 23 août 2026)
+
+Les règles (voir plus haut, section « Délégation d'approbation ») étaient
+déjà confirmées avant le 14 août 2026 — `delegationActive`/`actsAsDirection`
+déjà écrites et branchées partout dans `roles.ts` depuis le port initial.
+La construction du 23 août 2026 n'ajoute que la **gestion réelle**
+(créer/révoquer/lister des `DelegationGrant`), rien côté permissions :
+
+- **Une seule délégation active/à venir à la fois** — une nouvelle
+  création est refusée tant qu'une délégation non révoquée n'est pas déjà
+  expirée, pour éviter toute ambiguïté (`loadDelegationSettings` ne
+  charge jamais qu'une seule délégation à la fois).
+- Déléguer seulement à Propriétaire ou Administration (jamais Employé/
+  Magasinier), catégorie(s) parmi `hours`/`purchases`/`service`/`changes`
+  (au moins une), justification obligatoire, date de fin ≥ date de
+  début. `canGrantDelegation` = Direction seulement.
+- **Corrigé le 1er septembre 2026** (cette même session) : un test de
+  `roles.test.ts` sur les fenêtres de délégation dépendait de l'horloge
+  réelle (`new Date()`), devenu instable avec le temps — fixé avec
+  `vi.useFakeTimers()` dans le test seulement, `roles.ts` lui-même
+  jamais modifié (rappel CLAUDE.md : ce fichier ne se modifie jamais).
+
+Vérifié contre le code actuellement en place
+(`apps/api/src/modules/{checklists,settings/delegation}.ts`,
+`apps/web/src/features/qrScan/QrScanPage.tsx`,
+`apps/web/src/offline/{db,sync}.ts`, `roles.ts`) — cette mise à jour du
+document découle d'une relecture directe, jamais d'une supposition.
