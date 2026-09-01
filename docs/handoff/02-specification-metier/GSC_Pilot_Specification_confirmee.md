@@ -2172,3 +2172,130 @@ Vérifié contre le code actuellement en place
 (`apps/api/src/modules/{errorReports,teamNotes,invoicing,deliveries}/service.ts`,
 `roles.ts`) — cette mise à jour du document découle d'une relecture
 directe, jamais d'une supposition.
+
+---
+
+# Module Rapports et statistiques (confirmé le 20 août 2026)
+
+Citation directe de la spécification : « tableau comparatif de
+rentabilité (revenu, coût, marge, heures réelles) entre projets,
+roulements et calls de service, plus un graphique de conversion par
+canal de vente. Agrège des données déjà confirmées ailleurs — pas de
+nouvelle règle métier à trancher. » Chaque chiffre reste calculé par les
+fonctions déjà vérifiées (`listProjects`, `getRollingDetail`,
+`getServiceCallDetail`, `projectMargin`, `financialStatus`,
+`internalHoursSummary`/`internalPurchasesSummary`, ces deux dernières
+déjà confirmées le 8 août 2026, voir plus haut section « Statistiques
+Interne ») — jamais un deuxième calcul divergent. `canAccessOverviewViews`
+(Direction/Administration/Propriétaire) garde tout l'écran — exactement
+le même trio que `canSeeFinancialValues`/`canSeeServicePricing`, donc les
+montants sont toujours visibles ici, jamais vérifiés au cas par cas.
+
+- **Tableau de rentabilité** — une ligne par Projet/Roulement/Call de
+  service, `cost`/`grossMargin`/`grossMarginPct`/`financialStatus`
+  toujours dérivés des fonctions déjà vérifiées de chaque module (jamais
+  un troisième calcul). **Roulements branchés le 1er septembre 2026**
+  (citation : « je veux les mêmes chiffres réels que Projet et Call de
+  service ») — voir section Roulements ci-dessus : `cost` dérivé de
+  `sold − grossMargin`, une requête par roulement (`getRollingDetail`,
+  volume faible, jamais un aller-retour coûteux en pratique) plutôt
+  qu'un agrégat batché comme pour les projets.
+- **Graphique de conversion par canal de vente** — inclut TOUS les
+  canaux, même désactivés depuis (l'historique de conversion ne doit
+  jamais disparaître parce que Direction a désactivé un canal, contrairement
+  au menu déroulant du formulaire de demande qui ne montre que les
+  canaux actifs). « Converti » = `ClientRequest.status === "converted"`,
+  le seul signal qui existe (posé dès qu'un budgétaire est créé pour la
+  demande — pas nécessairement « Contrat obtenu »).
+- **Statistiques Interne** (« Amélioration GSC ») — regroupement par
+  TÂCHE plutôt que par employé (confirmé le 25 août 2026, demande
+  explicite) : réutilise `internalHoursSummary` telle quelle en glissant
+  `taskId` à la place de son champ générique `employee` — même patron que
+  `actualHoursByCategory` réutilisée pour un regroupement par tâche
+  ailleurs (Post-mortem). Drill-down détaillé disponible (heures et
+  achats individuels). `availableYears` dérivé des dates réelles
+  trouvées (jamais deviné) — l'année demandée reste toujours sélectionnable
+  même sans aucune donnée.
+- **Rapport d'erreurs** — section dédiée dans cet écran, en plus de sa
+  propre page (voir module Rapport d'erreurs ci-dessus).
+
+## Enrichissements du 1er septembre 2026 (cette même session)
+
+- **Lignes du tableau cliquables** — ouvre le Post-mortem (Projet ou
+  Roulement) pour une ligne de ce type, ou le détail du Call de service
+  pour une ligne de ce type (aucun Post-mortem n'existe pour un Call).
+  Convention `clickable-row` réutilisée (déjà en place dans
+  `ContactList.tsx`/`BudgetList.tsx`) plutôt que l'ancien patron de bouton
+  « Ouvrir » explicite.
+- **Pagination (10 lignes), filtre par type** (Projet/Roulement/Call de
+  service) **et recherche texte**, plus un bouton « Voir tout »/« Réduire »
+  par recherche — un seul mécanisme général plutôt que 3 boutons dédiés
+  par type, strictement plus capable.
+
+# Export PDF — vue imprimable (confirmé le 18 août puis le 1er septembre 2026)
+
+Mécanisme choisi explicitement par l'utilisatrice (clarifié via question
+directe) : impression navigateur simple, **jamais** un système de
+téléversement de vrais gabarits — le modèle `PdfTemplate` existe dans le
+schéma mais n'a aucun consommateur, différé en permanence (confirmé :
+« Les modèles existants me conviennent déjà, pas besoin de ceci »).
+
+- **Patron établi par `BudgetExportView.tsx`** (18 août 2026, premier
+  export construit) et répliqué à l'identique pour chaque nouveau
+  document : route autonome sœur de l'`AppShell` (jamais imbriquée — pas
+  de chrome de navigation), gardée par la même fonction de permission que
+  l'écran source, requête réutilisant la fonction de fetch déjà existante
+  (jamais une nouvelle), `useEffect` déclenchant `window.print()` après un
+  court délai une fois les données chargées, bouton de repli manuel
+  visible seulement à l'écran (`.no-print`). Ouvert depuis l'écran source
+  via `window.open(url, "_blank", "noopener")`, jamais une modale/un état
+  inline.
+- **Trois nouveaux documents — confirmé le 1er septembre 2026** (demande
+  explicite, après clarification que le mécanisme simple suffisait) :
+  Post-mortem Projet (débloque un bouton jusque-là désactivé dans
+  `ProjectPostMortem.tsx`), Bons de livraison, Calls de service.
+  - **Call de service** : `showFinancials` reprend exactement
+    `canSeeServicePricing(employee.persona)` — jamais assumé que l'accès
+    à la route (`canAccessServiceCalls`, qui exclut seulement Magasinier)
+    suffit à voir les prix : un Employé atteint la page d'export mais ne
+    doit jamais y voir de montant, exactement comme la vue interactive.
+  - **Livraison** : gère les deux états signé/non signé.
+
+Vérifié contre le code actuellement en place
+(`apps/api/src/modules/reports/service.ts`,
+`apps/web/src/features/{projects/ProjectPostMortemExportView,
+fulfillment/DeliveryExportView,serviceCalls/ServiceCallExportView}.tsx`)
+et, pour les enrichissements du 1er septembre, contre une vraie base de
+données Postgres locale et des tests réels au moment de leur construction
+cette même session.
+
+---
+
+# Ajustements ponctuels — Achats et Budgétaire
+
+Deux changements de règle réels, en dehors des sections thématiques
+ci-dessus, capturés ici pour ne pas les perdre :
+
+- **Achats — visibilité complète pour tous les rôles (confirmé le 27 août
+  2026)** : tout le monde voit désormais l'historique complet des
+  demandes d'achat (règle d'origine restreignant Employé/Magasinier à
+  leurs propres demandes abandonnée après tests réels) — citation
+  directe : « plus simple pour le suivi des commandes » quand tout le
+  monde voit l'historique complet. `canViewPurchase` (`roles.ts`) devient
+  inutilisé par ce changement mais reste **intentionnellement intouché**
+  (module d'origine déjà vérifié, voir CLAUDE.md). La vraie protection
+  qui reste : le prix fixé/estimé demeure masqué pour Employé/Magasinier
+  via `canSeeFinancialValues`, appliqué dans le DTO — une couche séparée,
+  jamais retirée. **Historique paginé à 35 lignes**, avec filtre par
+  plage de dates.
+- **Budgétaire — `readOnly` après conversion (corrigé le 24 août 2026)** :
+  `assertBudgetNotConverted` (côté serveur) bloquait déjà réellement toute
+  modification d'un budgétaire converti en projet ou en roulement — mais
+  l'interface ne le savait pas et laissait croire que l'édition restait
+  possible (rapport de l'utilisatrice : « elle pouvait encore modifier un
+  budgétaire déjà converti », en apparence — les appels échouaient déjà
+  silencieusement côté serveur). Champ `readOnly` ajouté au DTO
+  (`!!(budget.project || budget.rolling)`) pour désactiver l'édition
+  côté interface aussi — le serveur reste la seule source de vérité réelle
+  pour le blocage, ce champ ne fait que refléter honnêtement l'état à
+  l'écran.
