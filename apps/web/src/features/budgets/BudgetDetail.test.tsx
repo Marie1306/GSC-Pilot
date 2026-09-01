@@ -166,4 +166,46 @@ describe("BudgetDetail — saisie des heures d'une ligne recalcule bien la secti
       expect(sectionTotal()).toBe("Heures 3Coût planifié 339,00 $Marge 25 %Prix de vente 423,75 $");
     });
   });
+
+  // Rapport de Marie, 1er septembre 2026 : quitter le champ Heures/Qté pour
+  // cliquer directement sur un champ voisin de la même ligne (ex. Risque, ou
+  // Prix unit.) exigeait un second clic — la ligne entière se désactivait
+  // pendant l'aller-retour réseau du champ qui venait de perdre le focus.
+  it("un enregistrement en cours sur un champ ne bloque pas les champs voisins de la même ligne", async () => {
+    let resolvePatch: (() => void) | undefined;
+    const patchPending = new Promise<void>((resolve) => {
+      resolvePatch = resolve;
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (init?.method === "PATCH" && url.includes(`/api/budgets/${budgetId}/rows/${pliageRowId}`)) {
+          await patchPending;
+          return new Response(null, { status: 204 });
+        }
+        if (url.includes(`/api/budgets/${budgetId}`)) {
+          return new Response(JSON.stringify({ budget: makeBudget(currentHours) }), { status: 200 });
+        }
+        return new Response("{}", { status: 200 });
+      }),
+    );
+
+    const { container } = renderDetail();
+    await screen.findByText("Pliage");
+
+    const hoursInput = container.querySelector<HTMLInputElement>(".budget-rows-table input[type='number']")!;
+    const riskInput = container.querySelector<HTMLInputElement>(".budget-rows-table input[placeholder='Risque, hypothèse ou note']")!;
+
+    fireEvent.change(hoursInput, { target: { value: "3" } });
+    fireEvent.blur(hoursInput);
+
+    // Le champ qui vient de perdre le focus se verrouille le temps de son
+    // propre aller-retour...
+    await waitFor(() => expect(hoursInput.disabled).toBe(true));
+    // ...mais un champ voisin de la même ligne reste immédiatement cliquable.
+    expect(riskInput.disabled).toBe(false);
+
+    resolvePatch?.();
+    await waitFor(() => expect(hoursInput.disabled).toBe(false));
+  });
 });

@@ -82,8 +82,8 @@ interface BudgetSectionCardProps {
   canModifyLabor: boolean;
   canModifyPurchase: boolean;
   busy: boolean;
-  /** Ligne en cours d'enregistrement (une seule à la fois, voir onUpdateRow) — verrouille seulement CETTE ligne, jamais tout le tableau (12 août 2026 : bloquer tout le tableau à chaque frappe empêchait une saisie continue sur plusieurs lignes). */
-  savingRowId: string | undefined;
+  /** Champ précis en cours d'enregistrement (voir onUpdateRow) — ne verrouille QUE ce champ, jamais toute la ligne : verrouiller la ligne entière (12 août 2026) empêchait un clic vers un champ voisin pendant l'aller-retour réseau du champ qui vient de perdre le focus, forçant à re-sélectionner (rapport de l'utilisatrice, 1er septembre 2026 — raffinement du même correctif). */
+  savingCell: { rowId: string; field: keyof UpdateRowPatch } | undefined;
   onUpdateRow: (rowId: string, patch: UpdateRowPatch) => void;
   onAddRow: (sectionId: string, label: string, unitPrice: number) => void;
   onRemoveRow: (rowId: string) => void;
@@ -95,7 +95,7 @@ function BudgetSectionCard({
   canModifyLabor,
   canModifyPurchase,
   busy,
-  savingRowId,
+  savingCell,
   onUpdateRow,
   onAddRow,
   onRemoveRow,
@@ -151,7 +151,8 @@ function BudgetSectionCard({
         </thead>
         <tbody>
           {section.rows.map((row) => {
-            const editable = isRowEditable(row, section.kind, canModifyLabor, canModifyPurchase) && !busy && savingRowId !== row.id;
+            const editable = isRowEditable(row, section.kind, canModifyLabor, canModifyPurchase) && !busy;
+            const isSaving = (field: keyof UpdateRowPatch) => savingCell?.rowId === row.id && savingCell.field === field;
             return (
               <tr key={row.id}>
                 <td>
@@ -160,7 +161,7 @@ function BudgetSectionCard({
                       key={`label-${row.id}-${row.label}`}
                       placeholder="Nom de l'article / dépense"
                       defaultValue={row.label}
-                      disabled={!editable}
+                      disabled={!editable || isSaving("label")}
                       enterKeyHint="done"
                       onKeyDown={blurOnEnter}
                       onBlur={(e) => {
@@ -186,7 +187,7 @@ function BudgetSectionCard({
                       min={0}
                       step={section.kind === "labor" ? 0.25 : 1}
                       defaultValue={section.kind === "labor" ? row.hours : row.qty}
-                      disabled={!editable}
+                      disabled={!editable || isSaving(section.kind === "labor" ? "hours" : "qty")}
                       enterKeyHint="done"
                       onFocus={(e) => e.target.select()}
                       onKeyDown={blurOnEnter}
@@ -209,7 +210,7 @@ function BudgetSectionCard({
                       min={0}
                       step={0.01}
                       defaultValue={row.unitPrice}
-                      disabled={!editable}
+                      disabled={!editable || isSaving("unitPrice")}
                       enterKeyHint="done"
                       onFocus={(e) => e.target.select()}
                       onKeyDown={blurOnEnter}
@@ -225,7 +226,7 @@ function BudgetSectionCard({
                     key={`risk-${row.id}-${row.risk}`}
                     placeholder="Risque, hypothèse ou note"
                     defaultValue={row.risk ?? ""}
-                    disabled={!editable}
+                    disabled={!editable || isSaving("risk")}
                     enterKeyHint="done"
                     onKeyDown={blurOnEnter}
                     onBlur={(e) => {
@@ -440,7 +441,16 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
   // seule sauvegardait (~0,5 s), empêchant une saisie continue sur
   // plusieurs lignes — signalé par l'utilisatrice.
   const rowsBusy = addRowMutation.isPending || removeRowMutation.isPending || complexityMutation.isPending || statusMutation.isPending || convertMutation.isPending;
-  const savingRowId = rowMutation.isPending ? rowMutation.variables?.rowId : undefined;
+  // Ne verrouille que le champ précis en cours d'enregistrement, pas toute la
+  // ligne — verrouiller la ligne entière bloquait un clic vers le champ
+  // voisin pendant l'aller-retour réseau (~0,3-1 s), forçant à
+  // re-sélectionner (rapport de l'utilisatrice, 1er septembre 2026). Sûr
+  // côté serveur : updateRow (budgets/service.ts) fait une mise à jour
+  // Prisma partielle par champ, jamais un remplacement de ligne complète.
+  const savingCell =
+    rowMutation.isPending && rowMutation.variables
+      ? { rowId: rowMutation.variables.rowId, field: Object.keys(rowMutation.variables.patch)[0] as keyof UpdateRowPatch }
+      : undefined;
   const missingSummary = Boolean(budget) && (!budget!.summary?.trim() || !budget!.riskSummary?.trim());
   const detailedSummary = budget ? computeDetailedSummary(budget) : null;
 
@@ -681,7 +691,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                     canModifyLabor={canModifyLabor}
                     canModifyPurchase={canModifyPurchase}
                     busy={rowsBusy}
-                    savingRowId={savingRowId}
+                    savingCell={savingCell}
                     onUpdateRow={(rowId, patch) => rowMutation.mutate({ rowId, patch })}
                     onAddRow={(sectionId, label, unitPrice) => addRowMutation.mutate({ sectionId, label, unitPrice })}
                     onRemoveRow={(rowId) => removeRowMutation.mutate(rowId)}
