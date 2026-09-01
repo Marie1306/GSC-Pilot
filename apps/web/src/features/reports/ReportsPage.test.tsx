@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ROLES } from "@gsc-pilot/business-rules";
@@ -177,5 +177,101 @@ describe("ReportsPage — comparatif de rentabilité, lignes cliquables", () => 
     row.click();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining(`/api/service-calls/${callId}`), expect.anything()));
     expect(screen.queryByText(/Post-mortem/)).not.toBeInTheDocument();
+  });
+});
+
+const TYPE_LABELS_FOR_TEST: Record<"project" | "rolling" | "service_call", string> = {
+  project: "Projet",
+  rolling: "Roulement",
+  service_call: "Call de service",
+};
+
+function makeRow(index: number, type: "project" | "rolling" | "service_call"): ReportsOverviewDto["profitability"][number] {
+  const padded = String(index).padStart(2, "0");
+  return {
+    id: `pagination-row-${index}`,
+    type,
+    typeLabel: TYPE_LABELS_FOR_TEST[type],
+    displayId: "—",
+    label: `Dossier ${padded}`,
+    clientLabel: `Client ${padded}`,
+    revenue: 10000 - index,
+    cost: 100,
+    grossMargin: 9900 - index,
+    grossMarginPct: 99,
+    financialStatus: "conforme",
+    actualHours: 1,
+  };
+}
+
+// 12 dossiers : 8 projets (Client 01-08), 2 roulements (Client 09-10), 2 calls
+// (Client 11-12) — assez pour dépasser la page de 10 et exercer la
+// pagination/le filtre par type/le bouton Voir tout.
+const overviewPagination: ReportsOverviewDto = {
+  profitability: [
+    ...Array.from({ length: 8 }, (_, i) => makeRow(i + 1, "project")),
+    ...Array.from({ length: 2 }, (_, i) => makeRow(i + 9, "rolling")),
+    ...Array.from({ length: 2 }, (_, i) => makeRow(i + 11, "service_call")),
+  ],
+  channelConversion: [],
+  internalStats: overview.internalStats,
+};
+
+describe("ReportsPage — pagination, filtre par type, recherche du comparatif", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/api/reports/overview")) return new Response(JSON.stringify(overviewPagination), { status: 200 });
+        return new Response("{}", { status: 200 });
+      }),
+    );
+  });
+
+  it("affiche au maximum 10 lignes à la fois, avec un compteur et une pagination", async () => {
+    renderPage();
+    await screen.findByText("Client 01");
+    expect(screen.queryByText("Client 11")).not.toBeInTheDocument();
+    expect(screen.getByText("12 dossiers")).toBeInTheDocument();
+    expect(screen.getByText("Page 1 / 2")).toBeInTheDocument();
+  });
+
+  it("le bouton Suivant affiche la page 2", async () => {
+    renderPage();
+    await screen.findByText("Client 01");
+    screen.getByRole("button", { name: "Suivant" }).click();
+    await screen.findByText("Client 11");
+    expect(screen.queryByText("Client 01")).not.toBeInTheDocument();
+    expect(screen.getByText("Page 2 / 2")).toBeInTheDocument();
+  });
+
+  it("le bouton Voir tout affiche toutes les lignes sans pagination", async () => {
+    renderPage();
+    await screen.findByText("Client 01");
+    screen.getByRole("button", { name: "Voir tout" }).click();
+    await screen.findByText("Client 12");
+    expect(screen.getByText("Client 01")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Suivant" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Réduire" })).toBeInTheDocument();
+  });
+
+  it("le filtre par type réduit la liste (ex. Roulement seulement)", async () => {
+    renderPage();
+    await screen.findByText("Client 01");
+    fireEvent.change(screen.getByDisplayValue("Tous les types"), { target: { value: "rolling" } });
+    await screen.findByText("Client 09");
+    expect(screen.getByText("Client 10")).toBeInTheDocument();
+    expect(screen.queryByText("Client 01")).not.toBeInTheDocument();
+    expect(screen.queryByText("Client 11")).not.toBeInTheDocument();
+    expect(screen.getByText("2 dossiers")).toBeInTheDocument();
+  });
+
+  it("la recherche filtre par nom de client", async () => {
+    renderPage();
+    await screen.findByText("Client 01");
+    fireEvent.change(screen.getByPlaceholderText("Rechercher par dossier ou client…"), { target: { value: "Client 05" } });
+    await waitFor(() => expect(screen.queryByText("Client 01")).not.toBeInTheDocument());
+    expect(screen.getByText("Client 05")).toBeInTheDocument();
+    expect(screen.getByText("1 dossier")).toBeInTheDocument();
   });
 });

@@ -13,6 +13,8 @@ const MONTH_LABELS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Ju
 
 const TYPE_LABELS: Record<string, string> = { project: "Projet", rolling: "Roulement", service_call: "Call de service" };
 
+const PROFITABILITY_PAGE_SIZE = 10;
+
 function formatHours(value: number | null): string {
   return value !== null ? `${value} h` : "—";
 }
@@ -21,6 +23,11 @@ function formatMoneyOrDash(value: number | null): string {
 }
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" });
+}
+function matchesProfitabilitySearch(row: ProfitabilityRowDto, search: string): boolean {
+  const q = search.trim().toLowerCase();
+  if (!q) return true;
+  return [row.label, row.clientLabel, row.displayId].some((value) => value.toLowerCase().includes(q));
 }
 
 /**
@@ -41,6 +48,39 @@ export function ReportsPage() {
   const [activeRow, setActiveRow] = useState<{ type: ProfitabilityRowDto["type"]; id: string } | null>(null);
   const overviewQuery = useQuery({ queryKey: ["reports", "overview", year], queryFn: () => fetchReportsOverview(year) });
   const overview = overviewQuery.data;
+
+  // Filtre/recherche/pagination du comparatif (1er septembre 2026, demande de
+  // l'utilisatrice) — entièrement côté client : overview.profitability est
+  // déjà chargé en entier, jamais de nouvel appel réseau pour ça.
+  const [profitabilityTypeFilter, setProfitabilityTypeFilter] = useState<ProfitabilityRowDto["type"] | "">("");
+  const [profitabilitySearch, setProfitabilitySearch] = useState("");
+  const [profitabilityPage, setProfitabilityPage] = useState(0);
+  const [profitabilityShowAll, setProfitabilityShowAll] = useState(false);
+
+  function updateProfitabilityTypeFilter(value: string) {
+    setProfitabilityTypeFilter(value as ProfitabilityRowDto["type"] | "");
+    setProfitabilityPage(0);
+    setProfitabilityShowAll(false);
+  }
+  function updateProfitabilitySearch(value: string) {
+    setProfitabilitySearch(value);
+    setProfitabilityPage(0);
+    setProfitabilityShowAll(false);
+  }
+
+  const filteredProfitability = overview
+    ? overview.profitability
+        .filter((row) => !profitabilityTypeFilter || row.type === profitabilityTypeFilter)
+        .filter((row) => matchesProfitabilitySearch(row, profitabilitySearch))
+    : [];
+  const profitabilityPageCount = Math.max(1, Math.ceil(filteredProfitability.length / PROFITABILITY_PAGE_SIZE));
+  const profitabilityCurrentPage = Math.min(profitabilityPage, profitabilityPageCount - 1);
+  const pagedProfitability = profitabilityShowAll
+    ? filteredProfitability
+    : filteredProfitability.slice(
+        profitabilityCurrentPage * PROFITABILITY_PAGE_SIZE,
+        (profitabilityCurrentPage + 1) * PROFITABILITY_PAGE_SIZE,
+      );
 
   // Rapports d'erreurs (28 août 2026) — section plus restrictive que le
   // reste de cette page : canAccessErrorReports (Propriétaire/Direction)
@@ -81,60 +121,129 @@ export function ReportsPage() {
             <p className="modal-subtitle">Revenu, coût, marge et heures réelles — projets, roulements et calls de service confondus.</p>
           </div>
         </div>
+
+        {overview && overview.profitability.length > 0 && (
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "14px 0" }}>
+            <select value={profitabilityTypeFilter} onChange={(event) => updateProfitabilityTypeFilter(event.target.value)} style={{ maxWidth: 200 }}>
+              <option value="">Tous les types</option>
+              <option value="project">{TYPE_LABELS.project}</option>
+              <option value="rolling">{TYPE_LABELS.rolling}</option>
+              <option value="service_call">{TYPE_LABELS.service_call}</option>
+            </select>
+            <input
+              type="search"
+              placeholder="Rechercher par dossier ou client…"
+              value={profitabilitySearch}
+              onChange={(event) => updateProfitabilitySearch(event.target.value)}
+              style={{ maxWidth: 260 }}
+            />
+          </div>
+        )}
+
         {!overview ? (
           <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Chargement…</p>
         ) : overview.profitability.length === 0 ? (
           <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucun dossier pour l'instant.</p>
+        ) : filteredProfitability.length === 0 ? (
+          <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucun résultat pour ce filtre ou cette recherche.</p>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table className="shortlist-table">
-              <thead>
-                <tr>
-                  <th>Dossier</th>
-                  <th>Client</th>
-                  <th className="num">Heures réelles</th>
-                  <th className="num">Revenu</th>
-                  <th className="num">Coût</th>
-                  <th className="num">Marge</th>
-                  <th>Statut</th>
-                </tr>
-              </thead>
-              <tbody>
-                {overview.profitability.map((row) => (
-                  <tr key={`${row.type}-${row.id}`} className="clickable-row" onClick={() => setActiveRow({ type: row.type, id: row.id })}>
-                    <td>
-                      <div>
-                        {row.displayId !== "—" ? `${row.displayId} — ` : ""}
-                        {row.label}
-                      </div>
-                      <div className="cell-sub">{TYPE_LABELS[row.type] ?? row.typeLabel}</div>
-                    </td>
-                    <td>{row.clientLabel}</td>
-                    <td className="num">{formatHours(row.actualHours)}</td>
-                    <td className="num">{formatCurrency(row.revenue)}</td>
-                    <td className="num">{formatMoneyOrDash(row.cost)}</td>
-                    <td className="num">
-                      {row.grossMargin !== null ? (
-                        <>
-                          {formatCurrency(row.grossMargin)}
-                          <div className="cell-sub">{row.grossMarginPct}%</div>
-                        </>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td>
-                      {row.financialStatus ? (
-                        <span className={`badge-pill badge-${row.financialStatus}`}>{FINANCIAL_STATUS_LABELS[row.financialStatus]}</span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
+          <>
+            <div style={{ overflowX: "auto" }}>
+              <table className="shortlist-table">
+                <thead>
+                  <tr>
+                    <th>Dossier</th>
+                    <th>Client</th>
+                    <th className="num">Heures réelles</th>
+                    <th className="num">Revenu</th>
+                    <th className="num">Coût</th>
+                    <th className="num">Marge</th>
+                    <th>Statut</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {pagedProfitability.map((row) => (
+                    <tr key={`${row.type}-${row.id}`} className="clickable-row" onClick={() => setActiveRow({ type: row.type, id: row.id })}>
+                      <td>
+                        <div>
+                          {row.displayId !== "—" ? `${row.displayId} — ` : ""}
+                          {row.label}
+                        </div>
+                        <div className="cell-sub">{TYPE_LABELS[row.type] ?? row.typeLabel}</div>
+                      </td>
+                      <td>{row.clientLabel}</td>
+                      <td className="num">{formatHours(row.actualHours)}</td>
+                      <td className="num">{formatCurrency(row.revenue)}</td>
+                      <td className="num">{formatMoneyOrDash(row.cost)}</td>
+                      <td className="num">
+                        {row.grossMargin !== null ? (
+                          <>
+                            {formatCurrency(row.grossMargin)}
+                            <div className="cell-sub">{row.grossMarginPct}%</div>
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td>
+                        {row.financialStatus ? (
+                          <span className={`badge-pill badge-${row.financialStatus}`}>{FINANCIAL_STATUS_LABELS[row.financialStatus]}</span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap", marginTop: 10 }}>
+              <span style={{ fontSize: 13, color: "var(--gsc-color-muted)" }}>
+                {filteredProfitability.length} dossier{filteredProfitability.length > 1 ? "s" : ""}
+              </span>
+              {!profitabilityShowAll && profitabilityPageCount > 1 && (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-small"
+                    disabled={profitabilityCurrentPage === 0}
+                    onClick={() => setProfitabilityPage((p) => p - 1)}
+                  >
+                    Précédent
+                  </button>
+                  <span style={{ fontSize: 13, color: "var(--gsc-color-muted)" }}>
+                    Page {profitabilityCurrentPage + 1} / {profitabilityPageCount}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-small"
+                    disabled={profitabilityCurrentPage >= profitabilityPageCount - 1}
+                    onClick={() => setProfitabilityPage((p) => p + 1)}
+                  >
+                    Suivant
+                  </button>
+                </>
+              )}
+              {!profitabilityShowAll && filteredProfitability.length > PROFITABILITY_PAGE_SIZE && (
+                <button type="button" className="btn btn-secondary btn-small" onClick={() => setProfitabilityShowAll(true)}>
+                  Voir tout
+                </button>
+              )}
+              {profitabilityShowAll && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-small"
+                  onClick={() => {
+                    setProfitabilityShowAll(false);
+                    setProfitabilityPage(0);
+                  }}
+                >
+                  Réduire
+                </button>
+              )}
+            </div>
+          </>
         )}
       </div>
 
