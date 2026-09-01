@@ -572,6 +572,9 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Fermer
           </button>
+          <button type="button" className="btn btn-secondary" onClick={() => window.open(`/appels-service/${call.id}/export`, "_blank", "noopener")}>
+            📄 Exporter en PDF
+          </button>
           {canApprove && call.status !== "approved" && (
             <button
               type="button"

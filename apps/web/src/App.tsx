@@ -1,11 +1,14 @@
 import type { ComponentType } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { canAccessBudget } from "@gsc-pilot/business-rules";
+import { canAccessBudget, canAccessOverviewViews, canAccessDeliveries, canAccessServiceCalls } from "@gsc-pilot/business-rules";
 import { AuthProvider } from "./lib/auth/AuthProvider.js";
 import { RequireRole } from "./lib/auth/RequireRole.js";
 import { AppShell } from "./components/AppShell.js";
 import { LoginPage } from "./features/auth/LoginPage.js";
 import { BudgetExportView } from "./features/budgets/BudgetExportView.js";
+import { ProjectPostMortemExportView } from "./features/projects/ProjectPostMortemExportView.js";
+import { DeliveryExportView } from "./features/fulfillment/DeliveryExportView.js";
+import { ServiceCallExportView } from "./features/serviceCalls/ServiceCallExportView.js";
 import { NAV_ITEMS } from "./lib/nav.js";
 import { DashboardPage } from "./features/dashboard/DashboardPage.js";
 import { ActionCenterPage } from "./features/actionCenter/ActionCenterPage.js";
@@ -61,6 +64,30 @@ export function App() {
             element={
               <RequireRole allow={canAccessBudget}>
                 <BudgetExportView />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/projets/:id/post-mortem/export"
+            element={
+              <RequireRole allow={canAccessOverviewViews}>
+                <ProjectPostMortemExportView />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/livraisons/:id/export"
+            element={
+              <RequireRole allow={canAccessDeliveries}>
+                <DeliveryExportView />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/appels-service/:id/export"
+            element={
+              <RequireRole allow={canAccessServiceCalls}>
+                <ServiceCallExportView />
               </RequireRole>
             }
           />

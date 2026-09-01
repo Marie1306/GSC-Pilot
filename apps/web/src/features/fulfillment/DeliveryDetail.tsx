@@ -195,6 +195,9 @@ export function DeliveryDetail({ id, onClose }: DeliveryDetailProps) {
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Fermer
           </button>
+          <button type="button" className="btn btn-secondary" onClick={() => window.open(`/livraisons/${delivery.id}/export`, "_blank", "noopener")}>
+            📄 Exporter en PDF
+          </button>
         </div>
       </div>
 

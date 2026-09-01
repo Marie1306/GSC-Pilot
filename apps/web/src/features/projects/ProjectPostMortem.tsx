@@ -352,8 +352,12 @@ export function ProjectPostMortem({ projectId, onClose }: ProjectPostMortemProps
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Fermer
           </button>
-          <button type="button" className="btn btn-secondary" disabled title="Export PDF — hors scope pour l'instant (confirmé)">
-            📄 Exporter PDF avec modèle (bientôt)
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => window.open(`/projets/${projectId}/post-mortem/export`, "_blank", "noopener")}
+          >
+            📄 Exporter en PDF
           </button>
         </div>
       </div>

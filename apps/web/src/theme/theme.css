@@ -809,3 +809,159 @@ a {
   color: var(--gsc-color-brand);
   font-weight: 700;
 }
+
+/**
+ * Vues d'export PDF (1er septembre 2026) — même mécanisme confirmé avec
+ * l'utilisatrice que BudgetExportView.tsx (déjà en production, 18 août
+ * 2026) : page autonome hors AppShell, impression navigateur
+ * (window.print(), "Enregistrer en PDF" comme destination), jamais de
+ * vraie génération PDF serveur ni de modèle importable (PdfTemplate,
+ * schema.prisma, reste hors scope — portée volontairement pas retenue).
+ * Classes génériques ici (contrairement à .budget-export-* qui reste
+ * propre à budgets.css) car réutilisées par 3 vues dans des dossiers de
+ * fonctionnalité différents (Post-mortem, Livraison, Call de service).
+ */
+.pdf-export {
+  min-height: 100vh;
+  background: var(--gsc-color-bg);
+}
+.pdf-export-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 32px 40px 60px;
+  background: var(--gsc-color-surface);
+  font-size: 13px;
+  line-height: 1.35;
+}
+.pdf-export-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 14px;
+  margin-bottom: 22px;
+  border-bottom: 4px solid var(--gsc-color-brand);
+}
+.pdf-export-brand {
+  margin: 0 0 4px;
+  font-size: 19px;
+  font-weight: 750;
+  color: var(--gsc-color-ink);
+}
+.pdf-export-header p {
+  margin: 4px 0;
+  font-size: 13px;
+}
+.pdf-export-status {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: var(--gsc-radius-sm);
+  background: var(--gsc-color-surface3);
+  white-space: nowrap;
+}
+
+.pdf-export-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin: 18px 0;
+}
+.pdf-export-box {
+  border: 1px solid var(--gsc-color-line-strong);
+  border-radius: var(--gsc-radius-sm);
+  padding: 10px;
+}
+.pdf-export-box span {
+  display: block;
+  color: var(--gsc-color-muted);
+  font-size: 11px;
+}
+.pdf-export-box strong {
+  font-size: 16px;
+}
+
+.pdf-export-notes {
+  border: 1px solid var(--gsc-color-line-strong);
+  border-radius: var(--gsc-radius-sm);
+  padding: 12px;
+  margin: 12px 0;
+}
+.pdf-export-notes strong {
+  display: block;
+  font-size: 12px;
+  margin-top: 8px;
+}
+.pdf-export-notes strong:first-child {
+  margin-top: 0;
+}
+.pdf-export-notes p {
+  margin: 2px 0 0;
+}
+
+.pdf-export-section {
+  margin-top: 28px;
+  break-inside: avoid;
+}
+.pdf-export-section h2 {
+  font-size: 16px;
+  margin: 0 0 4px;
+  color: var(--gsc-color-brand);
+}
+.pdf-export-section > p {
+  margin: 0 0 10px;
+  color: var(--gsc-color-muted);
+  font-size: 12px;
+}
+.pdf-export-section table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.pdf-export-section th,
+.pdf-export-section td {
+  border: 1px solid var(--gsc-color-line-strong);
+  padding: 6px;
+  vertical-align: top;
+  text-align: left;
+}
+.pdf-export-section thead th {
+  background: var(--gsc-color-surface2);
+}
+.pdf-export-section tfoot th,
+.pdf-export-section tfoot td {
+  background: var(--gsc-color-surface3);
+  text-align: left;
+}
+
+.pdf-export-signature img {
+  max-width: 260px;
+  border: 1px solid var(--gsc-color-line-strong);
+  border-radius: var(--gsc-radius-sm);
+  background: #fff;
+}
+
+.pdf-export-footer {
+  margin-top: 32px;
+  padding-top: 12px;
+  border-top: 1px solid var(--gsc-color-line);
+  font-size: 12px;
+  color: var(--gsc-color-muted);
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body,
+  .pdf-export {
+    background: #fff;
+  }
+  .pdf-export-page {
+    max-width: none;
+    padding: 0;
+  }
+  @page {
+    margin: 16mm;
+  }
+}
