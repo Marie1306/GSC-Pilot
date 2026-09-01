@@ -94,12 +94,13 @@ export async function getContactDetail(id: string): Promise<ContactDetailDto> {
       label: row.name,
       createdAt: row.createdAt.toISOString(),
     })),
-    // Rolling n'a pas encore de numéro d'affichage (module pas encore
-    // construit, voir la recommandation faite à l'utilisatrice le 19 août
-    // 2026) — jamais un identifiant tronqué présenté comme un vrai numéro.
+    // rollingNumber (RL-AAAA-NNNN) existe depuis le 31 août 2026 — avant
+    // cette date, Rolling n'avait pas encore de numéro d'affichage et ce
+    // champ retombait sur un texte générique "Roulement" (jamais un
+    // identifiant tronqué présenté comme un vrai numéro).
     rollings: contact.rollings.map((row) => ({
       id: row.id,
-      displayId: "Roulement",
+      displayId: row.rollingNumber,
       status: row.status,
       label: `Vendu ${Number(row.sold).toFixed(2)} $`,
       createdAt: row.createdAt.toISOString(),
