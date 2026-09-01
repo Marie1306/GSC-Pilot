@@ -60,7 +60,6 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "client-requests", label: "Demandes clients", path: "/demandes", section: "sales", allow: canViewClientRequests },
   { key: "projects", label: "Projets", path: "/projets", section: "sales", allow: backOfficeOnly },
   { key: "budgets", label: "Budgétaires", path: "/budgetaire", section: "sales", allow: canAccessBudget },
-  { key: "gantt", label: "Gantt / capacité", path: "/gantt", section: "sales", allow: backOfficeOnly },
   // canCreateRollingDirectly (owner/boss) est un sous-ensemble de
   // canAccessOverviewViews (owner/admin/boss) — le OR d'origine était
   // redondant, simplifié ici (aucun changement de comportement).

@@ -22,7 +22,6 @@ import { QrScanPage } from "./features/qrScan/QrScanPage.js";
 import { ServiceCallsPage } from "./features/serviceCalls/ServiceCallsPage.js";
 import { FulfillmentPage } from "./features/fulfillment/FulfillmentPage.js";
 import { RollingsPage } from "./features/rollings/RollingsPage.js";
-import { GanttPage } from "./features/gantt/GanttPage.js";
 import { ContactsPage } from "./features/contacts/ContactsPage.js";
 import { ReportsPage } from "./features/reports/ReportsPage.js";
 import { SettingsPage } from "./features/settings/SettingsPage.js";
@@ -45,7 +44,6 @@ const PAGE_BY_KEY: Record<string, ComponentType> = {
   "service-calls": ServiceCallsPage,
   fulfillment: FulfillmentPage,
   rollings: RollingsPage,
-  gantt: GanttPage,
   contacts: ContactsPage,
   reports: ReportsPage,
   settings: SettingsPage,

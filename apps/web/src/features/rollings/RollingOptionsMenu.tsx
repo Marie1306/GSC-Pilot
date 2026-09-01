@@ -1,23 +1,17 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { canManageRolling, canArchiveRolling, canDeleteRolling, canCreateServiceCall, canCreateBudgetFromRequest, canEditGanttSchedule } from "@gsc-pilot/business-rules";
+import { canManageRolling, canArchiveRolling, canDeleteRolling, canCreateServiceCall, canCreateBudgetFromRequest } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { OptionsDrawer, OptionRow, OptionSection } from "../../components/OptionsDrawer.js";
 import { updateContact } from "../contacts/api.js";
 import { setRollingArchived, deleteRolling, type RollingDetailDto } from "./api.js";
-import { updateRollingGanttPlanning } from "../gantt/api.js";
-import { GanttEntryPopup } from "../gantt/GanttEntryPopup.js";
 import { RollingPostMortem } from "./RollingPostMortem.js";
 import { RollingHoursDetail } from "./RollingHoursDetail.js";
 import { RollingQrCode } from "./RollingQrCode.js";
 import { ManualEntryModal } from "../timePunch/ManualEntryModal.js";
 import { ServiceCallForm } from "../serviceCalls/ServiceCallForm.js";
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" });
-}
 
 interface RollingOptionsMenuProps {
   rolling: RollingDetailDto;
@@ -56,16 +50,12 @@ export function RollingOptionsMenu({ rolling, open, onClose, onDeleted, onAddPur
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [showCreateCall, setShowCreateCall] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [showGanttEntry, setShowGanttEntry] = useState(false);
-  const [priorityInput, setPriorityInput] = useState(String(rolling.priority));
-  const [dueDateInput, setDueDateInput] = useState(rolling.dueDate?.slice(0, 10) ?? "");
   const [error, setError] = useState<string | null>(null);
 
   const invalidate = () => {
     setError(null);
     void queryClient.invalidateQueries({ queryKey: ["rolling", rolling.id] });
     void queryClient.invalidateQueries({ queryKey: ["rollings"] });
-    void queryClient.invalidateQueries({ queryKey: ["gantt"] });
   };
   const onMutationError = (err: unknown) => setError(err instanceof ApiError ? err.message : "Une erreur est survenue — réessayez.");
 
@@ -96,20 +86,12 @@ export function RollingOptionsMenu({ rolling, open, onClose, onDeleted, onAddPur
     },
     onError: onMutationError,
   });
-  const planningMutation = useMutation({
-    mutationFn: () => updateRollingGanttPlanning(rolling.id, { priority: Number(priorityInput) || 0, dueDate: dueDateInput || null }),
-    onSuccess: invalidate,
-    onError: onMutationError,
-  });
-
   if (!employee) return null;
   const canManage = canManageRolling(employee.persona);
   const canArchive = canArchiveRolling(employee.persona);
   const canDelete = canDeleteRolling(employee.persona);
   const canCreateCall = canCreateServiceCall(employee.persona);
   const canBuildBudget = canCreateBudgetFromRequest(employee.persona);
-  const canEditGantt = canEditGanttSchedule(employee.persona);
-  const planningChanged = Number(priorityInput) !== rolling.priority || (dueDateInput || null) !== (rolling.dueDate?.slice(0, 10) ?? null);
   const isArchived = !!rolling.archivedAt;
   const label = rolling.company ?? rolling.contactName;
 
@@ -169,38 +151,6 @@ export function RollingOptionsMenu({ rolling, open, onClose, onDeleted, onAddPur
                       disabledNote="Direction ou Propriétaire seulement."
                     />
                   )}
-                </OptionSection>
-              )}
-
-              {canEditGantt && (
-                <OptionSection title="Planification et priorité">
-                  <div className="form-grid" style={{ marginTop: 4 }}>
-                    <div className="field">
-                      <label htmlFor="rolling-gantt-priority">Priorité Gantt</label>
-                      <input id="rolling-gantt-priority" type="number" step={1} value={priorityInput} onChange={(e) => setPriorityInput(e.target.value)} />
-                    </div>
-                    <div className="field">
-                      <label htmlFor="rolling-due-date">Échéance client</label>
-                      <input id="rolling-due-date" type="date" value={dueDateInput} onChange={(e) => setDueDateInput(e.target.value)} />
-                    </div>
-                    <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-small"
-                        disabled={!planningChanged || planningMutation.isPending}
-                        onClick={() => planningMutation.mutate()}
-                      >
-                        {planningMutation.isPending ? "…" : "Enregistrer"}
-                      </button>
-                      {rolling.enteredGanttAt ? (
-                        <span className="cell-sub">Activé au Gantt le {formatDate(rolling.enteredGanttAt)}</span>
-                      ) : (
-                        <button type="button" className="btn btn-small" onClick={() => setShowGanttEntry(true)}>
-                          Activer le Gantt
-                        </button>
-                      )}
-                    </div>
-                  </div>
                 </OptionSection>
               )}
 
@@ -316,12 +266,6 @@ export function RollingOptionsMenu({ rolling, open, onClose, onDeleted, onAddPur
         </OptionsDrawer>
       )}
 
-      {showGanttEntry && (
-        <GanttEntryPopup
-          target={{ kind: "rolling", id: rolling.id, label: `${rolling.rollingNumber} — ${label}`, currentPriority: rolling.priority }}
-          onClose={() => setShowGanttEntry(false)}
-        />
-      )}
       {showQrCode && <RollingQrCode rolling={{ rollingNumber: rolling.rollingNumber, label }} onClose={() => setShowQrCode(false)} />}
       {showPostMortem && <RollingPostMortem id={rolling.id} onClose={() => setShowPostMortem(false)} />}
       {showHoursDetail && <RollingHoursDetail rolling={{ id: rolling.id, label }} onClose={() => setShowHoursDetail(false)} />}
