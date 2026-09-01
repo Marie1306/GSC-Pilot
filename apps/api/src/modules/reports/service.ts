@@ -11,11 +11,15 @@
  * financialStatus, internalHoursSummary/internalPurchasesSummary) — jamais
  * un deuxième calcul divergent.
  *
- * Roulements : aucun coût/heures réelles n'existe nulle part pour cette
- * entité (module Roulements pas encore construit — TimeEntry et
- * PurchaseRequest n'ont même pas de rollingId au schéma) — seul le revenu
- * (sold) est donc affiché, jamais une marge fabriquée à partir d'un coût à
- * 0 (ça afficherait 100 % de marge, faux).
+ * Roulements (1er septembre 2026, demande de l'utilisatrice — même chiffres
+ * réels que Projet et Call de service) : réutilise getRollingDetail
+ * (rollings/service.ts, déjà exposée par le module Roulements) par
+ * roulement, même patron que callDetails/getServiceCallDetail ci-dessous
+ * plutôt qu'un agrégat batché comme listProjects — le nombre de roulements
+ * reste faible, jamais un aller-retour DB coûteux en pratique. cost n'est
+ * pas un champ direct de RollingDetailDto : dérivé de sold − grossMargin
+ * (projectMargin, margin.ts : grossMargin = sold − laborCost − purchases),
+ * jamais un deuxième calcul divergent.
  *
  * Cette vue n'est atteignable que par canAccessOverviewViews (Direction/
  * Administration/Propriétaire) — exactement le même ensemble de rôles que
@@ -35,6 +39,7 @@ import {
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
 import { listProjects } from "../projects/service.js";
+import { listRollings, getRollingDetail } from "../rollings/service.js";
 import { listServiceCalls, getServiceCallDetail } from "../serviceCalls/service.js";
 
 function round2(value: number): number {
@@ -72,7 +77,7 @@ export async function getProfitabilityReport(viewerPersona: Persona, viewerEmplo
 
   const [projects, rollings, callSummaries] = await Promise.all([
     listProjects(viewerPersona),
-    prisma.rolling.findMany({ include: { contact: { select: { name: true, company: true } } }, orderBy: { createdAt: "desc" } }),
+    listRollings(viewerPersona),
     listServiceCalls(viewerPersona, viewerEmployeeId),
   ]);
 
@@ -91,20 +96,27 @@ export async function getProfitabilityReport(viewerPersona: Persona, viewerEmplo
     actualHours: project.actualHours,
   }));
 
-  const rollingRows: ProfitabilityRowDto[] = rollings.map((rolling) => ({
-    id: rolling.id,
-    type: "rolling",
-    typeLabel: "Roulement",
-    displayId: "—",
-    label: rolling.contact.company ?? rolling.contact.name,
-    clientLabel: rolling.contact.company ?? rolling.contact.name,
-    revenue: Number(rolling.sold),
-    cost: null,
-    grossMargin: null,
-    grossMarginPct: null,
-    financialStatus: null,
-    actualHours: null,
-  }));
+  // getRollingDetail (déjà exportée, déjà vérifiée) recalcule les mêmes
+  // totaux que computeRollingFinancials — jamais un troisième calcul (même
+  // raison que getServiceCallDetail ci-dessous pour les calls).
+  const rollingDetails = await Promise.all(rollings.map((rolling) => getRollingDetail(rolling.id, viewerPersona)));
+  const rollingRows: ProfitabilityRowDto[] = rollingDetails.map((rolling) => {
+    const sold = rolling.sold ?? 0;
+    return {
+      id: rolling.id,
+      type: "rolling",
+      typeLabel: "Roulement",
+      displayId: rolling.rollingNumber,
+      label: rolling.company ?? rolling.contactName,
+      clientLabel: rolling.company ?? rolling.contactName,
+      revenue: sold,
+      cost: rolling.grossMargin !== undefined ? round2(sold - rolling.grossMargin) : null,
+      grossMargin: rolling.grossMargin ?? null,
+      grossMarginPct: rolling.grossMarginPct ?? null,
+      financialStatus: rolling.financialStatus ?? null,
+      actualHours: rolling.actualHours,
+    };
+  });
 
   // getServiceCallDetail (déjà exporté, déjà vérifié) recalcule les mêmes
   // totaux que computeServiceCallFinancials — jamais un troisième calcul.
