@@ -2,8 +2,11 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { canAccessErrorReports } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
-import { fetchReportsOverview, formatCurrency, FINANCIAL_STATUS_LABELS } from "./api.js";
+import { fetchReportsOverview, formatCurrency, FINANCIAL_STATUS_LABELS, type ProfitabilityRowDto } from "./api.js";
 import { fetchErrorReportsStats, fetchErrorReportSubjects } from "../errorReports/api.js";
+import { ProjectPostMortem } from "../projects/ProjectPostMortem.js";
+import { RollingPostMortem } from "../rollings/RollingPostMortem.js";
+import { ServiceCallDetail } from "../serviceCalls/ServiceCallDetail.js";
 import "./reports.css";
 
 const MONTH_LABELS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
@@ -32,6 +35,10 @@ export function ReportsPage() {
   const { employee } = useAuth();
   const [year, setYear] = useState<number | undefined>(undefined);
   const [showDetail, setShowDetail] = useState(false);
+  // Ligne cliquable du comparatif (1er septembre 2026, demande de l'utilisatrice) :
+  // Projet/Roulement ouvrent leur Post-mortem ; un Call de service n'a pas de
+  // Post-mortem (confirmé, aucun n'existe pour ce module) — ouvre sa fiche à la place.
+  const [activeRow, setActiveRow] = useState<{ type: ProfitabilityRowDto["type"]; id: string } | null>(null);
   const overviewQuery = useQuery({ queryKey: ["reports", "overview", year], queryFn: () => fetchReportsOverview(year) });
   const overview = overviewQuery.data;
 
@@ -94,7 +101,7 @@ export function ReportsPage() {
               </thead>
               <tbody>
                 {overview.profitability.map((row) => (
-                  <tr key={`${row.type}-${row.id}`}>
+                  <tr key={`${row.type}-${row.id}`} className="clickable-row" onClick={() => setActiveRow({ type: row.type, id: row.id })}>
                     <td>
                       <div>
                         {row.displayId !== "—" ? `${row.displayId} — ` : ""}
@@ -335,6 +342,10 @@ export function ReportsPage() {
           )}
         </div>
       )}
+
+      {activeRow?.type === "project" && <ProjectPostMortem projectId={activeRow.id} onClose={() => setActiveRow(null)} />}
+      {activeRow?.type === "rolling" && <RollingPostMortem id={activeRow.id} onClose={() => setActiveRow(null)} />}
+      {activeRow?.type === "service_call" && <ServiceCallDetail id={activeRow.id} onClose={() => setActiveRow(null)} />}
 
       {showDetail && overview && (
         <div className="modal-backdrop" onClick={() => setShowDetail(false)}>
