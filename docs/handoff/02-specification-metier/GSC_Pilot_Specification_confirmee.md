@@ -1977,3 +1977,198 @@ Vérifié contre le code actuellement en place
 `apps/web/src/features/qrScan/QrScanPage.tsx`,
 `apps/web/src/offline/{db,sync}.ts`, `roles.ts`) — cette mise à jour du
 document découle d'une relecture directe, jamais d'une supposition.
+
+---
+
+# Module Roulements (confirmé le 20 août 2026, enrichi jusqu'au 31 août 2026)
+
+Proviennent en général d'une demande client (via un budgétaire, comme un
+projet), mais peuvent aussi être créés directement. **Réutilise
+systématiquement les mêmes fonctions pures que Projet** (`billing.ts`,
+`fulfillment.ts`, `computeHoursValueBase`) — jamais une logique dupliquée
+ou réimplémentée; les différences avec Projet sont toutes délibérées et
+confirmées individuellement.
+
+- **Cycle de facturation : UN SEUL PAIEMENT** — `computeBillingPlan`
+  réutilisé avec un split à une seule étape (jamais
+  `DEFAULT_BILLING_SPLIT`/`Settings.defaultBillingSplit`, réservés aux
+  projets).
+- **Sortie : 3 modes seulement** — Bon de livraison (magasinier), tiers,
+  ramassage client. **Jamais Installation**, qui n'a de sens que pour un
+  projet avec une section Installation du budgétaire. Statut final
+  « Terminé » = la MÊME valeur interne `ready_invoice` que Projet, juste
+  relabellisée côté interface.
+- **Comparatif planifié/réel + coût réel — confirmé le 28 août 2026**
+  (citation directe : « je veux les mêmes tuiles/Progression/Comparatif/
+  Achats réels que Projet ») : `computeRollingFinancials` réutilise
+  `computeHoursValueBase` telle quelle. **Seule différence confirmée** :
+  « il n'y a pas de taux back-up sur un roulement » — appelée avec
+  `backupPct`/`backupHourlyRate` à 0 (les champs `Rolling.backupHours*`
+  existent dans le schéma mais restent volontairement inutilisés), et la
+  Progression n'ajoute aucun terme de back-up.
+- **Trois filières de création**, toutes vérifiées fonctionnelles :
+  1. **Conversion d'un budgétaire** « Contrat obtenu »
+     (`convertBudgetToRolling`, Direction seulement) — `plannedHours`/
+     `plannedPurchases`/`targetMarginPct` figés depuis le budgétaire
+     (jamais les champs back-up), plan à un seul paiement créé dans la
+     même transaction.
+  2. **Création directe** (`createRollingDirect`, Direction et
+     Propriétaire, avec ou sans demande client liée) — pas de champ
+     « nom » comme Projet (identifié par son contact), numéro
+     `RL-AAAA-NNNN` (`Settings.nextRollingNumber`, ajouté le 28 août 2026
+     pour le Code QR/Scan QR). `updateRollingSold` remplit le prix vendu
+     après coup (même principe que `updateProjectPlanning`) — plan
+     généré une seule fois, dès que `sold` devient `> 0`.
+  3. **Budgétaire construit APRÈS la création directe — confirmé le 31
+     août 2026** (« la création du budgétaire d'un nouveau roulement doit
+     se faire après la création de celle-ci ») : `attachBudgetToExistingRolling`
+     MET À JOUR le roulement déjà existant (même id, même `rollingNumber`)
+     au lieu d'en créer un nouveau, et **n'exige pas** le statut
+     « Gagné » — le roulement existe déjà, le contrat est donc déjà
+     confirmé dans les faits. Un roulement ne peut avoir qu'un seul
+     budgétaire attaché (bloqué explicitement dans l'interface).
+  4. **Conversion directe d'une demande client** (31 août 2026, même jour
+     que l'équivalent Projet/Appel de service) — `Rolling.clientRequestId`
+     (`@unique`).
+- **Remplissage automatique du contact absent à la création — corrigé**
+  après un rapport de test : certains chemins de création laissaient le
+  roulement sans contact utilisable.
+- **Archiver/désarchiver/supprimer** — `canArchiveRolling`/`canDeleteRolling`,
+  Direction seulement, même palier que Projet. `canManageRolling`
+  (modifier les informations courantes) = Direction et Administration.
+- **Post-mortem Roulement** (backend + frontend construits et vérifiés
+  contre Postgres réel le 31 août 2026, dans la continuité directe de ce
+  module) — même richesse que le Post-mortem Projet (comparatif,
+  `costBreakdown`, `financialStatus`), MOINS le détail par tâche et la
+  carte back-up (aucun sens pour un Roulement, voir plus haut). Utilise
+  le libellé « Comparatif planifié vs réel » — la même formulation déjà
+  en place dans `RollingDetail.tsx`, plutôt que celle du Post-mortem
+  Projet, pour rester cohérent à l'intérieur du module Roulement plutôt
+  qu'avec Projet.
+- **Menu Options** (`RollingOptionsMenu.tsx`) — même structure que le
+  menu Options du Projet (2F), adaptée : section « Roulement » (modifier
+  les informations, ou « Construire un budgétaire » si aucun n'est
+  attaché — remplace le bloc de création de budgétaire retiré du
+  formulaire de création directe), « Planification et priorité »
+  (priorité Gantt, échéance client, bouton « Activer le Gantt » avant
+  activation — voir section Gantt plus haut), « Heures et opérations »,
+  « Documents et suivi » (Code QR, Post-mortem), « Contact », « Demande
+  client d'origine ».
+- **Call de service « lié »** — même mécanisme exact que pour un Projet
+  (voir module Appels de service ci-dessus), `ServiceCall.rollingId`,
+  confirmé le 28 août 2026.
+
+**Rapports — chiffres réels des Roulements (1er septembre 2026)** : la
+table de rentabilité du module Rapports (voir plus loin, module Rapports)
+construit désormais chaque ligne Roulement via `getRollingDetail` (coût
+= `sold − grossMargin` quand `grossMargin` est défini, `displayId` =
+`rollingNumber`) — remplace des valeurs nulles codées en dur, mêmes
+chiffres que la fiche Roulement elle-même, jamais un second calcul.
+
+Vérifié contre le code actuellement en place
+(`apps/api/src/modules/rollings/service.ts`, `roles.ts`,
+`RollingOptionsMenu.tsx`) et, pour le Post-mortem Roulement et
+l'intégration Rapports, contre une vraie base de données Postgres locale
+au moment de leur construction cette même session (31 août - 1er
+septembre 2026).
+
+---
+
+# Module Rapport d'erreurs (confirmé le 28 août 2026)
+
+Nouveau module — un incident de production (matériel gâché, temps perdu)
+visant un employé de production. **Un seul palier pour tout le module**
+(voir/créer/filtrer) — `canAccessErrorReports` = Propriétaire ET
+Direction seulement, citation directe : « Accessible par propriétaire et
+Direction seulement » — délibérément différent d'autres modules où voir
+et créer ont des paliers distincts (ex. Roulements). `canBeErrorReportSubject`
+restreint la personne VISÉE à Employé ou Magasinier seulement (rôles de
+production) — validé côté serveur, jamais fait confiance à l'appelant.
+
+- **`hoursValue`** (valeur des heures perdues) = TOUJOURS calculé
+  (`hoursLost × hourlyRateSnapshot`), jamais une colonne séparée —
+  `hourlyRateSnapshot` gèle le taux de l'employé visé au moment du
+  rapport, jamais recalculé après coup si son taux change ensuite.
+- Photos en data URL base64 (même mécanisme que la signature des Appels
+  de service/Livraisons — aucune vraie infrastructure de stockage de
+  fichiers montée cette passe) — limite de taille corrigée après un 413
+  réel rencontré en test.
+- Filtrage mois/année fait en mémoire après une seule requête (volume
+  attendu bas — rapports d'incidents, pas des milliers de lignes).
+- Section dédiée dans Rapports et statistiques, en plus de l'écran
+  principal. `canDeleteErrorReport` (corbeille) = Direction seulement,
+  même palier que les autres corbeilles de l'application.
+
+# Module Notes internes (confirmé le 29 août 2026)
+
+Nouveau module demandé par l'utilisatrice — message court d'un employé à
+un autre, **ou à tout un rôle à la fois** (chaque personne de ce rôle
+reçoit alors sa propre copie indépendante, archivée à sa propre lecture
+— jamais une note partagée entre plusieurs destinataires).
+
+- **Accessible à tous les rôles** — aucune permission dédiée dans
+  `roles.ts` pour l'envoi/réception; seule la page Centre d'actions
+  elle-même exige `canAccessActionCenter` (allow-all).
+- Destinataire = un employé précis OU un rôle entier, jamais les deux à
+  la fois; expéditeur toujours exclu automatiquement, y compris quand il
+  cible son propre rôle. Impossible de s'envoyer une note à soi-même.
+- Boîte de réception : notes actives (Centre d'actions, jamais résolues
+  tant que non lues) + 5 dernières archivées en aperçu compact + un
+  historique complet à la demande (« Afficher toutes les notes »).
+  Bouton « ✓ Reçu » = idempotent, un deuxième clic ne fait rien.
+
+# Module Facturation (confirmé le 20 août 2026)
+
+Vue consolidée regroupant, dans un seul écran, les jalons de projet déjà
+**demandés** (`requestInvoice`, jamais un jalon pas encore demandé — visible
+seulement dans le Cycle de facturation du projet lui-même, comportement
+voulu) et les appels de service envoyés à l'administration (jalon unique
+à 100 % créé à l'envoi). **Aucune nouvelle règle de statut ici** —
+`invoiceStatus` (`billing.ts`) réutilisé tel quel, seulement l'agrégation
+cross-dossier; les actions elles-mêmes (demander/enregistrer/paiement)
+restent les fonctions déjà vérifiées de `projects/service.ts` (voir
+Projet 2C ci-dessus pour le détail : cycle personnalisable par projet du
+26 août 2026, paiement additif du 31 août 2026 — non répétés ici).
+
+- **Accès Propriétaire en consultation — confirmé le 31 août 2026** :
+  `canViewInvoicing` inclut Direction, Administration ET Propriétaire,
+  mais toutes les fonctions d'action (demander/enregistrer/paiement/
+  suspendre) restent Direction/Administration seulement — le Propriétaire
+  n'y a aucune action, uniquement la vue.
+- **Tiroir de détail par jalon** (31 août 2026) — consultation approfondie
+  d'une entrée sans quitter la liste consolidée, même patron que les
+  autres tiroirs Options de l'application.
+- **Corrigé au passage de cette mise à jour de spécification** : le
+  `sourceLabel` d'un jalon rattaché à un Roulement affichait le texte
+  générique « Roulement » au lieu du vrai `rollingNumber` — même
+  reliquat qu'ailleurs (relation `rolling` jamais incluse dans la
+  requête), corrigé dans `listInvoiceEntries`.
+
+# Module Livraisons (confirmé le 20 août 2026)
+
+`Delivery` était déjà créé silencieusement par `chooseProjectFulfillmentMode`
+(mode Bon de livraison) mais rien ne le lisait ni ne le confirmait nulle
+part — ce module comble ce trou. Étendu au Roulement le 28 août 2026
+(`chooseRollingFulfillmentMode`, même mécanisme exact).
+
+- **Confirmation = DEUX enregistrements mis à jour dans la même
+  transaction** : la livraison elle-même (signature, `completed`) et le
+  projet/roulement lié (`confirmWarehouseDelivery`, `fulfillment.ts`,
+  jamais réimplémenté) — exactement comme `confirmFulfillment` le fait
+  déjà pour les modes tiers/ramassage depuis la fiche projet.
+- **Visibilité** : Direction/Administration/Propriétaire voient tout; le
+  Magasinier ne voit que ses propres livraisons assignées
+  (`canAccessDeliveries`, même page pour tous).
+- **Refonte de la fenêtre de signature — confirmée le 31 août 2026**
+  (même demande que pour les Appels de service) : déclaration + nom du
+  signataire + case à cocher obligatoires, jamais une signature seule.
+- **Corrigé au passage de cette mise à jour de spécification** : même
+  bogue que Facturation ci-dessus — `sourceLabel` d'une livraison liée à
+  un Roulement affichait « Roulement » en dur au lieu du vrai
+  `rollingNumber` (relation `rolling` ajoutée aux requêtes `listDeliveries`
+  et `getDeliveryDetail`).
+
+Vérifié contre le code actuellement en place
+(`apps/api/src/modules/{errorReports,teamNotes,invoicing,deliveries}/service.ts`,
+`roles.ts`) — cette mise à jour du document découle d'une relecture
+directe, jamais d'une supposition.

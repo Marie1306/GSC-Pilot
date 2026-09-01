@@ -62,7 +62,7 @@ export async function listInvoiceEntries(): Promise<InvoiceEntryDto[]> {
       clientLabel = row.serviceCall.contact.company ?? row.serviceCall.contact.name;
     } else if (row.rolling) {
       sourceType = "rolling";
-      sourceLabel = "Roulement";
+      sourceLabel = row.rolling.rollingNumber;
       clientLabel = row.rolling.contact.company ?? row.rolling.contact.name;
     }
 

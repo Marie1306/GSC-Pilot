@@ -46,7 +46,11 @@ async function driverNamesById(driverIds: (string | null)[]): Promise<Map<string
 export async function listDeliveries(viewerPersona: Persona, viewerEmployeeId: string): Promise<DeliveryListItemDto[]> {
   const rows = await prisma.delivery.findMany({
     where: viewerPersona === "warehouse" ? { driverEmployeeId: viewerEmployeeId } : {},
-    include: { contact: { select: { name: true, company: true } }, project: { select: { projectNumber: true, name: true } } },
+    include: {
+      contact: { select: { name: true, company: true } },
+      project: { select: { projectNumber: true, name: true } },
+      rolling: { select: { rollingNumber: true } },
+    },
     orderBy: { createdAt: "desc" },
   });
   const namesById = await driverNamesById(rows.map((row) => row.driverEmployeeId));
@@ -59,14 +63,14 @@ export async function listDeliveries(viewerPersona: Persona, viewerEmployeeId: s
     address: row.address,
     scheduledAt: row.scheduledAt?.toISOString() ?? null,
     driverEmployeeName: row.driverEmployeeId ? (namesById.get(row.driverEmployeeId) ?? null) : null,
-    sourceLabel: row.project ? `${row.project.projectNumber} — ${row.project.name}` : "Roulement",
+    sourceLabel: row.project ? `${row.project.projectNumber} — ${row.project.name}` : (row.rolling?.rollingNumber ?? "Roulement"),
   }));
 }
 
 async function loadDeliveryOrThrow(id: string) {
   const delivery = await prisma.delivery.findUnique({
     where: { id },
-    include: { contact: true, project: { select: { projectNumber: true, name: true } } },
+    include: { contact: true, project: { select: { projectNumber: true, name: true } }, rolling: { select: { rollingNumber: true } } },
   });
   if (!delivery) throw new HttpError(404, "Livraison introuvable.");
   return delivery;
@@ -115,7 +119,7 @@ export async function getDeliveryDetail(id: string): Promise<DeliveryDetailDto> 
     conditionNote: delivery.conditionNote,
     kmTraveled: delivery.kmTraveled !== null ? Number(delivery.kmTraveled) : null,
     completedAt: delivery.completedAt?.toISOString() ?? null,
-    sourceLabel: delivery.project ? `${delivery.project.projectNumber} — ${delivery.project.name}` : "Roulement",
+    sourceLabel: delivery.project ? `${delivery.project.projectNumber} — ${delivery.project.name}` : (delivery.rolling?.rollingNumber ?? "Roulement"),
     createdAt: delivery.createdAt.toISOString(),
   };
 }
