@@ -1,6 +1,6 @@
 // Porté 1-pour-1 depuis docs/handoff/03-modules-v01/roles.test.js (60 assertions).
 // Un scénario par règle confirmée dans GSC_Pilot_Specification_confirmee.md.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import * as P from "../src/roles.js";
 
 const { OWNER, ADMIN, BOSS, MEMBER, WAREHOUSE } = P.ROLES;
@@ -72,6 +72,19 @@ describe("Délégation", () => {
     delegation: { delegatePersona: BOSS, start: "2026-08-01", end: "2026-08-31", permissions: ["purchases", "hours"] as P.DelegationCategory[] },
   };
   const today = new Date("2026-08-15T12:00:00");
+
+  // canApproveProjectPurchase n'a pas de paramètre "today" (contrairement à
+  // delegationActive) — il retombe sur new Date() réel. Horloge figée sur la
+  // date de la fixture ci-dessus pour ne pas dépendre de la date du jour où
+  // les tests tournent (roles.ts ne doit jamais être modifié, voir CLAUDE.md
+  // — fix côté test seulement).
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(today);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it("Délégué actif peut approuver un achat direct pendant la période", () => {
     expect(P.canApproveProjectPurchase(activeDelegation, BOSS)).toBe(true);
