@@ -334,3 +334,35 @@ puis `npm ci && npm run build`** — jamais juste `npm run build` dans le
 sandbox déjà utilisé toute la session, qui peut cacher exactement ce genre
 d'écart. À refaire pour toute future modification du schéma Prisma qui
 retire ou change un champ utilisé ailleurs.
+
+## Achats — Administration ajoutée en permanence (2 septembre 2026)
+
+Demande explicite de l'utilisatrice : « qui reçoit les demandes d'achats ?
+Seulement Direction ? Il faudrait que ce soit aussi Administration. Puis
+aussi pour Commande à passer, Direction et administration. » Jusqu'ici
+Administration ne pouvait agir sur ces deux mécanismes que via une
+délégation temporaire (`DelegationGrant`, Paramètres) — jamais en
+permanence, contrairement à ce que Marie attendait.
+
+`packages/business-rules/src/roles.ts` : `canApprovePurchaseRequest` et
+`canManagePurchaseFulfillment` retournent maintenant `true` pour
+`ROLES.ADMIN` sans condition, en plus du cas Direction/délégation déjà en
+place (`persona === ROLES.ADMIN || actsAsDirection(...)`). Un seul point
+de vérité réutilisé partout (routes.ts, actionCenter/service.ts,
+PurchaseRequestList.tsx, PurchaseRequestActionDrawer.tsx) — confirmé par
+grep avant modification, aucun autre endroit ne duplique cette logique.
+
+**Portée volontairement limitée à ces deux fonctions seulement** —
+`canApproveProjectPurchase` (achats affectés DIRECTEMENT à un projet,
+mécanisme distinct et déjà documenté comme tel dans roles.ts) reste
+Direction seulement, jamais mentionné par Marie, jamais deviné. L'escalade
+de seuil au-delà du montant gelé (double autorisation du Propriétaire)
+reste elle aussi inchangée : Administration comme Direction restent
+insuffisantes seules au-dessus du seuil, seul le Propriétaire (`boss`)
+suffit alors.
+
+Tests étendus dans `packages/business-rules/test/roles.test.ts` (3
+nouveaux cas : Administration sous le seuil / au-dessus du seuil pour
+`canApprovePurchaseRequest`, Administration pour
+`canManagePurchaseFulfillment`) plutôt que remplacés — aucune régression
+sur le comportement Direction/Propriétaire/délégation déjà couvert.

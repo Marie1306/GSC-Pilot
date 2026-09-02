@@ -37,6 +37,9 @@ describe("Demandes d'achat (seuil par catégorie)", () => {
   it("Sous le seuil : Direction approuve", () => {
     expect(P.canApprovePurchaseRequest({}, OWNER, { category: "fabrication", amount: 1000 }, thresholds)).toBe(true);
   });
+  it("Sous le seuil : Administration approuve aussi, de façon permanente (2 septembre 2026)", () => {
+    expect(P.canApprovePurchaseRequest({}, ADMIN, { category: "fabrication", amount: 1000 }, thresholds)).toBe(true);
+  });
   it("Sous le seuil : Propriétaire ne peut pas (pas nécessaire)", () => {
     expect(P.canApprovePurchaseRequest({}, BOSS, { category: "fabrication", amount: 1000 }, thresholds)).toBe(false);
   });
@@ -45,6 +48,9 @@ describe("Demandes d'achat (seuil par catégorie)", () => {
   });
   it("Au-dessus du seuil : Direction seule ne suffit plus", () => {
     expect(P.canApprovePurchaseRequest({}, OWNER, { category: "fabrication", amount: 9000 }, thresholds)).toBe(false);
+  });
+  it("Au-dessus du seuil : Administration seule ne suffit pas non plus", () => {
+    expect(P.canApprovePurchaseRequest({}, ADMIN, { category: "fabrication", amount: 9000 }, thresholds)).toBe(false);
   });
   it("Achat rejeté par le Propriétaire : jamais re-soumis", () => {
     expect(P.canResubmitRejectedPurchase()).toBe(false);
@@ -432,11 +438,13 @@ describe("Suivi de commande et application au projet (13 août 2026)", () => {
   it("Direction peut gérer le suivi", () => {
     expect(P.canManagePurchaseFulfillment({}, OWNER)).toBe(true);
   });
+  it("Administration peut aussi gérer le suivi, de façon permanente (2 septembre 2026)", () => {
+    expect(P.canManagePurchaseFulfillment({}, ADMIN)).toBe(true);
+  });
   it("Propriétaire ne peut pas, sans délégation (voit tout, mais ne fait pas progresser le suivi)", () => {
     expect(P.canManagePurchaseFulfillment({}, BOSS)).toBe(false);
   });
-  it("Administration/Employé/Magasinier ne peuvent pas, sans délégation", () => {
-    expect(P.canManagePurchaseFulfillment({}, ADMIN)).toBe(false);
+  it("Employé/Magasinier ne peuvent pas, sans délégation", () => {
     expect(P.canManagePurchaseFulfillment({}, MEMBER)).toBe(false);
     expect(P.canManagePurchaseFulfillment({}, WAREHOUSE)).toBe(false);
   });

@@ -158,6 +158,14 @@ export function buildFrozenPurchaseThresholdsMap(request: {
   return { [request.category]: request.thresholdAmountAtSubmission };
 }
 
+/**
+ * Administration approuve elle aussi de façon permanente depuis le 2
+ * septembre 2026 (demande explicite de l'utilisatrice — "qui reçoit les
+ * demandes d'achats ? Il faudrait que ce soit aussi Administration"),
+ * jamais seulement via une délégation temporaire comme avant. L'escalade de
+ * seuil au-delà du montant gelé reste inchangée : Propriétaire seul, ni
+ * Direction ni Administration ne suffisent alors.
+ */
 export function canApprovePurchaseRequest(
   settings: DelegationSettings | null | undefined,
   persona: Persona,
@@ -173,17 +181,19 @@ export function canApprovePurchaseRequest(
     const overThreshold = Number.isFinite(threshold) && Number(request?.amount || 0) > (threshold as number);
     if (overThreshold) return persona === ROLES.BOSS;
   }
-  return actsAsDirection(settings, persona, "purchases");
+  return persona === ROLES.ADMIN || actsAsDirection(settings, persona, "purchases");
 }
 /**
  * Suivi de commande (en attente/commandé/reçu) et application au projet —
  * confirmé le 13 août 2026, réutilise la même porte que l'approbation
  * normale (Direction, ou délégué "purchases"). Jamais le Propriétaire seul
  * via l'escalade de seuil : cette étape suit toujours l'autorisation, pas
- * le mécanisme de double autorisation.
+ * le mécanisme de double autorisation. Administration ajoutée de façon
+ * permanente le 2 septembre 2026, même demande et même raisonnement que
+ * canApprovePurchaseRequest ci-dessus ("Commande à passer" aussi).
  */
 export function canManagePurchaseFulfillment(settings: DelegationSettings | null | undefined, persona: Persona): boolean {
-  return actsAsDirection(settings, persona, "purchases");
+  return persona === ROLES.ADMIN || actsAsDirection(settings, persona, "purchases");
 }
 /** Un achat rejeté par le Propriétaire est final — jamais de re-soumission. */
 export function canResubmitRejectedPurchase(): boolean {
