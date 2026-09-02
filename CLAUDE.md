@@ -366,3 +366,32 @@ nouveaux cas : Administration sous le seuil / au-dessus du seuil pour
 `canApprovePurchaseRequest`, Administration pour
 `canManagePurchaseFulfillment`) plutôt que remplacés — aucune régression
 sur le comportement Direction/Propriétaire/délégation déjà couvert.
+
+## Achats réels — montants négatifs pour les crédits de retour (2 septembre 2026)
+
+Demande explicite de l'utilisatrice (screenshot à l'appui, "Ajouter un
+achat" sur un projet) : les crédits reçus au retour d'une commande
+doivent pouvoir être saisis en négatif dans les Achats réels
+(`ProjectPurchaseEntry`) — jusqu'ici bloqué à trois niveaux différents,
+tous corrigés ensemble :
+- Backend (`apps/api/src/modules/purchases/routes.ts`) : les deux zod
+  `amount: z.number().positive(...)` (création + correction du montant,
+  routes partagées entre achats de projet ET de roulement — même schéma,
+  même service `updateProjectPurchaseEntryAmount`) remplacés par un seul
+  `purchaseEntryAmountSchema` réutilisé aux deux endroits, qui rejette
+  seulement zéro (`refine((v) => v !== 0)`), jamais les négatifs.
+- Frontend (`ProjectPurchaseEntries.tsx` ET `RollingPurchaseEntries.tsx`
+  — même mécanisme dupliqué, corrigé aux deux endroits) : `min={0}`
+  retiré des champs montant (création + correction inline), et le calcul
+  `canCreate`/`disabled` du bouton passe de `amount > 0` à une nouvelle
+  fonction locale `isValidAmount` (`Number.isFinite(amount) && amount !== 0`)
+  — le `> 0` original bloquait silencieusement tout négatif malgré la
+  saisie possible dans le champ.
+- Aucun changement nécessaire à `projectPurchasesActual`/
+  `rollingPurchasesActual` (purchases/service.ts) : simple `_sum`
+  Postgres, un montant négatif réduit déjà correctement le total —
+  vérifié contre Postgres local (création d'un achat positif + un
+  crédit négatif sur le même projet, total = somme exacte attendue,
+  script jetable supprimé après usage). Aucune contrainte DB (`CHECK`)
+  ne bloquait non plus — confirmé par grep sur les migrations avant de
+  toucher au schéma.

@@ -289,12 +289,15 @@ purchasesRouter.get(
   },
 );
 
+// Peut être négatif — un retour de commande génère un crédit (demande de
+// l'utilisatrice, 2 septembre 2026) : zéro seul n'a aucun sens ici.
+const purchaseEntryAmountSchema = z.number().refine((value) => value !== 0, "Le montant ne peut pas être zéro.");
 const createEntrySchema = z.object({
   date: z.iso.date(),
   category: z.string().min(1, "La catégorie est requise."),
   supplier: z.string().optional(),
   description: z.string().min(1, "La description est requise."),
-  amount: z.number().positive("Le montant doit être positif."),
+  amount: purchaseEntryAmountSchema,
   note: z.string().optional(),
 });
 purchasesRouter.post(
@@ -341,7 +344,7 @@ purchasesRouter.patch(
   requirePermission((persona) => canEnterProjectPurchase(persona)),
   async (req, res) => {
     const id = z.uuid().parse(req.params.id);
-    const { amount } = z.object({ amount: z.number().positive("Le montant doit être positif.") }).parse(req.body);
+    const { amount } = z.object({ amount: purchaseEntryAmountSchema }).parse(req.body);
     const entry = await updateProjectPurchaseEntryAmount(id, amount);
     res.json({ entry });
   },

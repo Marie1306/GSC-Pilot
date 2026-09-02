@@ -28,6 +28,12 @@ function formatDate(iso: string): string {
 
 const emptyForm = { date: new Date().toISOString().slice(0, 10), category: "", supplier: "", description: "", amount: "", note: "" };
 
+/** Peut être négatif — un retour de commande génère un crédit (2 septembre 2026) : zéro seul n'a aucun sens ici. */
+function isValidAmount(value: string): boolean {
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount !== 0;
+}
+
 /**
  * Achats réels du projet — mécanisme simple ProjectPurchaseEntry (Projet 2B,
  * 17 août 2026), distinct des Demandes d'achat (module Achats, PurchaseRequest,
@@ -100,7 +106,7 @@ export function ProjectPurchaseEntries({ projectId, projectLabel, openSignal }: 
   const canEnter = canEnterProjectPurchase(employee.persona);
   const canApprove = canApproveProjectPurchase({}, employee.persona);
   const entries = entriesQuery.data?.entries ?? [];
-  const canCreate = form.category.trim() && form.description.trim() && Number(form.amount) > 0 && !createMutation.isPending;
+  const canCreate = form.category.trim() && form.description.trim() && isValidAmount(form.amount) && !createMutation.isPending;
 
   function draftAmount(entry: ProjectPurchaseEntryDto): string {
     return amountDrafts[entry.id] ?? String(entry.amount);
@@ -179,7 +185,6 @@ export function ProjectPurchaseEntries({ projectId, projectLabel, openSignal }: 
                     <input
                       id="pe-amount"
                       type="number"
-                      min={0}
                       step="0.01"
                       value={form.amount}
                       onChange={(e) => setForm({ ...form, amount: e.target.value })}
@@ -237,7 +242,6 @@ export function ProjectPurchaseEntries({ projectId, projectLabel, openSignal }: 
                     {entry.status === "pending" && canEnter ? (
                       <input
                         type="number"
-                        min={0}
                         step="0.01"
                         style={{ width: 100, textAlign: "right" }}
                         value={draftAmount(entry)}
@@ -259,7 +263,7 @@ export function ProjectPurchaseEntries({ projectId, projectLabel, openSignal }: 
                           <button
                             type="button"
                             className="btn btn-secondary btn-small"
-                            disabled={!(Number(draftAmount(entry)) > 0) || amountMutation.isPending}
+                            disabled={!isValidAmount(draftAmount(entry)) || amountMutation.isPending}
                             onClick={() => amountMutation.mutate({ id: entry.id, amount: Number(draftAmount(entry)) })}
                           >
                             Enregistrer
