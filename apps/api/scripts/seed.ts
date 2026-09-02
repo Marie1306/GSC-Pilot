@@ -360,7 +360,7 @@ async function seedTestProject() {
     });
   }
 
-  const existing = await prisma.project.findUnique({ where: { projectNumber: "PRJ-0001" } });
+  const existing = await prisma.project.findFirst({ where: { projectNumber: "PRJ-0001", deletedAt: null } });
   if (!existing) {
     await prisma.project.create({
       data: {

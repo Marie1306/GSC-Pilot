@@ -333,3 +333,20 @@ tester le mode budgétaire, puis avoir tenté de le recréer :
   vraie donnée qui devrait plutôt rester à 2423), s'arrêter et
   reconfirmer avant d'exécuter — ne jamais deviner à partir d'un
   résumé.
+
+**Déploiement Render cassé juste après le correctif ci-dessus (2 septembre
+2026, corrigé)** : `npm run build` local passait pourtant au vert avant le
+push. Cause réelle : `apps/api/scripts/seed.ts` avait lui aussi un
+`prisma.project.findUnique({ where: { projectNumber } })` (grep initial
+limité à `apps/api/src`, jamais étendu à `scripts/`) — cassé par le retrait
+de `@unique` sur `Project.projectNumber`. Invisible localement parce que le
+Prisma Client déjà généré dans `node_modules` reflétait encore l'ancien
+schéma (généré une seule fois en début de session, jamais reconstruit
+depuis un clone propre) ; Render, lui, régénère toujours le client à neuf
+(`postinstall`) à chaque déploiement, donc l'a détecté immédiatement.
+Corrigé (`findFirst({ projectNumber, deletedAt: null })`, même patron que
+`service.ts`) et **revérifié en clonant le dépôt dans un dossier propre
+puis `npm ci && npm run build`** — jamais juste `npm run build` dans le
+sandbox déjà utilisé toute la session, qui peut cacher exactement ce genre
+d'écart. À refaire pour toute future modification du schéma Prisma qui
+retire ou change un champ utilisé ailleurs.
