@@ -64,6 +64,13 @@ describe("Routes Paramètres — aucun jeton fourni (401 avant même la vérific
     expect((await request(app).get("/api/settings/audit-log")).status).toBe(401);
   });
 
+  it("GET /api/settings/trash refuse sans jeton", async () => {
+    expect((await request(app).get("/api/settings/trash")).status).toBe(401);
+  });
+  it("POST /api/settings/trash/:entityType/:id/restore refuse sans jeton", async () => {
+    expect((await request(app).post("/api/settings/trash/project/00000000-0000-0000-0000-000000000000/restore")).status).toBe(401);
+  });
+
   it("POST /api/employees refuse sans jeton", async () => {
     expect((await request(app).post("/api/employees").send({ name: "Test", initials: "T", email: "t@t.com", persona: "member" })).status).toBe(
       401,

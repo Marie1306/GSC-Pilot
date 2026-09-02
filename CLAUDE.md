@@ -245,3 +245,91 @@ vrais dossiers créés par l'utilisatrice** (déjà corrigés) :
   payé" dans `InvoiceDetailDrawer.tsx`, pour corriger ce genre d'erreur
   sans passer par du SQL — Marie doit s'en servir elle-même pour corriger
   le paiement réellement doublé dans sa base de production.
+
+**Trois problèmes réels trouvés le 2 septembre 2026, lors d'un test de
+suppression de projet** (déjà corrigés) — signalés ensemble par
+l'utilisatrice après avoir créé le projet 2422, l'avoir supprimé pour
+tester le mode budgétaire, puis avoir tenté de le recréer :
+- **Aucune corbeille n'existait dans Paramètres**, alors qu'elle
+  l'attendait. En fait déjà annoncé dans le code lui-même : chaque
+  commentaire `deletedAt` du schéma (Project/Budget/ClientRequest/
+  ServiceCall/Rolling/TimeEntry) dit explicitement que l'écran de
+  restauration "attend le module Paramètres complet (confirmé, hors de
+  cette phase)" — jamais construit depuis. Nouveau fichier
+  `apps/api/src/modules/settings/trash.ts` (`listTrash`/
+  `restoreTrashItem`, même patron que `auditLog.ts` : lecture seule +
+  une action, monté sur `settingsRouter` donc Direction seulement comme
+  tout le reste de Paramètres) couvrant les 7 modèles avec `deletedAt`
+  (Project/ClientRequest/Budget/ServiceCall/Rolling/TimeEntry/
+  ErrorReport) + nouvelle carte `TrashCard.tsx` dans Paramètres (liste +
+  bouton "Restaurer" par élément, même style qu'`AuditLogCard.tsx`).
+  Restaurer ne fait QUE remettre `deletedAt` à `null` — ça n'annule pas
+  les effets de bord d'une suppression (le seul cas réel :
+  `deleteBudget` décroche aussi la demande client liée, un budgétaire
+  restauré ne se rattache pas automatiquement).
+- **Un projet supprimé restait sélectionnable dans le formulaire de
+  demande d'achat** (`PurchaseRequestForm.tsx`) : la route `GET
+  /api/projects` (`apps/api/src/modules/projects/routes.ts`, celle qui
+  peuple ce sélecteur — pas `listProjectOptions`/`listProjects`, qui
+  filtraient déjà correctement mais ne sont jamais atteintes pour ce
+  chemin précis, `projectsRouter` étant monté avant `timeEntriesRouter`
+  dans `app.ts` avec la même route `GET /projects`) ne filtrait que
+  `closedAt`/`warrantyEndsAt`, jamais `deletedAt`. Ajouté.
+- **Le numéro d'un projet supprimé restait bloqué pour toujours**,
+  empêchant sa réutilisation même après suppression — le vrai numéro
+  physique du projet recréé par Marie (2422) ne correspondait donc plus
+  à son numéro dans l'application (forcée à 2423). Double cause : (1)
+  `convertBudgetToProject`/`createProjectDirect`
+  (`apps/api/src/modules/projects/service.ts`) vérifiaient l'unicité via
+  `findUnique` sans exclure les projets supprimés ; (2)
+  `Project.projectNumber` avait `@unique` en base — même en corrigeant
+  (1), l'insertion aurait échoué au niveau DB. Retiré `@unique` du schéma
+  (migration additive `20260902171209_project_number_not_unique` — DROP
+  INDEX seulement, jamais destructif) ; unicité maintenant vérifiée en
+  code UNIQUEMENT parmi les projets non supprimés (`findFirst({
+  deletedAt: null })`). `restoreTrashItem` bloque elle-même la
+  restauration d'un projet si un AUTRE projet actif a depuis pris son
+  numéro (409, message explicite) — cas réel maintenant possible avec la
+  contrainte DB retirée.
+
+  Les 3 correctifs vérifiés contre Postgres local avant livraison
+  (scripts jetables, supprimés après usage) : création → suppression →
+  disparition du sélecteur d'achats → réutilisation du numéro par un
+  nouveau projet → apparition dans la corbeille → restauration bloquée
+  tant que le numéro est repris → restauration réussie une fois le
+  conflit levé.
+
+  **Reste à faire côté Supabase — Marie doit l'exécuter elle-même**,
+  cette session n'a aucun accès réseau à Supabase (ni à Render). Render
+  ne lance jamais `prisma migrate deploy` automatiquement (`start` =
+  `tsx src/index.ts`, confirmé dans `apps/api/package.json`) — la
+  migration additive de cette session doit donc être collée à la main
+  dans l'éditeur SQL de Supabase après ce déploiement, exactement comme
+  au tout premier provisionnement (11 août 2026) :
+  ```sql
+  DROP INDEX "Project_projectNumber_key";
+  ```
+  Sans cette étape, le reste du correctif (corbeille, filtre du
+  sélecteur d'achats) fonctionne quand même — seule la réutilisation
+  d'un numéro de projet resterait bloquée par la base tant que
+  l'index n'est pas retiré (erreur explicite à la création, jamais une
+  corruption silencieuse).
+
+  **Correction des données réelles (2422/2423)** — une fois l'index
+  retiré ci-dessus : ouvrir Paramètres → Corbeille et
+  confirmer qu'il n'y a bien qu'un seul projet supprimé numéroté 2422
+  (celui créé puis supprimé pour tester le mode budgétaire, sans donnée
+  réelle dessus) avant de coller ceci dans l'éditeur SQL de Supabase
+  (vérifié contre une copie locale, reproduisant exactement ce
+  scénario) :
+  ```sql
+  DELETE FROM "Project" WHERE "projectNumber" = '2422' AND "deletedAt" IS NOT NULL;
+  UPDATE "Project" SET "projectNumber" = '2422' WHERE "projectNumber" = '2423' AND "deletedAt" IS NULL;
+  ```
+  La première ligne supprime définitivement l'orphelin de test ; la
+  seconde renomme le vrai projet (2423) vers son numéro réel (2422). Si
+  la corbeille montre autre chose que prévu (plus d'un projet supprimé
+  numéroté 2422, ou une note laissant croire que 2423 contient de la
+  vraie donnée qui devrait plutôt rester à 2423), s'arrêter et
+  reconfirmer avant d'exécuter — ne jamais deviner à partir d'un
+  résumé.

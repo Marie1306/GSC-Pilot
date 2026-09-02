@@ -335,3 +335,21 @@ export function createDelegation(input: CreateDelegationInput): Promise<{ delega
 export function revokeDelegation(id: string): Promise<void> {
   return apiFetch(`/api/settings/delegations/${id}/revoke`, { method: "PATCH" });
 }
+
+// --- Corbeille (2 septembre 2026) ---
+export type TrashEntityType = "project" | "clientRequest" | "budget" | "serviceCall" | "rolling" | "timeEntry" | "errorReport";
+
+export interface TrashItemDto {
+  id: string;
+  entityType: TrashEntityType;
+  label: string;
+  deletedAt: string;
+}
+
+export function fetchTrash(): Promise<{ items: TrashItemDto[] }> {
+  return apiFetch("/api/settings/trash");
+}
+
+export function restoreTrashItem(entityType: TrashEntityType, id: string): Promise<void> {
+  return apiFetch(`/api/settings/trash/${entityType}/${id}/restore`, { method: "POST" });
+}

@@ -68,7 +68,7 @@ export const projectsRouter = Router();
  */
 projectsRouter.get("/projects", requireAuth, async (_req, res) => {
   const projects = await prisma.project.findMany({
-    where: { OR: [{ closedAt: null }, { warrantyEndsAt: { gt: new Date() } }] },
+    where: { deletedAt: null, OR: [{ closedAt: null }, { warrantyEndsAt: { gt: new Date() } }] },
     select: { id: true, projectNumber: true, name: true },
     orderBy: { projectNumber: "asc" },
   });

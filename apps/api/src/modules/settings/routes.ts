@@ -11,6 +11,7 @@ import { getServiceRates, updateServiceRates } from "./serviceRates.js";
 import { getBillingSplit, updateBillingSplit } from "./billingSplit.js";
 import { getBackupHourlyRate, updateBackupHourlyRate } from "./budgetModel.js";
 import { listAuditLog } from "./auditLog.js";
+import { listTrash, restoreTrashItem, TRASH_ENTITY_TYPES } from "./trash.js";
 import {
   listChecklistThicknesses,
   createChecklistThickness,
@@ -338,5 +339,23 @@ settingsRouter.post("/delegations", async (req, res) => {
 settingsRouter.patch("/delegations/:id/revoke", async (req, res) => {
   const id = z.uuid().parse(req.params.id);
   await revokeDelegation(id);
+  res.status(204).end();
+});
+
+// ---------------------------------------------------------------------------
+// Corbeille (2 septembre 2026) — voir trash.ts pour le détail des 7 types et
+// la portée exacte de la restauration.
+// ---------------------------------------------------------------------------
+
+settingsRouter.get("/trash", async (_req, res) => {
+  const items = await listTrash();
+  res.json({ items });
+});
+
+const trashEntityTypeSchema = z.enum(TRASH_ENTITY_TYPES);
+settingsRouter.post("/trash/:entityType/:id/restore", async (req, res) => {
+  const entityType = trashEntityTypeSchema.parse(req.params.entityType);
+  const id = z.uuid().parse(req.params.id);
+  await restoreTrashItem(entityType, id);
   res.status(204).end();
 });

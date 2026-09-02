@@ -9,6 +9,7 @@ import { BudgetPunchableCard } from "./BudgetPunchableCard.js";
 import { BillingSplitCard } from "./BillingSplitCard.js";
 import { AuditLogCard } from "./AuditLogCard.js";
 import { DelegationCard } from "./DelegationCard.js";
+import { TrashCard } from "./TrashCard.js";
 
 /**
  * Direction seulement (voir canAccessSettings, déjà appliqué au niveau de
@@ -30,6 +31,7 @@ export function SettingsPage() {
       <BillingSplitCard />
       <DelegationCard />
       <AuditLogCard />
+      <TrashCard />
     </div>
   );
 }

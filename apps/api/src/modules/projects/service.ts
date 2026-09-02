@@ -75,7 +75,10 @@ export async function convertBudgetToProject(createdById: string, budgetId: stri
     throw new HttpError(400, "Le numéro de projet doit être composé uniquement de chiffres.");
   }
   if (requestedNumber) {
-    const taken = await prisma.project.findUnique({ where: { projectNumber: requestedNumber } });
+    // findFirst (pas findUnique) : projectNumber n'est plus @unique en DB depuis le
+    // 2 septembre 2026 — un projet supprimé (deletedAt) ne doit plus bloquer son
+    // ancien numéro pour un nouveau projet (voir commentaire schema.prisma).
+    const taken = await prisma.project.findFirst({ where: { projectNumber: requestedNumber, deletedAt: null } });
     if (taken) throw new HttpError(409, `Le numéro ${requestedNumber} est déjà utilisé par un autre projet.`);
   }
 
@@ -222,7 +225,10 @@ export async function createProjectDirect(createdById: string, input: CreateProj
     throw new HttpError(400, "Le numéro de projet doit être composé uniquement de chiffres.");
   }
   if (requestedNumber) {
-    const taken = await prisma.project.findUnique({ where: { projectNumber: requestedNumber } });
+    // findFirst (pas findUnique) : projectNumber n'est plus @unique en DB depuis le
+    // 2 septembre 2026 — un projet supprimé (deletedAt) ne doit plus bloquer son
+    // ancien numéro pour un nouveau projet (voir commentaire schema.prisma).
+    const taken = await prisma.project.findFirst({ where: { projectNumber: requestedNumber, deletedAt: null } });
     if (taken) throw new HttpError(409, `Le numéro ${requestedNumber} est déjà utilisé par un autre projet.`);
   }
 

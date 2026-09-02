@@ -418,7 +418,15 @@ model BudgetRow {
 
 model Project {
   id                          String         @id @default(uuid())
-  projectNumber               String         @unique
+  // PAS @unique (retiré le 2 septembre 2026) : un numéro doit redevenir
+  // disponible une fois le projet envoyé à la corbeille (deletedAt) — sinon
+  // le vrai numéro physique du projet recréé ne correspond plus à la
+  // réalité (rapporté par l'utilisatrice, projet 2422 supprimé puis
+  // forcé à 2423 à la recréation). Unicité maintenant vérifiée en code
+  // UNIQUEMENT parmi les projets non supprimés — voir convertBudgetToProject/
+  // createProjectDirect, service.ts. Les 2 seuls appels findUnique par
+  // projectNumber ont été convertis en findFirst({ deletedAt: null }).
+  projectNumber               String
   name                        String
   contactId                   String
   contact                     Contact        @relation(fields: [contactId], references: [id])
