@@ -16,6 +16,11 @@ const schema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   // Origines autorisées pour CORS, séparées par des virgules (ex. http://localhost:5173).
   CORS_ORIGIN: z.string().min(1),
+  // URL publique de l'application (celle que voit un navigateur) — sert à
+  // construire le lien de redirection des invitations Supabase
+  // (inviteUserByEmail, employees/service.ts). Distincte de CORS_ORIGIN :
+  // même valeur en production (une seule origine), mais un rôle différent.
+  APP_URL: z.url(),
 });
 
 const parsed = schema.safeParse(process.env);

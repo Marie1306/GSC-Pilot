@@ -12,6 +12,7 @@ export default defineConfig({
       SUPABASE_URL: "https://example.supabase.co",
       SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key",
       CORS_ORIGIN: "http://localhost:5173",
+      APP_URL: "http://localhost:5173",
     },
   },
 });

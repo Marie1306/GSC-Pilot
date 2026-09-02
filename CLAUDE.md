@@ -160,3 +160,47 @@ Le mot de passe de la base de données et `SUPABASE_SERVICE_ROLE_KEY` ont
 été régénérés après le dépannage (les valeurs d'origine étaient apparues
 en clair dans la conversation) — les valeurs actuelles ne sont documentées
 nulle part, seulement dans Render (Environment) et Supabase.
+
+## Lancement réel — ménage, comptes réels, plans payants (2 septembre 2026)
+
+Confirmé avec l'utilisatrice : Render passé au plan payant (Starter,
+~7$/mois) et Supabase passé au plan Pro (~25$/mois, choisi spécifiquement
+pour les sauvegardes quotidiennes — le plan gratuit de Supabase n'en offre
+aucune, contrairement à ce qu'on pouvait supposer). Ménage complet de la
+base réelle effectué (script SQL vérifié contre une copie locale avant
+livraison) : toutes les données opérationnelles effacées, configuration et
+compteurs de numérotation remis à zéro, les 5 comptes de test supprimés et
+remplacés par le vrai compte de l'utilisatrice (persona `owner`/Direction).
+
+**Bogue réel trouvé et corrigé en essayant d'inviter le premier vrai
+employé (Administration)** : le lien d'invitation Supabase
+(`inviteUserByEmail`, `employees/service.ts`) redirigeait vers `localhost`
+— le "Site URL" du projet Supabase était resté configuré pour le
+développement local, jamais mis à jour après le déploiement sur Render.
+Pire : même une fois cette redirection corrigée, **l'application n'avait
+aucune page pour qu'un employé invité définisse son mot de passe** — le
+flux d'invitation avait été construit côté serveur (envoi réel de
+l'invitation, confirmé dans le plan de fondation d'origine) mais jamais
+complété côté client. Corrigé :
+- `apps/api/src/env.ts` : nouvelle variable `APP_URL` (URL publique de
+  l'application), utilisée dans `createEmployee` pour passer un
+  `redirectTo` explicite à `inviteUserByEmail` au lieu de dépendre du Site
+  URL du projet Supabase.
+- `apps/web/src/features/auth/AcceptInvitePage.tsx` (nouvelle page, route
+  `/accepter-invitation`, hors `RequireRole` — même patron que
+  `/connexion`) : reçoit la session Supabase établie automatiquement par
+  le jeton dans l'URL, fait définir le mot de passe
+  (`supabase.auth.updateUser`), puis redirige vers `/`.
+
+**Reste à faire côté Supabase/Render (pas quelque chose que cette session
+peut faire — aucun accès réseau à ces tableaux de bord)** : l'utilisatrice
+doit (1) mettre à jour le "Site URL" dans Supabase → Authentication → URL
+Configuration pour qu'il pointe vers `https://gsc-pilot.onrender.com`
+(sinon d'autres flux Supabase non couverts par `redirectTo` explicite,
+s'il y en a un jour, retomberaient sur le même bogue), et (2) ajouter la
+variable d'environnement `APP_URL=https://gsc-pilot.onrender.com` dans
+Render (Environment) — sans quoi le déploiement actuel échouera au
+démarrage (`env.ts` exige `APP_URL`, `process.exit(1)` si absente). Si une
+prochaine session reprend ce chantier, vérifier d'abord si Marie a
+confirmé avoir fait ces deux réglages avant de supposer que l'invitation
+fonctionne de bout en bout.

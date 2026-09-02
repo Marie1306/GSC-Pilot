@@ -5,6 +5,7 @@ import { AuthProvider } from "./lib/auth/AuthProvider.js";
 import { RequireRole } from "./lib/auth/RequireRole.js";
 import { AppShell } from "./components/AppShell.js";
 import { LoginPage } from "./features/auth/LoginPage.js";
+import { AcceptInvitePage } from "./features/auth/AcceptInvitePage.js";
 import { BudgetExportView } from "./features/budgets/BudgetExportView.js";
 import { ProjectPostMortemExportView } from "./features/projects/ProjectPostMortemExportView.js";
 import { DeliveryExportView } from "./features/fulfillment/DeliveryExportView.js";
@@ -57,6 +58,7 @@ export function App() {
       <AuthProvider>
         <Routes>
           <Route path="/connexion" element={<LoginPage />} />
+          <Route path="/accepter-invitation" element={<AcceptInvitePage />} />
           <Route
             path="/budgetaire/:id/export"
             element={

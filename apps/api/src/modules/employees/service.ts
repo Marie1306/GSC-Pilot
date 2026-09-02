@@ -1,6 +1,7 @@
 import { canSeeFinancialValues, type Persona } from "@gsc-pilot/business-rules";
 import { prisma } from "../../db.js";
 import { supabaseAdmin } from "../../auth/supabase.js";
+import { env } from "../../env.js";
 import { HttpError } from "../../middleware/errorHandler.js";
 import type { Employee } from "../../generated/prisma/client.js";
 
@@ -84,7 +85,14 @@ export async function createEmployee(input: CreateEmployeeInput, viewerPersona: 
   const existing = await prisma.employee.findUnique({ where: { email: input.email } });
   if (existing) throw new HttpError(409, "Un employé avec ce courriel existe déjà.");
 
-  const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(input.email);
+  const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(input.email, {
+    // Sans ça, Supabase retombe sur le "Site URL" du projet — resté sur
+    // localhost depuis la configuration initiale en développement (bogue
+    // réel trouvé le 2 septembre 2026 : un employé invité atterrissait sur
+    // une page localhost inaccessible). Voir AcceptInvitePage.tsx pour la
+    // page qui reçoit ce lien et fait définir le mot de passe.
+    redirectTo: `${env.APP_URL}/accepter-invitation`,
+  });
   if (error || !data.user) {
     throw new HttpError(400, `Impossible d'envoyer l'invitation Supabase : ${error?.message ?? "erreur inconnue"}.`);
   }
