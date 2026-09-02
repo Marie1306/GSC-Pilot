@@ -299,40 +299,24 @@ tester le mode budgétaire, puis avoir tenté de le recréer :
   tant que le numéro est repris → restauration réussie une fois le
   conflit levé.
 
-  **Reste à faire côté Supabase — Marie doit l'exécuter elle-même**,
-  cette session n'a aucun accès réseau à Supabase (ni à Render). Render
-  ne lance jamais `prisma migrate deploy` automatiquement (`start` =
-  `tsx src/index.ts`, confirmé dans `apps/api/package.json`) — la
-  migration additive de cette session doit donc être collée à la main
-  dans l'éditeur SQL de Supabase après ce déploiement, exactement comme
-  au tout premier provisionnement (11 août 2026) :
+  **Fait par Marie le 2 septembre 2026, confirmé** — les deux étapes
+  manuelles côté Supabase (cette session n'a aucun accès réseau à
+  Supabase ni à Render, donc jamais faisable directement) :
   ```sql
   DROP INDEX "Project_projectNumber_key";
   ```
-  Sans cette étape, le reste du correctif (corbeille, filtre du
-  sélecteur d'achats) fonctionne quand même — seule la réutilisation
-  d'un numéro de projet resterait bloquée par la base tant que
-  l'index n'est pas retiré (erreur explicite à la création, jamais une
-  corruption silencieuse).
-
-  **Correction des données réelles (2422/2423)** — une fois l'index
-  retiré ci-dessus : ouvrir Paramètres → Corbeille et
-  confirmer qu'il n'y a bien qu'un seul projet supprimé numéroté 2422
-  (celui créé puis supprimé pour tester le mode budgétaire, sans donnée
-  réelle dessus) avant de coller ceci dans l'éditeur SQL de Supabase
-  (vérifié contre une copie locale, reproduisant exactement ce
-  scénario) :
+  puis, après vérification, la correction des données réelles
+  (2422/2423) :
   ```sql
   DELETE FROM "Project" WHERE "projectNumber" = '2422' AND "deletedAt" IS NOT NULL;
   UPDATE "Project" SET "projectNumber" = '2422' WHERE "projectNumber" = '2423' AND "deletedAt" IS NULL;
   ```
-  La première ligne supprime définitivement l'orphelin de test ; la
-  seconde renomme le vrai projet (2423) vers son numéro réel (2422). Si
-  la corbeille montre autre chose que prévu (plus d'un projet supprimé
-  numéroté 2422, ou une note laissant croire que 2423 contient de la
-  vraie donnée qui devrait plutôt rester à 2423), s'arrêter et
-  reconfirmer avant d'exécuter — ne jamais deviner à partir d'un
-  résumé.
+  Résultat vérifié par Marie (capture d'écran d'un SELECT) : un seul
+  projet numéroté 2422 (« Chutes Buanderies »), actif, plus aucune trace
+  du 2423 — exactement l'état attendu. Les deux requêtes ont été collées
+  l'une après l'autre sans relire la consigne intermédiaire (vérifier la
+  corbeille avant la deuxième), mais le scénario réel correspondait
+  exactement à ce qui avait été vérifié en local, donc aucun dégât.
 
 **Déploiement Render cassé juste après le correctif ci-dessus (2 septembre
 2026, corrigé)** : `npm run build` local passait pourtant au vert avant le
