@@ -191,6 +191,13 @@ complété côté client. Corrigé :
   `/connexion`) : reçoit la session Supabase établie automatiquement par
   le jeton dans l'URL, fait définir le mot de passe
   (`supabase.auth.updateUser`), puis redirige vers `/`.
+- `apps/web/src/lib/auth/AuthProvider.tsx` : écoute l'événement
+  `PASSWORD_RECOVERY` de Supabase et redirige vers `/accepter-invitation`
+  peu importe la page courante — nécessaire parce que le bouton "Send
+  password recovery" du tableau de bord Supabase (utilisé par Direction
+  pour renvoyer une invitation cassée à un employé déjà créé, puisque
+  `createEmployee` refuse un courriel en double) redirige toujours vers le
+  Site URL du projet (donc `/`), jamais vers une route précise.
 
 **Reste à faire côté Supabase/Render (pas quelque chose que cette session
 peut faire — aucun accès réseau à ces tableaux de bord)** : l'utilisatrice

@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import type { Session } from "@supabase/supabase-js";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MeResponse } from "@gsc-pilot/shared";
@@ -10,6 +11,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -18,12 +20,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    } = supabase.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession);
       void queryClient.invalidateQueries({ queryKey: ["me"] });
+      // Le bouton "Send password recovery" du tableau de bord Supabase (utilisé
+      // par Direction pour renvoyer un lien à un employé dont l'invitation
+      // initiale a échoué) redirige toujours vers le Site URL du projet — la
+      // racine "/", jamais AcceptInvitePage directement. Cet événement est le
+      // seul signal fiable pour l'y rediriger nous-mêmes, peu importe la page
+      // où le lien atterrit.
+      if (event === "PASSWORD_RECOVERY") {
+        navigate("/accepter-invitation", { replace: true });
+      }
     });
     return () => subscription.unsubscribe();
-  }, [queryClient]);
+  }, [queryClient, navigate]);
 
   const meQuery = useQuery({
     queryKey: ["me"],

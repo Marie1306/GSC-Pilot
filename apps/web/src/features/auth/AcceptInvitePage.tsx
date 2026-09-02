@@ -5,11 +5,13 @@ import { supabase } from "../../lib/supabaseClient.js";
 
 /**
  * Reçoit le clic sur le lien d'invitation Supabase (voir employees/service.ts,
- * createEmployee → inviteUserByEmail avec redirectTo vers cette route). Le
- * jeton dans l'URL établit déjà une session Supabase valide au chargement
- * (comportement par défaut du client, voir supabaseClient.ts) — cette page
- * ne fait que demander un mot de passe et l'enregistrer, elle ne vérifie
- * rien d'autre.
+ * createEmployee → inviteUserByEmail avec redirectTo vers cette route) OU une
+ * redirection automatique depuis AuthProvider.tsx suite à un lien "Send
+ * password recovery" envoyé manuellement depuis le tableau de bord Supabase
+ * (utilisé par Direction pour renvoyer une invitation cassée). Le jeton dans
+ * l'URL établit déjà une session Supabase valide au chargement (comportement
+ * par défaut du client, voir supabaseClient.ts) — cette page ne fait que
+ * demander un mot de passe et l'enregistrer, elle ne vérifie rien d'autre.
  */
 export function AcceptInvitePage() {
   const { session, loading } = useAuth();
@@ -82,7 +84,7 @@ export function AcceptInvitePage() {
     <div className="login-screen">
       <form className="card login-card" onSubmit={(event) => void handleSubmit(event)}>
         <h1>GSC Pilot</h1>
-        <p>Bienvenue — définissez votre mot de passe pour activer votre compte.</p>
+        <p>Définissez votre mot de passe pour activer votre compte.</p>
         <div className="field">
           <label htmlFor="password">Mot de passe</label>
           <input
