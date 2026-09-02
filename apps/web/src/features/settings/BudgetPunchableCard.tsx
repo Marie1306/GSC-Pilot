@@ -51,7 +51,7 @@ export function BudgetPunchableCard() {
       </div>
 
       {showManage && (
-        <div className="modal-backdrop" onClick={() => setShowManage(false)}>
+        <div className="modal-backdrop">
           <div className="modal" style={{ maxWidth: 760 }} onClick={(event) => event.stopPropagation()}>
             <div className="modal-header">
               <div>

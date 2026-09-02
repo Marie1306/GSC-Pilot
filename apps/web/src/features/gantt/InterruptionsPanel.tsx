@@ -124,7 +124,7 @@ export function InterruptionsPanel({ canEdit }: InterruptionsPanelProps) {
       </p>
 
       {showForm && (
-        <div className="modal-backdrop" onClick={closeForm}>
+        <div className="modal-backdrop">
           <div className="modal" style={{ maxWidth: 480 }} onClick={(event) => event.stopPropagation()}>
             <form
               onSubmit={(event) => {

@@ -36,7 +36,7 @@ export function ChecklistCatalogsCard() {
       </div>
 
       {open && (
-        <div className="modal-backdrop" onClick={() => setOpen(false)}>
+        <div className="modal-backdrop">
           <div className="modal" style={{ maxWidth: 760 }} onClick={(event) => event.stopPropagation()}>
             <div className="modal-header">
               <div>

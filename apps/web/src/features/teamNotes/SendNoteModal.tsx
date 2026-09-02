@@ -47,7 +47,7 @@ export function SendNoteModal({ onClose }: SendNoteModalProps) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <div>

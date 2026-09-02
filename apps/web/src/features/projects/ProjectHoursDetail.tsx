@@ -14,7 +14,7 @@ interface ProjectHoursDetailProps {
  */
 export function ProjectHoursDetail({ project, onClose }: ProjectHoursDetailProps) {
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal" style={{ maxWidth: 720 }} onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <div>

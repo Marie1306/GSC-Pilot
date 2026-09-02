@@ -457,7 +457,7 @@ export function ReportsPage() {
       {activeRow?.type === "service_call" && <ServiceCallDetail id={activeRow.id} onClose={() => setActiveRow(null)} />}
 
       {showDetail && overview && (
-        <div className="modal-backdrop" onClick={() => setShowDetail(false)}>
+        <div className="modal-backdrop">
           <div className="modal" style={{ maxWidth: 900 }} onClick={(event) => event.stopPropagation()}>
             <div className="modal-header">
               <div>

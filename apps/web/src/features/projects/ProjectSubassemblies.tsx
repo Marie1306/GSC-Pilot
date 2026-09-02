@@ -201,7 +201,7 @@ export function ProjectSubassemblies({ projectId }: ProjectSubassembliesProps) {
       )}
 
       {partsListForId && (
-        <div className="modal-backdrop" onClick={() => setPartsListForId(null)}>
+        <div className="modal-backdrop">
           <div className="modal" style={{ maxWidth: 640 }} onClick={(event) => event.stopPropagation()}>
             <form
               onSubmit={(event) => {

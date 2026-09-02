@@ -8,6 +8,7 @@ import {
   fetchInvoiceEntries,
   recordInvoice,
   recordInvoicePayment,
+  correctInvoicePaidAmount,
   holdInvoiceEntry,
   releaseInvoiceHold,
   formatCurrency,
@@ -57,7 +58,7 @@ function RecordPaymentModal({ entry, onClose, onSuccess }: { entry: InvoiceEntry
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <div>
@@ -102,6 +103,79 @@ function RecordPaymentModal({ entry, onClose, onSuccess }: { entry: InvoiceEntry
 }
 
 /**
+ * Fenêtre "Corriger le montant payé" (2 septembre 2026, rapport réel de
+ * l'utilisatrice : un double clic sur "Confirmer le paiement" a additionné
+ * le même versement deux fois). Distincte de RecordPaymentModal ci-dessus :
+ * celle-ci REMPLACE le total payé (correctInvoicePaidAmount) au lieu d'y
+ * ajouter un nouveau versement — le champ est pré-rempli avec le total
+ * actuel pour que Direction/Administration ajuste le chiffre erroné plutôt
+ * que de ressaisir un montant à l'aveugle.
+ */
+function CorrectPaymentModal({ entry, onClose, onSuccess }: { entry: InvoiceEntryDto; onClose: () => void; onSuccess: () => void }) {
+  const [amount, setAmount] = useState(String(entry.paidAmount));
+  const [error, setError] = useState<string | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: (value: number) => correctInvoicePaidAmount(entry.id, value),
+    onSuccess: () => {
+      onSuccess();
+      onClose();
+    },
+    onError: (err: unknown) => setError(err instanceof ApiError ? err.message : "Une erreur est survenue — réessayez."),
+  });
+
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    setError(null);
+    const value = Number(amount);
+    if (!(value >= 0)) return;
+    mutation.mutate(value);
+  }
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <h2>Corriger le montant payé</h2>
+            <p className="modal-subtitle">{entry.invoiceNumber} · remplace le total payé, n'ajoute pas un nouveau versement</p>
+          </div>
+          <button type="button" className="modal-close" onClick={onClose} aria-label="Fermer">
+            ×
+          </button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body form-grid">
+            <div className="field field-full">
+              <label htmlFor="correct-payment-amount">Total réellement payé ($)</label>
+              <input
+                id="correct-payment-amount"
+                type="number"
+                min={0}
+                step="0.01"
+                autoFocus
+                required
+                value={amount}
+                onChange={(event) => setAmount(event.target.value)}
+              />
+            </div>
+          </div>
+          {error && <p className="form-error">{error}</p>}
+          <div className="modal-footer">
+            <button type="submit" className="btn" disabled={!(Number(amount) >= 0) || mutation.isPending}>
+              {mutation.isPending ? "…" : "Corriger"}
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
+              Annuler
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Tiroir latéral droit de détail d'une facture (31 août 2026, demande
  * explicite de l'utilisatrice, inspirée de la mise en page v19 — tuiles +
  * échéancier, jamais son mécanisme de paiement cumulatif, corrigé ici).
@@ -116,6 +190,7 @@ export function InvoiceDetailDrawer({ id, onClose }: InvoiceDetailDrawerProps) {
   const [invoiceNumberDraft, setInvoiceNumberDraft] = useState("");
   const [dueDateDraft, setDueDateDraft] = useState("");
   const [payOpen, setPayOpen] = useState(false);
+  const [correctOpen, setCorrectOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const invalidate = () => {
@@ -250,11 +325,17 @@ export function InvoiceDetailDrawer({ id, onClose }: InvoiceDetailDrawerProps) {
                 Paiement reçu
               </button>
             )}
+            {canPay && entry.paidAmount > 0 && (
+              <button type="button" className="btn btn-secondary" onClick={() => setCorrectOpen(true)}>
+                Corriger le montant payé
+              </button>
+            )}
           </div>
         </>
       )}
 
       {payOpen && <RecordPaymentModal entry={entry} onClose={() => setPayOpen(false)} onSuccess={invalidate} />}
+      {correctOpen && <CorrectPaymentModal entry={entry} onClose={() => setCorrectOpen(false)} onSuccess={invalidate} />}
     </OptionsDrawer>
   );
 }

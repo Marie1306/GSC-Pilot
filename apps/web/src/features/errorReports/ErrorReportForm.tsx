@@ -64,7 +64,7 @@ export function ErrorReportForm({ onClose }: ErrorReportFormProps) {
   const canSubmit = !!employeeId && ((Number(materialValue) || 0) > 0 || (Number(hoursLost) || 0) > 0) && !mutation.isPending;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal" style={{ maxWidth: 560 }} onClick={(event) => event.stopPropagation()}>
         <form
           onSubmit={(event) => {

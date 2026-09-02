@@ -1167,6 +1167,26 @@ export async function recordInvoicePayment(entryId: string, amount: number): Pro
   return toInvoicePlanEntryDto(row);
 }
 
+/**
+ * Corrige directement le montant payé cumulatif — REMPLACE paidAmount au
+ * lieu de l'additionner (contrairement à recordInvoicePayment ci-dessus).
+ * Ajouté le 2 septembre 2026 suite à un rapport réel de l'utilisatrice :
+ * un double clic sur "Enregistrer le paiement" (l'ancien tiroir du Centre
+ * d'actions ne se fermait pas après succès, voir InvoiceActionDrawer,
+ * retiré) a additionné le même versement deux fois — aucun moyen de
+ * corriger une erreur de ce genre n'existait avant. Même porte que
+ * recordInvoicePayment (canRecordPayment, roles.ts) — ne touche jamais
+ * paidAt, une correction n'est pas un nouveau versement.
+ */
+export async function correctInvoicePaidAmount(entryId: string, paidAmount: number): Promise<InvoicePlanEntryDto> {
+  if (paidAmount < 0) throw new HttpError(400, "Le montant payé ne peut pas être négatif.");
+  const entry = await prisma.invoicePlanEntry.findUnique({ where: { id: entryId } });
+  if (!entry) throw new HttpError(404, "Jalon de facturation introuvable.");
+  if (!entry.invoiceNumber) throw new HttpError(400, "Cette facture n'est pas encore enregistrée.");
+  const row = await prisma.invoicePlanEntry.update({ where: { id: entryId }, data: { paidAmount } });
+  return toInvoicePlanEntryDto(row);
+}
+
 /** Suspendre le suivi d'une facture (litige, attente d'un changement — voir canHoldInvoice, roles.ts). */
 export async function holdInvoiceEntry(entryId: string): Promise<InvoicePlanEntryDto> {
   const entry = await prisma.invoicePlanEntry.findUnique({ where: { id: entryId } });

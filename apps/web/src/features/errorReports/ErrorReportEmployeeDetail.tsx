@@ -33,7 +33,7 @@ export function ErrorReportEmployeeDetail({ employeeId, employeeName, filters, c
   const reports = reportsQuery.data?.reports ?? [];
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal" style={{ maxWidth: 720 }} onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <div>

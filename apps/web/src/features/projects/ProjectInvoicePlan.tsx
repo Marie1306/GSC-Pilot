@@ -166,7 +166,7 @@ export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
         )}
       </div>
       {showCycleEditor && (
-        <div className="modal-backdrop" onClick={() => setShowCycleEditor(false)}>
+        <div className="modal-backdrop">
           <div className="modal" style={{ maxWidth: 560 }} onClick={(event) => event.stopPropagation()}>
             <form
               onSubmit={(event) => {

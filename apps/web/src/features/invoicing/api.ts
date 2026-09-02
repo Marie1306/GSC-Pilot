@@ -4,6 +4,7 @@ export {
   requestInvoice,
   recordInvoice,
   recordInvoicePayment,
+  correctInvoicePaidAmount,
   holdInvoiceEntry,
   releaseInvoiceHold,
   formatCurrency,

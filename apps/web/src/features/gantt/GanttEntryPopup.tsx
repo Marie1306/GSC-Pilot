@@ -106,7 +106,7 @@ export function GanttEntryPopup({ target, onClose }: GanttEntryPopupProps) {
   const canActivate = target.kind === "rolling" && Object.keys(hoursByCategory).length > 0 && !activateMutation.isPending;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal" style={{ maxWidth: 640 }} onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <div>

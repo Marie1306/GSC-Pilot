@@ -80,7 +80,7 @@ export function RollingForm({ onClose, onCreated, prefillFromRequest }: RollingF
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <div>

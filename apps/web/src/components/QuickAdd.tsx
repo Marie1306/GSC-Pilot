@@ -132,7 +132,7 @@ export function QuickAdd({ persona }: QuickAddProps) {
       </button>
 
       {open && (
-        <div className="modal-backdrop" onClick={() => setOpen(false)}>
+        <div className="modal-backdrop">
           <div className="modal quickadd-modal" onClick={(event) => event.stopPropagation()}>
             <div className="modal-header">
               <div>

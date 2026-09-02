@@ -297,6 +297,11 @@ export function recordInvoicePayment(entryId: string, amount: number): Promise<{
   return apiFetch(`/api/invoice-plan/${entryId}/payment`, { method: "PATCH", body: JSON.stringify({ amount }) });
 }
 
+/** paidAmount = le nouveau total cumulatif (remplace, contrairement à recordInvoicePayment ci-dessus) — pour corriger une erreur de saisie. */
+export function correctInvoicePaidAmount(entryId: string, paidAmount: number): Promise<{ entry: InvoicePlanEntryDto }> {
+  return apiFetch(`/api/invoice-plan/${entryId}/correct-payment`, { method: "PATCH", body: JSON.stringify({ paidAmount }) });
+}
+
 export function holdInvoiceEntry(entryId: string): Promise<{ entry: InvoicePlanEntryDto }> {
   return apiFetch(`/api/invoice-plan/${entryId}/hold`, { method: "PATCH" });
 }

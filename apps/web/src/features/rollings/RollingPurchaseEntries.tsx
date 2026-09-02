@@ -130,7 +130,7 @@ export function RollingPurchaseEntries({ rollingId, rollingLabel, openSignal }: 
       </div>
 
       {showForm && (
-        <div className="modal-backdrop" onClick={() => setShowForm(false)}>
+        <div className="modal-backdrop">
           <div className="modal" style={{ maxWidth: 640 }} onClick={(event) => event.stopPropagation()}>
             <form
               onSubmit={(event) => {

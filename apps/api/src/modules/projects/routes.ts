@@ -36,6 +36,7 @@ import {
   requestInvoice,
   recordInvoice,
   recordInvoicePayment,
+  correctInvoicePaidAmount,
   holdInvoiceEntry,
   releaseInvoiceHold,
   setWarrantyExpected,
@@ -252,6 +253,18 @@ projectsRouter.patch(
     const entryId = z.uuid().parse(req.params.entryId);
     const { amount } = z.object({ amount: z.number().positive() }).parse(req.body);
     const entry = await recordInvoicePayment(entryId, amount);
+    res.json({ entry });
+  },
+);
+
+projectsRouter.patch(
+  "/invoice-plan/:entryId/correct-payment",
+  requireAuth,
+  requirePermission((persona) => canRecordPayment(persona)),
+  async (req, res) => {
+    const entryId = z.uuid().parse(req.params.entryId);
+    const { paidAmount } = z.object({ paidAmount: z.number().nonnegative() }).parse(req.body);
+    const entry = await correctInvoicePaidAmount(entryId, paidAmount);
     res.json({ entry });
   },
 );

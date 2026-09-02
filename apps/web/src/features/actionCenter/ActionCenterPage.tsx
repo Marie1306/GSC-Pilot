@@ -9,7 +9,7 @@ import { BudgetDetail } from "../budgets/BudgetDetail.js";
 import { ClientRequestDetail } from "../clientRequests/ClientRequestDetail.js";
 import { PurchaseRequestActionDrawer } from "../purchases/PurchaseRequestActionDrawer.js";
 import { PurchaseFulfillmentActionDrawer } from "../purchases/PurchaseFulfillmentActionDrawer.js";
-import { InvoiceActionDrawer } from "../invoicing/InvoiceActionDrawer.js";
+import { InvoiceDetailDrawer } from "../invoicing/InvoiceDetailDrawer.js";
 import { TimeEntryActionDrawer } from "../timePunch/TimeEntryActionDrawer.js";
 import { SendNoteModal } from "../teamNotes/SendNoteModal.js";
 import { fetchTeamNotesInbox, fetchAllArchivedTeamNotes, markTeamNoteRead, PERSONA_LABELS, type TeamNoteDto } from "../teamNotes/api.js";
@@ -54,7 +54,7 @@ function AllArchivedNotesModal({ onClose }: { onClose: () => void }) {
   const query = useQuery({ queryKey: ["team-notes", "archive"], queryFn: fetchAllArchivedTeamNotes });
   const notes = query.data?.notes ?? [];
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <h2>Toutes les notes reçues</h2>
@@ -254,7 +254,7 @@ export function ActionCenterPage() {
       )}
       {openItem?.type === "purchase_approval" && <PurchaseRequestActionDrawer id={openItem.id} onClose={() => setOpenItem(null)} />}
       {openItem?.type === "purchase_to_order" && <PurchaseFulfillmentActionDrawer id={openItem.id} onClose={() => setOpenItem(null)} />}
-      {openItem?.type === "invoicing" && <InvoiceActionDrawer id={openItem.id} onClose={() => setOpenItem(null)} />}
+      {openItem?.type === "invoicing" && <InvoiceDetailDrawer id={openItem.id} onClose={() => setOpenItem(null)} />}
       {openItem?.type === "hours_approval" && <TimeEntryActionDrawer id={openItem.id} onClose={() => setOpenItem(null)} />}
 
       {composeOpen && <SendNoteModal onClose={closeCompose} />}

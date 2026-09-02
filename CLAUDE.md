@@ -211,3 +211,37 @@ démarrage (`env.ts` exige `APP_URL`, `process.exit(1)` si absente). Si une
 prochaine session reprend ce chantier, vérifier d'abord si Marie a
 confirmé avoir fait ces deux réglages avant de supposer que l'invitation
 fonctionne de bout en bout.
+
+**Service SMTP par défaut de Supabase insuffisant en usage réel** :
+plafond très bas (quelques courriels/heure, prévu pour tester un projet,
+jamais pour un usage réel) — atteint dès la deuxième invitation envoyée le
+même jour. Marie configure un fournisseur SMTP dédié (Resend, domaine
+`gscautomation.com` — vérification DNS en cours via IciMedia, l'hébergeur
+du site web de l'entreprise) plutôt qu'Outlook/Microsoft 365, dont
+l'authentification SMTP est bloquée tenant-wide par les "paramètres de
+sécurité par défaut" de Microsoft (legacy auth désactivée globalement,
+pas seulement au niveau d'une boîte courriel précise).
+
+**Deux bogues réels trouvés le 2 septembre 2026, lors des tout premiers
+vrais dossiers créés par l'utilisatrice** (déjà corrigés) :
+- Les fenêtres contextuelles (`.modal-backdrop`) se fermaient au clic à
+  l'extérieur — perte de saisie en cours rapportée sur l'éditeur de cycle
+  de facturation (`ProjectInvoicePlan.tsx`). Retiré sur les 19 modales
+  concernées à travers l'application — seuls le bouton "×" et "Annuler"
+  ferment désormais une fenêtre contextuelle.
+- **Paiement de facture enregistré en double** : `InvoiceActionDrawer.tsx`
+  (ouvert depuis le Centre d'actions) était une copie devenue obsolète
+  d'`InvoiceDetailDrawer.tsx` (module Facturation) — ne se fermait jamais
+  après un paiement réussi ET ne réinitialisait jamais le montant saisi,
+  permettant à un deuxième clic de soumettre le même versement une
+  deuxième fois (`recordInvoicePayment` additionne toujours, jamais un
+  remplacement). Administration a ainsi doublé un paiement réel.
+  `InvoiceActionDrawer.tsx` supprimé, `ActionCenterPage.tsx` utilise
+  maintenant `InvoiceDetailDrawer.tsx` (déjà correct depuis le 31 août
+  2026) — jamais deux logiques de facturation en parallèle, comme prévu à
+  l'origine mais pas respecté depuis. Nouvelle fonction
+  `correctInvoicePaidAmount` (REMPLACE `paidAmount`, contrairement à
+  `recordInvoicePayment` qui l'additionne) + bouton "Corriger le montant
+  payé" dans `InvoiceDetailDrawer.tsx`, pour corriger ce genre d'erreur
+  sans passer par du SQL — Marie doit s'en servir elle-même pour corriger
+  le paiement réellement doublé dans sa base de production.

@@ -21,7 +21,7 @@ export function RollingHoursDetail({ rolling, onClose }: RollingHoursDetailProps
   const query = useQuery({ queryKey: ["approved-hours", "rolling", rolling.id], queryFn: () => fetchApprovedRollingTimeEntries(rolling.id) });
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal" style={{ maxWidth: 720 }} onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <div>
