@@ -153,7 +153,7 @@ export function ProjectFulfillment({ project }: ProjectFulfillmentProps) {
           {mode === FULFILLMENT_MODES.WAREHOUSE && (
             <>
               <div className="field">
-                <label>Magasinier</label>
+                <label>Livreur</label>
                 <select value={driverId} onChange={(e) => setDriverId(e.target.value)}>
                   <option value="">Non assigné</option>
                   {employeesQuery.data?.employees.map((candidate) => (
@@ -195,7 +195,7 @@ export function ProjectFulfillment({ project }: ProjectFulfillmentProps) {
       )}
 
       {project.fulfillmentMode === FULFILLMENT_MODES.WAREHOUSE && project.fulfillmentStatus === "planned" && (
-        <p style={{ margin: "14px 0 0", color: "var(--gsc-color-muted)", fontSize: 13 }}>Bon de livraison créé — assigné au magasinier.</p>
+        <p style={{ margin: "14px 0 0", color: "var(--gsc-color-muted)", fontSize: 13 }}>Bon de livraison créé — assigné au livreur.</p>
       )}
       {project.fulfillmentMode === FULFILLMENT_MODES.INSTALLATION && (
         <p style={{ margin: "14px 0 0", color: "var(--gsc-color-muted)", fontSize: 13 }}>

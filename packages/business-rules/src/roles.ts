@@ -433,15 +433,18 @@ export function canChooseFulfillmentMode(persona: Persona): boolean {
 }
 /**
  * Voir et confirmer une livraison (module Livraisons, 20 août 2026) : toute
- * l'équipe sauf Employé — le Magasinier livre en main propre (mode Bon de
- * livraison) donc doit voir et confirmer ses livraisons assignées;
- * Direction/Administration/Propriétaire gardent la vue d'ensemble. Reprend
- * exactement le helper "provisoire" notMemberOnly de nav.ts (voir ce
- * fichier) — promu ici maintenant que le module est réellement construit.
+ * l'équipe, y compris Employé depuis le 2 septembre 2026 (demande explicite
+ * de l'utilisatrice — "déployer aussi pour les employés", après avoir
+ * réalisé que le sélecteur de livreur, déjà ouvert à tout employé actif,
+ * assignait parfois un Employé sans qu'il puisse ensuite voir ni confirmer
+ * sa propre livraison). Le Magasinier ET l'Employé livrent en main propre
+ * (mode Bon de livraison) donc ne voient et ne confirment que leurs
+ * livraisons assignées (listDeliveries, deliveries/service.ts) —
+ * Direction/Administration/Propriétaire gardent la vue d'ensemble.
  */
 export function canAccessDeliveries(persona: Persona): boolean {
   assertRole(persona);
-  return persona !== ROLES.MEMBER;
+  return true;
 }
 /** Création d'un roulement directement, sans passer par une demande client. */
 export function canCreateRollingDirectly(persona: Persona): boolean {

@@ -414,7 +414,7 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
               {mode === FULFILLMENT_MODES.WAREHOUSE && (
                 <>
                   <div className="field">
-                    <label>Magasinier</label>
+                    <label>Livreur</label>
                     <select value={driverId} onChange={(e) => setDriverId(e.target.value)}>
                       <option value="">Non assigné</option>
                       {employeesQuery.data?.employees.map((candidate) => (
@@ -457,7 +457,7 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
 
           {rolling.fulfillmentMode === FULFILLMENT_MODES.WAREHOUSE && rolling.fulfillmentStatus === "planned" && (
             <p style={{ margin: "10px 0 0", color: "var(--gsc-color-muted)", fontSize: 13 }}>
-              Bon de livraison créé — assigné au magasinier{rolling.fulfillmentDriverName ? ` (${rolling.fulfillmentDriverName})` : ""}, voir Livraisons.
+              Bon de livraison créé — assigné au livreur{rolling.fulfillmentDriverName ? ` (${rolling.fulfillmentDriverName})` : ""}, voir Livraisons.
             </p>
           )}
           {rolling.fulfillmentConfirmationNote && (

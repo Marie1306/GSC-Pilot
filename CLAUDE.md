@@ -395,3 +395,33 @@ tous corrigés ensemble :
   script jetable supprimé après usage). Aucune contrainte DB (`CHECK`)
   ne bloquait non plus — confirmé par grep sur les migrations avant de
   toucher au schéma.
+
+## Livraisons — déployé aussi pour Employé (2 septembre 2026)
+
+Demande explicite de l'utilisatrice : « il faudrait aussi le déployer
+pour les employés » — jusqu'ici `canAccessDeliveries` (roles.ts) excluait
+Employé (`persona !== ROLES.MEMBER`), seul le reste de l'équipe y avait
+accès. En creusant : le sélecteur de livreur (`ProjectFulfillment.tsx`/
+`RollingDetail.tsx`, libellé "Magasinier") appelait déjà
+`listPunchableEmployees` — TOUS les employés actifs, jamais filtré par
+persona — donc Direction pouvait déjà assigner un Employé comme livreur
+sans que celui-ci puisse ensuite voir ni confirmer sa propre livraison,
+un vrai trou fonctionnel déjà latent avant même la demande de Marie.
+
+- `canAccessDeliveries` retourne maintenant `true` pour tous les rôles.
+- `listDeliveries` (deliveries/service.ts) : le filtre "ne voit que ses
+  propres livraisons assignées" (déjà en place pour Magasinier) étendu à
+  Employé (`OWN_DELIVERIES_ONLY = ["warehouse", "member"]`) —
+  Direction/Administration/Propriétaire gardent la vue d'ensemble,
+  jamais changé.
+- Libellé "Magasinier" renommé en "Livreur" partout où il désigne ce
+  champ (`ProjectFulfillment.tsx`, `RollingDetail.tsx`,
+  `FulfillmentPage.tsx`, `DeliveryDetail.tsx`, `DeliveryExportView.tsx`)
+  — devenu inexact maintenant qu'un Employé peut aussi y être assigné.
+  Les usages de "Magasinier" comme nom de rôle ailleurs dans
+  l'application (sélecteur de persona, délégation, etc.) restent
+  inchangés, aucun lien avec ce champ.
+- Vérifié contre Postgres local (script jetable, supprimé après usage) :
+  deux projets avec deux livreurs Employé différents assignés — chaque
+  Employé ne voit que sa propre livraison (1 sur 2), Direction voit les
+  deux.

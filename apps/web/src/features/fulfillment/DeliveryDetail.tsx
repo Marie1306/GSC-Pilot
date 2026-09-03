@@ -92,7 +92,7 @@ export function DeliveryDetail({ id, onClose }: DeliveryDetailProps) {
               <span className={`badge-pill ${completed ? "badge-conforme" : "badge-neutral"}`}>{STATUS_LABELS[delivery.status] ?? delivery.status}</span>
             </div>
             <div className="stat-tile">
-              <span className="stat-tile-label">Magasinier</span>
+              <span className="stat-tile-label">Livreur</span>
               <span className="stat-tile-value">{delivery.driverEmployeeName ?? "Non assigné"}</span>
             </div>
             <div className="stat-tile">

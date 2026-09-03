@@ -14,8 +14,9 @@ function formatDate(iso: string | null): string {
  * Livraisons (20 août 2026) — les Bons de livraison sont créés
  * automatiquement quand Direction/Administration choisit le mode "Bon de
  * livraison" sur un projet (voir ProjectFulfillment.tsx) — cet écran est
- * la file du magasinier qui doit les confirmer (canAccessDeliveries : le
- * Magasinier ne voit que ses livraisons assignées, le reste de l'équipe
+ * la file du livreur assigné qui doit les confirmer (canAccessDeliveries,
+ * ouvert à tous depuis le 2 septembre 2026 : Magasinier ET Employé ne
+ * voient que leurs propres livraisons assignées, le reste de l'équipe
  * voit tout).
  */
 export function FulfillmentPage() {
@@ -42,7 +43,7 @@ export function FulfillmentPage() {
                   <th>Client / dossier</th>
                   <th>Adresse</th>
                   <th>Prévue</th>
-                  <th>Magasinier</th>
+                  <th>Livreur</th>
                   <th>Statut</th>
                   <th></th>
                 </tr>

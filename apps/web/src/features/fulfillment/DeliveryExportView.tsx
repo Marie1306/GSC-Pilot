@@ -62,7 +62,7 @@ export function DeliveryExportView() {
         <div className="pdf-export-notes">
           <strong>Source</strong>
           <p>{delivery.sourceLabel}</p>
-          <strong>Magasinier</strong>
+          <strong>Livreur</strong>
           <p>{delivery.driverEmployeeName ?? "Non assigné"}</p>
           <strong>Date planifiée</strong>
           <p>{formatDate(delivery.scheduledAt)}</p>

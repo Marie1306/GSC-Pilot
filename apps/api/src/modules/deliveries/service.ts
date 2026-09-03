@@ -42,10 +42,17 @@ async function driverNamesById(driverIds: (string | null)[]): Promise<Map<string
   return new Map(employees.map((employee) => [employee.id, employee.name]));
 }
 
-/** Direction/Administration/Propriétaire voient tout; le Magasinier ne voit que ses propres livraisons assignées (canAccessDeliveries — même page). */
+/**
+ * Direction/Administration/Propriétaire voient tout; Magasinier ET Employé
+ * (2 septembre 2026 — le sélecteur de livreur, ProjectFulfillment.tsx/
+ * RollingDetail.tsx, n'a jamais été restreint au Magasinier, voir
+ * listPunchableEmployees) ne voient que leurs propres livraisons assignées
+ * (canAccessDeliveries — même page).
+ */
+const OWN_DELIVERIES_ONLY: Persona[] = ["warehouse", "member"];
 export async function listDeliveries(viewerPersona: Persona, viewerEmployeeId: string): Promise<DeliveryListItemDto[]> {
   const rows = await prisma.delivery.findMany({
-    where: viewerPersona === "warehouse" ? { driverEmployeeId: viewerEmployeeId } : {},
+    where: OWN_DELIVERIES_ONLY.includes(viewerPersona) ? { driverEmployeeId: viewerEmployeeId } : {},
     include: {
       contact: { select: { name: true, company: true } },
       project: { select: { projectNumber: true, name: true } },

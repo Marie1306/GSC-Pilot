@@ -286,6 +286,13 @@ describe("Livraisons / Roulements", () => {
   it("Propriétaire ne choisit jamais le mode de sortie", () => {
     expect(P.canChooseFulfillmentMode(BOSS)).toBe(false);
   });
+  it("Tous les rôles accèdent aux livraisons, y compris Employé (2 septembre 2026)", () => {
+    expect(P.canAccessDeliveries(OWNER)).toBe(true);
+    expect(P.canAccessDeliveries(ADMIN)).toBe(true);
+    expect(P.canAccessDeliveries(BOSS)).toBe(true);
+    expect(P.canAccessDeliveries(WAREHOUSE)).toBe(true);
+    expect(P.canAccessDeliveries(MEMBER)).toBe(true);
+  });
   it("Direction crée un roulement directement", () => {
     expect(P.canCreateRollingDirectly(OWNER)).toBe(true);
   });
