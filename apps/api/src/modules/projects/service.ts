@@ -619,11 +619,9 @@ interface ProjectFinancials {
  * plasma à 116$, peinture à 107$, assemblage à 112$ — jamais le taux de
  * back-up appliqué uniformément, qui ne revient qu'aux heures de back-up
  * elles-mêmes). Distinct du coût réel de main-d'oeuvre (actualLaborCost,
- * ci-dessus, au taux ACTUEL de coût de l'employé qui a punché — sert la
- * marge réelle, un calcul volontairement différent que l'utilisatrice a
- * confirmé correct et à ne pas toucher). Cette fonction-ci n'utilise
- * jamais de coût employé, gelé ou actuel — donc jamais concernée par
- * l'exception du 4 septembre 2026 (voir computeProjectFinancials).
+ * ci-dessus, au taux de COÛT de l'employé qui a punché — sert la marge
+ * réelle, un calcul volontairement différent que l'utilisatrice a confirmé
+ * correct et à ne pas toucher).
  *
  * Taux "réel" par catégorie = le même taux moyen que le planifié de cette
  * catégorie (section.baseCost / section.hours) — jamais le coût employé.
@@ -659,18 +657,6 @@ export function computeHoursValueBase(
 }
 
 /**
- * Taux de coût ACTUEL (Employee.costRate EN CE MOMENT, pas gelé) pour un
- * lot d'employés — voir computeProjectFinancials et getApprovedTimeEntries,
- * les deux seuls appelants (exception du 4 septembre 2026, confirmée par
- * l'utilisatrice, jamais utilisée ailleurs dans l'application).
- */
-async function currentEmployeeCostRates(employeeIds: string[]): Promise<Map<string, number>> {
-  const uniqueIds = [...new Set(employeeIds)];
-  const employees = await prisma.employee.findMany({ where: { id: { in: uniqueIds } }, select: { id: true, costRate: true } });
-  return new Map(employees.map((employee) => [employee.id, Number(employee.costRate)]));
-}
-
-/**
  * Calcul financier partagé entre getProjectDetail et getPostMortem (Projet
  * 2E, 17 août 2026) — les deux affichent exactement les mêmes chiffres
  * (comparatif, marge réelle), jamais recalculés différemment d'un écran à
@@ -683,20 +669,6 @@ async function currentEmployeeCostRates(employeeIds: string[]): Promise<Map<stri
  * et BudgetRow.modelRowId pointent vers la même BudgetModelRow, ce qui
  * relie une tâche punchée à sa ligne planifiée dans CE budgétaire précis.
  * Vide si le projet n'a pas de budgétaire d'origine (création directe).
- *
- * Coût réel = taux ACTUEL de l'employé (Employee.costRate EN CE MOMENT),
- * jamais TimeEntry.costRate gelé — exception explicitement confirmée par
- * l'utilisatrice le 4 septembre 2026, UNIQUEMENT pour cet écran et le
- * Post-mortem (voir aussi getApprovedTimeEntries ci-dessous, pour le même
- * motif de cohérence à l'intérieur de l'écran Post-mortem). Contraire au
- * principe "gelé au punch, jamais recalculé après coup" appliqué PARTOUT
- * ailleurs dans l'application (Temps consigné, Rapports, punch lui-même) —
- * ici, une modification future du taux d'un employé aux Paramètres change
- * donc rétroactivement TOUS ses anciens Comparatifs/marges réelles, dans
- * CES DEUX ÉCRANS SEULEMENT. Assumé et voulu : corrige le bogue du
- * 4 septembre 2026 (coût réel gelé au taux de catégorie plutôt qu'à celui
- * de l'employé) pour les punchs déjà enregistrés, sans script de
- * correction de données ni accès à la base réelle.
  */
 async function computeProjectFinancials(
   projectId: string,
@@ -708,23 +680,19 @@ async function computeProjectFinancials(
   const [timeEntries, purchasesActual, settings] = await Promise.all([
     prisma.timeEntry.findMany({
       where: { projectId, status: "approved", deletedAt: null },
-      select: { category: true, status: true, roundedMinutes: true, costRate: true, taskId: true, employeeId: true },
+      select: { category: true, status: true, roundedMinutes: true, costRate: true, taskId: true },
     }),
     projectPurchasesActual(projectId),
     prisma.settings.findFirst(),
   ]);
   if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
 
-  const currentCostRateByEmployeeId = await currentEmployeeCostRates(timeEntries.map((entry) => entry.employeeId));
-  const liveCostRate = (entry: { employeeId: string; costRate: unknown }) =>
-    currentCostRateByEmployeeId.get(entry.employeeId) ?? Number(entry.costRate);
-
   const actualByCategory = actualHoursByCategory(
     timeEntries.map((entry) => ({
       category: entry.category,
       status: entry.status,
       roundedMinutes: entry.roundedMinutes,
-      costRate: liveCostRate(entry),
+      costRate: Number(entry.costRate),
     })),
   );
   const actualHours = round2(actualByCategory.reduce((sum, row) => sum + row.hours, 0));
@@ -740,7 +708,7 @@ async function computeProjectFinancials(
         category: entry.taskId,
         status: entry.status,
         roundedMinutes: entry.roundedMinutes,
-        costRate: liveCostRate(entry),
+        costRate: Number(entry.costRate),
       })),
   );
   const actualByTaskMap = new Map(actualByTask.map((row) => [row.category, row]));
@@ -1574,13 +1542,6 @@ export interface ApprovedTimeEntryDto {
  * manquante ici aussi par l'utilisatrice) — TimeEntry.taskId directement,
  * jamais besoin du détour par BudgetRow.modelRowId comme dans
  * computeProjectFinancials, puisqu'il n'y a pas de planifié à joindre ici.
- *
- * Coût = taux ACTUEL de l'employé (Employee.costRate EN CE MOMENT), jamais
- * TimeEntry.costRate gelé — même exception du 4 septembre 2026 que
- * computeProjectFinancials, appliquée ici aussi UNIQUEMENT parce que ce
- * drill-down est embarqué directement dans l'écran Post-mortem
- * (ProjectPostMortem.tsx) : un total gelé différent du Comparatif affiché
- * juste au-dessus, sur le même écran, serait plus trompeur qu'utile.
  */
 export async function getApprovedTimeEntries(projectId: string, showFinancials: boolean): Promise<ApprovedTimeEntryDto[]> {
   const entries = await prisma.timeEntry.findMany({
@@ -1591,16 +1552,14 @@ export async function getApprovedTimeEntries(projectId: string, showFinancials: 
   const employeeIds = [...new Set(entries.map((entry) => entry.employeeId))];
   const taskIds = [...new Set(entries.map((entry) => entry.taskId).filter((id): id is string => id !== null))];
   const [employees, tasks] = await Promise.all([
-    prisma.employee.findMany({ where: { id: { in: employeeIds } }, select: { id: true, name: true, costRate: true } }),
+    prisma.employee.findMany({ where: { id: { in: employeeIds } }, select: { id: true, name: true } }),
     prisma.punchableTask.findMany({ where: { id: { in: taskIds } }, select: { id: true, label: true } }),
   ]);
   const nameById = new Map(employees.map((employee) => [employee.id, employee.name]));
-  const costRateById = new Map(employees.map((employee) => [employee.id, Number(employee.costRate)]));
   const taskLabelById = new Map(tasks.map((task) => [task.id, task.label]));
 
   return entries.map((entry) => {
     const hours = round2((entry.roundedMinutes ?? 0) / 60);
-    const costRate = costRateById.get(entry.employeeId) ?? Number(entry.costRate);
     return {
       id: entry.id,
       date: entry.date.toISOString(),
@@ -1608,7 +1567,7 @@ export async function getApprovedTimeEntries(projectId: string, showFinancials: 
       category: BUDGET_CATEGORY_LABELS[entry.category as BudgetCategorySlug] ?? entry.category,
       taskLabel: (entry.taskId ? taskLabelById.get(entry.taskId) : undefined) ?? "—",
       hours,
-      ...(showFinancials && { cost: round2(hours * costRate) }),
+      ...(showFinancials && { cost: round2(hours * Number(entry.costRate)) }),
     };
   });
 }
