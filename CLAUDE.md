@@ -498,3 +498,76 @@ planifié est 116$/h) — `TimeEntry.costRate` gelé correspond bien à
 chaque employé (jamais au taux de catégorie), et `grossMargin` du projet
 reflète exactement 5×28+5×26 = 270,00$ de coût réel de main-d'œuvre
 (jamais 5×116×2 = 1160,00$, l'ancien calcul erroné).
+
+### Tentative de "recalcul en direct" essayée puis annulée le jour même — corrigée par une correction ponctuelle des données à la place
+
+Juste après le correctif ci-dessus, l'utilisatrice a d'abord demandé une
+exception pour que ses données déjà punchées soient fiables tout de
+suite. Une première interprétation (confirmée par une question à choix
+explicite, mais basée sur une mauvaise lecture de sa part de l'option
+choisie) a fait recalculer `computeProjectFinancials`/
+`getApprovedTimeEntries` EN DIRECT avec le taux ACTUEL de l'employé au
+lieu du `TimeEntry.costRate` gelé — commit fait, PUSHÉ, donc brièvement
+en ligne sur Render. Symptôme réel observé par l'utilisatrice sur un
+vrai projet (2422) : la marge réelle affichée sur la carte de liste
+(22,03 %, statut Critique) ne correspondait plus à celle de l'écran
+détail/post-mortem (37,79 %, statut Conforme) — parce que `listProjects`
+(voir plus bas) n'avait, lui, jamais été touché. L'utilisatrice a
+clarifié qu'elle voulait en fait tout autre chose : une correction
+**ponctuelle** des punchs déjà enregistrés, jamais un mécanisme
+permanent qui bouge après coup. **Ce commit a été annulé** (`git
+revert`, propre, aucun conflit) — `computeProjectFinancials` et
+`getApprovedTimeEntries` sont revenus exactement au comportement du
+correctif précédent (gelé au punch, jamais recalculé après coup,
+partout, sans exception).
+
+**Pièce manquante trouvée pendant cet épisode** : `listProjects`
+(cartes de la liste des projets / tableau de bord) a sa PROPRE copie
+indépendante du calcul de marge réelle (`actualByCategory`/
+`marginResult`/`financialStatus`, lignes ~433-501) — jamais dérivée de
+`computeProjectFinancials`, donc jamais synchronisée automatiquement
+avec elle. C'est ce qui a rendu visible l'incohérence carte/détail
+pendant que le recalcul en direct était actif. Cette duplication existe
+depuis longtemps (raison de perf probable : `listProjects` traite tous
+les projets en un seul aller-retour batché, jamais un appel par projet)
+et n'est PAS un bogue introduit aujourd'hui — mais elle reste un risque
+réel : toute future modification de `computeProjectFinancials` doit être
+répliquée manuellement dans `listProjects`, sans quoi carte et détail
+peuvent diverger. Jamais refactorisé pour l'instant (pas demandé par
+l'utilisatrice, risque de perf à évaluer d'abord) — mais `listProjects`
+lit `TimeEntry.costRate` directement (ligne ~379/439), donc la
+correction ponctuelle des données ci-dessous corrige les DEUX écrans en
+même temps, puisqu'ils finissent par lire le même champ.
+
+**Correction retenue à la place — une seule fois, sur les vraies
+données** (jamais un mécanisme permanent) : un UPDATE SQL qui remplace
+`TimeEntry.costRate` par le `Employee.costRate` ACTUEL de la personne
+qui a punché, pour tous les `TimeEntry` de type `project`/`rolling`
+(jamais `service`/`internal`, déjà corrects depuis toujours). Vérifié
+contre Postgres local (scénario jetable : 2 employés simulant l'ancien
+bug à 116,00$ figé, plus une entrée `internal` à une valeur sentinelle
+999,99$ pour prouver qu'elle n'est jamais touchée — supprimé après
+usage) :
+
+```sql
+-- Aperçu (facultatif) : combien de punchs seront touchés
+SELECT count(*) FROM "TimeEntry" WHERE "projectType" IN ('project', 'rolling');
+
+-- La correction elle-même — à rouler UNE SEULE FOIS dans Supabase
+UPDATE "TimeEntry" AS te
+SET "costRate" = e."costRate"
+FROM "Employee" AS e
+WHERE te."employeeId" = e.id
+  AND te."projectType" IN ('project', 'rolling');
+```
+
+Limite assumée (pas de contournement possible, aucun historique de taux
+n'a jamais été conservé) : utilise le taux ACTUEL de l'employé comme
+meilleure approximation disponible du coût réel — si le taux d'un
+employé a changé pour une raison normale (augmentation) ENTRE un vieux
+punch et aujourd'hui, cette correction ponctuelle utilisera le taux
+d'aujourd'hui, pas celui en vigueur au moment exact du punch (qui n'a
+jamais été enregistré nulle part). Cette session n'a aucun accès réseau
+à Supabase — SQL remis à l'utilisatrice pour l'éditeur SQL Supabase,
+même mécanisme que toutes les corrections de données réelles
+précédentes.
