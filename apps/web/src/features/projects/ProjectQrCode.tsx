@@ -19,7 +19,7 @@ export function ProjectQrCode({ project, onClose }: ProjectQrCodeProps) {
 
   useEffect(() => {
     if (!canvasRef.current) return;
-    QRCode.toCanvas(canvasRef.current, project.projectNumber, { width: 240, margin: 1 }).catch(() =>
+    QRCode.toCanvas(canvasRef.current, project.projectNumber, { width: 60, margin: 1 }).catch(() =>
       setError("Impossible de générer le code QR."),
     );
   }, [project.projectNumber]);
