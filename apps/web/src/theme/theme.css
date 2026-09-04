@@ -33,6 +33,18 @@ textarea {
   font-family: inherit;
 }
 
+/* Cases à cocher — rouge de marque au lieu du bleu par défaut du
+   navigateur, taille fixe cohérente partout (au lieu de dépendre du
+   rendu natif, très variable d'un navigateur à l'autre — rapporté à
+   plusieurs reprises : Checklist le 26 août 2026, Appels de service le
+   31 août 2026, Délégation le 4 septembre 2026). Règle globale plutôt que
+   redupliquée par écran comme les deux fois précédentes. */
+input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--gsc-color-brand);
+}
+
 a {
   color: var(--gsc-color-brand);
 }

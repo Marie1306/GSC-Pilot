@@ -425,3 +425,24 @@ un vrai trou fonctionnel déjà latent avant même la demande de Marie.
   deux projets avec deux livreurs Employé différents assignés — chaque
   Employé ne voit que sa propre livraison (1 sur 2), Direction voit les
   deux.
+
+## Cases à cocher — couleur de marque globale (4 septembre 2026)
+
+Rapporté sur `DelegationCard.tsx` (Paramètres) : une case à cocher
+rendue en bleu par défaut du navigateur, visuellement incohérente avec
+les 3 autres de la même rangée. Troisième fois que ce bogue exact est
+rapporté (Checklist le 26 août 2026, Appels de service le 31 août
+2026) — les deux fois précédentes avaient été corrigées par une règle
+CSS locale au composant (`.checklist-grid input[type="checkbox"]`,
+`.service-call-employee-checklist input[type="checkbox"]`), jamais
+généralisées. Cette fois : règle globale dans `theme.css`
+(`input[type="checkbox"] { width: 16px; height: 16px; accent-color:
+var(--gsc-color-brand); }`), qui couvre désormais toutes les cases à
+cocher de l'application (Délégation y compris) sans avoir à y repenser
+à chaque nouvel écran. Les 2 règles locales devenues redondantes ont été
+retirées de `checklist.css`/`serviceCalls.css` — `checklist.css` a gardé
+uniquement son `display:block; margin:0 auto` (centrage dans la grille,
+raison distincte et toujours nécessaire). Vérifié visuellement
+(Playwright, rendu isolé de la couleur de marque réelle `#e30613`) : les
+4 cases de Délégation s'affichent maintenant identiques, petites et
+rouges.
