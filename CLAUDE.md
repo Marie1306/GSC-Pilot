@@ -498,3 +498,49 @@ planifié est 116$/h) — `TimeEntry.costRate` gelé correspond bien à
 chaque employé (jamais au taux de catégorie), et `grossMargin` du projet
 reflète exactement 5×28+5×26 = 270,00$ de coût réel de main-d'œuvre
 (jamais 5×116×2 = 1160,00$, l'ancien calcul erroné).
+
+### Exception confirmée le jour même : Vue Projet + Post-mortem recalculent en direct, jamais gelés
+
+Juste après le correctif ci-dessus, l'utilisatrice a demandé explicitement
+« qu'on fasse une exception » : ses données déjà punchées (premiers vrais
+dossiers, voir plus haut) doivent être fiables AUJOURD'HUI, pas seulement
+pour les futurs punchs. Choix clarifié par question à choix explicite
+(script vs formule) — l'utilisatrice a choisi : « Recalculer en direct
+avec le taux actuel de l'employé », en toute connaissance du compromis
+énoncé (un futur changement de taux d'employé modifie alors
+rétroactivement tous ses anciens post-mortem).
+
+**Portée volontairement limitée à ce que l'utilisatrice a nommé** — « la
+vue projet et le post-mortem », donc :
+- `computeProjectFinancials` (`apps/api/src/modules/projects/service.ts`,
+  partagée par `getProjectDetail` ET `getPostMortem`) : `actualByCategory`/
+  `actualByTask` utilisent maintenant `Employee.costRate` ACTUEL (nouvelle
+  fonction `currentEmployeeCostRates`, requête groupée par lot d'employés
+  impliqués) au lieu de `TimeEntry.costRate` gelé sur chaque ligne.
+- `getApprovedTimeEntries` (même fichier — le drill-down « Détail des
+  heures approuvées ») : même changement, mais pour une raison différente
+  et plus étroite — ce drill-down est EMBARQUÉ directement dans
+  `ProjectPostMortem.tsx` (`ApprovedHoursDrilldown`); le laisser gelé
+  aurait affiché un total différent de celui du Comparatif juste
+  au-dessus, sur le MÊME écran — plus trompeur qu'utile. Effet de bord
+  accepté : la page séparée « Consulter les heures »
+  (`ProjectHoursDetail.tsx`, menu Options du projet) partage la même
+  fonction et devient donc live elle aussi, même si l'utilisatrice ne l'a
+  pas nommée explicitement.
+- **Jamais touché** : `TimeEntry.costRate` en base (aucune donnée
+  modifiée, aucun script de correction — la vue se contente de ne plus
+  lire ce champ pour ces deux écrans précis), `computeHoursValueBase`
+  (Progression du projet — métrique différente, n'a jamais lu
+  `TimeEntry.costRate`, jamais concernée par le bogue ni par cette
+  exception), Rapports, Roulement/`computeRollingFinancials` (jamais
+  nommés par l'utilisatrice — même mécanisme à répliquer si demandé plus
+  tard, mais pas deviné ici).
+
+Vérifié contre Postgres local (script jetable, supprimé après usage) :
+punch de 5h à 28,00$/h (Test Employé) sur un projet direct → Vue Projet
+ET Post-mortem affichent 140,00$ de coût réel; taux de l'employé monté à
+40,00$/h aux Paramètres SANS nouveau punch → les deux écrans (+ le
+drill-down) affichent maintenant 200,00$, alors que `TimeEntry.costRate`
+en base reste inchangé à 28,00$ (confirmé par lecture SQL directe) — la
+donnée gelée n'a jamais bougé, seule la lecture pour ces deux écrans a
+changé.
