@@ -1402,12 +1402,23 @@ voir CLAUDE.md sur l'ordre des modules). Un punch actif = `TimeEntry` avec
   `service` | `internal` — jamais un mélange. Le coût est **gelé au punch**
   (`TimeEntry.costRate`), jamais recalculé après coup, selon la
   référence :
-  - `project`/`rolling` → taux interne de la catégorie
-    (`BudgetModelRow.hourlyRate`, via `PunchableTask.budgetModelRowId`) —
-    le MÊME taux que la planification budgétaire, jamais le coût
-    personnel de l'employé. Un Roulement utilise exactement le même
-    catalogue de tâches/taux qu'un Projet (générique par catégorie,
-    jamais propre à un budgétaire particulier).
+  - `project`/`rolling` → **corrigé le 4 septembre 2026** (erreur trouvée
+    et rapportée par l'utilisatrice avec exemple chiffré : 5h de Plasma
+    coûtent 359,75$ si c'est Xavier qui punch (71,95$/h de coût réel,
+    Paramètres) mais 538,55$ si c'est Yannick (107,71$/h) — jamais un
+    seul taux identique au planifié). `Employee.costRate` (coût réel de
+    la personne qui punch), **exactement comme `service`/`internal`
+    ci-dessous** — la phrase précédente de cette section (« taux interne
+    de la catégorie … jamais le coût personnel de l'employé ») décrivait
+    le comportement du code d'alors, mais contredisait déjà la formule de
+    marge réelle plus haut (`computeProjectFinancials`, coût réel « au
+    taux de COÛT de l'employé qui a punché ») — cette dernière était la
+    version correcte, désormais implémentée partout. `BudgetModelRow.
+    hourlyRate` reste la source du taux PLANIFIÉ (budgets/avenants,
+    inchangé) — jamais du coût réel. Un Roulement utilise exactement le
+    même catalogue de tâches/catégories qu'un Projet (générique par
+    catégorie, jamais propre à un budgétaire particulier) — seule la
+    source du taux PLANIFIÉ en dépend, pas le coût réel.
   - `service` → **deux totaux volontairement distincts, jamais mélangés** :
     le coût réel reste `Employee.costRate` (coût personnel, comme pour
     `internal`); le prix FACTURÉ AU CLIENT se fige séparément via la

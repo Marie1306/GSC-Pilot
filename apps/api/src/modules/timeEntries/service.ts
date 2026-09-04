@@ -2,21 +2,29 @@
  * GSC Pilot — Punch d'heures (18 août 2026)
  *
  * Un punch actif = TimeEntry avec endAt nul (pas de table "minuteur actif"
- * séparée — le schéma s'y prête déjà tel quel). Trois références possibles
- * (projectType) : project | service | internal — jamais un mélange, voir
- * CATEGORY_ROWS/PunchableTask pour project, TechLevel pour service.
+ * séparée — le schéma s'y prête déjà tel quel). Quatre références possibles
+ * (projectType) : project | rolling | service | internal — jamais un
+ * mélange, voir CATEGORY_ROWS/PunchableTask pour project/rolling, TechLevel
+ * pour service.
  *
- * Coût gelé au punch (TimeEntry.costRate), selon la référence :
- * - project  → taux interne de la catégorie (BudgetModelRow.hourlyRate via
- *   PunchableTask.budgetModelRowId) — même taux que la planification
- *   budgétaire, jamais le coût personnel de l'employé (confirmé par la
- *   spécification pour les avenants : « taux internes par catégorie, pas un
- *   taux unique »).
- * - service  → TechLevel[rateType] choisi AU PUNCH parmi les classes de
+ * Coût gelé au punch (TimeEntry.costRate) = TOUJOURS Employee.costRate (coût
+ * réel de la personne qui punch), quelle que soit la référence — corrigé le
+ * 4 septembre 2026 (rapporté par l'utilisatrice avec exemple chiffré :
+ * 5h de Plasma coûtent 359,75$ si c'est Xavier qui punch (71,95$/h) mais
+ * 538,55$ si c'est Yannick (107,71$/h), jamais un seul taux de catégorie
+ * identique au planifié qui rendait le "Coût réel" incapable de refléter qui
+ * a réellement fait le travail). `BudgetModelRow.hourlyRate` (taux interne
+ * de la catégorie) reste la source du côté PLANIFIÉ uniquement (budgets,
+ * avenants — jamais touché ici) — plus jamais utilisé comme costRate réel.
+ * - service → en plus du coût ci-dessus, le prix FACTURÉ AU CLIENT se fige
+ *   séparément via la classe facturable choisie AU PUNCH parmi celles de
  *   l'employé (Employee.techLevels, plusieurs possibles — confirmé le
- *   18 août 2026).
- * - internal → Employee.costRate (coût réel de la personne — Interne suit
- *   un coût de centre de coûts réel, pas un taux de catégorie standard).
+ *   18 août 2026) — deux totaux volontairement distincts, jamais mélangés.
+ *
+ * Comme tout le reste de l'application : gelé au moment du punch, jamais
+ * recalculé après coup — un changement de Employee.costRate aux Paramètres
+ * ne modifie jamais les TimeEntry déjà enregistrées, seulement les punchs
+ * créés après le changement (confirmé le 4 septembre 2026).
  *
  * Approbation = Direction seulement (canApprovePunch). Une correction
  * Direction sur un punch déjà approuvé le repasse en "submitted" plutôt que
@@ -125,7 +133,14 @@ async function resolvePunchTarget(
     if (!task.budgetModelRowId) throw new HttpError(400, "Cette tâche n'est pas liée à une catégorie de projet.");
     const row = await prisma.budgetModelRow.findUnique({ where: { id: task.budgetModelRowId } });
     if (!row) throw new HttpError(404, "Ligne de modèle introuvable.");
-    return { category: task.category, costRate: Number(row.hourlyRate), techLevelId: null, rateType: null, linkedProjectId: null, linkedRollingId: null };
+    // costRate = coût réel de l'employé qui punch (Employee.costRate),
+    // corrigé le 4 septembre 2026 — row.hourlyRate (taux interne de la
+    // catégorie) reste uniquement le taux PLANIFIÉ du budgétaire, jamais le
+    // coût réel (voir l'en-tête du fichier). row lui-même reste nécessaire :
+    // valide que la tâche est bien encore liée à une catégorie existante.
+    const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+    if (!employee) throw new HttpError(404, "Employé introuvable.");
+    return { category: task.category, costRate: Number(employee.costRate), techLevelId: null, rateType: null, linkedProjectId: null, linkedRollingId: null };
   }
   const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
   if (!employee) throw new HttpError(404, "Employé introuvable.");

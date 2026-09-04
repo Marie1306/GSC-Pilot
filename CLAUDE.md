@@ -446,3 +446,55 @@ raison distincte et toujours nécessaire). Vérifié visuellement
 (Playwright, rendu isolé de la couleur de marque réelle `#e30613`) : les
 4 cases de Délégation s'affichent maintenant identiques, petites et
 rouges.
+
+## Coût réel de main-d'œuvre — corrigé pour utiliser le coût de l'employé, pas la catégorie (4 septembre 2026)
+
+Rapporté par l'utilisatrice (captures d'écran du Post-mortem + de
+Paramètres → Employés, avec exemple chiffré) : le « Coût réel » affiché
+partout où un projet ou un roulement a du réel (Comparatif planifié/réel,
+marge réelle) utilisait `BudgetModelRow.hourlyRate` — le taux interne de
+la catégorie, LE MÊME que la planification budgétaire — au lieu du coût
+réel de l'employé qui a punché. Conséquence concrète : le taux réel était
+TOUJOURS identique au taux planifié (ex. Plasma toujours 116$/h peu
+importe qui punch), rendant la colonne « Coût réel » incapable de
+refléter qui a réellement fait le travail. Exemple confirmé par Marie :
+5h de Plasma devraient coûter 359,75$ si c'est Xavier qui punch (coût
+réel 71,95$/h, Paramètres → Employés) mais 538,55$ si c'est Yannick
+(107,71$/h) — jamais le même montant pour les deux.
+
+Cause trouvée dans `resolvePunchTarget`
+(`apps/api/src/modules/timeEntries/service.ts`) : seule la branche
+`project`/`rolling` gelait `row.hourlyRate` (BudgetModelRow) sur
+`TimeEntry.costRate`, contrairement à `service`/`internal` qui gelaient
+déjà `Employee.costRate`. La spécification elle-même se contredisait sur
+ce point exact (comparer l'ancienne formule de marge réelle et l'ancienne
+section Punch d'heures) — les deux sections corrigées et mises en
+cohérence dans
+`docs/handoff/02-specification-metier/GSC_Pilot_Specification_confirmee.md`.
+
+**Corrigé** : les quatre types de punch (`project`/`rolling`/`service`/
+`internal`) gèlent désormais tous `Employee.costRate` sur
+`TimeEntry.costRate`. `BudgetModelRow.hourlyRate` reste utilisé
+UNIQUEMENT côté PLANIFIÉ (budgets, avenants) — jamais touché, jamais pour
+le réel. Comme pour tout le reste de l'application, le coût reste gelé
+au moment précis du punch — confirmé explicitement par l'utilisatrice :
+un changement de `Employee.costRate` aux Paramètres ne modifie jamais les
+`TimeEntry` déjà enregistrées, seulement les punchs créés après le
+changement. **Aucune donnée historique n'a été retouchée** — les
+Post-mortem déjà produits avant ce correctif gardent leurs anciens
+chiffres (gelés à l'ancien comportement, jamais recalculés après coup,
+même principe que partout ailleurs dans l'application).
+
+`actualLaborCost`, le tableau Comparatif (Projet, Post-mortem, Roulement)
+et les Rapports n'ont eu besoin d'AUCUNE modification propre — ils lisent
+tous `TimeEntry.costRate` déjà existant depuis un seul point de vérité
+(confirmé par grep avant modification), jamais recalculé indépendamment
+ailleurs.
+
+Vérifié contre Postgres local (script jetable, supprimé après usage) :
+projet direct, 2 employés à coût réel différent (28,00$/h et 26,00$/h)
+punchent 5h chacun sur la même tâche (Plasma, catégorie dont le taux
+planifié est 116$/h) — `TimeEntry.costRate` gelé correspond bien à
+chaque employé (jamais au taux de catégorie), et `grossMargin` du projet
+reflète exactement 5×28+5×26 = 270,00$ de coût réel de main-d'œuvre
+(jamais 5×116×2 = 1160,00$, l'ancien calcul erroné).
