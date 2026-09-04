@@ -571,3 +571,10 @@ jamais été enregistré nulle part). Cette session n'a aucun accès réseau
 à Supabase — SQL remis à l'utilisatrice pour l'éditeur SQL Supabase,
 même mécanisme que toutes les corrections de données réelles
 précédentes.
+
+**Fait par Marie le 4 septembre 2026, confirmé** : le SQL ci-dessus a
+été roulé une seule fois contre la vraie base — carte de liste et écran
+détail concordent maintenant, plus rien ne bouge tout seul. La
+duplication `listProjects`/`computeProjectFinancials` notée ci-dessus
+reste présente dans le code (jamais refactorisée, pas demandé) — juste
+sans conséquence visible tant que les deux lisent la même donnée gelée.
