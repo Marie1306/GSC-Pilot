@@ -25,20 +25,36 @@
 .budget-section {
   margin-bottom: 16px;
 }
+/* Bandeau gris foncé (4 septembre 2026, demande explicite : toutes les
+   en-têtes de section du budgétaire, pas seulement les catégories de
+   main-d'oeuvre) — même jeton que .card-band-header (theme.css), gardé en
+   propre plutôt que la classe partagée : cette en-tête peut contenir un
+   champ Complexité éditable à côté du titre (catégories de main-d'oeuvre),
+   jamais seulement du texte comme les usages de .card-band-header — son
+   <label> a donc besoin d'une couleur explicite ci-dessous, que
+   .card-band-header ne fournit pas (elle ne couvre que
+   h3/p/.modal-subtitle/.cell-sub). */
 .budget-section-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 12px;
+  margin: -20px -20px 16px;
+  padding: 14px 20px;
+  background: var(--gsc-color-ink-fixed);
+  border-radius: var(--gsc-radius-base) var(--gsc-radius-base) 0 0;
 }
 .budget-section-header h3 {
   margin: 0;
   font-size: 15px;
+  color: #fff;
 }
 .budget-section-header small {
-  color: var(--gsc-color-muted);
+  color: rgba(255, 255, 255, 0.65);
   font-size: 12px;
+}
+.budget-section-header .budget-complexity-field label {
+  color: rgba(255, 255, 255, 0.65);
 }
 .budget-complexity-field {
   margin-bottom: 0;
