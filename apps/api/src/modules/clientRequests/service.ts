@@ -10,7 +10,13 @@
 import { ensureContact, type Contact as PlainContact, type EnsureContactInput } from "@gsc-pilot/business-rules";
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
+import { resolveSequentialNumber } from "../settings/sequentialNumbers.js";
 import type { ClientRequest, Contact, Prisma } from "../../generated/prisma/client.js";
+
+/** Remise à zéro annuelle (8 septembre 2026) — voir settings/sequentialNumbers.ts. */
+function resolveNextClientRequestNumber(settings: { nextClientRequestNumber: number; clientRequestNumberYear: number }, year?: number) {
+  return resolveSequentialNumber({ next: settings.nextClientRequestNumber, year: settings.clientRequestNumberYear }, year);
+}
 
 export const REQUEST_TYPES = ["project", "rolling", "service", "information"] as const;
 export type RequestType = (typeof REQUEST_TYPES)[number];
@@ -115,8 +121,8 @@ export async function ensureContactRow(input: EnsureContactInput): Promise<Conta
 export async function getNextClientRequestDisplayId(): Promise<string> {
   const settings = await prisma.settings.findFirst();
   if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
-  const year = new Date().getFullYear();
-  return `DC-${year}-${String(settings.nextClientRequestNumber).padStart(4, "0")}`;
+  const { year, number } = resolveNextClientRequestNumber(settings);
+  return `DC-${year}-${String(number).padStart(4, "0")}`;
 }
 
 export async function createClientRequestInTx(
@@ -127,8 +133,8 @@ export async function createClientRequestInTx(
 ): Promise<ClientRequest> {
   const settings = await tx.settings.findFirst();
   if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
-  const year = new Date().getFullYear();
-  const displayId = `DC-${year}-${String(settings.nextClientRequestNumber).padStart(4, "0")}`;
+  const { year, number } = resolveNextClientRequestNumber(settings);
+  const displayId = `DC-${year}-${String(number).padStart(4, "0")}`;
 
   const row = await tx.clientRequest.create({
     data: {
@@ -153,7 +159,7 @@ export async function createClientRequestInTx(
 
   await tx.settings.update({
     where: { id: settings.id },
-    data: { nextClientRequestNumber: settings.nextClientRequestNumber + 1 },
+    data: { nextClientRequestNumber: number + 1, clientRequestNumberYear: year },
   });
 
   return row;
@@ -198,6 +204,8 @@ export interface ClientRequestListItemDto {
   transmittedToOwnerAt: string | null;
   /** Conversion directe en call de service (27 août 2026) — même rôle que budgetId : détecte "déjà convertie" côté interface (ClientRequestOptionsMenu). */
   serviceCallId: string | null;
+  /** Conversion directe en vente externe (8 septembre 2026) — même rôle que serviceCallId, 5e filière de conversion indépendante. */
+  externalSaleId: string | null;
 }
 
 type ClientRequestRow = ClientRequest & { salesChannel: { name: string } | null };
@@ -219,6 +227,7 @@ function toListItemDto(row: ClientRequestRow, createdByName: string): ClientRequ
     budgetId: row.budgetId,
     transmittedToOwnerAt: row.transmittedToOwnerAt?.toISOString() ?? null,
     serviceCallId: row.serviceCallId,
+    externalSaleId: row.externalSaleId,
   };
 }
 
@@ -367,6 +376,7 @@ export async function deleteClientRequest(id: string): Promise<void> {
   if (request.deletedAt) throw new HttpError(400, "Cette demande est déjà dans la corbeille.");
   if (request.budgetId) throw new HttpError(400, "Cette demande a déjà un budgétaire — elle ne peut plus être supprimée.");
   if (request.serviceCallId) throw new HttpError(400, "Cette demande a déjà un call de service — elle ne peut plus être supprimée.");
+  if (request.externalSaleId) throw new HttpError(400, "Cette demande a déjà une vente externe — elle ne peut plus être supprimée.");
   const [linkedRolling, linkedProject] = await Promise.all([
     prisma.rolling.findUnique({ where: { clientRequestId: id }, select: { id: true } }),
     prisma.project.findUnique({ where: { clientRequestId: id }, select: { id: true } }),

@@ -17,6 +17,12 @@ const CATEGORY_BY_SOURCE = Object.freeze({
   rolling: "Roulement",
   service: "Service",
   information: "Information",
+  // Vente externe (8 septembre 2026) — sans cette entrée, un contact créé
+  // depuis ce module retomberait silencieusement sur "Information" (voir
+  // le fallback ci-dessous), imprécis pour un vrai client. Changement
+  // additif seulement (nouvelle clé) — aucune ligne de logique existante
+  // modifiée (voir CLAUDE.md, "Règle de reuse").
+  sale: "Vente externe",
 } as const);
 
 export interface Contact {

@@ -44,6 +44,7 @@ import { getBudgetDetail } from "../budgets/service.js";
 import { ensureContactRow } from "../clientRequests/service.js";
 import { projectPurchasesActual, listProjectPurchaseEntries } from "../purchases/service.js";
 import { parseBillingSplit } from "../settings/billingSplit.js";
+import { createFulfillmentDelivery } from "../deliveries/service.js";
 import type { Project } from "../../generated/prisma/client.js";
 
 export interface ConvertBudgetToProjectInput {
@@ -962,20 +963,14 @@ export async function chooseProjectFulfillmentMode(projectId: string, input: Cho
     if (input.mode === FULFILLMENT_MODES.WAREHOUSE) {
       const settings = await tx.settings.findFirst();
       if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
-      const displayId = `BL-${new Date().getFullYear()}-${String(settings.nextDeliveryNumber).padStart(4, "0")}`;
-      await tx.delivery.create({
-        data: {
-          displayId,
-          type: "project",
-          projectId,
-          contactId: project.contactId,
-          address: input.address || null,
-          scheduledAt: input.scheduled ? new Date(input.scheduled) : null,
-          driverEmployeeId: input.driverId || null,
-          status: "planned",
-        },
+      await createFulfillmentDelivery(tx, settings, {
+        type: "project",
+        projectId,
+        contactId: project.contactId,
+        address: input.address,
+        scheduled: input.scheduled,
+        driverId: input.driverId,
       });
-      await tx.settings.update({ where: { id: settings.id }, data: { nextDeliveryNumber: settings.nextDeliveryNumber + 1 } });
     }
   });
 }

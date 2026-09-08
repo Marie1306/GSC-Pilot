@@ -50,7 +50,13 @@ import {
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
 import { resolveClientRequestContact, createClientRequestInTx, type CreateClientRequestInput } from "../clientRequests/service.js";
+import { resolveSequentialNumber } from "../settings/sequentialNumbers.js";
 import type { Budget, BudgetSection, BudgetRow, BudgetSectionKind } from "../../generated/prisma/client.js";
+
+/** Remise à zéro annuelle (8 septembre 2026) — voir settings/sequentialNumbers.ts. */
+function resolveNextBudgetNumber(settings: { nextBudgetNumber: number; budgetNumberYear: number }, year?: number) {
+  return resolveSequentialNumber({ next: settings.nextBudgetNumber, year: settings.budgetNumberYear }, year);
+}
 
 // Catalogue déclaratif unique (packages/business-rules/src/categories.ts) —
 // voir l'audit du 12 août 2026, section H. Avant ce catalogue, l'ordre
@@ -91,8 +97,8 @@ export interface CreateBudgetInput {
 export async function getNextBudgetDisplayId(): Promise<string> {
   const settings = await prisma.settings.findFirst();
   if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
-  const year = new Date().getFullYear();
-  return `BG-${year}-${String(settings.nextBudgetNumber).padStart(4, "0")}`;
+  const { year, number } = resolveNextBudgetNumber(settings);
+  return `BG-${year}-${String(number).padStart(4, "0")}`;
 }
 
 export async function createBudget(createdById: string, input: CreateBudgetInput): Promise<Budget> {
@@ -142,8 +148,8 @@ export async function createBudget(createdById: string, input: CreateBudgetInput
 
     const settings = await tx.settings.findFirst();
     if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
-    const year = new Date().getFullYear();
-    const displayId = `BG-${year}-${String(settings.nextBudgetNumber).padStart(4, "0")}`;
+    const { year, number } = resolveNextBudgetNumber(settings);
+    const displayId = `BG-${year}-${String(number).padStart(4, "0")}`;
 
     const budget = await tx.budget.create({
       data: {
@@ -220,7 +226,7 @@ export async function createBudget(createdById: string, input: CreateBudgetInput
     // clientRequests/service.ts) : la demande sort de la liste active dès
     // qu'un budgétaire existe pour elle.
     await tx.clientRequest.update({ where: { id: clientRequestId }, data: { budgetId: budget.id, status: "converted" } });
-    await tx.settings.update({ where: { id: settings.id }, data: { nextBudgetNumber: settings.nextBudgetNumber + 1 } });
+    await tx.settings.update({ where: { id: settings.id }, data: { nextBudgetNumber: number + 1, budgetNumberYear: year } });
 
     return budget;
   });

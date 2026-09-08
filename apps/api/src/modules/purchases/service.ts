@@ -23,7 +23,7 @@
 import { canSeeFinancialValues, type Persona } from "@gsc-pilot/business-rules";
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
-import type { PurchaseRequest, ProjectPurchaseEntry, Employee } from "../../generated/prisma/client.js";
+import type { PurchaseRequest, ProjectPurchaseEntry, Employee, Prisma } from "../../generated/prisma/client.js";
 
 export const FULFILLMENT_STATUSES = ["waiting", "ordered", "received"] as const;
 export type FulfillmentStatus = (typeof FULFILLMENT_STATUSES)[number];
@@ -65,6 +65,27 @@ export function formatPurchaseRequestDisplayId(year: number, number: number): st
   return `DA-${year}-${String(number).padStart(5, "0")}`;
 }
 
+/**
+ * Alloue `count` numéros de demande d'achat consécutifs dans une
+ * transaction déjà ouverte — un seul aller-retour Settings pour tout le
+ * lot (jamais un par ligne). Extrait de createPurchaseShortlist le 8
+ * septembre 2026 pour que createExternalSale (externalSales/service.ts)
+ * puisse générer une PurchaseRequest par ligne de pièce et incrémenter
+ * nextPurchaseRequestNumber DANS LA MÊME transaction que la vente —
+ * impossible en appelant createPurchaseShortlist telle quelle, qui ouvre
+ * toujours sa propre transaction.
+ */
+export async function allocatePurchaseRequestNumbers(
+  tx: Prisma.TransactionClient,
+  settings: { id: string; nextPurchaseRequestNumber: number; purchaseRequestNumberYear: number },
+  count: number,
+): Promise<string[]> {
+  const { year, number: startNumber } = resolveNextPurchaseRequestNumber(settings);
+  const displayIds = Array.from({ length: count }, (_, i) => formatPurchaseRequestDisplayId(year, startNumber + i));
+  await tx.settings.update({ where: { id: settings.id }, data: { nextPurchaseRequestNumber: startNumber + count, purchaseRequestNumberYear: year } });
+  return displayIds;
+}
+
 export interface ShortlistLineInput {
   description: string;
   supplier?: string;
@@ -81,6 +102,9 @@ export interface PurchaseRequestDto {
   requesterPersona: Persona;
   projectId: string | null;
   projectLabel: string | null;
+  /** Vente externe d'origine (projectType==="sale") — miroir de projectId/projectLabel. */
+  externalSaleId: string | null;
+  externalSaleLabel: string | null;
   categoryName: string | null;
   supplier: string | null;
   description: string;
@@ -97,12 +121,15 @@ export interface PurchaseRequestDto {
   /** Suivi post-autorisation (waiting/ordered/received) — nul tant que pas encore autorisée. */
   fulfillmentStatus: string | null;
   appliedToProjectAt: string | null;
+  /** Équivalent de appliedToProjectAt pour une ligne de Vente externe (projectType==="sale"). */
+  appliedToExternalSaleAt: string | null;
   expectedReceiptDate: string | null;
 }
 
 type PurchaseRequestWithRelations = PurchaseRequest & {
   requester: Pick<Employee, "name" | "persona">;
   project: { projectNumber: string; name: string } | null;
+  externalSale: { displayId: string } | null;
   category: { name: string } | null;
 };
 
@@ -129,16 +156,14 @@ export async function createPurchaseShortlist(
   return prisma.$transaction(async (tx) => {
     const settings = await tx.settings.findFirst();
     if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
-    const { year, number: startNumber } = resolveNextPurchaseRequestNumber(settings);
-    let nextNumber = startNumber;
+    const displayIds = await allocatePurchaseRequestNumbers(tx, settings, lines.length);
     const created: PurchaseRequest[] = [];
 
-    for (const line of lines) {
-      const displayId = formatPurchaseRequestDisplayId(year, nextNumber);
-      nextNumber += 1;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]!;
       const row = await tx.purchaseRequest.create({
         data: {
-          displayId,
+          displayId: displayIds[i]!,
           requesterId,
           projectType: "project",
           projectId,
@@ -152,7 +177,6 @@ export async function createPurchaseShortlist(
       created.push(row);
     }
 
-    await tx.settings.update({ where: { id: settings.id }, data: { nextPurchaseRequestNumber: nextNumber, purchaseRequestNumberYear: year } });
     return created;
   });
 }
@@ -242,6 +266,7 @@ export async function listPurchaseRequests(viewer: { id: string; persona: Person
     include: {
       requester: { select: { name: true, persona: true } },
       project: { select: { projectNumber: true, name: true } },
+      externalSale: { select: { displayId: true } },
       category: { select: { name: true } },
     },
     orderBy: { requestedAt: "desc" },
@@ -293,6 +318,7 @@ export async function listPurchaseRequestHistory(
     include: {
       requester: { select: { name: true, persona: true } },
       project: { select: { projectNumber: true, name: true } },
+      externalSale: { select: { displayId: true } },
       category: { select: { name: true } },
     },
     orderBy: { requestedAt: "desc" },
@@ -311,6 +337,8 @@ export function toPurchaseRequestDto(row: PurchaseRequestWithRelations, viewerPe
     requesterPersona: row.requester.persona as Persona,
     projectId: row.projectId,
     projectLabel: row.project ? `${row.project.projectNumber} — ${row.project.name}` : null,
+    externalSaleId: row.externalSaleId,
+    externalSaleLabel: row.externalSale?.displayId ?? null,
     categoryName: row.category?.name ?? null,
     supplier: row.supplier,
     description: row.description,
@@ -326,6 +354,7 @@ export function toPurchaseRequestDto(row: PurchaseRequestWithRelations, viewerPe
     editedAt: row.editedAt?.toISOString() ?? null,
     fulfillmentStatus: row.fulfillmentStatus,
     appliedToProjectAt: row.appliedToProjectAt?.toISOString() ?? null,
+    appliedToExternalSaleAt: row.appliedToExternalSaleAt?.toISOString() ?? null,
     expectedReceiptDate: row.expectedReceiptDate?.toISOString().slice(0, 10) ?? null,
   };
 }
@@ -427,6 +456,26 @@ export async function applyPurchaseRequestToProject(id: string): Promise<Purchas
   }
   if (request.appliedToProjectAt) throw new HttpError(400, "Cet achat a déjà été appliqué au projet.");
   return prisma.purchaseRequest.update({ where: { id }, data: { appliedToProjectAt: new Date() } });
+}
+
+/**
+ * Équivalent de applyPurchaseRequestToProject ci-dessus, pour une ligne de
+ * Vente externe (projectType==="sale") — fonction PARALLÈLE, jamais
+ * fusionnée avec applyPurchaseRequestToProject : celle-ci reste intouchée
+ * (route/appels existants inchangés, zéro risque sur un chemin déjà en
+ * production) plutôt que de généraliser une fonction déjà utilisée
+ * ailleurs. Appelée uniquement depuis l'écran détail Vente externe (jamais
+ * exposée dans PurchaseRequestList.tsx, qui ne connaît que le contexte
+ * projet).
+ */
+export async function applyPurchaseRequestToExternalSale(id: string): Promise<PurchaseRequest> {
+  const request = await prisma.purchaseRequest.findUnique({ where: { id } });
+  if (!request) throw new HttpError(404, "Demande d'achat introuvable.");
+  if (request.fulfillmentStatus !== "received") {
+    throw new HttpError(400, "L'achat doit être marqué « Reçu » avant d'être appliqué à la vente.");
+  }
+  if (request.appliedToExternalSaleAt) throw new HttpError(400, "Cet achat a déjà été appliqué à la vente.");
+  return prisma.purchaseRequest.update({ where: { id }, data: { appliedToExternalSaleAt: new Date() } });
 }
 
 export async function rejectPurchaseRequest(id: string, rejectedReason?: string): Promise<PurchaseRequest> {

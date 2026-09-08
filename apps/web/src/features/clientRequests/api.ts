@@ -72,6 +72,8 @@ export interface ClientRequestDetail extends ClientRequestListItem {
   // dans listClientRequests) : voir getClientRequestDetail côté API.
   projectId: string | null;
   rollingId: string | null;
+  /** Vente externe (8 septembre 2026) — même patron que projectId/rollingId ci-dessus. */
+  externalSaleId: string | null;
 }
 
 export interface CreateClientRequestInput {

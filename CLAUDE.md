@@ -631,3 +631,128 @@ l'endroit — les deux sont ancrés UTC, donc également touchés).
 `npm run typecheck && npm run lint && npm test && npm run build` verts
 après coup. Aucune migration Prisma, aucune correction de données réelles
 requise — bogue d'affichage pur, jamais stocké incorrectement.
+
+## Vente externe + remise à zéro annuelle sur 5 modules existants (8 septembre 2026)
+
+Demande de Marie : un nouveau module « Vente externe » (vendre des pièces
+sans passer par le cycle Projet complet). Plan complet dans
+`/root/.claude/plans/magical-finding-fog.md` (toujours valide si présent
+dans une future session). En concevant la numérotation `VE-AAAA-NNNN`,
+vérification directe du schéma a révélé que seuls les Achats (DA-) avaient
+une vraie remise à zéro annuelle — les 5 autres modules numérotés
+(Budgétaire, Demande client, Livraison, Call de service, Roulement) ont un
+compteur perpétuel. Tranché avec Marie : remise à zéro annuelle partout,
+pas seulement pour le nouveau module — donc un correctif rétroactif sur 5
+modules déjà en production, en plus du nouveau module.
+
+**Partie 1 — remise à zéro annuelle (Budget/ClientRequest/Delivery/
+ServiceCall/Rolling)** : nouveau `apps/api/src/modules/settings/
+sequentialNumbers.ts` (`currentBusinessYear()` — heure America/Toronto,
+jamais UTC, pour éviter qu'un document créé tard le soir le 31 décembre
+bascule prématurément à la nouvelle année ; `resolveSequentialNumber()` —
+généralise le patron déjà en place pour les Achats). 5 nouveaux champs
+`Settings.xNumberYear` (migration additive, `@default(2026)` — sans impact
+tant que déployé en 2026, le compteur de chaque module continue exactement
+où il en est). `createFulfillmentDelivery` extrait (était dupliqué
+verbatim dans `projects/service.ts` et `rollings/service.ts`) — consolidé
+puisque ce correctif obligeait de toute façon à modifier ces lignes.
+`purchases/service.ts` intouché (déjà correct depuis le 14 août 2026,
+déjà testé, zéro raison de le faire dépendre du nouveau fichier partagé).
+Vérifié contre Postgres local (scénarios jetables : compteur avancé
+simulé en 2026, appel avec `year=2027` explicite → reset à 1 confirmé ;
+re-création en 2026 → continue le compteur existant) — aucune correction
+de données réelles requise (migration purement additive, comportement
+observable inchangé avant le 1er janvier 2027).
+
+**Partie 2 — module Vente externe (`ExternalSale`)** : fenêtre contextuelle
+avec lignes Description/Qté/Coût unitaire, marge globale unique (20 %
+pré-rempli depuis `Settings.externalSaleDefaultMarginPct`, modifiable),
+frais de transport + frais administratifs (montants fixes en $, **vides
+par défaut, jamais 0 pré-rempli** — confirmé explicitement par
+l'utilisatrice, 0 reste une saisie volontaire), numéro `VE-AAAA-NNNN` à
+remise à zéro annuelle (Partie 1, pas le format 5 chiffres perpétuel des
+Achats), accès complet Propriétaire/Direction/Administration seulement
+(nouvelle fonction `canManageExternalSales`, roles.ts — Employé/Magasinier
+exclus), conversion depuis une Demande client OU création indépendante,
+sortie via les 4 modes de `fulfillment.ts` existants (jamais modifiés)
+après un geste explicite « Marquer prêt à être livré ».
+
+Chaque ligne de pièce devient automatiquement une `PurchaseRequest` liée
+(`projectType==="sale"`, `categoryId` nul comme la liste rapide — jamais
+de seuil déclenché) dans la même transaction que la vente. Le
+sous-processus d'achat (approbation, commande, réception) reste le
+mécanisme **existant, inchangé** (`canApprovePurchaseRequest`/
+`canManagePurchaseFulfillment`) — confirmé explicitement avec
+l'utilisatrice : « accès complet à égalité » ne couvre que les gestes
+propres à l'entité Vente externe (créer, marquer prête à livrer,
+choisir/confirmer la livraison), jamais ce sous-processus. Une ligne
+rejetée est exclue du calcul « toutes reçues et appliquées » plutôt que
+de bloquer la vente pour toujours (décision confirmée) — elle reste
+comptée dans les totaux gelés à la création, jamais recalculés après
+coup, même principe que partout ailleurs dans l'application.
+
+Nouveau `packages/business-rules/src/external-sales.ts`
+(`externalSaleLineAmount`/`externalSaleTotals`, réutilise `saleFromCost`
+de `margin.ts`, jamais réimplémenté) + tests. `purchases/service.ts` :
+nouvelle fonction parallèle `applyPurchaseRequestToExternalSale`
+(jamais fusionnée avec `applyPurchaseRequestToProject`, même prudence
+déjà démontrée ailleurs sur ce projet — moins de code partagé mais zéro
+risque sur une route déjà en production) + DTO étendu
+(`externalSaleId`/`externalSaleLabel`/`appliedToExternalSaleAt`, miroir
+de `projectId`/`projectLabel`/`appliedToProjectAt`). Nouveau
+`apps/api/src/modules/externalSales/` (service.ts + routes.ts, monté
+après `rollingsRouter`).
+
+Vérifié contre Postgres local via un script jetable
+(`apps/api/scripts/tmp-verify-external-sales.ts`, supprimé après usage) :
+VE directe (3 lignes) → totaux exacts, 3 `PurchaseRequest` créées ; VE
+depuis une Demande client → `externalSaleId` posé + suppression bloquée ;
+`markExternalSaleReadyToDeliver` refusé tant qu'il manque des lignes,
+accepté une fois toutes reçues+appliquées ; ligne rejetée → exclue du
+blocage ; les 4 modes de fulfillment, dont `WAREHOUSE` → `Delivery`
+correcte (`type="sale"`, numéro `BL-AAAA-NNNN`). **Piège trouvé et
+corrigé pendant cette vérification** : la toute première tentative a
+échoué sur une collision de `displayId` (`DA-2026-00006` déjà pris) —
+pas un bogue du nouveau code, mais 8 lignes `PurchaseRequest` orphelines
+laissées dans ce Postgres local de longue durée par un ancien script
+jetable du 14 août 2026 (jamais nettoyé), avec `Settings.
+nextPurchaseRequestNumber` resté désynchronisé. Nettoyé (lignes
+supprimées — confirmées orphelines : aucune référence dans `seed.ts`,
+projet parent lui-même un compte de test seedé) avant de pouvoir
+reproduire proprement — sert de rappel : toujours vérifier l'état réel
+de la table avant de conclure à un bogue de logique quand une erreur de
+contrainte unique survient sur ce Postgres local partagé entre sessions.
+
+**Frontend** — nouveau `apps/web/src/features/externalSales/` (api.ts,
+ExternalSalesPage/List/Form/Detail/Fulfillment.tsx), calqué sur les
+patrons déjà en place (ProjectsPage/ProjectList pour la page+liste,
+RollingForm pour le bloc contact, ProjectAmendments pour la fenêtre de
+création avec totaux en direct, ProjectFulfillment pour la sortie).
+Intégrations : nav.ts + App.tsx (nouvelle page `/ventes-externes`),
+QuickAdd.tsx (nouvelle carte + next-number), ClientRequestOptionsMenu.tsx
+(option « Convertir en vente », même patron que Roulement/Projet/Call),
+`purchases/api.ts` (DTO étendu pour matcher le backend) et
+`PurchaseRequestList.tsx`/`PurchaseRequestActionDrawer.tsx`/
+`PurchaseFulfillmentActionDrawer.tsx` (colonne « Projet / Vente »,
+`externalSaleLabel` en repli d'affichage quand `projectLabel` est nul).
+**Petit oubli trouvé en construisant le frontend** : le DTO
+`ExternalSaleDetailDto` côté serveur n'exposait pas
+`fulfillmentConfirmationNote` (présent sur `Project`, absent ici) —
+corrigé (ajout additif, aucun risque sur le comportement déjà vérifié).
+
+`npm run typecheck && npm run lint && npm test && npm run build` verts
+sur tout le monorepo après le lot complet (Partie 1 + Partie 2 backend et
+frontend). **Limite assumée de cette vérification** : cette session n'a
+aucun accès réseau au vrai projet Supabase (confirmé à nouveau
+directement — `example.supabase.co` placeholder dans ce clone frais,
+tunnel CONNECT refusé 403 par le proxy sortant) et `verifyAccessToken`
+(apps/api/src/auth/supabase.ts) appelle réellement `supabase.auth.
+getUser()`, donc ni la connexion via le navigateur ni la vérification des
+requêtes API authentifiées ne peuvent fonctionner dans ce bac à sable —
+aucun clic-à-travers réel possible ici, contrairement à d'habitude où
+Playwright suffit. La logique métier reste vérifiée en profondeur
+(Postgres local direct, sans passer par l'authentification), et tout le
+nouveau code frontend réutilise des classes CSS déjà éprouvées (aucune
+nouvelle règle visuelle inventée) — mais un test manuel réel par Marie
+(ou une prochaine session avec accès réseau) reste requis avant de
+considérer l'interface elle-même confirmée à l'usage.

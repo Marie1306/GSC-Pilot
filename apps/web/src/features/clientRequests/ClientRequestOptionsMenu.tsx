@@ -6,6 +6,7 @@ import {
   canCreateServiceCall,
   canCreateRollingDirectly,
   canCreateProjectDirectly,
+  canManageExternalSales,
   canDeleteClientRequest,
 } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
@@ -14,6 +15,7 @@ import { OptionsDrawer, OptionRow, OptionSection } from "../../components/Option
 import { ServiceCallForm } from "../serviceCalls/ServiceCallForm.js";
 import { RollingForm } from "../rollings/RollingForm.js";
 import { ProjectForm } from "../projects/ProjectForm.js";
+import { ExternalSaleForm } from "../externalSales/ExternalSaleForm.js";
 import {
   transferClientRequestToOwner,
   updateClientRequestFollowUp,
@@ -66,6 +68,7 @@ export function ClientRequestOptionsMenu({ request, open, onClose, onDeleted }: 
   const [creatingServiceCall, setCreatingServiceCall] = useState(false);
   const [creatingRolling, setCreatingRolling] = useState(false);
   const [creatingProject, setCreatingProject] = useState(false);
+  const [creatingExternalSale, setCreatingExternalSale] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const invalidate = () => {
@@ -111,19 +114,22 @@ export function ClientRequestOptionsMenu({ request, open, onClose, onDeleted }: 
   const canCreateCall = canCreateServiceCall(employee.persona);
   const canCreateRolling = canCreateRollingDirectly(employee.persona);
   const canCreateProject = canCreateProjectDirectly(employee.persona);
+  const canCreateExternalSale = canManageExternalSales(employee.persona);
   const canDelete = canDeleteClientRequest(employee.persona);
   const isLost = request.status === "lost";
   const isConverted = !!request.budgetId;
   const isConvertedToServiceCall = !!request.serviceCallId;
   const isConvertedToRolling = !!request.rollingId;
   const isConvertedToProject = !!request.projectId;
-  // Les 4 filières de conversion sont indépendantes (aucune ne bloque les
+  const isConvertedToExternalSale = !!request.externalSaleId;
+  // Les 5 filières de conversion sont indépendantes (aucune ne bloque les
   // autres) — une demande peut en théorie cumuler plusieurs conversions.
   const conversionLabels = [
     isConverted && "un budgétaire",
     isConvertedToRolling && "un roulement",
     isConvertedToProject && "un projet",
     isConvertedToServiceCall && "un call de service",
+    isConvertedToExternalSale && "une vente externe",
   ].filter((label): label is string => !!label);
 
   return (
@@ -166,6 +172,17 @@ export function ClientRequestOptionsMenu({ request, open, onClose, onDeleted }: 
             label="Créer le call de service"
             onClick={() => setCreatingServiceCall(true)}
             disabled={!canCreateCall}
+            disabledNote="Direction, Administration ou Propriétaire seulement."
+          />
+        )}
+        {isConvertedToExternalSale ? (
+          <OptionRow icon="💵" label="Vente externe déjà créée pour cette demande" disabled disabledNote="Une demande ne peut avoir qu'une seule vente externe." />
+        ) : (
+          <OptionRow
+            icon="💵"
+            label="Convertir en vente"
+            onClick={() => setCreatingExternalSale(true)}
+            disabled={!canCreateExternalSale}
             disabledNote="Direction, Administration ou Propriétaire seulement."
           />
         )}
@@ -290,6 +307,25 @@ export function ClientRequestOptionsMenu({ request, open, onClose, onDeleted }: 
           onClose={() => setCreatingProject(false)}
           onCreated={() => {
             setCreatingProject(false);
+            invalidate();
+          }}
+          prefillFromRequest={{
+            clientRequestId: request.id,
+            requestDisplayId: request.displayId,
+            contactName: request.contactName,
+            company: request.company ?? undefined,
+            contactRole: request.contactRole ?? undefined,
+            phone: request.phone ?? undefined,
+            email: request.email ?? undefined,
+          }}
+        />
+      )}
+
+      {creatingExternalSale && (
+        <ExternalSaleForm
+          onClose={() => setCreatingExternalSale(false)}
+          onCreated={() => {
+            setCreatingExternalSale(false);
             invalidate();
           }}
           prefillFromRequest={{

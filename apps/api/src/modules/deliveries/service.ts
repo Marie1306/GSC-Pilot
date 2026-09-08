@@ -16,7 +16,56 @@
 import { confirmWarehouseDelivery, type Persona, type FulfillmentMode } from "@gsc-pilot/business-rules";
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
+import { resolveSequentialNumber } from "../settings/sequentialNumbers.js";
 import type { Prisma } from "../../generated/prisma/client.js";
+
+/** Remise à zéro annuelle (8 septembre 2026) — voir settings/sequentialNumbers.ts. */
+function resolveNextDeliveryNumber(settings: { nextDeliveryNumber: number; deliveryNumberYear: number }, year?: number) {
+  return resolveSequentialNumber({ next: settings.nextDeliveryNumber, year: settings.deliveryNumberYear }, year);
+}
+
+export interface FulfillmentDeliveryTarget {
+  type: "project" | "rolling" | "sale";
+  projectId?: string;
+  rollingId?: string;
+  externalSaleId?: string;
+  contactId: string;
+  address?: string | null;
+  scheduled?: string | null;
+  driverId?: string | null;
+}
+
+/**
+ * Création de la livraison "Bon de livraison (magasinier)" + numérotation —
+ * extrait le 8 septembre 2026 depuis 2 copies verbatim (projects/service.ts,
+ * rollings/service.ts) qui allaient devenir 3 avec l'ajout de la Vente
+ * externe (voir CLAUDE.md, correctif remise à zéro annuelle). Accepte le
+ * `tx` déjà ouvert de l'appelant — jamais sa propre transaction, cette
+ * création fait partie d'une opération plus large (chooseXFulfillmentMode).
+ */
+export async function createFulfillmentDelivery(
+  tx: Prisma.TransactionClient,
+  settings: { id: string; nextDeliveryNumber: number; deliveryNumberYear: number },
+  target: FulfillmentDeliveryTarget,
+): Promise<void> {
+  const { year, number } = resolveNextDeliveryNumber(settings);
+  const displayId = `BL-${year}-${String(number).padStart(4, "0")}`;
+  await tx.delivery.create({
+    data: {
+      displayId,
+      type: target.type,
+      projectId: target.projectId ?? null,
+      rollingId: target.rollingId ?? null,
+      externalSaleId: target.externalSaleId ?? null,
+      contactId: target.contactId,
+      address: target.address || null,
+      scheduledAt: target.scheduled ? new Date(target.scheduled) : null,
+      driverEmployeeId: target.driverId || null,
+      status: "planned",
+    },
+  });
+  await tx.settings.update({ where: { id: settings.id }, data: { nextDeliveryNumber: number + 1, deliveryNumberYear: year } });
+}
 
 export interface DeliveryListItemDto {
   id: string;
@@ -57,6 +106,7 @@ export async function listDeliveries(viewerPersona: Persona, viewerEmployeeId: s
       contact: { select: { name: true, company: true } },
       project: { select: { projectNumber: true, name: true } },
       rolling: { select: { rollingNumber: true } },
+      externalSale: { select: { displayId: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -70,14 +120,30 @@ export async function listDeliveries(viewerPersona: Persona, viewerEmployeeId: s
     address: row.address,
     scheduledAt: row.scheduledAt?.toISOString() ?? null,
     driverEmployeeName: row.driverEmployeeId ? (namesById.get(row.driverEmployeeId) ?? null) : null,
-    sourceLabel: row.project ? `${row.project.projectNumber} — ${row.project.name}` : (row.rolling?.rollingNumber ?? "Roulement"),
+    sourceLabel: deliverySourceLabel(row),
   }));
+}
+
+/** Projet, sinon roulement, sinon Vente externe (Delivery.type) — jamais deux à la fois. */
+function deliverySourceLabel(row: {
+  project: { projectNumber: string; name: string } | null;
+  rolling: { rollingNumber: string } | null;
+  externalSale: { displayId: string } | null;
+}): string {
+  if (row.project) return `${row.project.projectNumber} — ${row.project.name}`;
+  if (row.rolling) return row.rolling.rollingNumber;
+  return row.externalSale?.displayId ?? "Vente externe";
 }
 
 async function loadDeliveryOrThrow(id: string) {
   const delivery = await prisma.delivery.findUnique({
     where: { id },
-    include: { contact: true, project: { select: { projectNumber: true, name: true } }, rolling: { select: { rollingNumber: true } } },
+    include: {
+      contact: true,
+      project: { select: { projectNumber: true, name: true } },
+      rolling: { select: { rollingNumber: true } },
+      externalSale: { select: { displayId: true } },
+    },
   });
   if (!delivery) throw new HttpError(404, "Livraison introuvable.");
   return delivery;
@@ -126,7 +192,7 @@ export async function getDeliveryDetail(id: string): Promise<DeliveryDetailDto> 
     conditionNote: delivery.conditionNote,
     kmTraveled: delivery.kmTraveled !== null ? Number(delivery.kmTraveled) : null,
     completedAt: delivery.completedAt?.toISOString() ?? null,
-    sourceLabel: delivery.project ? `${delivery.project.projectNumber} — ${delivery.project.name}` : (delivery.rolling?.rollingNumber ?? "Roulement"),
+    sourceLabel: deliverySourceLabel(delivery),
     createdAt: delivery.createdAt.toISOString(),
   };
 }
@@ -149,11 +215,10 @@ export async function updateDelivery(id: string, patch: UpdateDeliveryInput): Pr
 
 /**
  * Signature captée → livraison complétée ET entité liée fermée
- * (confirmWarehouseDelivery, fulfillment.ts) — projet OU roulement, jamais
- * les deux (Delivery.type). Roulement ajouté le 21 août 2026 (module
- * Roulements) — jusque-là seul un projet lié était géré, un bon rattaché à
- * un roulement échouait toujours ici (delivery.projectId nul par
- * construction pour ce cas). La note de confirmation reprend le
+ * (confirmWarehouseDelivery, fulfillment.ts) — projet, roulement OU vente
+ * externe, jamais plus d'un (Delivery.type). Vente externe ajoutée le 8
+ * septembre 2026 (module Vente externe), même mécanique que l'ajout du
+ * roulement le 21 août 2026. La note de confirmation reprend le
  * conditionNote déjà saisi (updateDelivery), pas un champ séparé — même
  * donnée, jamais dupliquée. Déclaration + nom du signataire obligatoires
  * (31 août 2026, sur demande de l'utilisatrice) — même patron que
@@ -164,7 +229,9 @@ export async function confirmDelivery(id: string, dataUrl: string, signerName: s
   if (delivery.status === "completed") throw new HttpError(409, "Cette livraison est déjà confirmée.");
   if (!dataUrl?.startsWith("data:image/")) throw new HttpError(400, "Signature invalide.");
   if (!signerName?.trim()) throw new HttpError(400, "Le nom du signataire est requis.");
-  if (!delivery.projectId && !delivery.rollingId) throw new HttpError(400, "Aucun projet ou roulement lié à cette livraison — confirmation impossible.");
+  if (!delivery.projectId && !delivery.rollingId && !delivery.externalSaleId) {
+    throw new HttpError(400, "Aucun projet, roulement ou vente externe lié à cette livraison — confirmation impossible.");
+  }
 
   const deliveryUpdate = prisma.delivery.update({
     where: { id },
@@ -198,21 +265,48 @@ export async function confirmDelivery(id: string, dataUrl: string, signerName: s
     return;
   }
 
-  const rolling = await prisma.rolling.findUnique({ where: { id: delivery.rollingId! } });
-  if (!rolling) throw new HttpError(404, "Roulement introuvable.");
+  if (delivery.rollingId) {
+    const rolling = await prisma.rolling.findUnique({ where: { id: delivery.rollingId } });
+    if (!rolling) throw new HttpError(404, "Roulement introuvable.");
+    const updated = confirmWarehouseDelivery(
+      {
+        fulfillmentMode: (rolling.fulfillmentMode ?? undefined) as FulfillmentMode | undefined,
+        billingReady: rolling.billingReady,
+        fulfillmentStatus: rolling.fulfillmentStatus ?? undefined,
+        status: rolling.status,
+      },
+      delivery.conditionNote ?? "",
+    );
+    await prisma.$transaction([
+      deliveryUpdate,
+      prisma.rolling.update({
+        where: { id: delivery.rollingId },
+        data: {
+          billingReady: updated.billingReady,
+          fulfillmentStatus: updated.fulfillmentStatus,
+          fulfillmentConfirmationNote: updated.fulfillmentConfirmationNote,
+          status: updated.status,
+        },
+      }),
+    ]);
+    return;
+  }
+
+  const sale = await prisma.externalSale.findUnique({ where: { id: delivery.externalSaleId! } });
+  if (!sale) throw new HttpError(404, "Vente externe introuvable.");
   const updated = confirmWarehouseDelivery(
     {
-      fulfillmentMode: (rolling.fulfillmentMode ?? undefined) as FulfillmentMode | undefined,
-      billingReady: rolling.billingReady,
-      fulfillmentStatus: rolling.fulfillmentStatus ?? undefined,
-      status: rolling.status,
+      fulfillmentMode: (sale.fulfillmentMode ?? undefined) as FulfillmentMode | undefined,
+      billingReady: sale.billingReady,
+      fulfillmentStatus: sale.fulfillmentStatus ?? undefined,
+      status: sale.status,
     },
     delivery.conditionNote ?? "",
   );
   await prisma.$transaction([
     deliveryUpdate,
-    prisma.rolling.update({
-      where: { id: delivery.rollingId! },
+    prisma.externalSale.update({
+      where: { id: delivery.externalSaleId! },
       data: {
         billingReady: updated.billingReady,
         fulfillmentStatus: updated.fulfillmentStatus,

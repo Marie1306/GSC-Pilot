@@ -130,6 +130,7 @@ model Contact {
   rollings       Rolling[]
   serviceCalls   ServiceCall[]
   deliveries     Delivery[]
+  externalSales  ExternalSale[]
 
   @@index([email])
   @@index([name])
@@ -178,6 +179,14 @@ model ClientRequest {
   // même raison documentée sur Budget.clientRequestId).
   serviceCallId        String?       @unique
   serviceCall          ServiceCall?  @relation(fields: [serviceCallId], references: [id])
+  // Conversion directe en Vente externe (8 septembre 2026) — même mécanique
+  // et même relation gérée que serviceCallId ci-dessus (colonne miroir sur
+  // ClientRequest, relation réelle vit sur ExternalSale.clientRequestId).
+  // 5e filière de conversion indépendante — voir ClientRequestOptionsMenu.tsx,
+  // aucune des 4 autres (budgetId/serviceCallId/projet/roulement via
+  // relation inverse) ne bloque celle-ci, jamais restreinte par requestType.
+  externalSaleId       String?       @unique
+  externalSale         ExternalSale? @relation(fields: [externalSaleId], references: [id])
   convertedType        String? // project | rolling
   convertedProjectId   String?
   convertedRollingId   String?
@@ -749,10 +758,19 @@ model PurchaseRequest {
   displayId                   String            @unique // format DA-AAAA-NNNN
   requesterId                 String // n'importe quel persona — mécanisme ouvert à tous, y compris Employé/Magasinier
   requester                   Employee          @relation("PurchaseRequestRequester", fields: [requesterId], references: [id])
-  projectType                 String // project | service | internal
+  projectType                 String // project | service | internal | sale (sale ajouté le 8 septembre 2026, voir ExternalSale)
   projectId                   String?
   project                     Project?          @relation(fields: [projectId], references: [id])
   serviceCallId               String?
+  // Pièce d'une Vente externe (projectType === "sale" seulement — jamais
+  // utilisé par les 3 autres projectType). Une PurchaseRequest par ligne de
+  // pièce, créée automatiquement par createExternalSale dans la même
+  // transaction que la vente. amount ci-dessous = round2(qty × unitCost),
+  // gelé à la création.
+  externalSaleId               String?
+  externalSale                 ExternalSale?     @relation(fields: [externalSaleId], references: [id])
+  qty                          Decimal?          @db.Decimal(10, 2)
+  unitCost                     Decimal?          @db.Decimal(12, 2)
   // Nullable depuis le 12 août 2026 : la liste rapide d'achats de projet
   // crée des lignes SANS catégorie, par choix — c'est justement l'absence
   // de catégorie à seuil qui fait qu'aucune double autorisation du
@@ -810,6 +828,12 @@ model PurchaseRequest {
   // automatique à l'autorisation. Exige fulfillmentStatus === "received"
   // avant de pouvoir être posé (voir applyPurchaseRequestToProject).
   appliedToProjectAt          DateTime?
+  // Équivalent de appliedToProjectAt ci-dessus, pour une ligne de Vente
+  // externe — champ séparé plutôt que réutiliser appliedToProjectAt (qui
+  // resterait vide et trompeur ici puisque projectId est nul). Même règle :
+  // exige fulfillmentStatus === "received" avant de pouvoir être posé, voir
+  // applyPurchaseRequestToExternalSale (purchases/service.ts).
+  appliedToExternalSaleAt     DateTime?
   // Date visée de réception (25 août 2026, demande explicite pour faciliter
   // le suivi) — purement informatif, jamais utilisé par une règle métier
   // (pas de restriction de statut pour la modifier, contrairement à amount).
@@ -818,6 +842,7 @@ model PurchaseRequest {
   @@index([status])
   @@index([requesterId])
   @@index([projectId])
+  @@index([externalSaleId])
 }
 
 // ---------------------------------------------------------------------------
@@ -1111,11 +1136,13 @@ model Rolling {
 model Delivery {
   id                String    @id @default(uuid())
   displayId         String    @unique // format BL-AAAA-NNNN
-  type              String // project | rolling
+  type              String // project | rolling | sale (sale ajouté le 8 septembre 2026, voir ExternalSale ci-dessous)
   projectId         String?
   project           Project?  @relation(fields: [projectId], references: [id])
   rollingId         String?
   rolling           Rolling?  @relation(fields: [rollingId], references: [id])
+  externalSaleId    String?
+  externalSale      ExternalSale? @relation(fields: [externalSaleId], references: [id])
   contactId         String
   contact           Contact   @relation(fields: [contactId], references: [id])
   address           String?
@@ -1132,6 +1159,99 @@ model Delivery {
   kmTraveled        Decimal?  @db.Decimal(10, 2)
   completedAt       DateTime?
   createdAt         DateTime  @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Vente externe (nouveau module, 8 septembre 2026) — vendre des pièces sans
+// passer par le cycle Projet complet (pas d'heures, pas de fabrication à
+// suivre). Affichée "Vente externe" dans l'interface, VE-AAAA-NNNN.
+//
+// Chaque ligne de pièce (Description/Qté/Coût unitaire) devient
+// automatiquement une PurchaseRequest liée (externalSaleId ci-dessous,
+// projectType="sale") qui suit le processus d'achat NORMAL, inchangé
+// (canApprovePurchaseRequest/canManagePurchaseFulfillment existantes,
+// jamais un accès spécial pour le Propriétaire ici — confirmé avec
+// l'utilisatrice, "accès complet à égalité" ne couvre que les gestes
+// propres à CETTE entité, pas ce sous-processus). categoryId reste nul sur
+// ces lignes (comme la liste rapide d'achats de projet) — jamais de seuil
+// de double autorisation déclenché automatiquement.
+//
+// partsBaseCost/salePrice sont gelés à la création (somme des lignes +
+// frais, avant marge) et NE SONT JAMAIS recalculés après coup, même si une
+// ligne se fait ensuite refuser aux achats — même principe de gel partout
+// ailleurs dans l'application (TimeEntry.costRate, montants de budgétaire,
+// etc.). Une ligne refusée (status="rejected", terminal, jamais
+// re-soumise) sort simplement du calcul de blocage de readyToDeliver
+// (confirmé avec l'utilisatrice : jamais de fonctionnalité de
+// remplacement de ligne, hors portée).
+//
+// transportFee/adminFee : montants fixes en $ entrés directement (jamais
+// un %, jamais de valeur par défaut), additionnés au coût des pièces AVANT
+// d'appliquer marginPct (une seule valeur pour toute la vente, jamais par
+// ligne) — voir externalSaleTotals, packages/business-rules/src/external-sales.ts.
+// Ni l'un ni l'autre ne devient jamais une PurchaseRequest.
+//
+// readyToDeliver : geste explicite de Direction/Administration/Propriétaire
+// (canManageExternalSales), équivalent de Project.productionCompleted mais
+// nommé différemment (une vente ne "produit" rien) — gardé par : toutes les
+// PurchaseRequest liées NON rejetées sont fulfillmentStatus="received" ET
+// appliedToExternalSaleAt posé. Les champs fulfillment* ci-dessous
+// reprennent exactement les noms de Project/Rolling pour réutiliser
+// chooseFulfillmentPure/confirmFulfillment/confirmWarehouseDelivery
+// (fulfillment.ts) sans adaptateur.
+//
+// billingReady : jamais lu ailleurs pour l'instant, aucune intégration à la
+// Facturation construite (jamais mentionné par l'utilisatrice pour ce
+// module) — gardé seulement pour que confirmFulfillment/
+// confirmWarehouseDelivery fonctionnent tels quels sans branche spéciale,
+// même raisonnement que Rolling.backupHours/backupHoursCost (schéma,
+// section Roulement : "gardés pour miroir structurel... jamais alimentés
+// ni lus").
+//
+// deletedAt : cohérence avec les 7 autres modèles à corbeille
+// (Project/Budget/ClientRequest/ServiceCall/Rolling/TimeEntry/ErrorReport)
+// — AUCUNE route/UI de suppression construite pour ce module (non demandé).
+// ---------------------------------------------------------------------------
+
+model ExternalSale {
+  id               String    @id @default(uuid())
+  displayId        String    @unique // format VE-AAAA-NNNN
+  contactId        String
+  contact          Contact   @relation(fields: [contactId], references: [id])
+  // Colonne miroir simple (pas de @relation dessus), même patron que
+  // ServiceCall.clientRequestId — la relation gérée vit sur
+  // ClientRequest.externalSaleId (@unique) ci-dessous.
+  clientRequestId  String?
+  // Opposé requis de ClientRequest.externalSale (relation gérée côté
+  // ClientRequest, voir externalSaleId) — jamais lu directement ici, même
+  // patron que ServiceCall.clientRequest/Budget.clientRequest.
+  clientRequest    ClientRequest?
+
+  partsBaseCost    Decimal   @default(0) @db.Decimal(12, 2)
+  transportFee     Decimal   @default(0) @db.Decimal(12, 2)
+  adminFee         Decimal   @default(0) @db.Decimal(12, 2)
+  marginPct        Decimal   @db.Decimal(5, 2)
+  salePrice        Decimal   @default(0) @db.Decimal(12, 2)
+
+  readyToDeliver   Boolean   @default(false)
+
+  status                      String    @default("active")
+  fulfillmentMode             String?
+  fulfillmentStatus           String?
+  fulfillmentDriverId         String?
+  fulfillmentAddress          String?
+  fulfillmentScheduled        DateTime?
+  billingReady                Boolean   @default(false)
+  fulfillmentConfirmationNote String?
+
+  createdById      String
+  createdAt        DateTime  @default(now())
+  deletedAt        DateTime?
+
+  purchaseRequests PurchaseRequest[]
+  deliveries       Delivery[]
+
+  @@index([status])
 }
 
 // ---------------------------------------------------------------------------
@@ -1352,11 +1472,30 @@ model Settings {
   // minuit UTC. Voir resolveNextPurchaseRequestNumber, purchases/service.ts.
   purchaseRequestNumberYear    Int      @default(2026)
   nextClientRequestNumber      Int      @default(1) // format DC-AAAA-NNNN
+  // Remise à zéro annuelle ajoutée le 8 septembre 2026 — même mécanisme que
+  // purchaseRequestNumberYear ci-dessus, généralisé dans
+  // resolveSequentialNumber (settings/sequentialNumbers.ts). AVANT cette
+  // date, ce compteur (et les 4 autres ci-dessous jusqu'à nextRollingNumber)
+  // ne se remettait JAMAIS à zéro malgré le commentaire d'origine — bogue
+  // confirmé et corrigé sur demande explicite de l'utilisatrice, voir
+  // CLAUDE.md. Comportement inchangé pour le reste de 2026 (le compteur
+  // continue où il en est), reset visible seulement au 1er janvier 2027.
+  clientRequestNumberYear      Int      @default(2026)
   nextBudgetNumber             Int      @default(1) // format BG-AAAA-NNNN
-  nextDeliveryNumber           Int      @default(1) // format BL-AAAA-NNNN — même patron que nextBudgetNumber (année civile, pas d'année d'affaires)
-  nextServiceCallNumber        Int      @default(1) // format CS-AAAA-NNNN — même patron que nextBudgetNumber/nextDeliveryNumber (année civile)
-  nextRollingNumber            Int      @default(1) // format RL-AAAA-NNNN — même patron que nextBudgetNumber/nextDeliveryNumber/nextServiceCallNumber (année civile, confirmé le 28 août 2026)
+  budgetNumberYear             Int      @default(2026) // voir clientRequestNumberYear ci-dessus, même correctif du 8 septembre 2026
+  nextDeliveryNumber           Int      @default(1) // format BL-AAAA-NNNN
+  deliveryNumberYear           Int      @default(2026) // voir clientRequestNumberYear ci-dessus, même correctif du 8 septembre 2026
+  nextServiceCallNumber        Int      @default(1) // format CS-AAAA-NNNN
+  serviceCallNumberYear        Int      @default(2026) // voir clientRequestNumberYear ci-dessus, même correctif du 8 septembre 2026
+  nextRollingNumber            Int      @default(1) // format RL-AAAA-NNNN
+  rollingNumberYear            Int      @default(2026) // voir clientRequestNumberYear ci-dessus, même correctif du 8 septembre 2026
   nextAmendmentNumber          Int      @default(1) // format AV-NNN — pas d'année (Amendment.displayId, voir amendments/service.ts)
+  // Vente externe (nouveau module, 8 septembre 2026) — VE-AAAA-NNNN, remise
+  // à zéro annuelle dès le départ (même mécanisme que ci-dessus), jamais le
+  // format 5 chiffres perpétuel des Achats (DA-).
+  nextExternalSaleNumber       Int      @default(1)
+  externalSaleNumberYear       Int      @default(2026)
+  externalSaleDefaultMarginPct Decimal  @default(20) @db.Decimal(5, 2) // même patron que servicePartsDefaultMarginPct ci-dessous — pré-rempli à la création, modifiable
   servicePartsDefaultMarginPct Decimal  @default(20) @db.Decimal(5, 2)
   punchRoundingMinutes         Int      @default(15)
   // Seuils du voyant de marge réelle (statut financier) — confirmé le 17

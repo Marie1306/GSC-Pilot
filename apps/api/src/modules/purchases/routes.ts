@@ -28,6 +28,7 @@ import {
   rejectPurchaseRequest,
   setFulfillmentStatus,
   applyPurchaseRequestToProject,
+  applyPurchaseRequestToExternalSale,
   FULFILLMENT_STATUSES,
   type FulfillmentStatus,
   listProjectPurchaseEntries,
@@ -210,6 +211,22 @@ purchasesRouter.post(
     const id = z.uuid().parse(req.params.id);
     const updated = await applyPurchaseRequestToProject(id);
     res.json({ id: updated.id, appliedToProjectAt: updated.appliedToProjectAt?.toISOString() ?? null });
+  },
+);
+
+/**
+ * Équivalent de /apply-to-project ci-dessus, pour une ligne de Vente
+ * externe — même porte (canManagePurchaseFulfillment, inchangée, voir
+ * roles.ts). Appelée uniquement depuis l'écran détail Vente externe.
+ */
+purchasesRouter.post(
+  "/purchase-requests/:id/apply-to-sale",
+  requireAuth,
+  requirePermissionWithDelegation((settings, persona) => canManagePurchaseFulfillment(settings, persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const updated = await applyPurchaseRequestToExternalSale(id);
+    res.json({ id: updated.id, appliedToExternalSaleAt: updated.appliedToExternalSaleAt?.toISOString() ?? null });
   },
 );
 

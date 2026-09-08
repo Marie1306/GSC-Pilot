@@ -593,3 +593,15 @@ describe("Notes internes (29 août 2026)", () => {
     expect(P.canAccessActionCenter(WAREHOUSE)).toBe(true);
   });
 });
+
+describe("Vente externe (8 septembre 2026) — accès complet à égalité, un seul palier", () => {
+  it("Propriétaire, Direction et Administration ont accès complet", () => {
+    expect(P.canManageExternalSales(BOSS)).toBe(true);
+    expect(P.canManageExternalSales(OWNER)).toBe(true);
+    expect(P.canManageExternalSales(ADMIN)).toBe(true);
+  });
+  it("Employé et Magasinier n'ont aucun accès", () => {
+    expect(P.canManageExternalSales(MEMBER)).toBe(false);
+    expect(P.canManageExternalSales(WAREHOUSE)).toBe(false);
+  });
+});

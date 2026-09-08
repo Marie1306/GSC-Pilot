@@ -9,6 +9,7 @@ import {
   canAccessProductionChecklist,
   canAccessErrorReports,
   canAccessActionCenter,
+  canManageExternalSales,
   type Persona,
 } from "@gsc-pilot/business-rules";
 
@@ -64,6 +65,9 @@ export const NAV_ITEMS: NavItem[] = [
   // canAccessOverviewViews (owner/admin/boss) — le OR d'origine était
   // redondant, simplifié ici (aucun changement de comportement).
   { key: "rollings", label: "Roulements", path: "/roulements", section: "sales", allow: canAccessOverviewViews },
+  // Vente externe (8 septembre 2026) — accès complet Propriétaire/Direction/
+  // Administration seulement (canManageExternalSales, roles.ts), jamais Employé/Magasinier.
+  { key: "external-sales", label: "Ventes externes", path: "/ventes-externes", section: "sales", allow: canManageExternalSales },
   { key: "reports", label: "Rapports / statistiques", path: "/rapports", section: "sales", allow: canAccessOverviewViews },
   { key: "time-punch", label: "Punch et heures", path: "/temps", section: "operations", allow: everyone },
   { key: "qr-scan", label: "Scan QR", path: "/scan", section: "operations", allow: everyone },

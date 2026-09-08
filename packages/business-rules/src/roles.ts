@@ -745,3 +745,28 @@ export function canDeleteErrorReport(persona: Persona): boolean {
   assertRole(persona);
   return persona === ROLES.OWNER;
 }
+
+// ---------------------------------------------------------------------------
+// Vente externe (nouveau module, 8 septembre 2026) — vendre des pièces sans
+// passer par le cycle Projet complet. Un seul palier pour tout le cycle de
+// vie propre à l'entité (voir/créer/marquer prête à livrer/choisir la
+// livraison), confirmé explicitement par l'utilisatrice : « Accès complet,
+// à égalité avec Direction/Administration », PAS le patron lecture seule du
+// Propriétaire utilisé pour la Facturation (canViewInvoicing vs
+// canCreateInvoiceRecord/canRecordPayment, plus restreints) — même forme
+// que canAccessErrorReports (un seul groupe nommé, une seule fonction) mais
+// avec Administration en plus. Employé/Magasinier exclus.
+//
+// NE gouverne PAS le sous-processus d'achat des lignes de pièces générées
+// (PurchaseRequest, projectType==="sale") — celles-ci restent régies par
+// canApprovePurchaseRequest/canManagePurchaseFulfillment ci-dessus,
+// inchangées, confirmé explicitement avec l'utilisatrice : le Propriétaire
+// seul y a accès seulement via une délégation active, exactement comme
+// n'importe quel autre achat.
+// ---------------------------------------------------------------------------
+
+/** Module Vente externe (voir/créer/modifier/gestes de fulfillment propres à l'entité) : Propriétaire, Direction et Administration — accès complet et identique pour les 3. */
+export function canManageExternalSales(persona: Persona): boolean {
+  assertRole(persona);
+  return ([ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS] as Persona[]).includes(persona);
+}

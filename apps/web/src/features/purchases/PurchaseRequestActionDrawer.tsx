@@ -81,7 +81,7 @@ export function PurchaseRequestActionDrawer({ id, onClose }: PurchaseRequestActi
       <p style={{ fontSize: 13, lineHeight: 1.7 }}>
         Catégorie : {row.categoryName ?? "— (liste rapide)"}
         <br />
-        Projet : {row.projectLabel ?? "—"}
+        {row.externalSaleId ? "Vente" : "Projet"} : {row.projectLabel ?? row.externalSaleLabel ?? "—"}
         <br />
         Fournisseur(s) : {row.supplier ?? "—"}
         <br />

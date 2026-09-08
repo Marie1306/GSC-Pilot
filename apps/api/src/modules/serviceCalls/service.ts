@@ -31,7 +31,13 @@ import { canSeeServicePricing, saleFromCost, serviceCallLaborTotals, serviceCall
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
 import { ensureContactRow } from "../clientRequests/service.js";
+import { resolveSequentialNumber } from "../settings/sequentialNumbers.js";
 import type { Prisma, ServiceCall, ServiceCallPart, ServiceCallPhoto } from "../../generated/prisma/client.js";
+
+/** Remise à zéro annuelle (8 septembre 2026) — voir settings/sequentialNumbers.ts. */
+function resolveNextServiceCallNumber(settings: { nextServiceCallNumber: number; serviceCallNumberYear: number }, year?: number) {
+  return resolveSequentialNumber({ next: settings.nextServiceCallNumber, year: settings.serviceCallNumberYear }, year);
+}
 
 export interface NewServiceCallContact {
   contactName: string;
@@ -92,7 +98,8 @@ async function resolveContactId(input: CreateServiceCallInput): Promise<string> 
 export async function getNextServiceCallDisplayId(): Promise<string> {
   const settings = await prisma.settings.findFirst();
   if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
-  return `CS-${new Date().getFullYear()}-${String(settings.nextServiceCallNumber).padStart(4, "0")}`;
+  const { year, number } = resolveNextServiceCallNumber(settings);
+  return `CS-${year}-${String(number).padStart(4, "0")}`;
 }
 
 /**
@@ -134,7 +141,8 @@ export async function createServiceCall(input: CreateServiceCallInput): Promise<
   return prisma.$transaction(async (tx) => {
     const settings = await tx.settings.findFirst();
     if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
-    const displayId = `CS-${new Date().getFullYear()}-${String(settings.nextServiceCallNumber).padStart(4, "0")}`;
+    const { year, number } = resolveNextServiceCallNumber(settings);
+    const displayId = `CS-${year}-${String(number).padStart(4, "0")}`;
     const call = await tx.serviceCall.create({
       data: {
         displayId,
@@ -149,7 +157,7 @@ export async function createServiceCall(input: CreateServiceCallInput): Promise<
         scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
       },
     });
-    await tx.settings.update({ where: { id: settings.id }, data: { nextServiceCallNumber: settings.nextServiceCallNumber + 1 } });
+    await tx.settings.update({ where: { id: settings.id }, data: { nextServiceCallNumber: number + 1, serviceCallNumberYear: year } });
     if (input.clientRequestId) {
       await tx.clientRequest.update({ where: { id: input.clientRequestId }, data: { serviceCallId: call.id, status: "converted" } });
     }

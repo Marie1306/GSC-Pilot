@@ -34,3 +34,13 @@ describe("Personnes différentes, même compagnie : pas fusionnées", () => {
     expect(contacts.length).toBe(2);
   });
 });
+
+// Nouveau (8 septembre 2026, module Vente externe) — ajouté, jamais un des
+// 6 cas ci-dessus modifié (voir CLAUDE.md, "Règle de reuse").
+describe("Catégorie Vente externe (8 septembre 2026)", () => {
+  it("requestType='sale' catégorise en Vente externe, pas en Information", () => {
+    const contacts: Contact[] = [];
+    ensureContact(contacts, { company: "Client Test", contactName: "Client Vente", requestType: "sale" });
+    expect(contacts[0]?.categories).toEqual(["Client", "Vente externe"]);
+  });
+});

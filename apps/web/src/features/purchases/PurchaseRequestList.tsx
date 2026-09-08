@@ -132,7 +132,7 @@ export function PurchaseRequestList() {
               <tr>
                 <th>#</th>
                 <th>Catégorie</th>
-                <th>Projet</th>
+                <th>Projet / Vente</th>
                 <th>Description</th>
                 <th>Fournisseur(s)</th>
                 <th>Prix</th>
@@ -148,7 +148,7 @@ export function PurchaseRequestList() {
                   <tr key={row.id}>
                     <td>{row.displayId}</td>
                     <td>{row.categoryName ?? "— (liste rapide)"}</td>
-                    <td>{row.projectLabel ?? "—"}</td>
+                    <td>{row.projectLabel ?? row.externalSaleLabel ?? "—"}</td>
                     <td>
                       {isOwn ? (
                         <input
@@ -248,7 +248,7 @@ export function PurchaseRequestList() {
                 <tr>
                   <th>#</th>
                   <th>Catégorie</th>
-                  <th>Projet</th>
+                  <th>Projet / Vente</th>
                   <th>Description</th>
                   <th>Prix</th>
                   <th>Réception visée</th>
@@ -261,7 +261,7 @@ export function PurchaseRequestList() {
                   <tr key={row.id}>
                     <td>{row.displayId}</td>
                     <td>{row.categoryName ?? "— (liste rapide)"}</td>
-                    <td>{row.projectLabel ?? "—"}</td>
+                    <td>{row.projectLabel ?? row.externalSaleLabel ?? "—"}</td>
                     <td>{row.description}</td>
                     <td>{formatRange(row)}</td>
                     <td>{row.expectedReceiptDate ? formatCalendarDate(row.expectedReceiptDate) : "—"}</td>
@@ -399,7 +399,7 @@ export function PurchaseRequestList() {
               <tr>
                 <th>#</th>
                 <th>Catégorie</th>
-                <th>Projet</th>
+                <th>Projet / Vente</th>
                 <th>Description</th>
                 <th>Prix</th>
                 <th>Proposé par</th>

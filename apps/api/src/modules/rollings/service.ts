@@ -48,6 +48,8 @@ import { HttpError } from "../../middleware/errorHandler.js";
 import { getBudgetDetail } from "../budgets/service.js";
 import { ensureContactRow } from "../clientRequests/service.js";
 import { rollingPurchasesActual } from "../purchases/service.js";
+import { resolveSequentialNumber } from "../settings/sequentialNumbers.js";
+import { createFulfillmentDelivery } from "../deliveries/service.js";
 import {
   toInvoicePlanEntryDto,
   computeHoursValueBase,
@@ -60,6 +62,11 @@ import type { Budget, Rolling } from "../../generated/prisma/client.js";
 
 function round2(value: number): number {
   return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
+
+/** Remise à zéro annuelle (8 septembre 2026) — voir settings/sequentialNumbers.ts. */
+function resolveNextRollingNumber(settings: { nextRollingNumber: number; rollingNumberYear: number }, year?: number) {
+  return resolveSequentialNumber({ next: settings.nextRollingNumber, year: settings.rollingNumberYear }, year);
 }
 
 // N'accepte jamais FULFILLMENT_MODES.INSTALLATION — seuls les 3 modes de
@@ -388,7 +395,8 @@ export async function convertBudgetToRolling(createdById: string, budgetId: stri
   return prisma.$transaction(async (tx) => {
     const settings = await tx.settings.findFirst();
     if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
-    const rollingNumber = `RL-${new Date().getFullYear()}-${String(settings.nextRollingNumber).padStart(4, "0")}`;
+    const { year, number } = resolveNextRollingNumber(settings);
+    const rollingNumber = `RL-${year}-${String(number).padStart(4, "0")}`;
     const rolling = await tx.rolling.create({
       data: {
         rollingNumber,
@@ -403,7 +411,7 @@ export async function convertBudgetToRolling(createdById: string, budgetId: stri
         createdById,
       },
     });
-    await tx.settings.update({ where: { id: settings.id }, data: { nextRollingNumber: settings.nextRollingNumber + 1 } });
+    await tx.settings.update({ where: { id: settings.id }, data: { nextRollingNumber: number + 1, rollingNumberYear: year } });
     await createSinglePaymentPlan(tx, rolling.id, totalSale);
     return rolling;
   });
@@ -448,11 +456,12 @@ export async function createRollingDirect(createdById: string, newContact: NewRo
   return prisma.$transaction(async (tx) => {
     const settings = await tx.settings.findFirst();
     if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
-    const rollingNumber = `RL-${new Date().getFullYear()}-${String(settings.nextRollingNumber).padStart(4, "0")}`;
+    const { year, number } = resolveNextRollingNumber(settings);
+    const rollingNumber = `RL-${year}-${String(number).padStart(4, "0")}`;
     const rolling = await tx.rolling.create({
       data: { rollingNumber, contactId: contact.id, clientRequestId: clientRequestId ?? null, status: "active", createdDirectly: true, createdById },
     });
-    await tx.settings.update({ where: { id: settings.id }, data: { nextRollingNumber: settings.nextRollingNumber + 1 } });
+    await tx.settings.update({ where: { id: settings.id }, data: { nextRollingNumber: number + 1, rollingNumberYear: year } });
     if (clientRequestId) {
       await tx.clientRequest.update({ where: { id: clientRequestId }, data: { status: "converted" } });
     }
@@ -582,20 +591,14 @@ export async function chooseRollingFulfillmentMode(rollingId: string, input: Cho
     if (input.mode === FULFILLMENT_MODES.WAREHOUSE) {
       const settings = await tx.settings.findFirst();
       if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
-      const displayId = `BL-${new Date().getFullYear()}-${String(settings.nextDeliveryNumber).padStart(4, "0")}`;
-      await tx.delivery.create({
-        data: {
-          displayId,
-          type: "rolling",
-          rollingId,
-          contactId: rolling.contactId,
-          address: input.address || null,
-          scheduledAt: input.scheduled ? new Date(input.scheduled) : null,
-          driverEmployeeId: input.driverId || null,
-          status: "planned",
-        },
+      await createFulfillmentDelivery(tx, settings, {
+        type: "rolling",
+        rollingId,
+        contactId: rolling.contactId,
+        address: input.address,
+        scheduled: input.scheduled,
+        driverId: input.driverId,
       });
-      await tx.settings.update({ where: { id: settings.id }, data: { nextDeliveryNumber: settings.nextDeliveryNumber + 1 } });
     }
   });
 }

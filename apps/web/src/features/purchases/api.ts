@@ -47,6 +47,9 @@ export interface PurchaseRequestDto {
   requesterPersona: Persona;
   projectId: string | null;
   projectLabel: string | null;
+  /** Vente externe d'origine (projectType==="sale") — miroir de projectId/projectLabel (8 septembre 2026). */
+  externalSaleId: string | null;
+  externalSaleLabel: string | null;
   categoryName: string | null;
   supplier: string | null;
   description: string;
@@ -60,6 +63,8 @@ export interface PurchaseRequestDto {
   editedAt: string | null;
   fulfillmentStatus: FulfillmentStatus | null;
   appliedToProjectAt: string | null;
+  /** Équivalent de appliedToProjectAt pour une ligne de Vente externe. */
+  appliedToExternalSaleAt: string | null;
   expectedReceiptDate: string | null;
 }
 
@@ -147,6 +152,11 @@ export function setFulfillmentStatus(id: string, status: FulfillmentStatus): Pro
 
 export function applyPurchaseRequestToProject(id: string): Promise<{ id: string; appliedToProjectAt: string | null }> {
   return apiFetch(`/api/purchase-requests/${id}/apply-to-project`, { method: "POST" });
+}
+
+/** Équivalent de applyPurchaseRequestToProject ci-dessus, pour une ligne de Vente externe — appelée uniquement depuis ExternalSaleDetail.tsx (8 septembre 2026). */
+export function applyPurchaseRequestToExternalSale(id: string): Promise<{ id: string; appliedToExternalSaleAt: string | null }> {
+  return apiFetch(`/api/purchase-requests/${id}/apply-to-sale`, { method: "POST" });
 }
 
 // ---------------------------------------------------------------------------

@@ -16,3 +16,4 @@ export * from "./warranty.js";
 export * from "./punch.js";
 export * from "./service-calls.js";
 export * from "./gantt-schedule.js";
+export * from "./external-sales.js";
