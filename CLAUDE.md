@@ -578,3 +578,56 @@ détail concordent maintenant, plus rien ne bouge tout seul. La
 duplication `listProjects`/`computeProjectFinancials` notée ci-dessus
 reste présente dans le code (jamais refactorisée, pas demandé) — juste
 sans conséquence visible tant que les deux lisent la même donnée gelée.
+
+## Dates-calendrier affichées un jour trop tôt (8 septembre 2026)
+
+Rapporté par l'utilisatrice (captures d'écran) : une entrée manuelle de
+punch datée du jour même (8 septembre) s'affichait au 7 septembre dans le
+tiroir d'approbation du Centre d'actions et dans le tableau Temps — alors
+que la carte de liste du Centre d'actions, elle, montrait bien le 8.
+
+Cause : les colonnes Prisma `@db.Date` (dates-calendrier pures, sans heure
+ni fuseau — `TimeEntry.date`, `ProjectPurchaseEntry.date`,
+`PurchaseRequest.expectedReceiptDate`, `DelegationGrant.startDate`/
+`endDate`, `Interruption.date`) arrivent toujours du serveur ancrées à
+minuit UTC. La carte de liste du Centre d'actions ne lit PAS ce champ —
+elle utilise `entry.endAt`/`startAt` (un vrai timestamp), d'où le bon
+affichage ; le tiroir et le tableau lisent `TimeEntry.date` et le
+reformatent via `new Date(iso).toLocaleDateString(...)` sans préciser de
+fuseau — dans un fuseau nord-américain (Toronto, UTC-4 en heure d'été),
+minuit UTC équivaut à 20h la veille en heure locale, donc la date affichée
+recule d'un jour. Bogue systématique (jamais un cas limite) : il se
+produit à chaque fois qu'un de ces 5 champs est affiché de cette façon,
+pas seulement pour Temps. Deux endroits (`InterruptionsPanel.tsx` pour le
+Gantt, `DelegationCard.tsx` pour la Délégation) avaient déjà découvert et
+contourné le même problème indépendamment (en ajoutant une heure locale
+avant de construire le `Date`) mais jamais généralisé — même patron que le
+bogue des cases à cocher bleues (voir plus haut, corrigé une 3e fois en
+CSS globale plutôt que localement).
+
+**Corrigé** : nouveau `apps/web/src/lib/date.ts`
+(`formatCalendarDate` — ancre midi HEURE LOCALE, sans "Z" ni décalage
+dans la chaîne construite, pour que l'analyse et le formatage se fassent
+dans le même fuseau) appliqué partout où un de ces 5 champs est affiché :
+`TimeEntryActionDrawer.tsx`, `TimePunchPage.tsx` (le bogue rapporté),
+`ProjectPurchaseEntries.tsx`, `RollingPurchaseEntries.tsx`,
+`ApprovedHoursDrilldown.tsx`, `ApprovedPurchasesDrilldown.tsx`,
+`RollingHoursDetail.tsx`, `PurchaseRequestList.tsx`, `ReportsPage.tsx`,
+`ServiceCallDetail.tsx`, `ServiceCallExportView.tsx` — ces 3 derniers
+gardent leur `formatDate` local pour leurs AUTRES champs (de vrais
+timestamps comme `requestedAt`/`scheduledAt`/`editedAt`, où la conversion
+au fuseau local est correcte et ne doit surtout pas changer) et importent
+`formatCalendarDate` seulement pour le champ concerné. Les 2 contournements
+locaux déjà corrects (`InterruptionsPanel.tsx`, `DelegationCard.tsx`) ont
+été migrés vers le même helper partagé plutôt que de garder 2 variantes
+divergentes du même correctif.
+
+Vérifié par simulation directe (Node, `TZ=America/Toronto`, le fuseau réel
+de l'atelier) : l'ancien code reproduit exactement le bogue rapporté
+("2026-09-08" → affiché "7 sept. 2026"), le nouveau donne "8 sept. 2026" —
+pour les deux formats de sérialisation réellement utilisés par l'API
+(date nue `"YYYY-MM-DD"` et ISO complet `"...T00:00:00.000Z"`, selon
+l'endroit — les deux sont ancrés UTC, donc également touchés).
+`npm run typecheck && npm run lint && npm test && npm run build` verts
+après coup. Aucune migration Prisma, aucune correction de données réelles
+requise — bogue d'affichage pur, jamais stocké incorrectement.
