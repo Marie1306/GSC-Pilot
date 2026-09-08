@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { formatCalendarDate } from "../../lib/date.js";
 import {
   fetchEmployees,
   fetchDelegations,
@@ -17,9 +18,6 @@ const DEFAULT_CATEGORIES: DelegationCategory[] = ["hours", "purchases", "service
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
-}
-function formatDate(iso: string): string {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" });
 }
 
 /**
@@ -97,7 +95,7 @@ export function DelegationCard() {
       {active ? (
         <div className="card" style={{ background: "var(--gsc-color-surface2)", border: "none" }}>
           <strong>
-            {active.delegateName} — {formatDate(active.startDate)} au {formatDate(active.endDate)}
+            {active.delegateName} — {formatCalendarDate(active.startDate)} au {formatCalendarDate(active.endDate)}
           </strong>
           <div className="cell-sub">
             {active.categories.map((c) => DELEGATION_CATEGORY_LABELS[c]).join(", ")}
@@ -203,7 +201,7 @@ export function DelegationCard() {
                 <tr key={d.id}>
                   <td>{d.delegateName}</td>
                   <td>
-                    {formatDate(d.startDate)} au {formatDate(d.endDate)}
+                    {formatCalendarDate(d.startDate)} au {formatCalendarDate(d.endDate)}
                   </td>
                   <td>{d.categories.map((c) => DELEGATION_CATEGORY_LABELS[c]).join(", ")}</td>
                   <td>{d.revokedAt ? "Révoquée" : "Expirée"}</td>

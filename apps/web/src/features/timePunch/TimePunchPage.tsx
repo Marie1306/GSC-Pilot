@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { canApprovePunch, canEditOwnPunch, canPunchForOtherEmployee, canDeleteTimeEntry } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
+import { formatCalendarDate } from "../../lib/date.js";
 import { useOnlineStatus } from "../../offline/useOnlineStatus.js";
 import { useLocalTimer } from "../../offline/useLocalTimer.js";
 import { clearLocalActiveEntry, markPendingStop } from "../../offline/localTimer.js";
@@ -35,7 +36,7 @@ function formatHours(minutes: number | null): string {
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("fr-CA", { day: "numeric", month: "short" });
+  return formatCalendarDate(iso, { day: "numeric", month: "short" });
 }
 
 function referenceLabel(entry: TimeEntryDto): string {

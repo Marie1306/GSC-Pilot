@@ -1,13 +1,10 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { formatCalendarDate } from "../../lib/date.js";
 import { fetchApprovedPurchaseEntries, formatCurrency } from "./api.js";
 
 interface ApprovedPurchasesDrilldownProps {
   projectId: string;
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" });
 }
 
 /**
@@ -53,7 +50,7 @@ export function ApprovedPurchasesDrilldown({ projectId }: ApprovedPurchasesDrill
               <tbody>
                 {query.data.entries.map((entry) => (
                   <tr key={entry.id}>
-                    <td>{formatDate(entry.date)}</td>
+                    <td>{formatCalendarDate(entry.date)}</td>
                     <td>{entry.source}</td>
                     <td>{entry.category}</td>
                     <td>

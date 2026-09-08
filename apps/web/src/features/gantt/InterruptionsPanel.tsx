@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../lib/apiClient.js";
+import { formatCalendarDate } from "../../lib/date.js";
 import { fetchPunchableEmployees } from "../timePunch/api.js";
 import {
   fetchInterruptions,
@@ -29,9 +30,6 @@ function emptyForm(): InterruptionFormState {
   return { employeeId: null, date: "", hours: "", reason: "absence", reference: "" };
 }
 
-function formatDate(iso: string): string {
-  return new Date(`${iso}T12:00:00`).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" });
-}
 
 /**
  * Interruptions de capacité (31 août 2026) — mécanisme "Ajouter une
@@ -222,7 +220,7 @@ export function InterruptionsPanel({ canEdit }: InterruptionsPanelProps) {
             <tbody>
               {interruptions.map((interruption) => (
                 <tr key={interruption.id}>
-                  <td>{formatDate(interruption.date)}</td>
+                  <td>{formatCalendarDate(interruption.date)}</td>
                   <td>{interruption.employeeName ?? "Tout l'atelier"}</td>
                   <td className="num">{interruption.hours} h</td>
                   <td>{INTERRUPTION_REASON_LABELS[interruption.reason]}</td>

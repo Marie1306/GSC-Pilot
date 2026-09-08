@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { canApprovePurchaseRequest, canManagePurchaseFulfillment, buildFrozenPurchaseThresholdsMap } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
+import { formatCalendarDate } from "../../lib/date.js";
 import {
   fetchPurchaseRequests,
   fetchPurchaseRequestHistory,
@@ -263,7 +264,7 @@ export function PurchaseRequestList() {
                     <td>{row.projectLabel ?? "—"}</td>
                     <td>{row.description}</td>
                     <td>{formatRange(row)}</td>
-                    <td>{row.expectedReceiptDate ? formatDate(row.expectedReceiptDate) : "—"}</td>
+                    <td>{row.expectedReceiptDate ? formatCalendarDate(row.expectedReceiptDate) : "—"}</td>
                     <td>
                       {canManageFulfillment ? (
                         <select

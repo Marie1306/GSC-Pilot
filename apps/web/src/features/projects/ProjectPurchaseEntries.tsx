@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { canEnterProjectPurchase, canApproveProjectPurchase } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
+import { formatCalendarDate } from "../../lib/date.js";
 import {
   fetchProjectPurchaseEntries,
   createProjectPurchaseEntry,
@@ -20,10 +21,6 @@ interface ProjectPurchaseEntriesProps {
   projectLabel: string;
   /** Incrémenté par ProjectDetail quand "Ajouter un achat" est choisi depuis le menu Options (composant frère, pas parent) — ouvre la modale sans dupliquer l'état showForm. */
   openSignal?: number;
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" });
 }
 
 const emptyForm = { date: new Date().toISOString().slice(0, 10), category: "", supplier: "", description: "", amount: "", note: "" };
@@ -232,7 +229,7 @@ export function ProjectPurchaseEntries({ projectId, projectLabel, openSignal }: 
             <tbody>
               {entries.map((entry) => (
                 <tr key={entry.id}>
-                  <td>{formatDate(entry.date)}</td>
+                  <td>{formatCalendarDate(entry.date)}</td>
                   <td>
                     {entry.supplier && <strong>{entry.supplier}</strong>}
                     <div className="cell-sub">{entry.description}</div>

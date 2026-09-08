@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { canSeeServicePricing } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
+import { formatCalendarDate } from "../../lib/date.js";
 import { fetchServiceCallDetail, MEAL_LABELS } from "./api.js";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -150,7 +151,7 @@ export function ServiceCallExportView() {
               <tbody>
                 {call.timeEntries.map((entry) => (
                   <tr key={entry.id}>
-                    <td>{formatDate(entry.date)}</td>
+                    <td>{formatCalendarDate(entry.date)}</td>
                     <td>{entry.employeeName}</td>
                     <td>{entry.taskLabel ?? "—"}</td>
                     <td>{formatHours(entry.roundedMinutes)}</td>

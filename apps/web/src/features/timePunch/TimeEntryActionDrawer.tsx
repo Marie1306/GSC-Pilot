@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../lib/apiClient.js";
+import { formatCalendarDate } from "../../lib/date.js";
 import { OptionsDrawer } from "../../components/OptionsDrawer.js";
 import { fetchAllTimeEntries, approveTimeEntry } from "./api.js";
 
@@ -14,10 +15,6 @@ function formatHours(minutes: number | null): string {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   return `${hours}h${String(rest).padStart(2, "0")}`;
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" });
 }
 
 /**
@@ -63,7 +60,7 @@ export function TimeEntryActionDrawer({ id, onClose }: TimeEntryActionDrawerProp
     <OptionsDrawer eyebrow="Heures à approuver" title={`${row.employeeName} — ${row.categoryLabel}`} onClose={onClose}>
       {error && <p className="form-error">{error}</p>}
       <p style={{ fontSize: 13, lineHeight: 1.7 }}>
-        Date : {formatDate(row.date)}
+        Date : {formatCalendarDate(row.date)}
         <br />
         Durée : {formatHours(row.roundedMinutes)}
         <br />

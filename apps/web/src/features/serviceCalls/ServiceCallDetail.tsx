@@ -9,6 +9,7 @@ import {
   canDeleteServiceCall,
 } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
+import { formatCalendarDate } from "../../lib/date.js";
 import { useOnlineStatus } from "../../offline/useOnlineStatus.js";
 import { enqueue } from "../../offline/sync.js";
 import { OfflineBanner } from "../../offline/OfflineBanner.js";
@@ -295,7 +296,7 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
               )}
               {call.timeEntries.map((entry) => (
                 <tr key={entry.id}>
-                  <td>{formatDate(entry.date)}</td>
+                  <td>{formatCalendarDate(entry.date)}</td>
                   <td>{entry.employeeName}</td>
                   <td>{entry.taskLabel ?? "—"}</td>
                   <td className="num">{formatHours(entry.roundedMinutes)}</td>

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { canAccessErrorReports } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
+import { formatCalendarDate } from "../../lib/date.js";
 import { fetchReportsOverview, formatCurrency, FINANCIAL_STATUS_LABELS, type ProfitabilityRowDto } from "./api.js";
 import { fetchErrorReportsStats, fetchErrorReportSubjects } from "../errorReports/api.js";
 import { ProjectPostMortem } from "../projects/ProjectPostMortem.js";
@@ -487,7 +488,7 @@ export function ReportsPage() {
                     <tbody>
                       {overview.internalStats.hours.detail.map((row) => (
                         <tr key={row.id}>
-                          <td>{formatDate(row.date)}</td>
+                          <td>{formatCalendarDate(row.date)}</td>
                           <td>{row.employeeName}</td>
                           <td>{row.taskLabel}</td>
                           <td className="num">{formatHours(row.hours)}</td>
