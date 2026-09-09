@@ -796,13 +796,16 @@ précédentes, à coller dans Supabase → SQL Editor.
 
 **Fait par Marie le 9 septembre 2026, confirmé** (« c'est fait »,
 laconique — pas de capture d'écran cette fois, contrairement à d'autres
-corrections de données réelles ci-dessus ; à repasser en revue avec elle
-si le Tableau de bord ou un des autres écrans listés plus haut
-réapparaît en erreur). Cette session n'a toujours aucun accès
-réseau à Render/Supabase pour vérifier directement que la requête a
-réussi ou que les colonnes existent maintenant — la confirmation repose
-entièrement sur la parole de l'utilisatrice, pas sur une vérification
-technique indépendante.
+corrections de données réelles ci-dessus). Relance demandée pour vérifier
+concrètement le Tableau de bord ET les autres écrans listés plus haut
+(Centre d'actions/Achats/Demandes clients/Livraisons/Ventes externes,
+tous lecteurs d'au moins une table touchée) — **confirmé « tout est
+beau »** le même jour, donc les 6 écrans fonctionnent de nouveau, pas
+seulement le Tableau de bord initialement rapporté. Cette session n'a
+toujours aucun accès réseau à Render/Supabase pour vérifier directement
+que la requête a réussi ou que les colonnes existent maintenant — la
+confirmation repose entièrement sur la parole de l'utilisatrice, pas sur
+une vérification technique indépendante.
 
 **Plus généralement, retenu de cet épisode** : toujours vérifier après
 un déploiement touchant le schéma qu'une note de confirmation Supabase
