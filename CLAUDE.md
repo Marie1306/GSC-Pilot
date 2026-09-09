@@ -756,3 +756,50 @@ nouveau code frontend réutilise des classes CSS déjà éprouvées (aucune
 nouvelle règle visuelle inventée) — mais un test manuel réel par Marie
 (ou une prochaine session avec accès réseau) reste requis avant de
 considérer l'interface elle-même confirmée à l'usage.
+
+## Icône manquante — Ventes externes (9 septembre 2026)
+
+`NavIcons.tsx` n'avait jamais reçu d'entrée `"external-sales"` en
+construisant le module (8 septembre 2026) — `nav.ts`, lui, avait déjà la
+bonne clé. `NavIcon` retournait `null` silencieusement (pas d'erreur,
+juste une icône manquante dans la barre latérale). Corrigé (pictogramme
+étiquette/prix, même style trait que les 18 autres) — vérifié par rendu
+isolé (headless Chromium, sans passer par l'authentification — même
+limite réseau que d'habitude) plutôt qu'un clic-à-travers réel.
+
+## Tableau de bord (et probablement plus) cassé en production — migration jamais appliquée (9 septembre 2026)
+
+Rapporté par l'utilisatrice (capture d'écran) : « Impossible de charger
+le tableau de bord » dès la connexion, juste après le déploiement du
+module Vente externe. Cause trouvée par lecture de code (aucun accès
+réseau à Render/Supabase depuis cette session, donc jamais confirmé par
+les logs directement) : `getDashboardSummary` appelle sans condition
+`getActionCenterItems`, qui appelle `listPurchaseRequests` et
+`listClientRequests` — deux modèles qui ont gagné des colonnes dans la
+migration `20260908191806_external_sales_and_annual_reset` (module Vente
+externe + remise à zéro annuelle, voir plus haut). **Contrairement à
+chaque migration précédente de ce projet, aucune note « Fait par Marie,
+confirmé » n'existe pour celle-ci** — tout indique qu'elle n'a jamais été
+collée dans l'éditeur SQL Supabase. Render régénère toujours le Prisma
+Client à neuf au déploiement (`postinstall`), donc l'API vivante
+s'attend maintenant à des colonnes (`Settings`, `PurchaseRequest`,
+`ClientRequest`, `Delivery`, table `ExternalSale`) absentes de la vraie
+base — toute requête sur ces tables échoue côté Postgres, ce qui explique
+aussi bien le Tableau de bord que le Centre d'actions, Achats, Demandes
+clients, Livraisons et Ventes externes (tous lisent au moins une des
+tables touchées).
+
+**SQL remis à l'utilisatrice** (contenu exact de la migration
+ci-dessus, purement additif — nouvelles colonnes nullables ou avec
+défaut, une seule nouvelle table) — même mécanisme que toutes les fois
+précédentes, à coller dans Supabase → SQL Editor. **Si une prochaine
+session reprend ce chantier, vérifier d'abord si Marie a confirmé avoir
+roulé ce SQL avant de supposer que Vente externe/le Tableau de bord
+fonctionnent** — et, plus généralement, **toujours vérifier après un
+déploiement touchant le schéma qu'une note de confirmation Supabase
+existe pour la dernière migration avant de la supposer appliquée** :
+rien dans le processus actuel ne le fait automatiquement (Render ne
+lance jamais `prisma migrate deploy` contre la vraie base — voir
+`apps/api/package.json`, seul `postinstall`/`prisma generate` tourne au
+déploiement), donc un oubli de ce type peut se reproduire à chaque
+migration future tant que ce mécanisme n'est pas changé.
