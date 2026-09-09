@@ -60,6 +60,12 @@ const PATHS: Record<string, (props: SVGProps<SVGSVGElement>) => React.JSX.Elemen
       <path d="M16 11a6 6 0 0 1-10.5 4M4 15v-3.5h3.5" />
     </Base>
   ),
+  "external-sales": (props) => (
+    <Base {...props}>
+      <path d="M3 3h6.5L17 10.5l-7 7L3 10V3Z" />
+      <circle cx="6.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+    </Base>
+  ),
   reports: (props) => (
     <Base {...props}>
       <path d="M3 16.5h14" />
