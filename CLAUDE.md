@@ -792,14 +792,23 @@ tables touchées).
 **SQL remis à l'utilisatrice** (contenu exact de la migration
 ci-dessus, purement additif — nouvelles colonnes nullables ou avec
 défaut, une seule nouvelle table) — même mécanisme que toutes les fois
-précédentes, à coller dans Supabase → SQL Editor. **Si une prochaine
-session reprend ce chantier, vérifier d'abord si Marie a confirmé avoir
-roulé ce SQL avant de supposer que Vente externe/le Tableau de bord
-fonctionnent** — et, plus généralement, **toujours vérifier après un
-déploiement touchant le schéma qu'une note de confirmation Supabase
-existe pour la dernière migration avant de la supposer appliquée** :
-rien dans le processus actuel ne le fait automatiquement (Render ne
-lance jamais `prisma migrate deploy` contre la vraie base — voir
+précédentes, à coller dans Supabase → SQL Editor.
+
+**Fait par Marie le 9 septembre 2026, confirmé** (« c'est fait »,
+laconique — pas de capture d'écran cette fois, contrairement à d'autres
+corrections de données réelles ci-dessus ; à repasser en revue avec elle
+si le Tableau de bord ou un des autres écrans listés plus haut
+réapparaît en erreur). Cette session n'a toujours aucun accès
+réseau à Render/Supabase pour vérifier directement que la requête a
+réussi ou que les colonnes existent maintenant — la confirmation repose
+entièrement sur la parole de l'utilisatrice, pas sur une vérification
+technique indépendante.
+
+**Plus généralement, retenu de cet épisode** : toujours vérifier après
+un déploiement touchant le schéma qu'une note de confirmation Supabase
+existe pour la dernière migration avant de la supposer appliquée — rien
+dans le processus actuel ne le fait automatiquement (Render ne lance
+jamais `prisma migrate deploy` contre la vraie base — voir
 `apps/api/package.json`, seul `postinstall`/`prisma generate` tourne au
 déploiement), donc un oubli de ce type peut se reproduire à chaque
 migration future tant que ce mécanisme n'est pas changé.
