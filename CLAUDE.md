@@ -815,3 +815,74 @@ jamais `prisma migrate deploy` contre la vraie base — voir
 `apps/api/package.json`, seul `postinstall`/`prisma generate` tourne au
 déploiement), donc un oubli de ce type peut se reproduire à chaque
 migration future tant que ce mécanisme n'est pas changé.
+
+## Checklist — regroupement sous-assemblage/pièces + cases à cocher énormes (14 septembre 2026)
+
+Deux bogues rapportés ensemble (capture d'écran) sur `ChecklistProjectView.tsx`
+(niveau 3, grille des pièces d'une checklist active) :
+
+- **Pièces affichées avant leurs sous-assemblages**, comme orphelines, au
+  lieu d'être groupées avec eux. Cause : `listProjectChecklists`
+  (`apps/api/src/modules/checklists/service.ts`) trie les items en
+  `.sort((a, b) => a.number.localeCompare(b.number))` — un tri
+  alphabétique PLAT, jamais hiérarchique. Numéros de pièce ("01-001") et
+  de sous-assemblage ("01-01-000") partagent le même format de préfixe,
+  donc toutes les pièces "01-00X" triaient AVANT "01-01-000"/"01-02-000"
+  en comparaison de chaînes — pas un cas limite, systématique dès qu'un
+  projet a plus d'un sous-assemblage. `ProjectChecklistArchive.tsx`
+  (l'autre vue, alimentée par la même fonction) n'a jamais ce problème :
+  elle construit déjà elle-même un regroupement par parent
+  (`roots`/`childrenByParent`) côté client, sans dépendre de l'ordre de
+  l'API. **Corrigé** en appliquant le même patron à
+  `ChecklistProjectView.tsx` : nouvelle `groupedForDisplay()` (juste avant
+  le rendu, après le filtrage actif/étape/épaisseur existant, jamais
+  modifié) — reconstruit un ordre "chaque racine suivie immédiatement de
+  ses enfants" à partir de la liste déjà triée alphabétiquement, ce qui
+  préserve l'ordre alphabétique À L'INTÉRIEUR de chaque groupe (même
+  résultat que souhaité par Marie) sans y toucher. Une pièce dont le
+  parent aurait été exclu par le filtre étape/épaisseur (cas de bord
+  préexistant, pas nouveau) reste affichée seule plutôt que perdue —
+  même principe que "pièce orpheline" déjà en place pour le filtre actif
+  (`groupMembers`, commentaire du 26 août 2026). Backend intouché : la
+  fonction reste correcte pour l'archive, aucune raison de la faire
+  dépendre d'un ordre différent pour ce seul écran. Test de régression
+  ajouté (`ChecklistProjectView.test.tsx`, ordre DOM exact vérifié via
+  `querySelectorAll`) avec des numéros calqués sur le cas réel rapporté.
+
+- **Cases à cocher redevenues énormes** — quatrième occurrence de ce type
+  de bogue (voir la règle globale `theme.css` du 4 septembre 2026
+  ci-dessus), mais cette fois PAS une case oubliée sans la règle globale :
+  la règle globale (`input[type="checkbox"] { width:16px; height:16px }`)
+  était bien présente et correcte. Cause réelle, jamais rencontrée avant
+  celle-ci : `.shortlist-table input` (`purchases.css` ET `invoicing.css`
+  — une règle dupliquée verbatim aux deux endroits, pensée pour les champs
+  texte/montant éditables de ces deux modules) ne excluait pas
+  `[type="checkbox"]`. `ChecklistProjectView.tsx` cumule
+  `className="shortlist-table checklist-grid"` sur son `<table>` (réutilise
+  le style de tableau partagé) — à spécificité CSS ÉGALE avec la règle
+  globale du checkbox (`.shortlist-table input` et `input[type="checkbox"]`
+  valent tous les deux (0,1,1)), c'est l'ordre de concaténation du build
+  qui décidait, et `.shortlist-table input` gagnait (`min-height:34px` +
+  `width:100%` par-dessus le `height:16px` de la règle checkbox — clampé
+  vers le haut par `min-height`, jamais vers le bas). Aucune autre table
+  de l'appli ne cumule `.shortlist-table` avec de vraies cases à cocher,
+  d'où un bogue resté invisible ailleurs. **Corrigé aux deux endroits**
+  (`:not([type="checkbox"])` sur `.shortlist-table input`, jamais retouché
+  la règle globale déjà correcte — le problème était la portée trop large
+  d'une règle locale, pas une règle globale trop faible). Vérifié par
+  rendu isolé (headless Chromium, avant/après côte à côte, sans passer par
+  l'authentification — même limite réseau que d'habitude) : avant,
+  cases rectangulaires étirées ; après, cases 16px rouges identiques au
+  reste de l'application.
+
+`npm run typecheck && npm run lint && npm test` verts sur tout le
+monorepo après les deux correctifs (460 tests, +1 depuis la session
+précédente). **Note de contexte pour la prochaine session** : ce
+conteneur avait été cloné à partir d'un instantané antérieur à toute la
+séquence Vente externe/icône/diagnostic tableau de bord du 8-9 septembre
+(`git log` local bloqué à `53c388d` malgré `origin` déjà à `520a2a9`) —
+`git fetch` + `git merge --ff-only` a suffi pour rattraper, aucun commit
+perdu, juste un décalage de clone. Réflexe à garder : si `git log`
+semble manquer du travail pourtant confirmé poussé dans une session
+précédente, comparer avec `origin/<branche>` avant de conclure à une
+régression réelle.
