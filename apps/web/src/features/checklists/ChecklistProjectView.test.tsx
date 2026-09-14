@@ -66,6 +66,16 @@ const pieceC = baseItem({ id: "p-3", kind: "piece", parentItemId: "sa-3", parent
 const orphanDone = baseItem({ id: "p-4", kind: "piece", number: "ORPHAN-DONE", steps: [DONE_STEP] });
 const orphanPending = baseItem({ id: "p-5", kind: "piece", number: "ORPHAN-PENDING", steps: [PENDING_STEP] });
 
+// Regroupement d'affichage (14 septembre 2026) : numéros calqués sur le cas
+// réel rapporté — "01-001" < "01-002" < "01-003" < "01-01-000" < "01-02-000"
+// en comparaison de chaînes, donc l'API (triée alphabétiquement à plat)
+// renvoie les pièces avant les deux sous-assemblages.
+const subX = baseItem({ id: "sub-x", kind: "subassembly", number: "01-01-000", steps: [PENDING_STEP] });
+const pieceX1 = baseItem({ id: "px-1", kind: "piece", parentItemId: "sub-x", parentNumber: "01-01-000", number: "01-001", steps: [PENDING_STEP] });
+const pieceX2 = baseItem({ id: "px-2", kind: "piece", parentItemId: "sub-x", parentNumber: "01-01-000", number: "01-002", steps: [PENDING_STEP] });
+const subY = baseItem({ id: "sub-y", kind: "subassembly", number: "01-02-000", steps: [PENDING_STEP] });
+const pieceY1 = baseItem({ id: "py-1", kind: "piece", parentItemId: "sub-y", parentNumber: "01-02-000", number: "01-003", steps: [PENDING_STEP] });
+
 function renderView() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const authValue: AuthContextValue = {
@@ -189,5 +199,53 @@ describe("ChecklistProjectView — groupe sous-assemblage/pièces", () => {
 
     renderView();
     await waitFor(() => expect(screen.getByText("ORPHAN-PENDING")).toBeInTheDocument());
+  });
+
+  it("affiche chaque sous-assemblage immédiatement suivi de ses pièces, pas l'ordre alphabétique brut de l'API (bug rapporté le 14 septembre 2026)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("/api/checklists/steps")) {
+          return new Response(JSON.stringify({ steps: [{ id: "step-mep", label: "MEP", active: true, sortOrder: 1 }] }), { status: 200 });
+        }
+        if (url.includes("/api/checklists/thicknesses")) {
+          return new Response(JSON.stringify({ thicknesses: [] }), { status: 200 });
+        }
+        if (url.includes("/api/checklists/projects/project-1")) {
+          // Ordre exact renvoyé par l'API réelle (listProjectChecklists,
+          // tri alphabétique brut sur `number`) : les 3 pièces avant les 2
+          // sous-assemblages, exactement le cas rapporté.
+          return new Response(
+            JSON.stringify({
+              checklists: [
+                {
+                  id: "checklist-1",
+                  projectId: "project-1",
+                  projectNumber: "2356",
+                  projectName: "test",
+                  assemblyLabel: "08-000",
+                  createdByName: "Test Direction",
+                  createdAt: "2026-08-26T00:00:00.000Z",
+                  items: [pieceX1, pieceX2, pieceY1, subX, subY],
+                },
+              ],
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response("{}", { status: 200 });
+      }),
+    );
+
+    const view = renderView();
+    // "01-01-000" apparaît deux fois (sa propre ligne + la colonne
+    // Sous-assemblage de ses pièces) — "01-003" est sans ambiguïté, dernier
+    // item du fixture, donc son apparition confirme le chargement complet.
+    await waitFor(() => expect(screen.getByText("01-003")).toBeInTheDocument());
+
+    const numbers = Array.from(view.container.querySelectorAll("tbody tr:not(.checklist-note-row)")).map(
+      (row) => row.querySelectorAll("td")[1]?.textContent,
+    );
+    expect(numbers).toEqual(["01-01-000", "01-001", "01-002", "01-02-000", "01-003"]);
   });
 });

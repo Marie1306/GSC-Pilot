@@ -47,6 +47,28 @@ function isChecklistActive(checklist: ChecklistWithItemsDto): boolean {
   return checklist.items.some((item) => isItemActive(item, checklist.items));
 }
 
+/** Regroupe pour l'affichage : chaque sous-assemblage suivi immédiatement
+ * de ses pièces, plutôt que l'ordre alphabétique brut de l'API (qui
+ * mélangeait tout — "01-001" trie avant "01-01-000", donc les pièces
+ * remontaient toutes en haut et les sous-assemblages retombaient en bas,
+ * comme des pièces orphelines ; rapporté le 14 septembre 2026). Même
+ * patron que ProjectChecklistArchive.tsx (roots + regroupement par
+ * parent), adapté ici à une liste plate au lieu de blocs imbriqués. Une
+ * pièce dont le parent n'est plus dans `items` (cas de bord des filtres
+ * étape/épaisseur, qui peuvent exclure un sous-assemblage sans exclure
+ * ses pièces) reste affichée seule plutôt que d'être perdue. */
+function groupedForDisplay(items: ChecklistItemDto[]): ChecklistItemDto[] {
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const childrenByParent = new Map<string, ChecklistItemDto[]>();
+  for (const item of items) {
+    if (item.parentItemId && byId.has(item.parentItemId)) {
+      childrenByParent.set(item.parentItemId, [...(childrenByParent.get(item.parentItemId) ?? []), item]);
+    }
+  }
+  const roots = items.filter((item) => !item.parentItemId || !byId.has(item.parentItemId));
+  return roots.flatMap((root) => [root, ...(childrenByParent.get(root.id) ?? [])]);
+}
+
 /**
  * Niveaux 2 et 3 de la page Checklist (21 août 2026, spec confirmée : « le
  * filtre reste efficace lorsqu'on rentre dans le projet, puis dans la
@@ -183,7 +205,7 @@ export function ChecklistProjectView({ projectId, initialChecklistId, onBack }: 
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => {
+              {groupedForDisplay(items).map((item) => {
                 const summary = pieceSummaryLine(item);
                 return (
                 <Fragment key={item.id}>

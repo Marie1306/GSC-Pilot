@@ -51,7 +51,12 @@
   vertical-align: middle;
 }
 
-.shortlist-table input {
+/* :not([type="checkbox"]) — sans ça, cette règle (pensée pour les champs
+   texte/montant éditables de ce tableau) gonflait aussi les cases à cocher
+   partout où .shortlist-table partage une table avec .checklist-grid
+   (ChecklistProjectView.tsx), au-dessus de la taille fixe 16px globale
+   (theme.css) à spécificité égale — rapporté le 14 septembre 2026. */
+.shortlist-table input:not([type="checkbox"]) {
   width: 100%;
   min-height: 34px;
   padding: 6px 8px;

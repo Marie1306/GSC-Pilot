@@ -20,7 +20,9 @@
   vertical-align: middle;
 }
 
-.shortlist-table input {
+/* :not([type="checkbox"]) — voir purchases.css, même règle dupliquée,
+   même correctif (14 septembre 2026). */
+.shortlist-table input:not([type="checkbox"]) {
   width: 100%;
   min-height: 34px;
   padding: 6px 8px;
