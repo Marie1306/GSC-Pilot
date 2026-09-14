@@ -877,7 +877,11 @@ Deux bogues rapportés ensemble (capture d'écran) sur `ChecklistProjectView.tsx
 
 `npm run typecheck && npm run lint && npm test` verts sur tout le
 monorepo après les deux correctifs (460 tests, +1 depuis la session
-précédente). **Note de contexte pour la prochaine session** : ce
+précédente). **Confirmé par Marie le 14 septembre 2026** (« oui tout est
+beau ») — les deux correctifs (regroupement + taille des cases) tiennent
+à l'usage réel, pas seulement en local.
+
+**Note de contexte pour la prochaine session** : ce
 conteneur avait été cloné à partir d'un instantané antérieur à toute la
 séquence Vente externe/icône/diagnostic tableau de bord du 8-9 septembre
 (`git log` local bloqué à `53c388d` malgré `origin` déjà à `520a2a9`) —
