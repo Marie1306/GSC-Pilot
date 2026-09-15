@@ -409,6 +409,7 @@ export interface UpdateTimeEntryInput {
   serviceCallId?: string;
   taskId?: string;
   hours?: number;
+  date?: string;
   justification?: string;
 }
 
@@ -473,6 +474,20 @@ export async function updateTimeEntry(
     const exactMinutes = Math.ceil(patch.hours * 60);
     data.exactMinutes = exactMinutes;
     data.roundedMinutes = roundPunchMinutes(exactMinutes, roundingMinutes);
+  }
+
+  if (patch.date !== undefined) {
+    // Même ancrage midi UTC que createManualEntry ci-dessus — garde
+    // `date` (@db.Date) et `startAt`/`endAt` cohérents entre eux (tri des
+    // listes, calcul "mes heures cette semaine" du tableau de bord), peu
+    // importe si le punch vient d'un minuteur ou d'une entrée manuelle à
+    // l'origine : une fois corrigé ici, la seule chose qui compte est la
+    // date + le nombre d'heures, jamais une heure d'horloge réelle (même
+    // logique déjà en place pour `hours` juste au-dessus).
+    data.date = new Date(patch.date);
+    const at = new Date(`${patch.date}T12:00:00.000Z`);
+    data.startAt = at;
+    data.endAt = at;
   }
 
   if (entry.status === "approved") data.status = "submitted";

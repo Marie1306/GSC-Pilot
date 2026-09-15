@@ -56,8 +56,11 @@ class ManualBatchError extends Error {
 /**
  * Entrée manuelle — travail déjà terminé, saisi après coup (heures directes,
  * pas de chronomètre). Deux modes bien distincts :
- * - Correction d'un punch existant (entry fourni) : une seule ligne, la
- *   personne et la date ne se réaffectent jamais ici.
+ * - Correction d'un punch existant (entry fourni) : une seule ligne ; la
+ *   personne ne se réaffecte jamais ici (aucun sélecteur d'employé), mais
+ *   la date reste corrigible (Direction à l'approbation, ou l'employé sur
+ *   son propre punch avant approbation — demande explicite du 15 septembre
+ *   2026, la date était bloquée sans raison métier confirmée jusqu'ici).
  * - Création (entry absent) : plusieurs lignes possibles pour un même
  *   employé/date en une seule fois (repris du prototype v19,
  *   manualTimeBatchFormV06 — demandé le 19 août 2026) — chaque ligne
@@ -82,7 +85,7 @@ export function ManualEntryModal({ onClose, entry, initialProjectId, initialRoll
   });
 
   const [employeeId, setEmployeeId] = useState(entry?.employeeId ?? employee?.id ?? "");
-  const [date] = useState(entry?.date ?? today());
+  const [date, setDate] = useState(entry?.date ?? today());
   const nextRowKey = useRef(1);
   const [rows, setRows] = useState<ManualRowState[]>(() => [
     entry
@@ -139,6 +142,7 @@ export function ManualEntryModal({ onClose, entry, initialProjectId, initialRoll
         serviceCallId: row.value.serviceCallId,
         taskId: row.value.taskId,
         hours: Number(row.hours),
+        date,
         note: row.note.trim() || undefined,
         blockageNote: row.blockageNote.trim() || null,
       });
@@ -225,7 +229,7 @@ export function ManualEntryModal({ onClose, entry, initialProjectId, initialRoll
             <h2>{entry ? "Modifier le punch" : "Entrée manuelle"}</h2>
             <p className="modal-subtitle">
               {entry
-                ? "Correction avant approbation — la personne et la date ne changent jamais ici."
+                ? "Correction avant approbation — la personne ne change jamais ici."
                 : "Pour du travail déjà terminé — un employé, une date, une ou plusieurs entrées."}
             </p>
           </div>
@@ -250,7 +254,7 @@ export function ManualEntryModal({ onClose, entry, initialProjectId, initialRoll
               )}
               <div className="field">
                 <label htmlFor="manual-date">Date</label>
-                <input id="manual-date" type="date" required readOnly={!!entry} disabled={!!entry} value={date} onChange={() => {}} />
+                <input id="manual-date" type="date" required value={date} onChange={(event) => setDate(event.target.value)} />
               </div>
             </div>
 

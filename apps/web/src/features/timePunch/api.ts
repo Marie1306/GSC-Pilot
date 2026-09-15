@@ -145,6 +145,7 @@ export interface UpdateTimeEntryInput {
   serviceCallId?: string;
   taskId?: string;
   hours?: number;
+  date?: string;
   justification?: string;
 }
 

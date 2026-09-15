@@ -118,6 +118,7 @@ const updateSchema = z.object({
   serviceCallId: z.uuid().optional(),
   taskId: z.uuid().optional(),
   hours: z.number().positive().optional(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date requise (AAAA-MM-JJ).").optional(),
   justification: z.string().optional(),
 });
 timeEntriesRouter.patch("/time-entries/:id", requireAuth, async (req, res) => {

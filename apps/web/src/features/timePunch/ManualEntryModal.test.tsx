@@ -112,6 +112,27 @@ describe("ManualEntryModal — saisie en lot", () => {
     expect(screen.getAllByLabelText("Heures exactes")).toHaveLength(1);
     expect(screen.queryByRole("button", { name: "+ Ajouter une entrée" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Retirer cette entrée")).not.toBeInTheDocument();
-    expect(screen.getByText("Correction avant approbation — la personne et la date ne changent jamais ici.")).toBeInTheDocument();
+    expect(screen.getByText("Correction avant approbation — la personne ne change jamais ici.")).toBeInTheDocument();
+  });
+
+  // Bogue rapporté le 15 septembre 2026 : le champ Date avait l'air éditable
+  // en création (pas disabled/readOnly) mais son onChange ne faisait rien
+  // (state sans setter) — et il était explicitement verrouillé en édition.
+  // Marie a demandé les deux : un employé doit pouvoir choisir sa date en
+  // entrée manuelle, et Direction doit pouvoir la corriger à l'approbation.
+  it("création : le champ Date se modifie réellement (bogue du 15 septembre 2026 — onChange sans effet)", () => {
+    renderModal();
+    const dateInput = screen.getByLabelText("Date") as HTMLInputElement;
+    fireEvent.change(dateInput, { target: { value: "2026-09-01" } });
+    expect(dateInput.value).toBe("2026-09-01");
+  });
+
+  it("édition d'un punch existant : le champ Date n'est plus verrouillé et se modifie", () => {
+    renderModal(existingEntry);
+    const dateInput = screen.getByLabelText("Date") as HTMLInputElement;
+    expect(dateInput).not.toBeDisabled();
+    expect(dateInput).not.toHaveAttribute("readonly");
+    fireEvent.change(dateInput, { target: { value: "2026-09-01" } });
+    expect(dateInput.value).toBe("2026-09-01");
   });
 });
