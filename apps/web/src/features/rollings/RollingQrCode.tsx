@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import "../projects/projectQrCode.css";
 
 interface RollingQrCodeProps {
-  rolling: { rollingNumber: string; label: string };
+  rolling: { rollingNumber: string; label: string; company?: string | null };
   onClose: () => void;
 }
 
@@ -12,6 +12,9 @@ interface RollingQrCodeProps {
  * réutilise projectQrCode.css tel quel, les classes sont génériques).
  * Encode rollingNumber (RL-AAAA-NNNN), même principe que projectNumber :
  * lisible/tapable à la main pour la saisie manuelle de repli de Scan QR.
+ * Nom de l'entreprise du client sur l'étiquette imprimée (15 septembre
+ * 2026, même correctif que ProjectQrCode.tsx — RollingDetailDto.company,
+ * déjà chargé partout où ce composant est ouvert, aucune nouvelle requête).
  */
 export function RollingQrCode({ rolling, onClose }: RollingQrCodeProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -41,6 +44,7 @@ export function RollingQrCode({ rolling, onClose }: RollingQrCodeProps) {
           <div className="qr-print-area">
             <canvas ref={canvasRef} />
             <div className="qr-print-number">{rolling.rollingNumber}</div>
+            {rolling.company && <div className="qr-print-company">{rolling.company}</div>}
           </div>
           <p className="no-print" style={{ color: "var(--gsc-color-muted)", fontSize: 13, marginTop: 12 }}>
             À imprimer sur une étiquette 1×1 po — ajustez l'échelle dans la fenêtre d'impression de votre navigateur au besoin.

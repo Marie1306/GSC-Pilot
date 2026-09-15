@@ -266,7 +266,9 @@ export function RollingOptionsMenu({ rolling, open, onClose, onDeleted, onAddPur
         </OptionsDrawer>
       )}
 
-      {showQrCode && <RollingQrCode rolling={{ rollingNumber: rolling.rollingNumber, label }} onClose={() => setShowQrCode(false)} />}
+      {showQrCode && (
+        <RollingQrCode rolling={{ rollingNumber: rolling.rollingNumber, label, company: rolling.company }} onClose={() => setShowQrCode(false)} />
+      )}
       {showPostMortem && <RollingPostMortem id={rolling.id} onClose={() => setShowPostMortem(false)} />}
       {showHoursDetail && <RollingHoursDetail rolling={{ id: rolling.id, label }} onClose={() => setShowHoursDetail(false)} />}
       {showManualEntry && <ManualEntryModal onClose={() => setShowManualEntry(false)} initialRollingId={rolling.id} />}
