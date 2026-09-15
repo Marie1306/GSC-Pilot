@@ -1022,4 +1022,5 @@ libellé = numéro + entreprise, texte de la demande absent ; contact sans
 entreprise → repli sur le nom du contact. `npm run typecheck && npm run
 lint && npm test` verts (462 tests, comportement de lecture seule —
 aucun nouveau test unitaire, déjà couvert par la vérification Postgres
-directe comme le reste de ce module).
+directe comme le reste de ce module). **Confirmé par Marie le 15
+septembre 2026** (« Parfait »).
