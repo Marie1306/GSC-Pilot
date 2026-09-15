@@ -890,3 +890,56 @@ perdu, juste un décalage de clone. Réflexe à garder : si `git log`
 semble manquer du travail pourtant confirmé poussé dans une session
 précédente, comparer avec `origin/<branche>` avant de conclure à une
 régression réelle.
+
+## Punch — la date redevient corrigible (15 septembre 2026)
+
+Demande explicite de l'utilisatrice (capture d'écran de « Modifier le
+punch ») : un employé doit pouvoir choisir sa date en entrée manuelle, et
+Direction doit pouvoir la corriger à l'approbation — les deux verrouillés
+jusqu'ici, contrairement à ce qu'elle attendait.
+
+`ManualEntryModal.tsx` gère les deux modes (création ET correction d'un
+punch existant, voir le piège déjà documenté dans le fichier). Le champ
+Date avait deux bogues distincts, pas un seul :
+- **En création**, le champ AVAIT L'AIR éditable (ni `disabled` ni
+  `readOnly`) mais `onChange={() => {}}` ne faisait rien — `useState`
+  sans setter destructuré. Un oubli, jamais une restriction voulue.
+- **En correction**, le champ était explicitement verrouillé
+  (`readOnly`/`disabled` + sous-titre « la personne et la date ne
+  changent jamais ici ») — ça, c'était une décision volontaire à
+  l'origine, que Marie renverse maintenant explicitement pour la date
+  (pas pour la personne — aucun sélecteur d'employé n'existe en mode
+  correction, ça reste verrouillé, elle ne l'a pas demandé).
+
+**Corrigé** : un seul `date`/`setDate` utilisé dans les deux modes, champ
+toujours éditable, sous-titre ajusté (« la personne ne change jamais
+ici », sans mention de la date). Backend (`UpdateTimeEntryInput`/
+`updateTimeEntry`, `apps/api/src/modules/timeEntries/service.ts`+
+`routes.ts`) : `date` accepté au PATCH, sous la MÊME permission déjà en
+place (`canEditOwnPunch` OU `canApprovePunch`) — aucune permission
+élargie, un champ de plus modifiable par qui pouvait déjà modifier
+heures/tâche/référence. `startAt`/`endAt` ré-ancrés à midi UTC sur la
+nouvelle date (même convention que `createManualEntry`, jamais minuit —
+voir le bogue des dates-calendrier plus haut) pour que le tri des listes
+et « mes heures cette semaine » du tableau de bord restent cohérents
+avec la date affichée. La règle existante « un punch approuvé repasse en
+attente d'approbation après toute correction » s'applique donc aussi à
+un simple changement de date, sans code spécial à ajouter.
+
+**Portée** : éditable par quiconque a déjà le droit d'ouvrir « Modifier »
+sur ce punch (employé sur son propre punch non approuvé, OU Direction à
+tout moment) — pas restreint à Direction seule pendant l'approbation.
+Marie a demandé les deux cas dans le même message sans les opposer, et
+toutes les AUTRES corrections de ce formulaire (heures, tâche, référence)
+sont déjà symétriques entre les deux — aucune raison confirmée de traiter
+la date différemment. À revoir avec elle si ce n'était pas l'intention.
+
+Vérifié contre Postgres local (script jetable, base dédiée créée dans ce
+conteneur — `pg_ctlcluster 16 main start`, migrations + ce script,
+supprimé après usage, aucune donnée réelle touchée) : Direction corrige
+la date d'un punch déjà approuvé → repasse "submitted" ; employé corrige
+la date de son propre punch soumis → reste "submitted" ; création
+manuelle avec date arbitraire toujours acceptée ; un employé tiers ne
+peut toujours pas modifier le punch d'un autre (403 inchangé — la
+permission n'a pas été élargie). `npm run typecheck && npm run lint &&
+npm test` verts (462 tests, +2 depuis la session précédente).
