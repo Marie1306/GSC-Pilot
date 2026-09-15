@@ -317,7 +317,9 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
 
       {showPostMortem && <ProjectPostMortem projectId={project.id} onClose={() => setShowPostMortem(false)} />}
       {showChecklistArchive && <ProjectChecklistArchive projectId={project.id} onClose={() => setShowChecklistArchive(false)} />}
-      {showQrCode && <ProjectQrCode project={{ projectNumber: project.projectNumber, name: project.name }} onClose={() => setShowQrCode(false)} />}
+      {showQrCode && (
+        <ProjectQrCode project={{ projectNumber: project.projectNumber, name: project.name, company: project.company }} onClose={() => setShowQrCode(false)} />
+      )}
       {showHoursDetail && (
         <ProjectHoursDetail
           project={{ id: project.id, projectNumber: project.projectNumber, name: project.name }}

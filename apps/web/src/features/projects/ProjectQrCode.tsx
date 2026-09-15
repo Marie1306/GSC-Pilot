@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import "./projectQrCode.css";
 
 interface ProjectQrCodeProps {
-  project: { projectNumber: string; name: string };
+  project: { projectNumber: string; name: string; company?: string | null };
   onClose: () => void;
 }
 
@@ -12,6 +12,10 @@ interface ProjectQrCodeProps {
  * confirmée : « étiquette 1×1 po par projet »). Encode le projectNumber
  * tel quel (même valeur que la saisie manuelle de repli côté Scan QR) —
  * jamais un identifiant technique, pour rester lisible/tapable à la main.
+ * Nom de l'entreprise du client ajouté sur l'étiquette imprimée (demande
+ * explicite du 15 septembre 2026) — Project.company, pas project.name
+ * (le titre du projet, déjà affiché dans l'en-tête de cette fenêtre) ;
+ * absent si le contact n'a pas d'entreprise (facultatif au formulaire).
  */
 export function ProjectQrCode({ project, onClose }: ProjectQrCodeProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -41,6 +45,7 @@ export function ProjectQrCode({ project, onClose }: ProjectQrCodeProps) {
           <div className="qr-print-area">
             <canvas ref={canvasRef} />
             <div className="qr-print-number">{project.projectNumber}</div>
+            {project.company && <div className="qr-print-company">{project.company}</div>}
           </div>
           <p className="no-print" style={{ color: "var(--gsc-color-muted)", fontSize: 13, marginTop: 12 }}>
             À imprimer sur une étiquette 1×1 po — ajustez l'échelle dans la fenêtre d'impression de votre navigateur au besoin.
