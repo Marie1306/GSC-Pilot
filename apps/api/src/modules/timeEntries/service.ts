@@ -605,11 +605,17 @@ export interface ServiceCallOptionDto {
   label: string;
 }
 
-/** Vide tant que le module Appels de service n'est pas construit — voir CLAUDE.md, ordre des modules. */
+/**
+ * Numéro + entreprise du client (JAMAIS `request`, le texte libre de la
+ * demande d'origine — pouvait faire plusieurs phrases dans ce sélecteur,
+ * rapporté le 15 septembre 2026). Repli sur le nom du contact si aucune
+ * entreprise n'est renseignée (facultatif sur Contact) — jamais un
+ * sélecteur avec seulement un numéro, sans rien pour identifier le client.
+ */
 export async function listServiceCallOptions(employeeId: string, persona: Persona): Promise<ServiceCallOptionDto[]> {
   const rows = await prisma.serviceCall.findMany({
     where: persona === "member" ? { assignedEmployees: { some: { id: employeeId } } } : {},
-    select: { id: true, displayId: true, request: true },
+    select: { id: true, displayId: true, contact: { select: { company: true, name: true } } },
   });
-  return rows.map((row) => ({ id: row.id, label: `${row.displayId} — ${row.request}` }));
+  return rows.map((row) => ({ id: row.id, label: `${row.displayId} — ${row.contact.company ?? row.contact.name}` }));
 }
