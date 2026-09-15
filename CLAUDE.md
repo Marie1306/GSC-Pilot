@@ -970,10 +970,12 @@ d'accès réseau au CDN utilisé pour la maquette) : les deux noms
 d'exemple de Marie tiennent sur une ligne dans le gabarit 1×1 po sans
 déborder.
 
-**Portée** : uniquement `ProjectQrCode.tsx` — seul point d'appel
-existant (`ProjectOptionsMenu.tsx`), aucun autre composant à mettre à
-jour pour ce module. `RollingQrCode.tsx` a très probablement le même
-manque (structure quasi identique, jamais vérifié si `Rolling` expose un
-champ entreprise équivalent) — Marie n'a mentionné que des numéros de
-projet dans sa demande, donc volontairement pas touché ici ; à
-reprendre si elle confirme vouloir la même chose pour les roulements.
+**Portée initiale** : uniquement `ProjectQrCode.tsx` — Marie n'avait
+mentionné que des numéros de projet. `RollingQrCode.tsx` avait le même
+manque (structure quasi identique) — confirmé vouloir la même chose
+("oui") le même jour, donc étendu : `RollingDetailDto.company` (déjà
+chargé partout où `RollingOptionsMenu` reçoit son `rolling`) passé à
+`RollingQrCode`, réutilise `.qr-print-company` tel quel (classes déjà
+partagées entre les deux composants via `projectQrCode.css`). Les deux
+modules sont maintenant cohérents — aucun troisième composant de ce
+genre dans l'appli à vérifier (grep fait avant de considérer terminé).
