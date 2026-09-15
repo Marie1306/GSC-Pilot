@@ -943,3 +943,37 @@ manuelle avec date arbitraire toujours acceptée ; un employé tiers ne
 peut toujours pas modifier le punch d'un autre (403 inchangé — la
 permission n'a pas été élargie). `npm run typecheck && npm run lint &&
 npm test` verts (462 tests, +2 depuis la session précédente).
+
+## Étiquette QR — entreprise du client ajoutée (15 septembre 2026)
+
+Demande explicite de l'utilisatrice, avec deux exemples chiffrés (2422 →
+« Hôpital 3R », 2267 → « Usinage Laquerre ») : l'étiquette imprimée
+(`ProjectQrCode.tsx`, `.qr-print-area` — la zone RÉELLEMENT imprimée sur
+l'étiquette 1×1 po, pas l'en-tête de la fenêtre) doit montrer le code QR,
+le numéro de projet ET le nom de l'entreprise du client. Jusqu'ici
+seuls le QR et le numéro étaient sur l'étiquette elle-même — le nom du
+PROJET (`project.name`, différent de l'entreprise du client — ex. "2267
+— Automatisation scaling bar" pour le client "Usinage Laquerre") était
+déjà affiché mais seulement dans l'en-tête de la fenêtre, jamais imprimé.
+
+**Corrigé** : `project.company` (déjà chargé sur `ProjectDetail`,
+partout où `ProjectOptionsMenu` reçoit son `project` — aucune nouvelle
+requête) passé à `ProjectQrCode` et affiché sous le numéro dans la zone
+imprimable, seulement quand présent (facultatif au formulaire de
+contact, donc `string | null`). Nouvelle classe `.qr-print-company`
+(`projectQrCode.css`, gris discret 12px, cohérent avec le reste de
+l'appli — `--gsc-color-muted`, déjà utilisé pour du texte secondaire
+imprimé ailleurs sans problème connu de lisibilité). Vérifié par rendu
+isolé (mise en page seulement — la génération réelle du QR, code
+existant non touché, n'a pas pu être testée dans ce rendu isolé faute
+d'accès réseau au CDN utilisé pour la maquette) : les deux noms
+d'exemple de Marie tiennent sur une ligne dans le gabarit 1×1 po sans
+déborder.
+
+**Portée** : uniquement `ProjectQrCode.tsx` — seul point d'appel
+existant (`ProjectOptionsMenu.tsx`), aucun autre composant à mettre à
+jour pour ce module. `RollingQrCode.tsx` a très probablement le même
+manque (structure quasi identique, jamais vérifié si `Rolling` expose un
+champ entreprise équivalent) — Marie n'a mentionné que des numéros de
+projet dans sa demande, donc volontairement pas touché ici ; à
+reprendre si elle confirme vouloir la même chose pour les roulements.
