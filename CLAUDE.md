@@ -979,3 +979,47 @@ chargé partout où `RollingOptionsMenu` reçoit son `rolling`) passé à
 partagées entre les deux composants via `projectQrCode.css`). Les deux
 modules sont maintenant cohérents — aucun troisième composant de ce
 genre dans l'appli à vérifier (grep fait avant de considérer terminé).
+
+## Sélecteur Call de service — libellé illisible (15 septembre 2026)
+
+Rapporté avec capture d'écran (« Débuter une tâche ») : le sélecteur
+Call de service affichait le texte BRUT ET COMPLET de la demande client
+("CS-2026-0001 — Bonjour, Nous sommes une entreprise spécialisée dans
+le recyclage et la revalorisation du bois située à Trois-Rivières. Nos
+ins[tallations...]") — parfois plusieurs phrases, jamais lisible dans un
+menu déroulant. Demande explicite : limiter au numéro du call ET au nom
+de l'entreprise.
+
+Cause : `listServiceCallOptions` (`apps/api/src/modules/timeEntries/
+service.ts`) interpolait directement `request` (texte libre de la
+demande d'origine, jamais pensé pour être un libellé court) au lieu
+d'identifier le client. Un correctif du 27 août 2026 avait déjà réglé
+exactement ce type de problème ailleurs (`ServiceCall.title` +
+`serviceCallDisplayTitle`, listes/rapports/facturation/dossiers liés —
+voir son commentaire d'origine, quasi identique au symptôme rapporté ici)
+mais `listServiceCallOptions` n'avait jamais été aligné — un TROISIÈME
+endroit avec le même genre de bogue (texte brut affiché comme s'il
+s'agissait d'un libellé), jamais généralisé après les deux fois
+précédentes.
+
+**Corrigé — mais PAS avec `serviceCallDisplayTitle`** : ce sélecteur sert
+à identifier RAPIDEMENT le client sur le terrain, pas à décrire le
+travail (rôle déjà couvert ailleurs par title/request) — remplacé par
+l'entreprise du contact (`${displayId} — ${contact.company}`), avec
+repli sur le nom du contact quand aucune entreprise n'est renseignée
+(`Contact.company` facultatif) — jamais un sélecteur avec seulement un
+numéro. Seul point de génération de ce libellé dans toute l'appli (grep
+fait avant modification) — `StartTaskModal.tsx` (cas rapporté) ET
+`ManualEntryModal.tsx` consomment la même route
+`/api/time-entries/service-call-options`, donc corrigés ensemble sans
+toucher au frontend (le composant affiche déjà `call.label` tel quel).
+
+Vérifié contre Postgres local (script jetable, supprimé après usage,
+même base `gscpilot_verify` que le correctif de date de punch ci-dessus
+— cluster `pg_ctlcluster 16 main start` à relancer si arrêté entre deux
+sessions, les données créées y survivent) : contact avec entreprise →
+libellé = numéro + entreprise, texte de la demande absent ; contact sans
+entreprise → repli sur le nom du contact. `npm run typecheck && npm run
+lint && npm test` verts (462 tests, comportement de lecture seule —
+aucun nouveau test unitaire, déjà couvert par la vérification Postgres
+directe comme le reste de ce module).
