@@ -22,8 +22,16 @@ const schema = z.object({
   // même valeur en production (une seule origine), mais un rôle différent.
   APP_URL: z.url(),
   // Modules SEAO / Boîte à outils (16 septembre 2026) — analyse de documents
-  // et FAQ technique citée, voir apps/api/src/lib/ai/client.ts.
-  ANTHROPIC_API_KEY: z.string().min(1),
+  // et FAQ technique citée, voir apps/api/src/lib/ai/client.ts. Optionnelle
+  // (contrairement à SUPABASE_SERVICE_ROLE_KEY/APP_URL, requises par
+  // presque chaque requête) : SEULEMENT ces deux modules en dépendent, donc
+  // son absence ne doit jamais empêcher tout le reste de l'application de
+  // démarrer — corrigé le 16 septembre 2026 après un déploiement Render
+  // cassé au démarrage faute de cette variable (voir CLAUDE.md). Les routes
+  // SEAO/Boîte à outils qui appellent réellement l'IA échouent proprement
+  // (503, voir lib/ai/client.ts assertAnthropicConfigured) tant qu'elle
+  // n'est pas ajoutée dans Render.
+  ANTHROPIC_API_KEY: z.string().min(1).optional(),
 });
 
 const parsed = schema.safeParse(process.env);

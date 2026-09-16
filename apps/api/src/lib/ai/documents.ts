@@ -1,5 +1,5 @@
 import Anthropic, { toFile } from "@anthropic-ai/sdk";
-import { anthropic } from "./client.js";
+import { anthropic, assertAnthropicConfigured } from "./client.js";
 import { toHttpError } from "./errors.js";
 import { downloadFileBuffer, type StorageBucket } from "../storage.js";
 
@@ -17,6 +17,7 @@ import { downloadFileBuffer, type StorageBucket } from "../storage.js";
  * temps d'une session.
  */
 export async function uploadDocumentToAnthropic(bucket: StorageBucket, storagePath: string, fileName: string): Promise<string> {
+  assertAnthropicConfigured();
   const buffer = await downloadFileBuffer(bucket, storagePath);
   try {
     const uploaded = await anthropic.files.upload({ file: await toFile(buffer, fileName, { type: "application/pdf" }) });

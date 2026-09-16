@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { anthropic, AI_MODEL } from "./client.js";
+import { anthropic, AI_MODEL, assertAnthropicConfigured } from "./client.js";
 import { toHttpError } from "./errors.js";
 
 const BORDEREAU_TOOL_NAME = "record_bordereau_lines";
@@ -33,6 +33,7 @@ function buildPlainDocumentBlocks(docs: { anthropicFileId: string; title: string
  * déjà chiffrées à la main).
  */
 export async function extractBordereauLines(documents: { anthropicFileId: string; title: string }[]): Promise<ExtractedBordereauLine[]> {
+  assertAnthropicConfigured();
   const tool: Anthropic.Tool = {
     name: BORDEREAU_TOOL_NAME,
     description: "Enregistre les lignes du bordereau de soumission (une entrée par article/poste à chiffrer), dans l'ordre du document.",

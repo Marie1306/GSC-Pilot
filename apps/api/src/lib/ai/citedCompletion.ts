@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { anthropic, AI_MODEL } from "./client.js";
+import { anthropic, AI_MODEL, assertAnthropicConfigured } from "./client.js";
 import { toHttpError } from "./errors.js";
 import { buildCitedDocumentBlocks } from "./documents.js";
 
@@ -33,6 +33,7 @@ export interface CitedCompletionResult {
  * cache de préfixe (voir cache_control, buildCitedDocumentBlocks).
  */
 export async function runCitedCompletion(input: CitedCompletionInput): Promise<CitedCompletionResult> {
+  assertAnthropicConfigured();
   const userBlocks: Anthropic.ContentBlockParam[] =
     input.history.length === 0
       ? [...buildCitedDocumentBlocks(input.documents), { type: "text", text: input.userText }]
