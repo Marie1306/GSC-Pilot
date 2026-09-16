@@ -1024,3 +1024,121 @@ lint && npm test` verts (462 tests, comportement de lecture seule —
 aucun nouveau test unitaire, déjà couvert par la vérification Postgres
 directe comme le reste de ce module). **Confirmé par Marie le 15
 septembre 2026** (« Parfait »).
+
+## Modules SEAO + Boîte à outils + infrastructure IA/stockage (16 septembre 2026)
+
+Deux nouveaux modules construits en une seule session (plan complet passé
+par le mode Plan, approuvé par l'utilisatrice — voir historique de
+conversation si encore accessible) :
+
+- **SEAO** — suivi des dossiers d'appel d'offres publics : dépôt de
+  documents PDF, analyse IA citée (résumé + « changements depuis la
+  dernière version », un nouvel appel à chaque nouvelle version), chiffrage
+  d'un bordereau de soumission (description suggérée par l'IA à la
+  **première** extraction seulement — jamais réécrite si une ligne a déjà
+  été chiffrée à la main), suivi des concurrents, go/no-go, issue finale,
+  conversion en projet (réutilise `createProjectDirect`/
+  `updateProjectPlanning`, `projects/service.ts`, tous deux inchangés).
+  Numérotation `AO-AAAA-NNNN` à remise à zéro annuelle (même mécanisme que
+  Vente externe, `settings/sequentialNumbers.ts`).
+- **Boîte à outils** — FAQ technique collective : chartes de référence
+  (PDF) déposées par catégorie, question en langage naturel répondue par
+  citation directe dans ces chartes, fil de discussion multi-tours.
+  N'importe qui peut continuer le fil de n'importe qui (confirmé — FAQ
+  collective, pas une conversation privée).
+
+**Permissions (roles.ts)** — décision confirmée explicitement avec
+l'utilisatrice pendant la planification (tension trouvée entre deux
+indications de sa demande d'origine) : `canManageSeao` (trio complet
+Propriétaire/Direction/Administration, même forme que
+`canManageExternalSales`) gouverne À LA FOIS la création d'un dossier SEAO
+ET sa gestion courante — le Propriétaire N'EST PAS exclu de la création,
+contrairement à une première lecture possible de la demande. Le go/no-go,
+l'issue finale et la conversion en projet restent
+Propriétaire+Direction seulement (`canDecideSeaoGoNoGo`), Administration
+exclue de ces trois gestes précis. `canManageToolboxLibrary` (même trio)
+gouverne le dépôt/retrait de chartes et la gestion des catégories — poser
+une question n'a besoin d'aucune fonction dédiée (`requireAuth` seul,
+comme `/api/me`).
+
+### Infrastructure partagée nouvelle
+
+- **Stockage** (`apps/api/src/lib/storage.ts`) : upload direct
+  navigateur → Supabase Storage via URL signée générée par l'API
+  (`createSignedUploadTarget`/`createSignedDownloadUrl`) — les octets ne
+  transitent jamais par Express (évite la limite `express.json` et le
+  bogue `PayloadTooLargeError` déjà rencontré une fois sur ce projet).
+  Deux buckets **privés** requis, jamais créés automatiquement (aucun
+  accès réseau Supabase depuis cette session, même contournement que
+  d'habitude) : `seao-documents`, `toolbox-charts`.
+- **IA** (`apps/api/src/lib/ai/`) : `client.ts` (Anthropic, modèle
+  `claude-sonnet-5`), `documents.ts` (pont Storage → API Files, **sans**
+  `expires_in_seconds` — un fichier uploadé sans cette option n'expire
+  jamais, vérifié directement dans les types du SDK installé), `citedCompletion.ts`
+  (primitive partagée SEAO/Boîte à outils — blocs `document` cités
+  seulement dans le tout premier message d'un appel/fil, jamais répétés à
+  chaque tour), `structuredExtraction.ts` (extraction du bordereau via
+  outil forcé, **appel séparé** de l'analyse citée — Citations et sortie
+  structurée ne se combinent pas dans le même appel), `content.ts`
+  (extraction du texte brut d'un contenu stocké, partagée par les deux
+  modules), `errors.ts` (traduit les exceptions du SDK en `HttpError`,
+  jamais de détail interne exposé).
+- Composants frontend partagés : `components/PdfDropzone.tsx` (aucun
+  mécanisme de glisser-déposer n'existait avant dans ce repo),
+  `components/CitedText.tsx` (rend un tableau de blocs `{text, citations?}`
+  avec un badge par citation), `lib/storageUpload.ts` (enveloppe le flux à
+  3 requêtes : URL signée → upload direct → confirmation).
+
+### Piège CSS résolu proactivement pendant cette session
+
+En construisant `SeaoNotes.tsx`, ce serait la **3e** copie locale des
+mêmes classes (`.notes-list`/`.note-meta`/`.note-form`/`.empty-hint`,
+jusqu'ici seulement dans `clientRequests.css`) — même genre de risque que
+le bogue des cases à cocher bleues (corrigé une 3e fois en CSS globale le
+4 septembre 2026, voir plus haut). Globalisées dans `theme.css`
+**avant** qu'un bogue de divergence ne soit rapporté, copie locale
+retirée de `clientRequests.css`. Même chose pour un bouton-lien de nom de
+fichier cliquable (`.link-button`, désormais global) dès le 2e usage
+(SEAO documents + Boîte à outils chartes).
+
+### Vérification — limites réseau de cette session
+
+**Fait nouveau, différent de Supabase** : cette session a un accès réseau
+RÉEL à `api.anthropic.com` (confirmé par `curl`, réponse HTTP 401 — la
+connexion aboutit, contrairement au blocage total historique vers
+Supabase/Render). Mais **aucune clé `ANTHROPIC_API_KEY` réelle n'est
+disponible** dans cette session pour l'application elle-même (distincte de
+celle qui fait fonctionner cette session Claude Code) — les appels
+Files/Citations réels (upload d'un document, analyse citée, question
+Boîte à outils) n'ont donc **pas** pu être vérifiés de bout en bout ici,
+seulement construits contre les types réels du SDK installé
+(`node_modules/@anthropic-ai/sdk`, jamais devinés).
+
+Ce qui A été vérifié contre Postgres local (scripts jetables, supprimés
+après usage, données de test nettoyées) : cycle SEAO complet hors IA
+(création → go/no-go → blocage de la double décision → chiffrage manuel
+du bordereau → issue → conversion en projet → `Project.sold` exact →
+blocage de la double conversion → corbeille → restauration), CRUD des
+catégories Boîte à outils (position `insertBeforeId`, désactivation,
+doublon bloqué). `npm run typecheck && npm run lint && npm test && npm
+run build` verts sur tout le monorepo, **revérifié en clonant le dépôt
+dans un dossier propre puis `npm ci && npm run build && npm test`** (473
+tests) — même discipline que le correctif du 2 septembre 2026 pour tout
+changement de schéma Prisma.
+
+**Reste à faire côté Supabase/Render (pas faisable directement depuis
+cette session)** :
+1. Créer les 2 buckets Storage **privés** (`seao-documents`,
+   `toolbox-charts`), configurer CORS pour les origines dev + Render.
+2. Ajouter `ANTHROPIC_API_KEY` (console.anthropic.com → API Keys) dans
+   Render → Environment — sans quoi le déploiement échouera au démarrage
+   (`env.ts` l'exige, même mécanisme que `APP_URL` le 2 septembre 2026).
+3. Coller la migration `20260916024048_seao_and_toolbox` (purement
+   additive) dans Supabase → SQL Editor — **vérifier qu'une note
+   « Fait par Marie, confirmé » existe ici avant de supposer l'un ou
+   l'autre des deux modules fonctionnel en production**, même leçon que
+   l'épisode du 9 septembre 2026 (migration Vente externe oubliée,
+   Tableau de bord cassé).
+4. Un vrai test manuel (upload d'un PDF réel, analyse, question Boîte à
+   outils) reste nécessaire une fois 1-3 faits — jamais cliqué-à-travers
+   dans cette session (même limite d'authentification que d'habitude).
