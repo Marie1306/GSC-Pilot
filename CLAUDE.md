@@ -1142,3 +1142,44 @@ cette session)** :
 4. Un vrai test manuel (upload d'un PDF réel, analyse, question Boîte à
    outils) reste nécessaire une fois 1-3 faits — jamais cliqué-à-travers
    dans cette session (même limite d'authentification que d'habitude).
+
+### Déploiement Render cassé par le commit ci-dessus — corrigé
+
+Rapporté par l'utilisatrice (« Le déploiement a échoué »), sans détail ni
+capture d'écran — cette session n'a toujours aucun accès réseau à Render,
+donc jamais confirmé directement par les logs. Cause quasi certaine par
+lecture de code : `ANTHROPIC_API_KEY` avait été ajoutée dans `env.ts` avec
+`z.string().min(1)` — **requise**, exactement comme
+`SUPABASE_SERVICE_ROLE_KEY`/`APP_URL` — donc `process.exit(1)` au
+démarrage tant que Marie ne l'a pas ajoutée dans Render (voir « reste à
+faire » ci-dessus, jamais fait avant ce rapport). Contrairement à
+`SUPABASE_SERVICE_ROLE_KEY`/`APP_URL` (utilisées par presque chaque
+requête), seuls les modules SEAO/Boîte à outils dépendent réellement de
+cette clé — la coupler à la capacité de TOUTE l'application à démarrer
+était le vrai problème, pas seulement un oubli de configuration.
+
+**Corrigé** : `ANTHROPIC_API_KEY` rendue optionnelle dans `env.ts`. Les 3
+points d'entrée qui appellent vraiment l'IA (`uploadDocumentToAnthropic`/
+`runCitedCompletion`/`extractBordereauLines`, `lib/ai/`) échouent
+maintenant proprement avec un 503 explicite
+(`assertAnthropicConfigured`, `lib/ai/client.ts`) si la clé manque,
+plutôt que d'empêcher tout le reste de démarrer — vérifié que le SDK
+Anthropic ne lève rien à la construction du client avec une clé absente
+(`node_modules/@anthropic-ai/sdk/client.js`), seulement au premier appel
+réel, d'où le besoin de cette garde explicite pour un message clair
+plutôt que l'erreur interne du SDK.
+
+Vérifié en clonant le dépôt dans un dossier propre (`npm ci`, même
+discipline que pour tout changement touchant le démarrage/schéma) puis en
+démarrant l'API avec un `.env` reproduisant exactement l'état réel actuel
+de Render (toutes les variables déjà confirmées présentes, sauf
+`ANTHROPIC_API_KEY`) : démarrage normal. Confirmé séparément que
+`assertAnthropicConfigured` lève bien une `HttpError` 503 avec le message
+attendu plutôt qu'un throw non typé. `npm run typecheck && npm run lint
+&& npm test && npm run build` verts (473 tests, inchangé).
+
+**Pas encore confirmé par Marie** que le nouveau déploiement réussit —
+si le prochain rapport indique toujours un échec, ne pas supposer que
+c'est la même cause : redemander les logs Render exacts avant de deviner
+une deuxième fois, cette session n'ayant aucun moyen de les consulter
+elle-même.
