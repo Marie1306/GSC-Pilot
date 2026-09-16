@@ -16,6 +16,7 @@
     "db:validate": "prisma validate"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.126.0",
     "@gsc-pilot/business-rules": "^0.1.0",
     "@gsc-pilot/shared": "^0.1.0",
     "@prisma/adapter-pg": "7.9.1",

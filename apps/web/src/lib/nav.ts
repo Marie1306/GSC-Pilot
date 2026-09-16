@@ -10,6 +10,7 @@ import {
   canAccessErrorReports,
   canAccessActionCenter,
   canManageExternalSales,
+  canManageSeao,
   type Persona,
 } from "@gsc-pilot/business-rules";
 
@@ -68,11 +69,17 @@ export const NAV_ITEMS: NavItem[] = [
   // Vente externe (8 septembre 2026) — accès complet Propriétaire/Direction/
   // Administration seulement (canManageExternalSales, roles.ts), jamais Employé/Magasinier.
   { key: "external-sales", label: "Ventes externes", path: "/ventes-externes", section: "sales", allow: canManageExternalSales },
+  // SEAO (16 septembre 2026) — même trio que Vente externe (canManageSeao, roles.ts), jamais Employé/Magasinier.
+  { key: "seao", label: "SEAO", path: "/seao", section: "sales", allow: canManageSeao },
   { key: "reports", label: "Rapports / statistiques", path: "/rapports", section: "sales", allow: canAccessOverviewViews },
   { key: "time-punch", label: "Punch et heures", path: "/temps", section: "operations", allow: everyone },
   { key: "qr-scan", label: "Scan QR", path: "/scan", section: "operations", allow: everyone },
   // Pièces fabriquées à l'interne, spec confirmée le 21 août 2026 : "tous sauf Magasinier".
   { key: "checklist", label: "Checklist de production", path: "/checklist", section: "operations", allow: canAccessProductionChecklist },
+  // Boîte à outils (16 septembre 2026) — FAQ technique ouverte à tous
+  // (requireAuth seul côté serveur) ; le dépôt/retrait de chartes reste
+  // gardé par canManageToolboxLibrary à l'intérieur de la page elle-même.
+  { key: "toolbox", label: "Boîte à outils", path: "/boite-a-outils", section: "operations", allow: everyone },
   { key: "service-calls", label: "Appels de service", path: "/appels-service", section: "operations", allow: canAccessServiceCalls },
   { key: "purchases", label: "Demandes d'achat", path: "/achats", section: "operations", allow: everyone }, // chacun voit au moins ses propres demandes
   // Sous Demandes d'achat (spec confirmée le 28 août 2026) — Propriétaire et Direction seulement.

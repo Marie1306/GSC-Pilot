@@ -22,7 +22,7 @@
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
 
-export const TRASH_ENTITY_TYPES = ["project", "clientRequest", "budget", "serviceCall", "rolling", "timeEntry", "errorReport"] as const;
+export const TRASH_ENTITY_TYPES = ["project", "clientRequest", "budget", "serviceCall", "rolling", "timeEntry", "errorReport", "seaoFile"] as const;
 export type TrashEntityType = (typeof TRASH_ENTITY_TYPES)[number];
 
 export interface TrashItemDto {
@@ -37,7 +37,7 @@ function isoDate(value: Date): string {
 }
 
 export async function listTrash(): Promise<TrashItemDto[]> {
-  const [projects, clientRequests, budgets, serviceCalls, rollings, timeEntries, errorReports] = await Promise.all([
+  const [projects, clientRequests, budgets, serviceCalls, rollings, timeEntries, errorReports, seaoFiles] = await Promise.all([
     prisma.project.findMany({
       where: { deletedAt: { not: null } },
       select: { id: true, projectNumber: true, name: true, deletedAt: true },
@@ -65,6 +65,10 @@ export async function listTrash(): Promise<TrashItemDto[]> {
     prisma.errorReport.findMany({
       where: { deletedAt: { not: null } },
       select: { id: true, createdAt: true, deletedAt: true, employee: { select: { name: true } } },
+    }),
+    prisma.seaoFile.findMany({
+      where: { deletedAt: { not: null } },
+      select: { id: true, displayId: true, deletedAt: true, contact: { select: { name: true } } },
     }),
   ]);
 
@@ -109,6 +113,12 @@ export async function listTrash(): Promise<TrashItemDto[]> {
       id: row.id,
       entityType: "errorReport" as const,
       label: `Rapport d'erreur — ${row.employee.name} (${isoDate(row.createdAt)})`,
+      deletedAt: row.deletedAt!.toISOString(),
+    })),
+    ...seaoFiles.map((row) => ({
+      id: row.id,
+      entityType: "seaoFile" as const,
+      label: `SEAO ${row.displayId} — ${row.contact.name}`,
       deletedAt: row.deletedAt!.toISOString(),
     })),
   ];
@@ -169,6 +179,13 @@ export async function restoreTrashItem(entityType: TrashEntityType, id: string):
       if (!row) throw new HttpError(404, "Rapport d'erreur introuvable.");
       if (!row.deletedAt) throw new HttpError(400, "Ce rapport d'erreur n'est pas dans la corbeille.");
       await prisma.errorReport.update({ where: { id }, data: { deletedAt: null } });
+      return;
+    }
+    case "seaoFile": {
+      const row = await prisma.seaoFile.findUnique({ where: { id } });
+      if (!row) throw new HttpError(404, "Dossier SEAO introuvable.");
+      if (!row.deletedAt) throw new HttpError(400, "Ce dossier SEAO n'est pas dans la corbeille.");
+      await prisma.seaoFile.update({ where: { id }, data: { deletedAt: null } });
       return;
     }
   }

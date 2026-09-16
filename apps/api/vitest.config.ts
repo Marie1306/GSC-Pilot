@@ -13,6 +13,10 @@ export default defineConfig({
       SUPABASE_SERVICE_ROLE_KEY: "test-service-role-key",
       CORS_ORIGIN: "http://localhost:5173",
       APP_URL: "http://localhost:5173",
+      // Modules SEAO / Boîte à outils (16 septembre 2026) — même raison que
+      // les autres valeurs ci-dessus : aucune route testée ici n'appelle
+      // vraiment l'API Anthropic.
+      ANTHROPIC_API_KEY: "test-anthropic-key",
     },
   },
 });

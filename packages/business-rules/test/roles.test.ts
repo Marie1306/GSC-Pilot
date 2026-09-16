@@ -605,3 +605,39 @@ describe("Vente externe (8 septembre 2026) — accès complet à égalité, un s
     expect(P.canManageExternalSales(WAREHOUSE)).toBe(false);
   });
 });
+
+describe("SEAO (16 septembre 2026) — accès complet à égalité pour la gestion courante", () => {
+  it("Propriétaire, Direction et Administration peuvent créer/gérer un dossier", () => {
+    expect(P.canManageSeao(BOSS)).toBe(true);
+    expect(P.canManageSeao(OWNER)).toBe(true);
+    expect(P.canManageSeao(ADMIN)).toBe(true);
+  });
+  it("Employé et Magasinier n'ont aucun accès", () => {
+    expect(P.canManageSeao(MEMBER)).toBe(false);
+    expect(P.canManageSeao(WAREHOUSE)).toBe(false);
+  });
+});
+
+describe("SEAO — go/no-go, issue finale et conversion en projet (Propriétaire+Direction seulement)", () => {
+  it("Propriétaire et Direction peuvent décider", () => {
+    expect(P.canDecideSeaoGoNoGo(BOSS)).toBe(true);
+    expect(P.canDecideSeaoGoNoGo(OWNER)).toBe(true);
+  });
+  it("Administration, Employé et Magasinier ne peuvent pas décider", () => {
+    expect(P.canDecideSeaoGoNoGo(ADMIN)).toBe(false);
+    expect(P.canDecideSeaoGoNoGo(MEMBER)).toBe(false);
+    expect(P.canDecideSeaoGoNoGo(WAREHOUSE)).toBe(false);
+  });
+});
+
+describe("Boîte à outils (16 septembre 2026) — gestion de la bibliothèque (chartes/catégories)", () => {
+  it("Propriétaire, Direction et Administration peuvent gérer la bibliothèque", () => {
+    expect(P.canManageToolboxLibrary(BOSS)).toBe(true);
+    expect(P.canManageToolboxLibrary(OWNER)).toBe(true);
+    expect(P.canManageToolboxLibrary(ADMIN)).toBe(true);
+  });
+  it("Employé et Magasinier ne peuvent pas gérer la bibliothèque", () => {
+    expect(P.canManageToolboxLibrary(MEMBER)).toBe(false);
+    expect(P.canManageToolboxLibrary(WAREHOUSE)).toBe(false);
+  });
+});

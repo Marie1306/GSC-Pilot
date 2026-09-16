@@ -17,3 +17,4 @@ export * from "./punch.js";
 export * from "./service-calls.js";
 export * from "./gantt-schedule.js";
 export * from "./external-sales.js";
+export * from "./seao.js";

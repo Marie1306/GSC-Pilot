@@ -21,6 +21,9 @@ const schema = z.object({
   // (inviteUserByEmail, employees/service.ts). Distincte de CORS_ORIGIN :
   // même valeur en production (une seule origine), mais un rôle différent.
   APP_URL: z.url(),
+  // Modules SEAO / Boîte à outils (16 septembre 2026) — analyse de documents
+  // et FAQ technique citée, voir apps/api/src/lib/ai/client.ts.
+  ANTHROPIC_API_KEY: z.string().min(1),
 });
 
 const parsed = schema.safeParse(process.env);

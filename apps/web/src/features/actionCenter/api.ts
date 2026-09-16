@@ -9,7 +9,9 @@ export type ActionItemType =
   | "client_request_transmitted"
   | "subassembly_ready"
   | "hours_approval"
-  | "followup_due";
+  | "followup_due"
+  | "seao_deadline"
+  | "seao_go_no_go_pending";
 
 export interface ActionItemDto {
   id: string;
@@ -51,5 +53,8 @@ export function linkFor(item: ActionItemDto): string {
       return `/projets?open=${item.projectId}`;
     case "hours_approval":
       return "/temps";
+    case "seao_deadline":
+    case "seao_go_no_go_pending":
+      return `/seao?open=${item.id}`;
   }
 }

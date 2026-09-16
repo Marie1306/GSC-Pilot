@@ -25,16 +25,20 @@ const TYPE_ORDER: ActionItemType[] = [
   "invoicing",
   "client_request_transmitted",
   "subassembly_ready",
+  "seao_go_no_go_pending",
+  "seao_deadline",
 ];
 
 // Types qui ouvrent directement le détail + les actions réelles sans
 // quitter le Centre d'actions (25 août 2026, demande explicite) — chacun
 // réutilise le composant déjà construit et vérifié de son propre module,
-// jamais une deuxième logique d'approbation ici. Seul subassembly_ready
-// reste une navigation classique : créer la liste de pièces est un
-// formulaire à plusieurs lignes qui vit en profondeur dans la carte
-// Assemblages (module Sous-assemblages en interne), pas extractible
-// proprement dans un tiroir.
+// jamais une deuxième logique d'approbation ici. subassembly_ready reste une
+// navigation classique : créer la liste de pièces est un formulaire à
+// plusieurs lignes qui vit en profondeur dans la carte Assemblages (module
+// Sous-assemblages en interne), pas extractible proprement dans un tiroir.
+// seao_deadline/seao_go_no_go_pending (16 septembre 2026) : même choix,
+// pour ne jamais dupliquer la logique de décision go/no-go/bordereau dans un
+// deuxième tiroir séparé du module SEAO lui-même (voir SeaoDetail.tsx).
 //
 // purchase_to_order utilisait la même approche (lien vers /achats) jusqu'au
 // 27 août 2026 — rapport de l'utilisatrice : ça amenait sur une page
@@ -42,7 +46,7 @@ const TYPE_ORDER: ActionItemType[] = [
 // façon de les faire disparaître d'ici. Passé en tiroir (comme les autres)
 // avec l'action unique pertinente à cette étape : marquer commandé.
 function hasActionDrawer(type: ActionItemType): boolean {
-  return type !== "subassembly_ready";
+  return type !== "subassembly_ready" && type !== "seao_deadline" && type !== "seao_go_no_go_pending";
 }
 
 function formatDate(iso: string): string {

@@ -24,6 +24,8 @@ import { ServiceCallsPage } from "./features/serviceCalls/ServiceCallsPage.js";
 import { FulfillmentPage } from "./features/fulfillment/FulfillmentPage.js";
 import { RollingsPage } from "./features/rollings/RollingsPage.js";
 import { ExternalSalesPage } from "./features/externalSales/ExternalSalesPage.js";
+import { SeaoPage } from "./features/seao/SeaoPage.js";
+import { ToolboxPage } from "./features/toolbox/ToolboxPage.js";
 import { ContactsPage } from "./features/contacts/ContactsPage.js";
 import { ReportsPage } from "./features/reports/ReportsPage.js";
 import { SettingsPage } from "./features/settings/SettingsPage.js";
@@ -47,6 +49,8 @@ const PAGE_BY_KEY: Record<string, ComponentType> = {
   fulfillment: FulfillmentPage,
   rollings: RollingsPage,
   "external-sales": ExternalSalesPage,
+  seao: SeaoPage,
+  toolbox: ToolboxPage,
   contacts: ContactsPage,
   reports: ReportsPage,
   settings: SettingsPage,

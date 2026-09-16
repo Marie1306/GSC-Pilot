@@ -42,6 +42,8 @@ import {
   canCreateInvoiceRecord,
   canCreateClientRequest,
   canPrepareSubassemblyPartsList,
+  canManageSeao,
+  canDecideSeaoGoNoGo,
   buildFrozenPurchaseThresholdsMap,
   type Persona,
 } from "@gsc-pilot/business-rules";
@@ -52,6 +54,7 @@ import { listInvoiceEntries } from "../invoicing/service.js";
 import { listClientRequests } from "../clientRequests/service.js";
 import { listPendingPartsListSubassemblies } from "../subassemblies/service.js";
 import { listTimeEntriesForApproval } from "../timeEntries/service.js";
+import { listSeaoFiles } from "../seao/service.js";
 
 export type ActionItemType =
   | "budget_approval"
@@ -62,7 +65,9 @@ export type ActionItemType =
   | "client_request_transmitted"
   | "subassembly_ready"
   | "hours_approval"
-  | "followup_due";
+  | "followup_due"
+  | "seao_deadline"
+  | "seao_go_no_go_pending";
 
 export interface ActionItemDto {
   id: string;
@@ -263,6 +268,43 @@ export async function getActionCenterItems(viewerPersona: Persona, viewerEmploye
         sublabel: entry.projectLabel ?? entry.taskLabel ?? "Interne",
         createdAt: entry.endAt ?? entry.startAt,
       });
+    }
+  }
+
+  // SEAO (16 septembre 2026) — deux signaux distincts, même trio/duo que
+  // leurs permissions respectives (roles.ts) : échéance de soumission
+  // dépassée pour quiconque gère le module (canManageSeao), go/no-go en
+  // attente réservé à qui peut le décider (canDecideSeaoGoNoGo). listSeaoFiles
+  // exclut déjà deletedAt — rien à filtrer en plus ici.
+  if (canManageSeao(viewerPersona)) {
+    const seaoFiles = await listSeaoFiles();
+    const now = new Date();
+    for (const file of seaoFiles) {
+      if (file.status === "a_l_etude" && file.submissionDeadline && new Date(file.submissionDeadline) <= now) {
+        items.push({
+          id: file.id,
+          type: "seao_deadline",
+          typeLabel: "Échéance SEAO dépassée",
+          label: `${file.displayId} — ${file.company ?? file.contactName}`,
+          sublabel: `Soumission prévue le ${file.submissionDeadline.slice(0, 10)}`,
+          createdAt: file.submissionDeadline,
+        });
+      }
+    }
+
+    if (canDecideSeaoGoNoGo(viewerPersona)) {
+      for (const file of seaoFiles) {
+        if (file.status === "a_l_etude" && file.hasDocuments) {
+          items.push({
+            id: file.id,
+            type: "seao_go_no_go_pending",
+            typeLabel: "Go/no-go SEAO à décider",
+            label: `${file.displayId} — ${file.company ?? file.contactName}`,
+            sublabel: file.title ?? "Documents déposés — prêt pour décision",
+            createdAt: file.createdAt,
+          });
+        }
+      }
     }
   }
 

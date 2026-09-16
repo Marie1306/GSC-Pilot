@@ -23,6 +23,10 @@ const CATEGORY_BY_SOURCE = Object.freeze({
   // additif seulement (nouvelle clé) — aucune ligne de logique existante
   // modifiée (voir CLAUDE.md, "Règle de reuse").
   sale: "Vente externe",
+  // SEAO (16 septembre 2026) — même raison que "sale" ci-dessus : sans
+  // cette entrée, un contact créé depuis ce module retomberait
+  // silencieusement sur "Information".
+  seao: "SEAO",
 } as const);
 
 export interface Contact {

@@ -24,6 +24,8 @@ const ACTION_TYPE_ICON: Record<ActionItemType, string> = {
   subassembly_ready: "🔗",
   hours_approval: "⏱️",
   followup_due: "📅",
+  seao_deadline: "⏰",
+  seao_go_no_go_pending: "🏷️",
 };
 
 const FINANCIAL_STATUS_LABELS: Record<string, string> = {

@@ -518,6 +518,60 @@ a {
   letter-spacing: 0.02em;
 }
 
+/* Journal de notes / listes courtes génériques — globalisé le 16 septembre
+   2026 (module SEAO + Boîte à outils, 3e module à en avoir besoin après
+   Demandes clients/Budgétaire) : même règle de fond que les cases à cocher
+   globalisées le 4 septembre 2026 (voir plus haut) — éviter une 4e copie
+   locale divergente plutôt que d'attendre qu'un bogue le force. */
+.empty-hint {
+  color: var(--gsc-color-muted);
+  font-size: 13px;
+}
+.notes-list {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.notes-list li {
+  background: var(--gsc-color-surface2);
+  border-radius: var(--gsc-radius-sm);
+  padding: 10px 12px;
+  font-size: 13px;
+}
+.note-meta {
+  font-size: 12px;
+  color: var(--gsc-color-muted);
+  margin-bottom: 4px;
+}
+.note-form {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin-top: 10px;
+}
+.note-form textarea {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: var(--gsc-radius-sm);
+  border: 1px solid var(--gsc-color-line-strong);
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+/* Bouton stylé comme un lien — nom de fichier cliquable (SEAO/Boîte à outils), jamais une nouvelle variante par module. */
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--gsc-color-brand);
+  cursor: pointer;
+  font-size: 13px;
+  text-decoration: underline;
+}
+
 .status-row {
   margin-bottom: 20px;
 }

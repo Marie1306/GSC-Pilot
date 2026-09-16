@@ -12,6 +12,7 @@ const ENTITY_TYPE_LABELS: Record<TrashEntityType, string> = {
   rolling: "Roulement",
   timeEntry: "Punch",
   errorReport: "Rapport d'erreur",
+  seaoFile: "Dossier SEAO",
 };
 
 function formatDate(iso: string): string {

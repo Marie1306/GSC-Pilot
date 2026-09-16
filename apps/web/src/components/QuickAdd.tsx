@@ -10,6 +10,7 @@ import {
   canAccessOverviewViews,
   canAccessErrorReports,
   canManageExternalSales,
+  canManageSeao,
   type Persona,
 } from "@gsc-pilot/business-rules";
 import { fetchNextClientRequestNumber } from "../features/clientRequests/api.js";
@@ -17,9 +18,10 @@ import { fetchNextBudgetNumber } from "../features/budgets/api.js";
 import { fetchNextProjectNumber } from "../features/projects/api.js";
 import { fetchNextServiceCallNumber } from "../features/serviceCalls/api.js";
 import { fetchNextExternalSaleNumber } from "../features/externalSales/api.js";
+import { fetchNextSeaoNumber } from "../features/seao/api.js";
 import "./quickAdd.css";
 
-type NextNumberKind = "clientRequest" | "budget" | "project" | "serviceCall" | "externalSale";
+type NextNumberKind = "clientRequest" | "budget" | "project" | "serviceCall" | "externalSale" | "seao";
 
 interface QuickAddCard {
   key: string;
@@ -75,6 +77,7 @@ const CARDS: QuickAddCard[] = [
   { key: "service-call", icon: "🔧", label: "Appel de service", path: "/appels-service?create=1", allow: canCreateServiceCall, nextNumber: "serviceCall" },
   { key: "rolling", icon: "🔁", label: "Roulement", path: "/roulements?create=1", allow: canCreateRollingDirectly, sub: "Identifié par le client" },
   { key: "external-sale", icon: "💵", label: "Vente externe", path: "/ventes-externes?create=1", allow: canManageExternalSales, nextNumber: "externalSale" },
+  { key: "seao", icon: "🏷️", label: "Dossier SEAO", path: "/seao?create=1", allow: canManageSeao, nextNumber: "seao" },
   { key: "punch", icon: "▶️", label: "Punch", path: "/temps?quickadd=punch", allow: () => true, sub: "Débuter une tâche" },
   { key: "manual-entry", icon: "🕒", label: "Entrée manuelle", path: "/temps?quickadd=manual", allow: () => true, sub: "Plusieurs tâches" },
   { key: "qr-scan", icon: "⬜", label: "Scanner un projet", path: "/scan", allow: () => true, sub: "Accès direct ou punch" },
@@ -100,6 +103,7 @@ export function QuickAdd({ persona }: QuickAddProps) {
   const nextProject = useQuery({ queryKey: ["next-number", "project"], queryFn: fetchNextProjectNumber, enabled: needs("project") });
   const nextServiceCall = useQuery({ queryKey: ["next-number", "service-call"], queryFn: fetchNextServiceCallNumber, enabled: needs("serviceCall") });
   const nextExternalSale = useQuery({ queryKey: ["next-number", "external-sale"], queryFn: fetchNextExternalSaleNumber, enabled: needs("externalSale") });
+  const nextSeao = useQuery({ queryKey: ["next-number", "seao"], queryFn: fetchNextSeaoNumber, enabled: needs("seao") });
 
   function subtitleFor(card: QuickAddCard): string {
     if (card.sub) return card.sub;
@@ -114,6 +118,8 @@ export function QuickAdd({ persona }: QuickAddProps) {
         return nextServiceCall.data?.nextDisplayId ?? "…";
       case "externalSale":
         return nextExternalSale.data?.nextDisplayId ?? "…";
+      case "seao":
+        return nextSeao.data?.nextDisplayId ?? "…";
       default:
         return "";
     }

@@ -337,7 +337,7 @@ export function revokeDelegation(id: string): Promise<void> {
 }
 
 // --- Corbeille (2 septembre 2026) ---
-export type TrashEntityType = "project" | "clientRequest" | "budget" | "serviceCall" | "rolling" | "timeEntry" | "errorReport";
+export type TrashEntityType = "project" | "clientRequest" | "budget" | "serviceCall" | "rolling" | "timeEntry" | "errorReport" | "seaoFile";
 
 export interface TrashItemDto {
   id: string;

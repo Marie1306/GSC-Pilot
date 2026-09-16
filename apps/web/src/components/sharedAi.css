@@ -1,0 +1,39 @@
+/* Composants partagés SEAO / Boîte à outils (16 septembre 2026) — PdfDropzone, CitedText. */
+
+.pdf-dropzone {
+  border: 2px dashed var(--gsc-color-line-strong);
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  color: var(--gsc-color-muted);
+  background: var(--gsc-color-surface);
+}
+.pdf-dropzone-active {
+  border-color: var(--gsc-color-brand);
+  color: var(--gsc-color-brand);
+}
+.pdf-dropzone-disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.cited-text p {
+  margin: 0 0 10px;
+  line-height: 1.5;
+}
+.cited-text-refs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: 6px;
+}
+.cited-text-ref {
+  font-size: 11px;
+  color: var(--gsc-color-brand);
+  border: 1px solid var(--gsc-color-line-strong);
+  border-radius: 999px;
+  padding: 1px 8px;
+  cursor: help;
+  white-space: nowrap;
+}

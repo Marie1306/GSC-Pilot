@@ -770,3 +770,44 @@ export function canManageExternalSales(persona: Persona): boolean {
   assertRole(persona);
   return ([ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS] as Persona[]).includes(persona);
 }
+
+// ---------------------------------------------------------------------------
+// SEAO (nouveau module, 16 septembre 2026) — suivi des appels d'offres
+// publics. Même forme que Vente externe (canManageExternalSales ci-dessus) :
+// un seul trio pour tout le cycle de vie courant (créer un dossier, déposer
+// des documents, lancer une analyse, chiffrer le bordereau, suivre les
+// concurrents) — confirmé explicitement avec l'utilisatrice : le Propriétaire
+// est inclus dans la CRÉATION elle-même, pas seulement dans la décision
+// finale ci-dessous.
+//
+// Le go/no-go, l'issue finale (gagné/perdu) et la conversion en projet
+// restent Propriétaire+Direction seulement (canDecideSeaoGoNoGo) — ces trois
+// gestes relèvent de la même décision (le sort du dossier), jamais de la
+// gestion courante ci-dessus. Administration en est exclue pour ces trois
+// gestes précis, contrairement à canManageSeao.
+// ---------------------------------------------------------------------------
+
+/** Module SEAO (voir/créer/gérer documents, bordereau, concurrents) : Propriétaire, Direction et Administration — accès complet et identique pour les 3. */
+export function canManageSeao(persona: Persona): boolean {
+  assertRole(persona);
+  return ([ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS] as Persona[]).includes(persona);
+}
+
+/** Go/no-go, issue finale (gagné/perdu) et conversion en projet : Propriétaire et Direction seulement — jamais Administration. */
+export function canDecideSeaoGoNoGo(persona: Persona): boolean {
+  assertRole(persona);
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
+}
+
+// ---------------------------------------------------------------------------
+// Boîte à outils (nouveau module, 16 septembre 2026) — FAQ technique
+// collective citée dans des chartes de référence. Poser une question ou
+// continuer un fil existant n'a besoin d'AUCUNE fonction dédiée ici :
+// ouvert à tous les rôles, même porte que /api/me (requireAuth seul).
+// ---------------------------------------------------------------------------
+
+/** Déposer/retirer une charte de référence, créer/modifier une catégorie : Propriétaire, Direction et Administration. */
+export function canManageToolboxLibrary(persona: Persona): boolean {
+  assertRole(persona);
+  return ([ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS] as Persona[]).includes(persona);
+}

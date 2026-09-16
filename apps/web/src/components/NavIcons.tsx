@@ -66,6 +66,21 @@ const PATHS: Record<string, (props: SVGProps<SVGSVGElement>) => React.JSX.Elemen
       <circle cx="6.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
     </Base>
   ),
+  seao: (props) => (
+    <Base {...props}>
+      <rect x="4" y="2.5" width="12" height="15" rx="1.2" />
+      <path d="M7 6.5h6M7 9.5h6M7 12.5h3.5" />
+      <circle cx="14.5" cy="14.5" r="2.6" />
+      <path d="M13.2 15.2 12 18l2.5-1 2.5 1-1.2-2.8" />
+    </Base>
+  ),
+  toolbox: (props) => (
+    <Base {...props}>
+      <path d="M7 6.5V5a3 3 0 0 1 6 0v1.5" />
+      <rect x="3" y="6.5" width="14" height="10" rx="1.5" />
+      <path d="M3 11h14" />
+    </Base>
+  ),
   reports: (props) => (
     <Base {...props}>
       <path d="M3 16.5h14" />

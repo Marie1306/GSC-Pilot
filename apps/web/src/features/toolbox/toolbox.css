@@ -1,0 +1,39 @@
+/* Boîte à outils (16 septembre 2026) — nouveau patron clavardage, jamais réutilisé ailleurs dans l'appli. */
+
+.toolbox-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.toolbox-message {
+  border-radius: var(--gsc-radius-sm);
+  padding: 10px 12px;
+  font-size: 13px;
+}
+.toolbox-message-user {
+  background: var(--gsc-color-surface2);
+}
+.toolbox-message-assistant {
+  background: var(--gsc-color-surface);
+  border: 1px solid var(--gsc-color-line);
+}
+
+.toolbox-category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+.toolbox-category-card {
+  background: var(--gsc-color-surface2);
+  border: 1px solid var(--gsc-color-line);
+  border-radius: var(--gsc-radius-sm);
+  padding: 16px;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+.toolbox-category-card:hover {
+  border-color: var(--gsc-color-brand);
+}
