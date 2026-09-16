@@ -3,7 +3,7 @@ import { anthropic, AI_MODEL, assertAnthropicConfigured } from "./client.js";
 import { toHttpError } from "./errors.js";
 
 const BORDEREAU_TOOL_NAME = "record_bordereau_lines";
-const SEAO_ADMIN_TOOL_NAME = "record_seao_administration";
+const SEAO_RESUME_ADMIN_TOOL_NAME = "record_seao_resume_and_administration";
 
 export interface ExtractedBordereauLine {
   description: string;
@@ -120,56 +120,84 @@ export async function extractBordereauLines(documents: { anthropicFileId: string
 
 const NOT_MENTIONED = "Non mentionné";
 
+export interface SeaoResumeAndAdministrationExtraction {
+  summary: string;
+  adminItems: SeaoAdministrationItem[];
+  inputTokens: number;
+  outputTokens: number;
+}
+
+interface RawSeaoResumeAndAdministration extends RawSeaoAdministration {
+  summary: string;
+}
+
 /**
- * Extraction structurée des points administratifs d'un SEAO — appel
- * Anthropic SÉPARÉ de l'analyse citée, même raison que extractBordereauLines
- * ci-dessus (Citations et sortie structurée ne se combinent pas). Chaque
- * champ est un texte COURT (quelques mots : montant, pourcentage, date,
- * oui/non) — jamais une phrase complète ni une citation du contrat, demande
- * explicite de Marie pour que ça se lise comme une liste, pas un résumé.
- * Un champ absent des documents devient "Non mentionné" plutôt qu'omis en
- * silence — même principe que l'ancienne checklist à 11 points qu'elle
- * remplace.
+ * Résumé + points administratifs d'un SEAO EN UN SEUL appel structuré —
+ * fusionnés le 16 septembre 2026 (demande explicite de Marie, après avoir
+ * remarqué le coût réel de 4 appels IA distincts par analyse sur
+ * console.anthropic.com). Toujours SÉPARÉ des Détails techniques
+ * (runCitedCompletion, seao/service.ts) et du bordereau
+ * (extractBordereauLines ci-dessus) — Citations et sortie structurée ne se
+ * combinent pas dans le même appel, donc le Résumé perd ses citations en
+ * échange d'un appel de moins : compromis accepté par Marie, elle garde les
+ * citations là où ça compte le plus pour elle (Détails techniques, pour
+ * vérifier mesures/contraintes contre le devis) plutôt que sur un résumé
+ * général qu'elle ne vérifie pas ligne par ligne de toute façon.
+ *
+ * Chaque champ administratif reste un texte COURT (quelques mots) — jamais
+ * une phrase complète ni une citation du contrat — et un champ absent des
+ * documents devient "Non mentionné" plutôt qu'omis en silence, même
+ * principe que l'ancienne checklist à 11 points. summary reste stocké dans
+ * SeaoAnalysis.summaryContent SOUS LA MÊME FORME que l'ancien résumé cité
+ * (un tableau à un seul bloc {type:"text", text}, sans citations) — le
+ * frontend (CitedText) n'a donc eu besoin d'AUCUNE modification, il affiche
+ * simplement un bloc sans badge de citation.
  */
-export async function extractSeaoAdministration(documents: { anthropicFileId: string; title: string }[]): Promise<SeaoAdministrationItem[]> {
+export async function extractSeaoResumeAndAdministration(
+  documents: { anthropicFileId: string; title: string }[],
+): Promise<SeaoResumeAndAdministrationExtraction> {
   assertAnthropicConfigured();
-  const properties = Object.fromEntries(
-    Object.keys(SEAO_ADMIN_FIELD_LABELS).map((key) => [key, { type: "string" }]),
-  );
+  const adminProperties = Object.fromEntries(Object.keys(SEAO_ADMIN_FIELD_LABELS).map((key) => [key, { type: "string" }]));
   const tool: Anthropic.Tool = {
-    name: SEAO_ADMIN_TOOL_NAME,
+    name: SEAO_RESUME_ADMIN_TOOL_NAME,
     description:
-      "Enregistre les points administratifs de cet appel d'offres. Chaque valeur doit être courte (quelques mots : montant, pourcentage, date, ou « oui »/« non » suivi d'un détail bref) — jamais une phrase complète ni une citation du contrat. Si un point n'est pas mentionné dans les documents, réponds exactement « Non mentionné ».",
+      'Enregistre le résumé et les points administratifs de cet appel d\'offres. "summary" : quelques phrases décrivant l\'objet de l\'appel d\'offres (ce qui est demandé) et le contexte général du projet — jamais les détails techniques ni les points administratifs, couverts par les autres champs. Les points administratifs doivent être courts (quelques mots : montant, pourcentage, date, ou « oui »/« non » suivi d\'un détail bref) — jamais une phrase complète ni une citation du contrat. Si un point administratif n\'est pas mentionné dans les documents, réponds exactement « Non mentionné ».',
     input_schema: {
       type: "object",
-      properties,
-      required: Object.keys(SEAO_ADMIN_FIELD_LABELS),
+      properties: { summary: { type: "string" }, ...adminProperties },
+      required: ["summary", ...Object.keys(SEAO_ADMIN_FIELD_LABELS)],
     },
   };
 
   try {
     const response = await anthropic.messages.create({
       model: AI_MODEL,
-      max_tokens: 1024,
+      max_tokens: 2048,
       tools: [tool],
-      tool_choice: { type: "tool", name: SEAO_ADMIN_TOOL_NAME },
+      tool_choice: { type: "tool", name: SEAO_RESUME_ADMIN_TOOL_NAME },
       messages: [
         {
           role: "user",
           content: [
             ...buildPlainDocumentBlocks(documents),
-            { type: "text", text: "Relève les points administratifs de cet appel d'offres." },
+            { type: "text", text: "Résume cet appel d'offres et relève ses points administratifs." },
           ],
         },
       ],
     });
 
     const toolUse = response.content.find((block): block is Anthropic.ToolUseBlock => block.type === "tool_use");
-    const input = (toolUse?.input as Partial<RawSeaoAdministration> | undefined) ?? {};
-    return (Object.keys(SEAO_ADMIN_FIELD_LABELS) as (keyof RawSeaoAdministration)[]).map((key) => ({
+    const input = (toolUse?.input as Partial<RawSeaoResumeAndAdministration> | undefined) ?? {};
+    const adminItems = (Object.keys(SEAO_ADMIN_FIELD_LABELS) as (keyof RawSeaoAdministration)[]).map((key) => ({
       label: SEAO_ADMIN_FIELD_LABELS[key],
       value: input[key]?.trim() || NOT_MENTIONED,
     }));
+    return {
+      summary: input.summary?.trim() || NOT_MENTIONED,
+      adminItems,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+    };
   } catch (err) {
     throw toHttpError(err);
   }

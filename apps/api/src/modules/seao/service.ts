@@ -18,7 +18,7 @@ import { createProjectDirect, updateProjectPlanning } from "../projects/service.
 import { STORAGE_BUCKETS, buildStoragePath, createSignedDownloadUrl, createSignedUploadTarget, type SignedUploadTarget } from "../../lib/storage.js";
 import { uploadDocumentToAnthropic } from "../../lib/ai/documents.js";
 import { runCitedCompletion } from "../../lib/ai/citedCompletion.js";
-import { extractBordereauLines, extractSeaoAdministration } from "../../lib/ai/structuredExtraction.js";
+import { extractBordereauLines, extractSeaoResumeAndAdministration } from "../../lib/ai/structuredExtraction.js";
 import { plainTextFromContent } from "../../lib/ai/content.js";
 
 const BUCKET = STORAGE_BUCKETS.SEAO_DOCUMENTS;
@@ -281,16 +281,18 @@ export async function getSeaoDocumentDownloadUrl(documentId: string): Promise<st
 /**
  * Trois catégories confirmées avec l'utilisatrice le 16 septembre 2026 —
  * remplace la checklist à 11 points à plat du premier prompt (moins
- * "fluide" à lire, mélangeait narratif et points administratifs). Le
- * Résumé et les Détails techniques restent des appels cités (elle vérifie
- * les mesures/contraintes contre les documents) ; l'Administration devient
- * une extraction structurée SANS citations (extractSeaoAdministration,
- * structuredExtraction.ts) — elle a explicitement dit vouloir une liste
- * courte, pas un paragraphe qui réécrit la ligne complète du contrat, et
- * qu'elle vérifie de toute façon le contrat elle-même pour cette partie.
+ * "fluide" à lire, mélangeait narratif et points administratifs).
+ *
+ * Résumé et Administration ont ensuite été FUSIONNÉS en un seul appel
+ * structuré (extractSeaoResumeAndAdministration, structuredExtraction.ts),
+ * le même jour, après que Marie a remarqué le coût réel de 4 appels IA
+ * distincts par analyse (console.anthropic.com) — elle a choisi cette paire
+ * précise plutôt que Résumé+Détails techniques : elle garde les citations
+ * uniquement là où elle vérifie vraiment (mesures/contraintes des Détails
+ * techniques), pas sur un résumé général ni sur l'Administration (qu'elle
+ * revérifie de toute façon elle-même contre le contrat). Détails techniques
+ * reste donc seul appel cité, séparé.
  */
-const SEAO_RESUME_SYSTEM_PROMPT = `Tu résumes un appel d'offres public pour une entreprise d'automatisation industrielle (GSC Automation). Ouvre par une phrase concise décrivant l'objet de l'appel d'offres (ce qui est demandé), puis donne un résumé général bref du contexte et de la portée du projet. Les exigences techniques détaillées et les points administratifs sont couverts ailleurs — ne les répète pas ici, reste concis. Cite les documents sources.`;
-
 const SEAO_TECHNICAL_SYSTEM_PROMPT = `Tu analyses les exigences techniques d'un appel d'offres public pour une entreprise d'automatisation industrielle (GSC Automation). Présente ta réponse SOUS FORME DE LISTE À PUCES, une exigence distincte par puce, chaque ligne commençant par "- " — jamais un paragraphe continu. Couvre : mesures, contraintes, spécifications de couleur, force moteur, axes de robot, et tout autre détail technique pertinent à la conception et au chiffrage. Une puce par exigence, courte et précise. Cite les documents sources.`;
 
 /** Reconstruit un texte comparable à plainTextFromContent(...) pour la section Administration (structurée, pas des blocs cités) — voir triggerSeaoAnalysis, comparaison "changements". */
@@ -302,16 +304,20 @@ function adminContentToPlainText(content: unknown): string {
     .join("\n");
 }
 
+/** Bloc de contenu unique, sans citations — même forme que CitedTextBlock (voir CitedText.tsx) pour que le frontend n'ait besoin d'aucune distinction entre un résumé cité et un résumé structuré. */
+function plainTextAsContentBlock(text: string): object {
+  return [{ type: "text", text }];
+}
+
 /**
- * Lance une nouvelle version d'analyse — Résumé + Détails techniques (cités)
- * + Administration (structurée) toujours, + changements depuis la version
- * précédente si version > 1 — quatre appels IA indépendants lancés en
- * parallèle (aucun ne dépend de la sortie d'un autre ; "changements" ne
- * compare qu'à lastAnalysis, déjà en main), plutôt que séquentiels comme
- * l'unique appel d'origine — réduit la latence totale, un vrai risque de
- * dépassement de délai HTTP (Render) avec 4 appels Sonnet. Extraction du
- * bordereau UNE SEULE FOIS (jamais si des lignes existent déjà — ne réécrit
- * jamais un chiffrage humain déjà commencé), après les 4 appels ci-dessus.
+ * Lance une nouvelle version d'analyse — Résumé+Administration (structuré,
+ * un seul appel) et Détails techniques (cité) toujours, + changements
+ * depuis la version précédente si version > 1 — au plus trois appels IA
+ * indépendants lancés en parallèle (aucun ne dépend de la sortie d'un
+ * autre ; "changements" ne compare qu'à lastAnalysis, déjà en main).
+ * Extraction du bordereau UNE SEULE FOIS (jamais si des lignes existent
+ * déjà — ne réécrit jamais un chiffrage humain déjà commencé), après les
+ * appels ci-dessus.
  */
 export async function triggerSeaoAnalysis(seaoFileId: string, requestedById: string) {
   await loadSeaoFileOrThrow(seaoFileId);
@@ -334,15 +340,14 @@ export async function triggerSeaoAnalysis(seaoFileId: string, requestedById: str
         .join("\n\n")
     : null;
 
-  const [resume, technical, admin, changes] = await Promise.all([
-    runCitedCompletion({ documents: citedDocs, history: [], system: SEAO_RESUME_SYSTEM_PROMPT, userText: "Résume l'objet de cet appel d'offres." }),
+  const [resumeAndAdmin, technical, changes] = await Promise.all([
+    extractSeaoResumeAndAdministration(citedDocs),
     runCitedCompletion({
       documents: citedDocs,
       history: [],
       system: SEAO_TECHNICAL_SYSTEM_PROMPT,
       userText: "Décris les exigences techniques de cet appel d'offres.",
     }),
-    extractSeaoAdministration(citedDocs),
     previousPlainText
       ? runCitedCompletion({
           documents: citedDocs,
@@ -378,13 +383,13 @@ export async function triggerSeaoAnalysis(seaoFileId: string, requestedById: str
       seaoFileId,
       version,
       documentIds: documents.map((d) => d.id),
-      summaryContent: resume.content as unknown as object,
+      summaryContent: plainTextAsContentBlock(resumeAndAdmin.summary),
       technicalContent: technical.content as unknown as object,
-      adminContent: admin as unknown as object,
+      adminContent: resumeAndAdmin.adminItems as unknown as object,
       changesContent: (changes?.content as unknown as object) ?? undefined,
       requestedById,
-      inputTokens: resume.inputTokens + technical.inputTokens + (changes?.inputTokens ?? 0),
-      outputTokens: resume.outputTokens + technical.outputTokens + (changes?.outputTokens ?? 0),
+      inputTokens: resumeAndAdmin.inputTokens + technical.inputTokens + (changes?.inputTokens ?? 0),
+      outputTokens: resumeAndAdmin.outputTokens + technical.outputTokens + (changes?.outputTokens ?? 0),
     },
   });
 }

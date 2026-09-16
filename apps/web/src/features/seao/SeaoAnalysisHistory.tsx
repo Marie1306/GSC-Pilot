@@ -6,7 +6,7 @@ function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString("fr-CA", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-/** Liste Administration — libellé/valeur courts, jamais de citations (voir extractSeaoAdministration, structuredExtraction.ts). */
+/** Liste Administration — libellé/valeur courts, jamais de citations (voir extractSeaoResumeAndAdministration, structuredExtraction.ts). */
 function SeaoAdministrationList({ items }: { items: SeaoAdministrationItemDto[] }) {
   return (
     <ul className="seao-admin-list">
