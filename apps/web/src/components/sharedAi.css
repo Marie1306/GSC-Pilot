@@ -8,6 +8,7 @@
   cursor: pointer;
   color: var(--gsc-color-muted);
   background: var(--gsc-color-surface);
+  font-size: 13px;
 }
 .pdf-dropzone-active {
   border-color: var(--gsc-color-brand);
@@ -21,6 +22,7 @@
 .cited-text p {
   margin: 0 0 10px;
   line-height: 1.5;
+  font-size: 13px;
 }
 .cited-text-refs {
   display: inline-flex;
