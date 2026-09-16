@@ -291,7 +291,7 @@ export async function getSeaoDocumentDownloadUrl(documentId: string): Promise<st
  */
 const SEAO_RESUME_SYSTEM_PROMPT = `Tu résumes un appel d'offres public pour une entreprise d'automatisation industrielle (GSC Automation). Ouvre par une phrase concise décrivant l'objet de l'appel d'offres (ce qui est demandé), puis donne un résumé général bref du contexte et de la portée du projet. Les exigences techniques détaillées et les points administratifs sont couverts ailleurs — ne les répète pas ici, reste concis. Cite les documents sources.`;
 
-const SEAO_TECHNICAL_SYSTEM_PROMPT = `Tu analyses les exigences techniques d'un appel d'offres public pour une entreprise d'automatisation industrielle (GSC Automation). Décris ce que demande le devis : mesures, contraintes, spécifications de couleur, force moteur, axes de robot, et tout autre détail technique pertinent à la conception et au chiffrage. Sois concis mais complet, et cite les documents sources.`;
+const SEAO_TECHNICAL_SYSTEM_PROMPT = `Tu analyses les exigences techniques d'un appel d'offres public pour une entreprise d'automatisation industrielle (GSC Automation). Présente ta réponse SOUS FORME DE LISTE À PUCES, une exigence distincte par puce, chaque ligne commençant par "- " — jamais un paragraphe continu. Couvre : mesures, contraintes, spécifications de couleur, force moteur, axes de robot, et tout autre détail technique pertinent à la conception et au chiffrage. Une puce par exigence, courte et précise. Cite les documents sources.`;
 
 /** Reconstruit un texte comparable à plainTextFromContent(...) pour la section Administration (structurée, pas des blocs cités) — voir triggerSeaoAnalysis, comparaison "changements". */
 function adminContentToPlainText(content: unknown): string {

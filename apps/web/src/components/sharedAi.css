@@ -24,6 +24,15 @@
   line-height: 1.5;
   font-size: 13px;
 }
+.cited-text-bullets {
+  margin: 0;
+  padding-left: 20px;
+}
+.cited-text-bullets li {
+  margin: 0 0 8px;
+  line-height: 1.5;
+  font-size: 13px;
+}
 .cited-text-refs {
   display: inline-flex;
   flex-wrap: wrap;

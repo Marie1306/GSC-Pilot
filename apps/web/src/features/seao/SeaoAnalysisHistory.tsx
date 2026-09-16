@@ -1,11 +1,10 @@
+import { useState } from "react";
 import { CitedText } from "../../components/CitedText.js";
 import type { SeaoAdministrationItemDto, SeaoAnalysisDto } from "./api.js";
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString("fr-CA", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
-
-const SECTION_TITLE_STYLE = { fontWeight: 600, fontSize: 13, margin: "8px 0 4px" } as const;
 
 /** Liste Administration — libellé/valeur courts, jamais de citations (voir extractSeaoAdministration, structuredExtraction.ts). */
 function SeaoAdministrationList({ items }: { items: SeaoAdministrationItemDto[] }) {
@@ -18,6 +17,51 @@ function SeaoAdministrationList({ items }: { items: SeaoAdministrationItemDto[] 
         </li>
       ))}
     </ul>
+  );
+}
+
+type SeaoAnalysisTab = "resume" | "admin" | "technical";
+const TAB_LABELS: Record<SeaoAnalysisTab, string> = {
+  resume: "Résumé",
+  admin: "Administration",
+  technical: "Détails techniques",
+};
+const MISSING_SECTION_HINT = "Non disponible pour cette version — relancez une analyse.";
+
+/** Une version d'analyse — onglets confirmés avec Marie le 16 septembre 2026 (à la place d'un empilement vertical), Résumé par défaut, état indépendant par carte. */
+function SeaoAnalysisCard({ analysis }: { analysis: SeaoAnalysisDto }) {
+  const [tab, setTab] = useState<SeaoAnalysisTab>("resume");
+
+  return (
+    <div className="card" style={{ marginBottom: 10, background: "var(--gsc-color-surface2)" }}>
+      <p className="note-meta" style={{ margin: "0 0 8px" }}>
+        Version {analysis.version} · {analysis.requestedByName} · {formatDateTime(analysis.createdAt)}
+      </p>
+      {analysis.changesContent && (
+        <>
+          <p style={{ fontWeight: 600, fontSize: 13, margin: "0 0 8px" }}>Changements depuis la version précédente</p>
+          <CitedText content={analysis.changesContent} />
+        </>
+      )}
+
+      <div className="tabs" role="tablist" style={{ marginBottom: 10 }}>
+        {(Object.keys(TAB_LABELS) as SeaoAnalysisTab[]).map((key) => (
+          <button key={key} type="button" role="tab" aria-selected={tab === key} className={`tab ${tab === key ? "active" : ""}`} onClick={() => setTab(key)}>
+            {TAB_LABELS[key]}
+          </button>
+        ))}
+      </div>
+
+      {tab === "resume" && <CitedText content={analysis.summaryContent} />}
+      {tab === "admin" &&
+        (analysis.adminContent ? <SeaoAdministrationList items={analysis.adminContent} /> : <p className="empty-hint">{MISSING_SECTION_HINT}</p>)}
+      {tab === "technical" &&
+        (analysis.technicalContent ? (
+          <CitedText content={analysis.technicalContent} variant="bullets" />
+        ) : (
+          <p className="empty-hint">{MISSING_SECTION_HINT}</p>
+        ))}
+    </div>
   );
 }
 
@@ -36,31 +80,7 @@ export function SeaoAnalysisHistory({ analyses }: { analyses: SeaoAnalysisDto[] 
     <div style={{ marginBottom: 20 }}>
       <h3 style={{ fontSize: 15, marginBottom: 4 }}>Analyse</h3>
       {analyses.map((analysis) => (
-        <div key={analysis.id} className="card" style={{ marginBottom: 10, background: "var(--gsc-color-surface2)" }}>
-          <p className="note-meta" style={{ margin: "0 0 8px" }}>
-            Version {analysis.version} · {analysis.requestedByName} · {formatDateTime(analysis.createdAt)}
-          </p>
-          {analysis.changesContent && (
-            <>
-              <p style={{ fontWeight: 600, fontSize: 13, margin: "0 0 4px" }}>Changements depuis la version précédente</p>
-              <CitedText content={analysis.changesContent} />
-            </>
-          )}
-          <p style={SECTION_TITLE_STYLE}>Résumé</p>
-          <CitedText content={analysis.summaryContent} />
-          {analysis.adminContent && (
-            <>
-              <p style={SECTION_TITLE_STYLE}>Administration</p>
-              <SeaoAdministrationList items={analysis.adminContent} />
-            </>
-          )}
-          {analysis.technicalContent && (
-            <>
-              <p style={SECTION_TITLE_STYLE}>Détails techniques</p>
-              <CitedText content={analysis.technicalContent} />
-            </>
-          )}
-        </div>
+        <SeaoAnalysisCard key={analysis.id} analysis={analysis} />
       ))}
     </div>
   );

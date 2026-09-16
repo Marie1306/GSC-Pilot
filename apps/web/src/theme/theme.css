@@ -527,6 +527,26 @@ a {
   color: var(--gsc-color-muted);
   font-size: 13px;
 }
+/* Onglets génériques — globalisés le 16 septembre 2026 (2e usage, SeaoAnalysisHistory après PurchasesPage) même principe que .notes-list ci-dessous : une seule copie plutôt que de laisser diverger. */
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--gsc-color-line);
+}
+.tab {
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gsc-color-muted);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+.tab.active {
+  color: var(--gsc-color-brand);
+  border-bottom-color: var(--gsc-color-brand);
+}
 .notes-list {
   list-style: none;
   margin: 8px 0;
