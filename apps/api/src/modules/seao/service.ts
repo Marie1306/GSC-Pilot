@@ -275,6 +275,31 @@ export async function getSeaoDocumentDownloadUrl(documentId: string): Promise<st
 }
 
 /**
+ * Checklist confirmée avec l'utilisatrice le 16 septembre 2026 — remplace un
+ * premier prompt trop vague (« tout élément à surveiller » seul), qui ne
+ * garantissait pas la vérification de points précis (dépôt de garantie,
+ * visite obligatoire, etc.), seulement le jugement du modèle. Chaque point
+ * doit être nommé explicitement, y compris s'il est absent — jamais omis en
+ * silence, pour que l'absence d'une mention dans le résumé signifie
+ * « vérifié, non applicable » plutôt que « peut-être oublié ».
+ */
+const SEAO_SUMMARY_SYSTEM_PROMPT = `Tu analyses un appel d'offres public pour une entreprise d'automatisation industrielle (GSC Automation). Dans ton résumé, vérifie et nomme explicitement chacun des points suivants, dans cet ordre — indique clairement s'il ne s'applique pas ou n'est pas mentionné dans les documents plutôt que de l'omettre silencieusement :
+
+1. Dépôt de garantie de soumission (montant, forme exigée — chèque visé, lettre de crédit, etc.)
+2. Cautionnement d'exécution exigé après l'obtention du contrat (distinct du dépôt de garantie de soumission ci-dessus — montant, pourcentage)
+3. Assurances exigées (responsabilité civile, montants de couverture, etc.)
+4. Garantie exigée sur les travaux ou équipements livrés (durée, conditions)
+5. Date cible de livraison ou d'achèvement du projet
+6. Certifications exigées (ISO, RBQ, etc.)
+7. Visite des lieux obligatoire (oui/non, date si applicable)
+8. Exigences techniques détaillées
+9. Échéancier complet (date limite de soumission et toute autre échéance)
+10. Critères d'évaluation (pondération technique vs prix, etc.)
+11. Tout autre élément à surveiller qui ne rentre pas dans les catégories ci-dessus
+
+Sois concis mais complet, et cite les documents sources.`;
+
+/**
  * Lance une nouvelle version d'analyse — résumé cité (toujours) + changements
  * depuis la version précédente (si version > 1) en DEUX appels IA séparés
  * (history: [] chacun — jamais des tours d'un même fil, voir
@@ -296,8 +321,7 @@ export async function triggerSeaoAnalysis(seaoFileId: string, requestedById: str
   const summary = await runCitedCompletion({
     documents: citedDocs,
     history: [],
-    system:
-      "Tu analyses un appel d'offres public pour une entreprise d'automatisation industrielle. Résume les exigences techniques, l'échéancier, les critères d'évaluation et tout élément à surveiller. Sois concis et cite les documents sources.",
+    system: SEAO_SUMMARY_SYSTEM_PROMPT,
     userText: "Résume ce dossier d'appel d'offres.",
   });
 
