@@ -39,3 +39,26 @@
   cursor: help;
   white-space: nowrap;
 }
+
+/* Liste Administration SEAO (16 septembre 2026) — seule à n'être PAS partagée avec la Boîte à outils, gardée ici avec le reste du rendu d'analyse IA par cohésion. */
+.seao-admin-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.seao-admin-list li {
+  display: flex;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.seao-admin-label {
+  flex: 0 0 auto;
+  color: var(--gsc-color-muted);
+}
+.seao-admin-label::after {
+  content: " :";
+}

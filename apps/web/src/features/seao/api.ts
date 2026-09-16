@@ -39,10 +39,17 @@ export interface SeaoDocumentDto {
   uploadedByName: string;
   uploadedAt: string;
 }
+export interface SeaoAdministrationItemDto {
+  label: string;
+  value: string;
+}
 export interface SeaoAnalysisDto {
   id: string;
   version: number;
   summaryContent: CitedTextBlock[];
+  /** Nul pour une analyse antérieure au 16 septembre 2026 (avant la restructuration en 3 catégories) — jamais recalculé rétroactivement. */
+  technicalContent: CitedTextBlock[] | null;
+  adminContent: SeaoAdministrationItemDto[] | null;
   changesContent: CitedTextBlock[] | null;
   requestedByName: string;
   createdAt: string;

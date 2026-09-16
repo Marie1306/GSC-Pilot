@@ -1682,7 +1682,9 @@ model SeaoAnalysis {
   seaoFile       SeaoFile @relation(fields: [seaoFileId], references: [id])
   version        Int // 1, 2, 3... par dossier
   documentIds    String[] // instantané des SeaoDocument.id existants au moment de CETTE analyse
-  summaryContent Json // blocs de contenu Anthropic (texte + citations), voir lib/ai/citedCompletion.ts — jamais reformatés
+  summaryContent   Json // section "Résumé" — blocs de contenu Anthropic cités (texte + citations), voir lib/ai/citedCompletion.ts — jamais reformatés
+  technicalContent Json? // section "Détails techniques" — même forme que summaryContent (cité) ; nul seulement pour une analyse antérieure au 16 septembre 2026, jamais recalculé rétroactivement
+  adminContent     Json? // section "Administration" — forme structurée SANS citations (voir lib/ai/structuredExtraction.ts extractSeaoAdministration), pas des blocs de contenu Anthropic ; nul seulement pour une analyse antérieure au 16 septembre 2026
   changesContent Json? // "changements depuis la dernière analyse" — nul seulement pour la version 1
   requestedById  String
   createdAt      DateTime @default(now())

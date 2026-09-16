@@ -18,7 +18,7 @@ import { createProjectDirect, updateProjectPlanning } from "../projects/service.
 import { STORAGE_BUCKETS, buildStoragePath, createSignedDownloadUrl, createSignedUploadTarget, type SignedUploadTarget } from "../../lib/storage.js";
 import { uploadDocumentToAnthropic } from "../../lib/ai/documents.js";
 import { runCitedCompletion } from "../../lib/ai/citedCompletion.js";
-import { extractBordereauLines } from "../../lib/ai/structuredExtraction.js";
+import { extractBordereauLines, extractSeaoAdministration } from "../../lib/ai/structuredExtraction.js";
 import { plainTextFromContent } from "../../lib/ai/content.js";
 
 const BUCKET = STORAGE_BUCKETS.SEAO_DOCUMENTS;
@@ -139,6 +139,8 @@ export interface SeaoAnalysisDto {
   id: string;
   version: number;
   summaryContent: unknown;
+  technicalContent: unknown;
+  adminContent: unknown;
   changesContent: unknown;
   requestedByName: string;
   createdAt: string;
@@ -221,6 +223,8 @@ export async function getSeaoFileDetail(id: string): Promise<SeaoFileDetailDto> 
       id: a.id,
       version: a.version,
       summaryContent: a.summaryContent,
+      technicalContent: a.technicalContent,
+      adminContent: a.adminContent,
       changesContent: a.changesContent,
       requestedByName: nameFor(a.requestedById),
       createdAt: a.createdAt.toISOString(),
@@ -275,37 +279,39 @@ export async function getSeaoDocumentDownloadUrl(documentId: string): Promise<st
 }
 
 /**
- * Checklist confirmée avec l'utilisatrice le 16 septembre 2026 — remplace un
- * premier prompt trop vague (« tout élément à surveiller » seul), qui ne
- * garantissait pas la vérification de points précis (dépôt de garantie,
- * visite obligatoire, etc.), seulement le jugement du modèle. Chaque point
- * doit être nommé explicitement, y compris s'il est absent — jamais omis en
- * silence, pour que l'absence d'une mention dans le résumé signifie
- * « vérifié, non applicable » plutôt que « peut-être oublié ».
+ * Trois catégories confirmées avec l'utilisatrice le 16 septembre 2026 —
+ * remplace la checklist à 11 points à plat du premier prompt (moins
+ * "fluide" à lire, mélangeait narratif et points administratifs). Le
+ * Résumé et les Détails techniques restent des appels cités (elle vérifie
+ * les mesures/contraintes contre les documents) ; l'Administration devient
+ * une extraction structurée SANS citations (extractSeaoAdministration,
+ * structuredExtraction.ts) — elle a explicitement dit vouloir une liste
+ * courte, pas un paragraphe qui réécrit la ligne complète du contrat, et
+ * qu'elle vérifie de toute façon le contrat elle-même pour cette partie.
  */
-const SEAO_SUMMARY_SYSTEM_PROMPT = `Tu analyses un appel d'offres public pour une entreprise d'automatisation industrielle (GSC Automation). Dans ton résumé, vérifie et nomme explicitement chacun des points suivants, dans cet ordre — indique clairement s'il ne s'applique pas ou n'est pas mentionné dans les documents plutôt que de l'omettre silencieusement :
+const SEAO_RESUME_SYSTEM_PROMPT = `Tu résumes un appel d'offres public pour une entreprise d'automatisation industrielle (GSC Automation). Ouvre par une phrase concise décrivant l'objet de l'appel d'offres (ce qui est demandé), puis donne un résumé général bref du contexte et de la portée du projet. Les exigences techniques détaillées et les points administratifs sont couverts ailleurs — ne les répète pas ici, reste concis. Cite les documents sources.`;
 
-1. Dépôt de garantie de soumission (montant, forme exigée — chèque visé, lettre de crédit, etc.)
-2. Cautionnement d'exécution exigé après l'obtention du contrat (distinct du dépôt de garantie de soumission ci-dessus — montant, pourcentage)
-3. Assurances exigées (responsabilité civile, montants de couverture, etc.)
-4. Garantie exigée sur les travaux ou équipements livrés (durée, conditions)
-5. Date cible de livraison ou d'achèvement du projet
-6. Certifications exigées (ISO, RBQ, etc.)
-7. Visite des lieux obligatoire (oui/non, date si applicable)
-8. Exigences techniques détaillées
-9. Échéancier complet (date limite de soumission et toute autre échéance)
-10. Critères d'évaluation (pondération technique vs prix, etc.)
-11. Tout autre élément à surveiller qui ne rentre pas dans les catégories ci-dessus
+const SEAO_TECHNICAL_SYSTEM_PROMPT = `Tu analyses les exigences techniques d'un appel d'offres public pour une entreprise d'automatisation industrielle (GSC Automation). Décris ce que demande le devis : mesures, contraintes, spécifications de couleur, force moteur, axes de robot, et tout autre détail technique pertinent à la conception et au chiffrage. Sois concis mais complet, et cite les documents sources.`;
 
-Sois concis mais complet, et cite les documents sources.`;
+/** Reconstruit un texte comparable à plainTextFromContent(...) pour la section Administration (structurée, pas des blocs cités) — voir triggerSeaoAnalysis, comparaison "changements". */
+function adminContentToPlainText(content: unknown): string {
+  if (!Array.isArray(content)) return "";
+  return content
+    .filter((item): item is { label?: unknown; value?: unknown } => typeof item === "object" && item !== null)
+    .map((item) => `${typeof item.label === "string" ? item.label : "?"} : ${typeof item.value === "string" ? item.value : "?"}`)
+    .join("\n");
+}
 
 /**
- * Lance une nouvelle version d'analyse — résumé cité (toujours) + changements
- * depuis la version précédente (si version > 1) en DEUX appels IA séparés
- * (history: [] chacun — jamais des tours d'un même fil, voir
- * citedCompletion.ts), puis extraction du bordereau UNE SEULE FOIS (jamais
- * si des lignes existent déjà — ne réécrit jamais un chiffrage humain déjà
- * commencé).
+ * Lance une nouvelle version d'analyse — Résumé + Détails techniques (cités)
+ * + Administration (structurée) toujours, + changements depuis la version
+ * précédente si version > 1 — quatre appels IA indépendants lancés en
+ * parallèle (aucun ne dépend de la sortie d'un autre ; "changements" ne
+ * compare qu'à lastAnalysis, déjà en main), plutôt que séquentiels comme
+ * l'unique appel d'origine — réduit la latence totale, un vrai risque de
+ * dépassement de délai HTTP (Render) avec 4 appels Sonnet. Extraction du
+ * bordereau UNE SEULE FOIS (jamais si des lignes existent déjà — ne réécrit
+ * jamais un chiffrage humain déjà commencé), après les 4 appels ci-dessus.
  */
 export async function triggerSeaoAnalysis(seaoFileId: string, requestedById: string) {
   await loadSeaoFileOrThrow(seaoFileId);
@@ -318,23 +324,34 @@ export async function triggerSeaoAnalysis(seaoFileId: string, requestedById: str
   const lastAnalysis = await prisma.seaoAnalysis.findFirst({ where: { seaoFileId }, orderBy: { version: "desc" } });
   const version = (lastAnalysis?.version ?? 0) + 1;
 
-  const summary = await runCitedCompletion({
-    documents: citedDocs,
-    history: [],
-    system: SEAO_SUMMARY_SYSTEM_PROMPT,
-    userText: "Résume ce dossier d'appel d'offres.",
-  });
+  const previousPlainText = lastAnalysis
+    ? [
+        plainTextFromContent(lastAnalysis.summaryContent),
+        plainTextFromContent(lastAnalysis.technicalContent),
+        adminContentToPlainText(lastAnalysis.adminContent),
+      ]
+        .filter((text) => text.length > 0)
+        .join("\n\n")
+    : null;
 
-  let changes: Awaited<ReturnType<typeof runCitedCompletion>> | null = null;
-  if (lastAnalysis) {
-    const previousSummary = plainTextFromContent(lastAnalysis.summaryContent);
-    changes = await runCitedCompletion({
+  const [resume, technical, admin, changes] = await Promise.all([
+    runCitedCompletion({ documents: citedDocs, history: [], system: SEAO_RESUME_SYSTEM_PROMPT, userText: "Résume l'objet de cet appel d'offres." }),
+    runCitedCompletion({
       documents: citedDocs,
       history: [],
-      system: "Tu compares un appel d'offres à sa version précédente pour repérer les changements (addenda, exigences modifiées, nouvelle échéance).",
-      userText: `Voici le résumé de la version précédente (${lastAnalysis.version}) :\n\n${previousSummary}\n\nEn comparant avec les documents actuels (incluant tout addenda déposé depuis), décris précisément ce qui a changé. S'il n'y a aucun changement de fond, dis-le clairement.`,
-    });
-  }
+      system: SEAO_TECHNICAL_SYSTEM_PROMPT,
+      userText: "Décris les exigences techniques de cet appel d'offres.",
+    }),
+    extractSeaoAdministration(citedDocs),
+    previousPlainText
+      ? runCitedCompletion({
+          documents: citedDocs,
+          history: [],
+          system: "Tu compares un appel d'offres à sa version précédente pour repérer les changements (addenda, exigences modifiées, nouvelle échéance).",
+          userText: `Voici l'analyse de la version précédente (${lastAnalysis!.version}) :\n\n${previousPlainText}\n\nEn comparant avec les documents actuels (incluant tout addenda déposé depuis), décris précisément ce qui a changé. S'il n'y a aucun changement de fond, dis-le clairement.`,
+        })
+      : Promise.resolve(null),
+  ]);
 
   const existingLineCount = await prisma.seaoBordereauLine.count({ where: { seaoFileId } });
   if (existingLineCount === 0) {
@@ -361,11 +378,13 @@ export async function triggerSeaoAnalysis(seaoFileId: string, requestedById: str
       seaoFileId,
       version,
       documentIds: documents.map((d) => d.id),
-      summaryContent: summary.content as unknown as object,
+      summaryContent: resume.content as unknown as object,
+      technicalContent: technical.content as unknown as object,
+      adminContent: admin as unknown as object,
       changesContent: (changes?.content as unknown as object) ?? undefined,
       requestedById,
-      inputTokens: summary.inputTokens + (changes?.inputTokens ?? 0),
-      outputTokens: summary.outputTokens + (changes?.outputTokens ?? 0),
+      inputTokens: resume.inputTokens + technical.inputTokens + (changes?.inputTokens ?? 0),
+      outputTokens: resume.outputTokens + technical.outputTokens + (changes?.outputTokens ?? 0),
     },
   });
 }
