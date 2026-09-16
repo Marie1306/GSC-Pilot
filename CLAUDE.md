@@ -1133,15 +1133,15 @@ cette session)** :
 2. Ajouter `ANTHROPIC_API_KEY` (console.anthropic.com → API Keys) dans
    Render → Environment — sans quoi le déploiement échouera au démarrage
    (`env.ts` l'exige, même mécanisme que `APP_URL` le 2 septembre 2026).
-3. Coller la migration `20260916024048_seao_and_toolbox` (purement
-   additive) dans Supabase → SQL Editor — **vérifier qu'une note
-   « Fait par Marie, confirmé » existe ici avant de supposer l'un ou
-   l'autre des deux modules fonctionnel en production**, même leçon que
-   l'épisode du 9 septembre 2026 (migration Vente externe oubliée,
-   Tableau de bord cassé).
+3. ~~Coller la migration `20260916024048_seao_and_toolbox`~~ **Fait par
+   Marie, confirmé (voir section suivante)** — exactement le même bogue
+   que le 9 septembre 2026 (Vente externe) s'est reproduit une deuxième
+   fois avant d'être collée.
 4. Un vrai test manuel (upload d'un PDF réel, analyse, question Boîte à
-   outils) reste nécessaire une fois 1-3 faits — jamais cliqué-à-travers
-   dans cette session (même limite d'authentification que d'habitude).
+   outils) reste nécessaire — la migration et le déploiement sont
+   confirmés fonctionnels, mais aucun clic-à-travers réel des
+   fonctionnalités IA elles-mêmes n'a encore eu lieu (buckets Storage à
+   créer en premier, voir point 1 — pas confirmé fait).
 
 ### Déploiement Render cassé par le commit ci-dessus — corrigé
 
@@ -1178,8 +1178,47 @@ de Render (toutes les variables déjà confirmées présentes, sauf
 attendu plutôt qu'un throw non typé. `npm run typecheck && npm run lint
 && npm test && npm run build` verts (473 tests, inchangé).
 
-**Pas encore confirmé par Marie** que le nouveau déploiement réussit —
-si le prochain rapport indique toujours un échec, ne pas supposer que
-c'est la même cause : redemander les logs Render exacts avant de deviner
-une deuxième fois, cette session n'ayant aucun moyen de les consulter
-elle-même.
+**Confirmé par Marie** (capture d'écran) : déploiement réussi, connexion
+et menu latéral corrects (SEAO et Boîte à outils visibles). Un deuxième
+problème est apparu immédiatement après, distinct de celui-ci — voir
+section suivante.
+
+### Tableau de bord cassé une deuxième fois — même cause que le 9 septembre 2026 (migration non collée)
+
+Rapporté par l'utilisatrice (capture d'écran) : une fois le déploiement
+réussi, « Impossible de charger le tableau de bord » — texte identique à
+l'épisode du 9 septembre 2026 (Vente externe). Cause confirmée avant même
+de regarder les logs (toujours aucun accès réseau à Render/Supabase) :
+exactement le même mécanisme — `getDashboardSummary` appelle
+`getActionCenterItems`, qui appelle maintenant aussi `listSeaoFiles`
+(nouvelle catégorie `seao_deadline`/`seao_go_no_go_pending`, voir
+`actionCenter/service.ts` plus haut) — la table `SeaoFile` n'existait pas
+encore dans la vraie base, exactement le point 3 de la liste « reste à
+faire » ci-dessus, jamais fait avant ce rapport. Repéré immédiatement
+grâce au parallèle déjà documenté avec l'épisode du 9 septembre — pas de
+nouvelle investigation nécessaire, seulement remettre le même SQL
+(contenu exact de `20260916024048_seao_and_toolbox`) à coller dans
+Supabase → SQL Editor.
+
+**Fait par Marie, confirmé** (« ok c'est fonctionnel ») le même jour.
+Les deux bogues de ce lancement (clé Anthropic requise à tort +
+migration non collée) sont maintenant résolus — SEAO et Boîte à outils
+tournent en production avec le vrai schéma. **Reste non confirmé** :
+les buckets Storage (point 1 de la liste ci-dessus) et donc tout usage
+réel des fonctionnalités IA elles-mêmes (dépôt d'un document, analyse,
+question Boîte à outils) — rien n'indique que Marie les ait créés, ne
+pas supposer que SEAO/Boîte à outils sont utilisables de bout en bout
+avant confirmation explicite.
+
+**Retenu une deuxième fois de cet épisode** : le processus de
+déploiement de ce projet n'applique toujours aucune migration
+automatiquement (confirmé une première fois le 9 septembre 2026, voir
+plus haut — rien n'a changé depuis) — chaque nouveau module qui touche le
+schéma va reproduire ce même bogue à la prochaine session tant que ce
+mécanisme n'est pas changé. Envisager, une prochaine fois qu'une session
+a la bande passante pour un changement de processus plutôt qu'une
+fonctionnalité : soit un hook de déploiement Render qui roule `prisma
+migrate deploy` automatiquement (nécessiterait que Render ait un accès
+réseau direct à la base, à confirmer), soit au minimum un rappel
+explicite à l'utilisatrice à la fin de toute session qui ajoute une
+migration.
