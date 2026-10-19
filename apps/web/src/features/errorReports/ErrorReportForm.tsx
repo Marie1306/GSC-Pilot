@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../lib/apiClient.js";
 import { fetchErrorReportSubjects, createErrorReport, formatCurrency } from "./api.js";
-import { readAndCompressImage } from "./imageCapture.js";
+import { readAndCompressImage } from "../../lib/imageCapture.js";
 
 interface ErrorReportFormProps {
   onClose: () => void;

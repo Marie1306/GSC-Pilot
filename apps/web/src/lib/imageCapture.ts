@@ -1,9 +1,13 @@
 /**
  * Redimensionne/compresse une image sélectionnée (caméra ou téléchargement)
- * avant de la garder en base64 — pas d'intégration Supabase Storage réelle
- * dans ce projet (voir schema.prisma, ErrorReport.photos), les photos sont
- * donc stockées directement en base. Ce redimensionnement les garde
- * raisonnables même avec plusieurs photos par rapport (confirmé).
+ * avant de la garder en base64 — les photos sont stockées directement en
+ * base (ErrorReport.photos, PurchaseRequest.photos — voir schema.prisma),
+ * jamais via Supabase Storage. Ce redimensionnement les garde raisonnables
+ * même avec plusieurs photos par formulaire (confirmé). Partagé entre
+ * Rapports d'erreurs (28 août 2026, premier usage) et Demandes d'achat (19
+ * octobre 2026, 2e usage — promu ici depuis features/errorReports/ au lieu
+ * d'être dupliqué, même principe que les classes CSS globalisées au 2e
+ * usage ce même trimestre).
  */
 export function readAndCompressImage(file: File, maxDimension = 1280, quality = 0.8): Promise<string> {
   return new Promise((resolve, reject) => {

@@ -843,11 +843,26 @@ model PurchaseRequest {
   // le suivi) — purement informatif, jamais utilisé par une règle métier
   // (pas de restriction de statut pour la modifier, contrairement à amount).
   expectedReceiptDate         DateTime?         @db.Date
+  // Photos jointes à la soumission (19 octobre 2026, demande explicite) —
+  // même mécanisme qu'ErrorReport.photos : base64 compressé côté navigateur
+  // (lib/imageCapture.ts), stocké directement en base, pas de Supabase
+  // Storage ici. Uniquement alimenté par le formulaire général
+  // (PurchaseRequestForm) — jamais par la liste rapide (ShortlistForm, pas
+  // demandé) ni les lignes générées automatiquement pour une Vente externe.
+  photos                      PurchaseRequestPhoto[]
 
   @@index([status])
   @@index([requesterId])
   @@index([projectId])
   @@index([externalSaleId])
+}
+
+model PurchaseRequestPhoto {
+  id                String          @id @default(uuid())
+  purchaseRequestId String
+  purchaseRequest   PurchaseRequest @relation(fields: [purchaseRequestId], references: [id])
+  imageDataUrl      String
+  uploadedAt        DateTime        @default(now())
 }
 
 // ---------------------------------------------------------------------------

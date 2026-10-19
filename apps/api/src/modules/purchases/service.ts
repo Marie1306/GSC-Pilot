@@ -93,6 +93,12 @@ export interface ShortlistLineInput {
   estimatedAmountMax?: number;
 }
 
+export interface PurchaseRequestPhotoDto {
+  id: string;
+  imageDataUrl: string;
+  uploadedAt: string;
+}
+
 export interface PurchaseRequestDto {
   id: string;
   displayId: string;
@@ -124,6 +130,8 @@ export interface PurchaseRequestDto {
   /** Équivalent de appliedToProjectAt pour une ligne de Vente externe (projectType==="sale"). */
   appliedToExternalSaleAt: string | null;
   expectedReceiptDate: string | null;
+  /** Formulaire général seulement (PurchaseRequestForm) — jamais la liste rapide ni les lignes de Vente externe, voir schema.prisma. */
+  photos: PurchaseRequestPhotoDto[];
 }
 
 type PurchaseRequestWithRelations = PurchaseRequest & {
@@ -131,6 +139,7 @@ type PurchaseRequestWithRelations = PurchaseRequest & {
   project: { projectNumber: string; name: string } | null;
   externalSale: { displayId: string } | null;
   category: { name: string } | null;
+  photos: { id: string; imageDataUrl: string; uploadedAt: Date }[];
 };
 
 const PENDING_STATUSES = ["owner_pending", "boss_pending"];
@@ -189,6 +198,8 @@ export interface CreatePurchaseRequestInput {
   supplier?: string;
   estimatedAmountMin?: number;
   estimatedAmountMax?: number;
+  /** Data URLs base64 (voir schema.prisma, en-tête de PurchaseRequest.photos) — même mécanisme qu'ErrorReport.photos. */
+  photos?: string[];
 }
 
 /**
@@ -212,6 +223,9 @@ export async function createPurchaseRequest(requesterId: string, input: CreatePu
     const project = await prisma.project.findUnique({ where: { id: input.projectId } });
     if (!project) throw new HttpError(404, "Projet introuvable.");
   }
+  for (const photo of input.photos ?? []) {
+    if (!photo.startsWith("data:image/")) throw new HttpError(400, "Photo invalide.");
+  }
 
   return prisma.$transaction(async (tx) => {
     const settings = await tx.settings.findFirst();
@@ -231,6 +245,7 @@ export async function createPurchaseRequest(requesterId: string, input: CreatePu
         estimatedAmountMin: input.estimatedAmountMin ?? null,
         estimatedAmountMax: input.estimatedAmountMax ?? null,
         status: "owner_pending",
+        photos: input.photos?.length ? { create: input.photos.map((imageDataUrl) => ({ imageDataUrl })) } : undefined,
       },
     });
     await tx.settings.update({ where: { id: settings.id }, data: { nextPurchaseRequestNumber: number + 1, purchaseRequestNumberYear: year } });
@@ -268,6 +283,7 @@ export async function listPurchaseRequests(viewer: { id: string; persona: Person
       project: { select: { projectNumber: true, name: true } },
       externalSale: { select: { displayId: true } },
       category: { select: { name: true } },
+      photos: true,
     },
     orderBy: { requestedAt: "desc" },
   });
@@ -320,6 +336,7 @@ export async function listPurchaseRequestHistory(
       project: { select: { projectNumber: true, name: true } },
       externalSale: { select: { displayId: true } },
       category: { select: { name: true } },
+      photos: true,
     },
     orderBy: { requestedAt: "desc" },
     take: PURCHASE_HISTORY_PAGE_SIZE,
@@ -356,6 +373,7 @@ export function toPurchaseRequestDto(row: PurchaseRequestWithRelations, viewerPe
     appliedToProjectAt: row.appliedToProjectAt?.toISOString() ?? null,
     appliedToExternalSaleAt: row.appliedToExternalSaleAt?.toISOString() ?? null,
     expectedReceiptDate: row.expectedReceiptDate?.toISOString().slice(0, 10) ?? null,
+    photos: row.photos.map((photo) => ({ id: photo.id, imageDataUrl: photo.imageDataUrl, uploadedAt: photo.uploadedAt.toISOString() })),
   };
 }
 

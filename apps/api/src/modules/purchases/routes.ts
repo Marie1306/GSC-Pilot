@@ -79,6 +79,7 @@ const createRequestSchema = z.object({
   supplier: z.string().trim().optional(),
   estimatedAmountMin: z.number().nonnegative().optional(),
   estimatedAmountMax: z.number().nonnegative().optional(),
+  photos: z.array(z.string()).optional(),
 });
 
 /** Formulaire général de demande d'achat (avec catégorie) — ouvert à tous depuis le 13 août 2026. */

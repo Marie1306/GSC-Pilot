@@ -39,6 +39,12 @@ export const STATUS_LABELS: Record<string, string> = {
   rejected: "Rejetée",
 };
 
+export interface PurchaseRequestPhotoDto {
+  id: string;
+  imageDataUrl: string;
+  uploadedAt: string;
+}
+
 export interface PurchaseRequestDto {
   id: string;
   displayId: string;
@@ -66,6 +72,7 @@ export interface PurchaseRequestDto {
   /** Équivalent de appliedToProjectAt pour une ligne de Vente externe. */
   appliedToExternalSaleAt: string | null;
   expectedReceiptDate: string | null;
+  photos: PurchaseRequestPhotoDto[];
 }
 
 export interface NewPurchaseRequestInput {
@@ -76,6 +83,7 @@ export interface NewPurchaseRequestInput {
   supplier?: string;
   estimatedAmountMin?: number;
   estimatedAmountMax?: number;
+  photos?: string[];
 }
 
 export interface UpdatePurchaseRequestInput {

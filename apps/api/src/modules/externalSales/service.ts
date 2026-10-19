@@ -242,6 +242,7 @@ export async function getExternalSaleDetail(id: string, viewerPersona: Persona):
       project: { select: { projectNumber: true, name: true } },
       externalSale: { select: { displayId: true } },
       category: { select: { name: true } },
+      photos: true,
     },
     orderBy: { requestedAt: "asc" },
   });

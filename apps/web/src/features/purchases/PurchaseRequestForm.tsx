@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchProjects, fetchPurchaseCategories, submitPurchaseRequest, type NewPurchaseRequestInput } from "./api.js";
+import { readAndCompressImage } from "../../lib/imageCapture.js";
 
 type ProjectType = NewPurchaseRequestInput["projectType"];
 
@@ -31,6 +32,8 @@ export function PurchaseRequestForm() {
   const [form, setForm] = useState(EMPTY);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [processingPhoto, setProcessingPhoto] = useState(false);
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -42,11 +45,13 @@ export function PurchaseRequestForm() {
         supplier: form.supplier?.trim() || undefined,
         estimatedAmountMin: form.estimatedAmountMin,
         estimatedAmountMax: form.estimatedAmountMax,
+        photos,
       }),
     onSuccess: (result) => {
       setFeedback(`Demande ${result.displayId} soumise — visible dans la liste ci-dessous.`);
       setError(null);
       setForm(EMPTY);
+      setPhotos([]);
       void queryClient.invalidateQueries({ queryKey: ["purchase-requests"] });
     },
     onError: () => setError("Erreur lors de la soumission — vérifiez les champs et réessayez."),
@@ -54,6 +59,19 @@ export function PurchaseRequestForm() {
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function handlePhotoFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setProcessingPhoto(true);
+    try {
+      const compressed = await Promise.all(Array.from(files).map((file) => readAndCompressImage(file)));
+      setPhotos((current) => [...current, ...compressed]);
+    } catch {
+      setError("Impossible de traiter la photo — réessayez.");
+    } finally {
+      setProcessingPhoto(false);
+    }
   }
 
   function handleSubmit(event: FormEvent) {
@@ -135,6 +153,57 @@ export function PurchaseRequestForm() {
             value={form.estimatedAmountMax ?? ""}
             onChange={(e) => set("estimatedAmountMax", e.target.value ? Number(e.target.value) : undefined)}
           />
+        </div>
+
+        <div className="field field-full">
+          <label>Photos (facultatif)</label>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <label className="btn btn-secondary btn-small" style={{ cursor: "pointer" }}>
+              📷 Prendre une photo
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                style={{ display: "none" }}
+                onChange={(event) => {
+                  void handlePhotoFiles(event.target.files);
+                  event.target.value = "";
+                }}
+              />
+            </label>
+            <label className="btn btn-secondary btn-small" style={{ cursor: "pointer" }}>
+              📁 Télécharger une photo
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                style={{ display: "none" }}
+                onChange={(event) => {
+                  void handlePhotoFiles(event.target.files);
+                  event.target.value = "";
+                }}
+              />
+            </label>
+            {processingPhoto && <span style={{ fontSize: 13, color: "var(--gsc-color-muted)" }}>Traitement…</span>}
+          </div>
+          {photos.length > 0 && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+              {photos.map((photo, index) => (
+                <div key={index} style={{ position: "relative" }}>
+                  <img src={photo} alt="" style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 6 }} />
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    title="Retirer"
+                    style={{ position: "absolute", top: -6, right: -6 }}
+                    onClick={() => setPhotos((current) => current.filter((_, i) => i !== index))}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {error && <p className="form-error">{error}</p>}
