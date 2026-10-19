@@ -25,6 +25,7 @@ import {
   updateRollingPostMortemAnalysis,
   updateRollingGanttPlanning,
   setRollingArchived,
+  setRollingCompleted,
   deleteRolling,
   getApprovedRollingTimeEntries,
 } from "./service.js";
@@ -162,6 +163,19 @@ rollingsRouter.patch(
     const id = z.uuid().parse(req.params.id);
     const { archived } = z.object({ archived: z.boolean() }).parse(req.body);
     await setRollingArchived(id, archived);
+    res.status(204).end();
+  },
+);
+
+/** Marquer/démarquer manuellement un roulement comme terminé (19 octobre 2026) — même palier que les gestes de fulfillment existants. */
+rollingsRouter.patch(
+  "/rollings/:id/completed",
+  requireAuth,
+  requirePermission((persona) => canChooseFulfillmentMode(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const { completed } = z.object({ completed: z.boolean() }).parse(req.body);
+    await setRollingCompleted(id, completed);
     res.status(204).end();
   },
 );

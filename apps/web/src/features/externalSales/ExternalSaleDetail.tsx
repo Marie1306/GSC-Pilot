@@ -1,8 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { canManageExternalSales } from "@gsc-pilot/business-rules";
+import { useAuth } from "../../lib/auth/useAuth.js";
 import { formatCalendarDate } from "../../lib/date.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { STATUS_LABELS, FULFILLMENT_STATUS_LABELS, applyPurchaseRequestToExternalSale } from "../purchases/api.js";
-import { fetchExternalSaleDetail, formatCurrency } from "./api.js";
+import { fetchExternalSaleDetail, formatCurrency, setExternalSaleCompleted, EXTERNAL_SALE_STATUS_LABELS } from "./api.js";
 import { ExternalSaleFulfillment } from "./ExternalSaleFulfillment.js";
 
 interface ExternalSaleDetailProps {
@@ -19,6 +21,7 @@ interface ExternalSaleDetailProps {
  * (PurchaseRequestList.tsx) — jamais dupliquée ici, voir le plan confirmé.
  */
 export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
+  const { employee } = useAuth();
   const queryClient = useQueryClient();
   const detailQuery = useQuery({ queryKey: ["external-sale", id], queryFn: () => fetchExternalSaleDetail(id) });
   const sale = detailQuery.data;
@@ -34,6 +37,12 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
       /* affiché ligne par ligne via applyMutation.isError plus bas serait superflu ici — la ligne reste simplement inchangée, l'utilisatrice réessaie. */
     },
   });
+  const completedMutation = useMutation({
+    mutationFn: (completed: boolean) => setExternalSaleCompleted(id, completed),
+    onSuccess: invalidate,
+  });
+  const canManage = !!employee && canManageExternalSales(employee.persona);
+  const isCompleted = sale?.status === "ready_invoice";
 
   return (
     <div className="modal-backdrop">
@@ -41,7 +50,15 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
         <div className="modal-header">
           <div>
             <h2>{sale ? `${sale.displayId} — ${sale.company ?? sale.contactName}` : "Vente externe"}</h2>
-            {sale && <p className="modal-subtitle">{formatCalendarDate(sale.createdAt)}</p>}
+            {sale && (
+              <p className="modal-subtitle">
+                {formatCalendarDate(sale.createdAt)}
+                {" · "}
+                <span className={`badge-pill ${isCompleted ? "badge-conforme" : "badge-neutral"}`}>
+                  {EXTERNAL_SALE_STATUS_LABELS[sale.status] ?? sale.status}
+                </span>
+              </p>
+            )}
           </div>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Fermer">
             ×
@@ -131,6 +148,16 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
         </div>
 
         <div className="modal-footer">
+          {sale && canManage && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={completedMutation.isPending}
+              onClick={() => completedMutation.mutate(!isCompleted)}
+            >
+              {isCompleted ? "Réactiver la vente" : "Terminer la vente"}
+            </button>
+          )}
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Fermer
           </button>

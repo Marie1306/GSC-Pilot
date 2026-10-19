@@ -527,6 +527,26 @@ export async function setRollingArchived(rollingId: string, archived: boolean): 
   await prisma.rolling.update({ where: { id: rollingId }, data: { archivedAt: archived ? new Date() : null } });
 }
 
+/**
+ * Marque/démarque manuellement un roulement comme terminé (19 octobre 2026,
+ * demande explicite — même geste que setExternalSaleCompleted,
+ * externalSales/service.ts) — indépendant du cheminement automatique par
+ * confirmRollingFulfillment/confirmWarehouseDelivery ci-dessus, qui atteint
+ * déjà "ready_invoice" pour les modes tiers/ramassage/bon de livraison.
+ * Couvre le mode installation (ne se ferme jamais automatiquement, voir
+ * fulfillmentClosesEntity, fulfillment.ts) et tout roulement qu'elle
+ * considère terminé sans passer par le rituel complet de fulfillment.
+ * Réversible, comme setRollingArchived ci-dessus — DISTINCT d'archivedAt :
+ * ce champ pilote l'affichage en 2 sections sur la même page
+ * (RollingsPage.tsx), archivedAt continue de masquer entièrement un
+ * roulement peu importe son status.
+ */
+export async function setRollingCompleted(rollingId: string, completed: boolean): Promise<void> {
+  const rolling = await prisma.rolling.findUnique({ where: { id: rollingId } });
+  if (!rolling) throw new HttpError(404, "Roulement introuvable.");
+  await prisma.rolling.update({ where: { id: rollingId }, data: { status: completed ? "ready_invoice" : "active" } });
+}
+
 /** Corbeille — mécanisme seulement (deletedAt, masqué des listes actives), même patron que deleteProject. */
 export async function deleteRolling(rollingId: string): Promise<void> {
   const rolling = await prisma.rolling.findUnique({ where: { id: rollingId } });

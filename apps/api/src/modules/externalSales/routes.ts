@@ -10,6 +10,7 @@ import {
   chooseExternalSaleFulfillmentMode,
   confirmExternalSaleFulfillment,
   getNextExternalSaleDisplayId,
+  setExternalSaleCompleted,
 } from "./service.js";
 
 export const externalSalesRouter = Router();
@@ -87,5 +88,13 @@ externalSalesRouter.post("/external-sales/:id/fulfillment/confirm", requireAuth,
   const id = z.uuid().parse(req.params.id);
   const { note } = z.object({ note: z.string().optional() }).parse(req.body ?? {});
   await confirmExternalSaleFulfillment(id, note);
+  res.status(204).end();
+});
+
+/** Marquer/démarquer manuellement une vente comme terminée (19 octobre 2026) — réversible, voir setExternalSaleCompleted. */
+externalSalesRouter.patch("/external-sales/:id/completed", requireAuth, requirePermission(canManage), async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  const { completed } = z.object({ completed: z.boolean() }).parse(req.body);
+  await setExternalSaleCompleted(id, completed);
   res.status(204).end();
 });

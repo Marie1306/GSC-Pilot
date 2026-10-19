@@ -377,3 +377,23 @@ export async function confirmExternalSaleFulfillment(id: string, note?: string):
     },
   });
 }
+
+/**
+ * Marque/démarque manuellement une vente comme terminée (19 octobre 2026,
+ * demande explicite de l'utilisatrice) — indépendant du cheminement
+ * automatique par confirmExternalSaleFulfillment/confirmWarehouseDelivery
+ * (deliveries/service.ts) ci-dessus, qui atteint déjà "ready_invoice" pour
+ * les modes tiers/ramassage/bon de livraison. Nécessaire pour le mode
+ * installation (ne se ferme jamais automatiquement, voir
+ * fulfillmentClosesEntity, fulfillment.ts) et pour toute vente qu'elle
+ * considère terminée sans passer par le rituel complet de fulfillment.
+ * Réversible — même esprit que setRollingArchived/setProjectArchived :
+ * jamais un aller simple, aucune donnée supprimée ni recalculée (partsBaseCost/
+ * salePrice restent gelés comme toujours). Alimente la section "Ventes
+ * terminées" de ExternalSaleList.tsx, au même titre qu'une vente ayant
+ * atteint ready_invoice automatiquement.
+ */
+export async function setExternalSaleCompleted(id: string, completed: boolean): Promise<void> {
+  await loadExternalSaleOrThrow(id);
+  await prisma.externalSale.update({ where: { id }, data: { status: completed ? "ready_invoice" : "active" } });
+}

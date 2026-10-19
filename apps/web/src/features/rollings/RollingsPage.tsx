@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { canCreateRollingDirectly } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
-import { fetchRollings, formatCurrency } from "./api.js";
+import { fetchRollings, formatCurrency, type RollingListItemDto } from "./api.js";
 import { RollingDetail } from "./RollingDetail.js";
 import { RollingForm } from "./RollingForm.js";
 import "./rollings.css";
@@ -12,6 +12,45 @@ const STATUS_LABELS: Record<string, string> = { active: "Actif", ready_invoice: 
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("fr-CA", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function RollingsTable({ rollings, onOpen }: { rollings: RollingListItemDto[]; onOpen: (id: string) => void }) {
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table className="shortlist-table">
+        <thead>
+          <tr>
+            <th>Roulement</th>
+            <th>Client</th>
+            <th className="num">Revenu</th>
+            <th>Statut</th>
+            <th>Créé le</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {rollings.map((rolling) => (
+            <tr key={rolling.id}>
+              <td>{rolling.rollingNumber}</td>
+              <td>{rolling.company ?? rolling.contactName}</td>
+              <td className="num">{rolling.sold !== undefined ? formatCurrency(rolling.sold) : "—"}</td>
+              <td>
+                <span className={`badge-pill ${rolling.status === "ready_invoice" ? "badge-conforme" : "badge-neutral"}`}>
+                  {STATUS_LABELS[rolling.status] ?? rolling.status}
+                </span>
+              </td>
+              <td>{formatDate(rolling.createdAt)}</td>
+              <td>
+                <button type="button" className="btn btn-secondary btn-small" onClick={() => onOpen(rolling.id)}>
+                  Ouvrir
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 /**
@@ -26,6 +65,15 @@ function formatDate(iso: string): string {
  * l'utilisatrice — auparavant une section intégrée à la page) — voir
  * RollingForm.tsx. ?create=1 (Ajouter rapidement) dérivé de searchParams à
  * chaque rendu — voir ClientRequestsPage.tsx pour l'explication du patron.
+ *
+ * Séparée en 2 sections sur la même page depuis le 19 octobre 2026 (demande
+ * explicite, même traitement que Vente externe) — actifs en haut, terminés
+ * (status==="ready_invoice", geste manuel "Terminer le roulement" possible
+ * depuis RollingDetail.tsx en plus du cheminement automatique par
+ * confirmRollingFulfillment) dans une 2e carte en bas, jamais masqués ni
+ * supprimés. archivedAt reste un mécanisme séparé (masque entièrement, voir
+ * RollingOptionsMenu.tsx) — un roulement archivé n'apparaît dans aucune des
+ * 2 sections ici, inchangé.
  */
 export function RollingsPage() {
   const { employee } = useAuth();
@@ -51,6 +99,8 @@ export function RollingsPage() {
   if (!employee) return null;
   const canCreate = canCreateRollingDirectly(employee.persona);
   const rollings = rollingsQuery.data?.rollings ?? [];
+  const activeRollings = rollings.filter((rolling) => rolling.status !== "ready_invoice");
+  const completedRollings = rollings.filter((rolling) => rolling.status === "ready_invoice");
 
   return (
     <div>
@@ -65,45 +115,21 @@ export function RollingsPage() {
         </div>
         {rollingsQuery.isError ? (
           <p className="form-error">Impossible de charger les roulements.</p>
-        ) : rollings.length === 0 ? (
-          <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucun roulement pour l'instant.</p>
+        ) : activeRollings.length === 0 ? (
+          <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucun roulement actif pour l'instant.</p>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table className="shortlist-table">
-              <thead>
-                <tr>
-                  <th>Roulement</th>
-                  <th>Client</th>
-                  <th className="num">Revenu</th>
-                  <th>Statut</th>
-                  <th>Créé le</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rollings.map((rolling) => (
-                  <tr key={rolling.id}>
-                    <td>{rolling.rollingNumber}</td>
-                    <td>{rolling.company ?? rolling.contactName}</td>
-                    <td className="num">{rolling.sold !== undefined ? formatCurrency(rolling.sold) : "—"}</td>
-                    <td>
-                      <span className={`badge-pill ${rolling.status === "ready_invoice" ? "badge-conforme" : "badge-neutral"}`}>
-                        {STATUS_LABELS[rolling.status] ?? rolling.status}
-                      </span>
-                    </td>
-                    <td>{formatDate(rolling.createdAt)}</td>
-                    <td>
-                      <button type="button" className="btn btn-secondary btn-small" onClick={() => setOpenId(rolling.id)}>
-                        Ouvrir
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <RollingsTable rollings={activeRollings} onOpen={setOpenId} />
         )}
       </div>
+
+      {completedRollings.length > 0 && (
+        <div className="card" style={{ marginTop: 20 }}>
+          <div className="card-band-header">
+            <h3>Roulements terminés</h3>
+          </div>
+          <RollingsTable rollings={completedRollings} onOpen={setOpenId} />
+        </div>
+      )}
 
       {showForm && canCreate && (
         <RollingForm

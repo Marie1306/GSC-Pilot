@@ -68,7 +68,7 @@ describe("RollingsPage — création directe, sans détour budgétaire", () => {
 
   it("« + Créer un roulement » ouvre directement le formulaire de contact, sans aucun bouton budgétaire", async () => {
     renderPage(direction);
-    await waitFor(() => expect(screen.getByText("Aucun roulement pour l'instant.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Aucun roulement actif pour l'instant.")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "+ Créer un roulement" }));
     expect(screen.getByText("Nouveau roulement")).toBeInTheDocument();
     expect(screen.queryByText(/budgétaire/i)).not.toBeInTheDocument();
@@ -76,7 +76,7 @@ describe("RollingsPage — création directe, sans détour budgétaire", () => {
 
   it("le formulaire de création directe reste fonctionnel", async () => {
     renderPage(direction);
-    await waitFor(() => expect(screen.getByText("Aucun roulement pour l'instant.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Aucun roulement actif pour l'instant.")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "+ Créer un roulement" }));
     expect(screen.getByText(/Création directe : heures\/achats\/prix restent à zéro/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Créer" })).toBeInTheDocument();

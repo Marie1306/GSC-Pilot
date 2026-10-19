@@ -8,7 +8,9 @@ import type { PurchaseRequestDto } from "../purchases/api.js";
 export { FULFILLMENT_MODE_LABELS, FULFILLMENT_STATUS_LABELS, formatCurrency } from "../projects/api.js";
 export type { FulfillmentMode };
 
-// Deux seules valeurs possibles (fulfillment.ts, jamais d'autre transition) — même patron que projects/api.ts.
+// Deux seules valeurs possibles — atteintes automatiquement via fulfillment.ts
+// (même patron que projects/api.ts) OU manuellement via setExternalSaleCompleted
+// (19 octobre 2026, voir ExternalSaleDetail.tsx).
 export const EXTERNAL_SALE_STATUS_LABELS: Record<string, string> = {
   active: "Active",
   ready_invoice: "Prêt à facturer",
@@ -112,4 +114,9 @@ export function chooseExternalSaleFulfillmentMode(id: string, input: ChooseExter
 
 export function confirmExternalSaleFulfillment(id: string, note?: string): Promise<void> {
   return apiFetch(`/api/external-sales/${id}/fulfillment/confirm`, { method: "POST", body: JSON.stringify({ note }) });
+}
+
+/** Marquer/démarquer manuellement une vente comme terminée — réversible (19 octobre 2026). */
+export function setExternalSaleCompleted(id: string, completed: boolean): Promise<void> {
+  return apiFetch(`/api/external-sales/${id}/completed`, { method: "PATCH", body: JSON.stringify({ completed }) });
 }

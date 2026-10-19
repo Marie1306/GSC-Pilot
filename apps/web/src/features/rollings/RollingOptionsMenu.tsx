@@ -1,12 +1,19 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { canManageRolling, canArchiveRolling, canDeleteRolling, canCreateServiceCall, canCreateBudgetFromRequest } from "@gsc-pilot/business-rules";
+import {
+  canManageRolling,
+  canArchiveRolling,
+  canDeleteRolling,
+  canCreateServiceCall,
+  canCreateBudgetFromRequest,
+  canChooseFulfillmentMode,
+} from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { OptionsDrawer, OptionRow, OptionSection } from "../../components/OptionsDrawer.js";
 import { updateContact } from "../contacts/api.js";
-import { setRollingArchived, deleteRolling, type RollingDetailDto } from "./api.js";
+import { setRollingArchived, setRollingCompleted, deleteRolling, type RollingDetailDto } from "./api.js";
 import { RollingPostMortem } from "./RollingPostMortem.js";
 import { RollingHoursDetail } from "./RollingHoursDetail.js";
 import { RollingQrCode } from "./RollingQrCode.js";
@@ -78,6 +85,11 @@ export function RollingOptionsMenu({ rolling, open, onClose, onDeleted, onAddPur
     onSuccess: invalidate,
     onError: onMutationError,
   });
+  const completedMutation = useMutation({
+    mutationFn: (completed: boolean) => setRollingCompleted(rolling.id, completed),
+    onSuccess: invalidate,
+    onError: onMutationError,
+  });
   const deleteMutation = useMutation({
     mutationFn: () => deleteRolling(rolling.id),
     onSuccess: () => {
@@ -90,9 +102,11 @@ export function RollingOptionsMenu({ rolling, open, onClose, onDeleted, onAddPur
   const canManage = canManageRolling(employee.persona);
   const canArchive = canArchiveRolling(employee.persona);
   const canDelete = canDeleteRolling(employee.persona);
+  const canMarkCompleted = canChooseFulfillmentMode(employee.persona);
   const canCreateCall = canCreateServiceCall(employee.persona);
   const canBuildBudget = canCreateBudgetFromRequest(employee.persona);
   const isArchived = !!rolling.archivedAt;
+  const isCompleted = rolling.status === "ready_invoice";
   const label = rolling.company ?? rolling.contactName;
 
   return (
@@ -222,12 +236,22 @@ export function RollingOptionsMenu({ rolling, open, onClose, onDeleted, onAddPur
             </>
           )}
 
-          {(canArchive || canDelete) && (
+          {(canArchive || canDelete || canMarkCompleted) && (
             <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--gsc-color-line)" }}>
               <p style={{ margin: "0 0 10px", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.04, color: "var(--gsc-color-muted)" }}>
                 Actions sensibles
               </p>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {canMarkCompleted && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-small"
+                    disabled={completedMutation.isPending}
+                    onClick={() => completedMutation.mutate(!isCompleted)}
+                  >
+                    {isCompleted ? "Réactiver le roulement" : "Terminer le roulement"}
+                  </button>
+                )}
                 {canArchive && (
                   <button
                     type="button"

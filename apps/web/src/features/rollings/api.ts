@@ -159,6 +159,11 @@ export function setRollingArchived(id: string, archived: boolean): Promise<void>
   return apiFetch(`/api/rollings/${id}/archived`, { method: "PATCH", body: JSON.stringify({ archived }) });
 }
 
+/** Marquer/démarquer manuellement un roulement comme terminé — réversible (19 octobre 2026). */
+export function setRollingCompleted(id: string, completed: boolean): Promise<void> {
+  return apiFetch(`/api/rollings/${id}/completed`, { method: "PATCH", body: JSON.stringify({ completed }) });
+}
+
 export function deleteRolling(id: string): Promise<void> {
   return apiFetch(`/api/rollings/${id}`, { method: "DELETE" });
 }
