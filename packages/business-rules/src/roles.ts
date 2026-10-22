@@ -553,6 +553,11 @@ export function canDeleteProject(persona: Persona): boolean {
   assertRole(persona);
   return persona === ROLES.OWNER;
 }
+/** Fermer/rouvrir un projet (19 octobre 2026, demande explicite — confirmé : Direction seulement, réversible, aucune précondition) — même palier qu'Archiver/Supprimer. */
+export function canCloseProject(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}
 
 // ---------------------------------------------------------------------------
 // Menu Options du roulement (28 août 2026) — même structure que le menu

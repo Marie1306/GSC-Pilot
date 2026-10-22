@@ -63,6 +63,7 @@ const baseProject: ProjectDetail = {
   priority: 0,
   ganttAutoEnter: false,
   archivedAt: null,
+  closedAt: null,
   deletedAt: null,
 };
 

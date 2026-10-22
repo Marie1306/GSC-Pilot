@@ -119,6 +119,7 @@ export interface ProjectDetail {
   /** "Tout le projet, maintenant et pour l'avenir" — voir gantt/service.ts, gatherEligibleTasks. */
   ganttAutoEnter: boolean;
   archivedAt: string | null;
+  closedAt: string | null;
   deletedAt: string | null;
 }
 
@@ -358,6 +359,11 @@ export function updateProjectInfo(id: string, input: UpdateProjectInfoInput): Pr
 
 export function setProjectArchived(id: string, archived: boolean): Promise<void> {
   return apiFetch(`/api/projects/${id}/archived`, { method: "PATCH", body: JSON.stringify({ archived }) });
+}
+
+/** Fermer/rouvrir un projet — réversible, voir setProjectClosed (apps/api). */
+export function setProjectClosed(id: string, closed: boolean): Promise<void> {
+  return apiFetch(`/api/projects/${id}/closed`, { method: "PATCH", body: JSON.stringify({ closed }) });
 }
 
 export function deleteProject(id: string): Promise<void> {

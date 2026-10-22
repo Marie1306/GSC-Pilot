@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { canManageProject, canArchiveProject, canDeleteProject, canCreateServiceCall } from "@gsc-pilot/business-rules";
+import { canManageProject, canArchiveProject, canDeleteProject, canCloseProject, canCreateServiceCall } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { OptionsDrawer, OptionRow, OptionSection } from "../../components/OptionsDrawer.js";
-import { updateProjectInfo, setProjectArchived, deleteProject, fetchProjectHistory, type ProjectDetail } from "./api.js";
+import { updateProjectInfo, setProjectArchived, setProjectClosed, deleteProject, fetchProjectHistory, type ProjectDetail } from "./api.js";
 import { ProjectPostMortem } from "./ProjectPostMortem.js";
 import { ProjectChecklistArchive } from "../checklists/ProjectChecklistArchive.js";
 import { ProjectQrCode } from "./ProjectQrCode.js";
@@ -91,6 +91,11 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
     onSuccess: invalidate,
     onError: onMutationError,
   });
+  const closeMutation = useMutation({
+    mutationFn: (closed: boolean) => setProjectClosed(project.id, closed),
+    onSuccess: invalidate,
+    onError: onMutationError,
+  });
   const deleteMutation = useMutation({
     mutationFn: () => deleteProject(project.id),
     onSuccess: () => {
@@ -103,8 +108,10 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
   const canManage = canManageProject(employee.persona);
   const canArchive = canArchiveProject(employee.persona);
   const canDelete = canDeleteProject(employee.persona);
+  const canClose = canCloseProject(employee.persona);
   const canCreateCall = canCreateServiceCall(employee.persona);
   const isArchived = !!project.archivedAt;
+  const isClosed = !!project.closedAt;
 
   return (
     <>
@@ -271,12 +278,22 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
             </>
           )}
 
-          {(canArchive || canDelete) && (
+          {(canArchive || canDelete || canClose) && (
             <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--gsc-color-line)" }}>
               <p style={{ margin: "0 0 10px", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.04, color: "var(--gsc-color-muted)" }}>
                 Actions sensibles
               </p>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {canClose && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-small"
+                    disabled={closeMutation.isPending}
+                    onClick={() => closeMutation.mutate(!isClosed)}
+                  >
+                    {isClosed ? "Rouvrir le projet" : "Fermer le projet"}
+                  </button>
+                )}
                 {canArchive && (
                   <button
                     type="button"
@@ -305,6 +322,11 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
                     </>
                   ))}
               </div>
+              {isClosed && (
+                <p style={{ margin: "10px 0 0", fontSize: 13, color: "var(--gsc-color-muted)" }}>
+                  Projet fermé le {formatDateTime(project.closedAt!)} — classé dans l'onglet « Fermés » (ou « Garantie » si une garantie est encore active).
+                </p>
+              )}
               {isArchived && (
                 <p style={{ margin: "10px 0 0", fontSize: 13, color: "var(--gsc-color-muted)" }}>
                   Projet archivé le {formatDateTime(project.archivedAt!)} — reste accessible ici, seulement sorti des listes actives.

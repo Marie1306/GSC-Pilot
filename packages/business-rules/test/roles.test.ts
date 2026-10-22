@@ -491,6 +491,11 @@ describe("Menu Options du projet (17 août 2026)", () => {
     expect(P.canDeleteProject(ADMIN)).toBe(false);
     expect(P.canDeleteProject(BOSS)).toBe(false);
   });
+  it("Direction seulement ferme/rouvre un projet", () => {
+    expect(P.canCloseProject(OWNER)).toBe(true);
+    expect(P.canCloseProject(ADMIN)).toBe(false);
+    expect(P.canCloseProject(BOSS)).toBe(false);
+  });
 });
 
 describe("Post-mortem (17 août 2026)", () => {

@@ -14,6 +14,7 @@ import {
   canManageProject,
   canArchiveProject,
   canDeleteProject,
+  canCloseProject,
   canManagePostMortem,
   canSeeFinancialValues,
   canEditGanttSchedule,
@@ -45,6 +46,7 @@ import {
   updateProjectInfo,
   updateProjectGanttPriority,
   setProjectArchived,
+  setProjectClosed,
   deleteProject,
   getProjectHistory,
   getPostMortem,
@@ -391,6 +393,19 @@ projectsRouter.patch(
     const id = z.uuid().parse(req.params.id);
     const { archived } = z.object({ archived: z.boolean() }).parse(req.body);
     await setProjectArchived(id, archived);
+    res.status(204).end();
+  },
+);
+
+/** Fermer/rouvrir un projet (19 octobre 2026) — réversible, voir setProjectClosed. */
+projectsRouter.patch(
+  "/projects/:id/closed",
+  requireAuth,
+  requirePermission((persona) => canCloseProject(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const { closed } = z.object({ closed: z.boolean() }).parse(req.body);
+    await setProjectClosed(id, closed);
     res.status(204).end();
   },
 );

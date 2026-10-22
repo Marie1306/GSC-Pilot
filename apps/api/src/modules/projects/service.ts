@@ -579,6 +579,7 @@ export interface ProjectDetailDto {
   /** "Tout le projet, maintenant et pour l'avenir" — voir gantt/service.ts, gatherEligibleTasks. */
   ganttAutoEnter: boolean;
   archivedAt: string | null;
+  closedAt: string | null;
   deletedAt: string | null;
 }
 
@@ -877,6 +878,7 @@ export async function getProjectDetail(id: string, viewerPersona: Persona): Prom
     priority: project.priority,
     ganttAutoEnter: project.ganttAutoEnter,
     archivedAt: project.archivedAt?.toISOString() ?? null,
+    closedAt: project.closedAt?.toISOString() ?? null,
     deletedAt: project.deletedAt?.toISOString() ?? null,
     ...(showFinancials && {
       sold,
@@ -1347,6 +1349,24 @@ export async function setProjectArchived(projectId: string, archived: boolean): 
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   if (!project) throw new HttpError(404, "Projet introuvable.");
   await prisma.project.update({ where: { id: projectId }, data: { archivedAt: archived ? new Date() : null } });
+}
+
+/**
+ * Fermer/rouvrir un projet (19 octobre 2026, demande explicite) — le champ
+ * closedAt existait déjà (Projet 2F, 17 août 2026 — lu par plusieurs
+ * filtres : sélecteur d'achats, Gantt, punch d'heures) mais n'avait jamais
+ * de geste pour l'écrire. Réversible, aucune précondition (confirmé avec
+ * l'utilisatrice — même esprit que setExternalSaleCompleted/
+ * setRollingCompleted) : jamais bloqué par des achats en attente ou
+ * autre. Distinct d'archivedAt (masque entièrement des listes actives,
+ * inchangé) — closedAt pilote plutôt l'onglet "Fermés" de ProjectList.tsx
+ * via projectLifecycleTab (warranty.ts), qui garde la priorité à l'onglet
+ * "Garantie" si warrantyEndsAt est encore actif, peu importe closedAt.
+ */
+export async function setProjectClosed(projectId: string, closed: boolean): Promise<void> {
+  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  if (!project) throw new HttpError(404, "Projet introuvable.");
+  await prisma.project.update({ where: { id: projectId }, data: { closedAt: closed ? new Date() : null } });
 }
 
 /** Corbeille — mécanisme seulement (deletedAt, masqué des listes actives). L'écran de restauration 90 jours attend le module Paramètres complet (confirmé, hors de cette phase). */
