@@ -5,7 +5,14 @@ import { fetchProjects, submitPurchaseShortlist, type ShortlistLine } from "./ap
 const MIN_LINES = 6;
 
 function emptyLines(count: number): ShortlistLine[] {
-  return Array.from({ length: count }, () => ({ description: "", supplier: "", estimatedAmountMin: undefined, estimatedAmountMax: undefined }));
+  return Array.from({ length: count }, () => ({
+    description: "",
+    productCode: "",
+    qty: undefined,
+    supplier: "",
+    estimatedAmountMin: undefined,
+    estimatedAmountMax: undefined,
+  }));
 }
 
 /**
@@ -42,7 +49,7 @@ export function ShortlistForm() {
   }
 
   function addLine() {
-    setLines((current) => [...current, { description: "", supplier: "" }]);
+    setLines((current) => [...current, { description: "", productCode: "", qty: undefined, supplier: "" }]);
   }
 
   const hasAtLeastOneLine = lines.some((line) => line.description.trim().length > 0);
@@ -75,10 +82,12 @@ export function ShortlistForm() {
       <table className="shortlist-table">
         <thead>
           <tr>
-            <th>Description / numéro d'article</th>
-            <th>Fournisseur(s) suggéré(s)</th>
-            <th>Prix approx. min</th>
-            <th>Prix approx. max</th>
+            <th>Description de l'article</th>
+            <th>Code de produit</th>
+            <th>Quantité</th>
+            <th>Fournisseur proposé</th>
+            <th>Prix min</th>
+            <th>Prix max</th>
           </tr>
         </thead>
         <tbody>
@@ -91,6 +100,23 @@ export function ShortlistForm() {
                   placeholder="Ex. Power Supply 120Vac à 12Vdc >30W"
                   value={line.description}
                   onChange={(event) => updateLine(index, { description: event.target.value })}
+                />
+              </td>
+              <td>
+                <input
+                  type="text"
+                  placeholder="Ex. PS-120-12"
+                  value={line.productCode ?? ""}
+                  onChange={(event) => updateLine(index, { productCode: event.target.value })}
+                />
+              </td>
+              <td>
+                <input
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={line.qty ?? ""}
+                  onChange={(event) => updateLine(index, { qty: event.target.value ? Number(event.target.value) : undefined })}
                 />
               </td>
               <td>

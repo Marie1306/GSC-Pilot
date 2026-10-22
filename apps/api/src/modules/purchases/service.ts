@@ -88,6 +88,8 @@ export async function allocatePurchaseRequestNumbers(
 
 export interface ShortlistLineInput {
   description: string;
+  productCode?: string;
+  qty?: number;
   supplier?: string;
   estimatedAmountMin?: number;
   estimatedAmountMax?: number;
@@ -114,6 +116,9 @@ export interface PurchaseRequestDto {
   categoryName: string | null;
   supplier: string | null;
   description: string;
+  /** Colonnes "Code de produit"/"Quantité" de la liste rapide (19 octobre 2026) — jamais financier, visible à tous peu importe canSeeFinancialValues, même esprit que description/supplier. qty reste aussi utilisé (avec unitCost, non exposé ici) pour une ligne de Vente externe, voir schema.prisma. */
+  productCode: string | null;
+  qty: number | null;
   amount?: number | null;
   estimatedAmountMin?: number | null;
   estimatedAmountMax?: number | null;
@@ -178,6 +183,8 @@ export async function createPurchaseShortlist(
           projectId,
           supplier: line.supplier?.trim() || null,
           description: line.description.trim(),
+          productCode: line.productCode?.trim() || null,
+          qty: line.qty ?? null,
           estimatedAmountMin: line.estimatedAmountMin ?? null,
           estimatedAmountMax: line.estimatedAmountMax ?? null,
           status: "owner_pending",
@@ -359,6 +366,8 @@ export function toPurchaseRequestDto(row: PurchaseRequestWithRelations, viewerPe
     categoryName: row.category?.name ?? null,
     supplier: row.supplier,
     description: row.description,
+    productCode: row.productCode,
+    qty: row.qty === null ? null : Number(row.qty),
     amount: showFinancials ? (row.amount === null ? null : Number(row.amount)) : undefined,
     estimatedAmountMin: showFinancials ? (row.estimatedAmountMin === null ? null : Number(row.estimatedAmountMin)) : undefined,
     estimatedAmountMax: showFinancials ? (row.estimatedAmountMax === null ? null : Number(row.estimatedAmountMax)) : undefined,

@@ -50,6 +50,8 @@ purchasesRouter.get("/purchase-requests/categories", requireAuth, async (_req, r
 
 const shortlistLineSchema = z.object({
   description: z.string().min(1, "La description est requise."),
+  productCode: z.string().trim().optional(),
+  qty: z.number().positive().optional(),
   supplier: z.string().trim().optional(),
   estimatedAmountMin: z.number().nonnegative().optional(),
   estimatedAmountMax: z.number().nonnegative().optional(),

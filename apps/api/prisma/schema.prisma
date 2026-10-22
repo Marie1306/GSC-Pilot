@@ -774,8 +774,17 @@ model PurchaseRequest {
   // gelé à la création.
   externalSaleId               String?
   externalSale                 ExternalSale?     @relation(fields: [externalSaleId], references: [id])
+  // qty : informatif seulement pour la liste rapide de projet (19 octobre
+  // 2026, colonne "Quantité" demandée) — jamais utilisé dans un calcul pour
+  // ce chemin, contrairement à la Vente externe ci-dessus (qty × unitCost).
+  // unitCost reste exclusif à la Vente externe, jamais exposé à la liste
+  // rapide (Prix min/max ci-dessous jouent déjà ce rôle).
   qty                          Decimal?          @db.Decimal(10, 2)
   unitCost                     Decimal?          @db.Decimal(12, 2)
+  // Code de produit/numéro de pièce (19 octobre 2026, colonne "Code de
+  // produit" demandée pour la liste rapide) — texte libre, jamais parsé ni
+  // validé contre un catalogue, même esprit que supplier ci-dessous.
+  productCode                 String?
   // Nullable depuis le 12 août 2026 : la liste rapide d'achats de projet
   // crée des lignes SANS catégorie, par choix — c'est justement l'absence
   // de catégorie à seuil qui fait qu'aucune double autorisation du

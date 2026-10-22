@@ -26,6 +26,14 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" });
 }
 
+/** Code de produit/quantité de la liste rapide (19 octobre 2026) — affiché en sous-ligne plutôt qu'en colonnes pleines, pour ne pas élargir des tableaux déjà chargés. Nul pour une demande du formulaire général (jamais saisis là). */
+function productMeta(row: PurchaseRequestDto): string | null {
+  const parts: string[] = [];
+  if (row.productCode) parts.push(`Code : ${row.productCode}`);
+  if (row.qty != null) parts.push(`Qté : ${row.qty}`);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 function formatRange(row: PurchaseRequestDto): string {
   if (row.amount !== undefined && row.amount !== null) return formatCurrency(row.amount);
   if (row.estimatedAmountMin != null || row.estimatedAmountMax != null) {
@@ -63,6 +71,13 @@ export function PurchaseRequestList() {
   const [historyDateFrom, setHistoryDateFrom] = useState("");
   const [historyDateTo, setHistoryDateTo] = useState("");
   const [historyProjectId, setHistoryProjectId] = useState("");
+  // Filtre par projet partagé entre "En attente" et "Autorisées" (19 octobre
+  // 2026, demande explicite) — purement client, la liste active est déjà
+  // chargée en entier dans listQuery (voir le commentaire sur pending/
+  // inProgress plus bas), aucune requête serveur supplémentaire nécessaire.
+  // Distinct de historyProjectId ci-dessus, qui filtre côté serveur une
+  // requête séparée et bornée.
+  const [activeProjectFilter, setActiveProjectFilter] = useState("");
   const historyFilter = {
     dateFrom: historyDateFrom || undefined,
     dateTo: historyDateTo || undefined,
@@ -104,8 +119,9 @@ export function PurchaseRequestList() {
   if (!employee) return null;
 
   const rows = listQuery.data?.purchaseRequests ?? [];
-  const pending = rows.filter((row) => row.status === "owner_pending" || row.status === "boss_pending");
-  const inProgress = rows.filter((row) => row.status === "authorized" && !row.appliedToProjectAt);
+  const activeRows = activeProjectFilter ? rows.filter((row) => row.projectId === activeProjectFilter) : rows;
+  const pending = activeRows.filter((row) => row.status === "owner_pending" || row.status === "boss_pending");
+  const inProgress = activeRows.filter((row) => row.status === "authorized" && !row.appliedToProjectAt);
   const history = historyQuery.data?.purchaseRequests ?? [];
   const projectOptions = projectsQuery.data?.projects ?? [];
   const historyFilterActive = Boolean(historyDateFrom || historyDateTo || historyProjectId);
@@ -119,6 +135,20 @@ export function PurchaseRequestList() {
   return (
     <>
       {error && <p className="form-error">{error}</p>}
+
+      <div className="card" style={{ marginTop: 20 }}>
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label htmlFor="pr-active-project-filter">Filtrer par projet (En attente d'approbation + Autorisées)</label>
+          <select id="pr-active-project-filter" value={activeProjectFilter} onChange={(e) => setActiveProjectFilter(e.target.value)}>
+            <option value="">Tous les projets</option>
+            {projectOptions.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.projectNumber} — {project.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       <div className="card" style={{ marginTop: 20 }}>
         <div className="card-band-header">
@@ -162,6 +192,7 @@ export function PurchaseRequestList() {
                       ) : (
                         row.description
                       )}
+                      {productMeta(row) && <div className="cell-sub">{productMeta(row)}</div>}
                       {row.editedAt && <div className="cell-sub">Modifiée le {formatDate(row.editedAt)}</div>}
                     </td>
                     <td>
@@ -262,7 +293,10 @@ export function PurchaseRequestList() {
                     <td>{row.displayId}</td>
                     <td>{row.categoryName ?? "— (liste rapide)"}</td>
                     <td>{row.projectLabel ?? row.externalSaleLabel ?? "—"}</td>
-                    <td>{row.description}</td>
+                    <td>
+                      {row.description}
+                      {productMeta(row) && <div className="cell-sub">{productMeta(row)}</div>}
+                    </td>
                     <td>{formatRange(row)}</td>
                     <td>{row.expectedReceiptDate ? formatCalendarDate(row.expectedReceiptDate) : "—"}</td>
                     <td>
@@ -412,7 +446,10 @@ export function PurchaseRequestList() {
                   <td>{row.displayId}</td>
                   <td>{row.categoryName ?? "— (liste rapide)"}</td>
                   <td>{row.projectLabel ?? "—"}</td>
-                  <td>{row.description}</td>
+                  <td>
+                    {row.description}
+                    {productMeta(row) && <div className="cell-sub">{productMeta(row)}</div>}
+                  </td>
                   <td>{formatRange(row)}</td>
                   <td>{row.requesterName}</td>
                   <td>{row.appliedToProjectAt ? `Appliquée au projet le ${formatDate(row.appliedToProjectAt)}` : (STATUS_LABELS[row.status] ?? row.status)}</td>

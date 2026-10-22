@@ -20,6 +20,8 @@ export interface PurchaseCategoryOption {
 
 export interface ShortlistLine {
   description: string;
+  productCode?: string;
+  qty?: number;
   supplier?: string;
   estimatedAmountMin?: number;
   estimatedAmountMax?: number;
@@ -59,6 +61,8 @@ export interface PurchaseRequestDto {
   categoryName: string | null;
   supplier: string | null;
   description: string;
+  productCode: string | null;
+  qty: number | null;
   amount?: number | null;
   estimatedAmountMin?: number | null;
   estimatedAmountMax?: number | null;
