@@ -20,7 +20,82 @@ import {
   FULFILLMENT_STATUS_LABELS,
   type PurchaseRequestDto,
   type FulfillmentStatus,
+  type ProjectOption,
 } from "./api.js";
+
+function projectOptionLabel(project: ProjectOption): string {
+  return `${project.projectNumber} — ${project.name}`;
+}
+
+interface ProjectFilterInputProps {
+  id: string;
+  label: string;
+  projects: ProjectOption[];
+  value: string;
+  onChange: (projectId: string) => void;
+}
+
+/**
+ * Filtre par projet avec recherche (22 octobre 2026, demande explicite) —
+ * numéro OU nom. <input list> + <datalist> plutôt qu'un composant
+ * popover maison (voir ContactAutocomplete.tsx pour ce patron-là,
+ * différent : texte libre, jamais lié à un id précis) : la liste
+ * déroulante complète reste proposée nativement par le navigateur au
+ * focus/clic (demande explicite de la garder), tout en filtrant au fur
+ * et à mesure de la frappe — sans code de popover à maintenir.
+ *
+ * value/onChange restent strictement liés à un id de projet (jamais le
+ * texte affiché) : la frappe n'applique le filtre QUE sur une
+ * correspondance exacte avec une option (sélection via la liste, ou texte
+ * tapé au complet) — une frappe partielle ne change pas encore le filtre
+ * actif, pour ne pas faire clignoter les tableaux en dessous à chaque
+ * lettre. Champ vidé = "Tous les projets" (même comportement qu'avant).
+ */
+export function ProjectFilterInput({ id, label, projects, value, onChange }: ProjectFilterInputProps) {
+  const selected = projects.find((p) => p.id === value);
+  const [text, setText] = useState(selected ? projectOptionLabel(selected) : "");
+
+  // Resynchronise l'affichage si la sélection change ailleurs (ex. bouton
+  // Réinitialiser de l'Historique) — ajustement pendant le rendu plutôt
+  // qu'un useEffect (qui provoquerait un second rendu en cascade pour un
+  // cas qui n'a besoin que du rendu courant, voir règle react-hooks/
+  // set-state-in-effect) : patron recommandé par React pour "ajuster un
+  // état quand une prop change" (you-might-not-need-an-effect).
+  const [prevValue, setPrevValue] = useState(value);
+  if (value !== prevValue) {
+    setPrevValue(value);
+    setText(selected ? projectOptionLabel(selected) : "");
+  }
+
+  const listId = `${id}-options`;
+  return (
+    <div className="field" style={{ marginBottom: 0 }}>
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        list={listId}
+        autoComplete="off"
+        placeholder="Tous les projets — numéro ou nom"
+        value={text}
+        onChange={(event) => {
+          const typed = event.target.value;
+          setText(typed);
+          if (typed.trim() === "") {
+            onChange("");
+            return;
+          }
+          const match = projects.find((p) => projectOptionLabel(p) === typed);
+          if (match) onChange(match.id);
+        }}
+      />
+      <datalist id={listId}>
+        {projects.map((project) => (
+          <option key={project.id} value={projectOptionLabel(project)} />
+        ))}
+      </datalist>
+    </div>
+  );
+}
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" });
@@ -137,17 +212,13 @@ export function PurchaseRequestList() {
       {error && <p className="form-error">{error}</p>}
 
       <div className="card" style={{ marginTop: 20 }}>
-        <div className="field" style={{ marginBottom: 0 }}>
-          <label htmlFor="pr-active-project-filter">Filtrer par projet (En attente d'approbation + Autorisées)</label>
-          <select id="pr-active-project-filter" value={activeProjectFilter} onChange={(e) => setActiveProjectFilter(e.target.value)}>
-            <option value="">Tous les projets</option>
-            {projectOptions.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.projectNumber} — {project.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <ProjectFilterInput
+          id="pr-active-project-filter"
+          label="Filtrer par projet (En attente d'approbation + Autorisées)"
+          projects={projectOptions}
+          value={activeProjectFilter}
+          onChange={setActiveProjectFilter}
+        />
       </div>
 
       <div className="card" style={{ marginTop: 20 }}>
@@ -388,16 +459,8 @@ export function PurchaseRequestList() {
               d'un conteneur flex partagé, .field remplit naturellement la
               largeur disponible du cadre (mise en page de bloc normale),
               plus besoin de contrainte flex spéciale. */}
-          <div className="field" style={{ marginBottom: 0, marginTop: 12 }}>
-            <label>Projet</label>
-            <select value={historyProjectId} onChange={(e) => setHistoryProjectId(e.target.value)}>
-              <option value="">Tous</option>
-              {projectOptions.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.projectNumber} — {project.name}
-                </option>
-              ))}
-            </select>
+          <div style={{ marginTop: 12 }}>
+            <ProjectFilterInput id="pr-history-project-filter" label="Projet" projects={projectOptions} value={historyProjectId} onChange={setHistoryProjectId} />
           </div>
           {historyFilterActive && (
             <button
