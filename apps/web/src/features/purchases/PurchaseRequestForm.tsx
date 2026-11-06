@@ -10,6 +10,8 @@ const EMPTY: Omit<NewPurchaseRequestInput, "categoryId"> & { categoryId: string 
   projectId: "",
   categoryId: "",
   description: "",
+  productCode: "",
+  qty: undefined,
   supplier: "",
   estimatedAmountMin: undefined,
   estimatedAmountMax: undefined,
@@ -42,6 +44,8 @@ export function PurchaseRequestForm() {
         projectId: form.projectType === "project" ? form.projectId || undefined : undefined,
         categoryId: form.categoryId,
         description: form.description.trim(),
+        productCode: form.productCode?.trim() || undefined,
+        qty: form.qty,
         supplier: form.supplier?.trim() || undefined,
         estimatedAmountMin: form.estimatedAmountMin,
         estimatedAmountMax: form.estimatedAmountMax,
@@ -125,8 +129,23 @@ export function PurchaseRequestForm() {
         )}
 
         <div className="field field-full">
-          <label htmlFor="pr-description">Description / numéro d'article</label>
+          <label htmlFor="pr-description">Description de l'article</label>
           <input id="pr-description" required value={form.description} onChange={(e) => set("description", e.target.value)} />
+        </div>
+        <div className="field">
+          <label htmlFor="pr-product-code">Code de produit (facultatif)</label>
+          <input id="pr-product-code" value={form.productCode ?? ""} onChange={(e) => set("productCode", e.target.value)} />
+        </div>
+        <div className="field">
+          <label htmlFor="pr-qty">Quantité (facultatif)</label>
+          <input
+            id="pr-qty"
+            type="number"
+            min={0}
+            step="1"
+            value={form.qty ?? ""}
+            onChange={(e) => set("qty", e.target.value ? Number(e.target.value) : undefined)}
+          />
         </div>
         <div className="field">
           <label htmlFor="pr-supplier">Fournisseur(s) suggéré(s) (facultatif)</label>

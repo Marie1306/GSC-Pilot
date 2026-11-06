@@ -202,6 +202,8 @@ export interface CreatePurchaseRequestInput {
   projectId?: string;
   categoryId: string;
   description: string;
+  productCode?: string;
+  qty?: number;
   supplier?: string;
   estimatedAmountMin?: number;
   estimatedAmountMax?: number;
@@ -249,6 +251,8 @@ export async function createPurchaseRequest(requesterId: string, input: CreatePu
         thresholdAmountAtSubmission: category.thresholdAmount,
         supplier: input.supplier?.trim() || null,
         description: input.description.trim(),
+        productCode: input.productCode?.trim() || null,
+        qty: input.qty ?? null,
         estimatedAmountMin: input.estimatedAmountMin ?? null,
         estimatedAmountMax: input.estimatedAmountMax ?? null,
         status: "owner_pending",
@@ -335,7 +339,14 @@ export async function listPurchaseRequestHistory(
   const rows = await prisma.purchaseRequest.findMany({
     where: {
       OR: [{ status: "rejected" }, { status: "authorized", appliedToProjectAt: { not: null } }],
-      ...(filter.projectId ? { projectId: filter.projectId } : {}),
+      // "internal" (Inventaire, voir historyQuerySchema) : ni projet ni vente
+      // externe — pas un vrai id de projet, cas spécial plutôt qu'un filtre
+      // projectId littéral.
+      ...(filter.projectId === "internal"
+        ? { projectId: null, externalSaleId: null }
+        : filter.projectId
+          ? { projectId: filter.projectId }
+          : {}),
       ...purchaseHistoryDateRangeWhere(filter),
     },
     include: {

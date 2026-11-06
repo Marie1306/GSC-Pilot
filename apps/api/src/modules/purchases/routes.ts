@@ -78,6 +78,8 @@ const createRequestSchema = z.object({
   projectId: z.uuid().optional(),
   categoryId: z.uuid(),
   description: z.string().min(1, "La description est requise."),
+  productCode: z.string().trim().optional(),
+  qty: z.number().positive().optional(),
   supplier: z.string().trim().optional(),
   estimatedAmountMin: z.number().nonnegative().optional(),
   estimatedAmountMax: z.number().nonnegative().optional(),
@@ -107,7 +109,9 @@ purchasesRouter.get("/purchase-requests", requireAuth, async (req, res) => {
 const historyQuerySchema = z.object({
   dateFrom: z.iso.date().optional(),
   dateTo: z.iso.date().optional(),
-  projectId: z.uuid().optional(),
+  // "internal" : littéral spécial (pas un vrai id) désignant les demandes
+  // Interne (ni projet ni vente externe) — voir listPurchaseRequestHistory.
+  projectId: z.union([z.uuid(), z.literal("internal")]).optional(),
 });
 
 /** Historique (rejetées + appliquées au projet) — borné aux 35 plus récentes, filtrable par date/projet (voir listPurchaseRequestHistory). */

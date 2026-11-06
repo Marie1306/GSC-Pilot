@@ -84,6 +84,8 @@ export interface NewPurchaseRequestInput {
   projectId?: string;
   categoryId: string;
   description: string;
+  productCode?: string;
+  qty?: number;
   supplier?: string;
   estimatedAmountMin?: number;
   estimatedAmountMax?: number;

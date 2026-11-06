@@ -24,7 +24,11 @@ import {
 } from "./api.js";
 import { PurchaseRequestActionDrawer } from "./PurchaseRequestActionDrawer.js";
 
+/** Sentinel non-UUID pour l'option de filtre "Inventaire" (demandes Interne — ni projet ni vente externe, voir projectOrSaleLabel plus bas) — jamais un vrai id de projet ; voir historyQuerySchema côté API pour l'équivalent serveur. */
+const INTERNAL_FILTER_ID = "internal";
+
 function projectOptionLabel(project: ProjectOption): string {
+  if (project.id === INTERNAL_FILTER_ID) return project.name;
   return `${project.projectNumber} — ${project.name}`;
 }
 
@@ -102,7 +106,7 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" });
 }
 
-/** Code de produit/quantité de la liste rapide (19 octobre 2026) — affiché en sous-ligne plutôt qu'en colonnes pleines, pour ne pas élargir des tableaux déjà chargés. Nul pour une demande du formulaire général (jamais saisis là). */
+/** Code de produit/quantité — affiché en sous-ligne plutôt qu'en colonnes pleines, pour ne pas élargir des tableaux déjà chargés. Introduit pour la liste rapide (19 octobre 2026), aussi saisissable depuis le formulaire général depuis le 6 novembre 2026 (PurchaseRequestForm) — même sous-ligne pour les deux, nul seulement si vraiment pas renseigné. */
 function productMeta(row: PurchaseRequestDto): string | null {
   const parts: string[] = [];
   if (row.productCode) parts.push(`Code : ${row.productCode}`);
@@ -118,6 +122,16 @@ function formatRange(row: PurchaseRequestDto): string {
     return `≈ ${min}–${max} $`;
   }
   return "—";
+}
+
+/** Colonne Projet / Vente — "Inventaire" pour une demande Interne (ni projet ni vente externe, seul cas possible aujourd'hui). Point de vérité unique pour les 3 tableaux (6 novembre 2026) — corrige au passage l'Historique, qui ne retombait pas sur externalSaleLabel contrairement aux 2 autres. */
+function projectOrSaleLabel(row: PurchaseRequestDto): string {
+  return row.projectLabel ?? row.externalSaleLabel ?? "Inventaire";
+}
+
+/** Troncature d'affichage — En attente d'approbation seulement (6 novembre 2026, viser une largeur unique sans barre de défilement) : la description complète reste accessible via le clic sur la demande (#), jamais tronquée dans l'input d'édition du demandeur. */
+function truncate(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max).trim()}…` : text;
 }
 
 /**
@@ -202,11 +216,19 @@ export function PurchaseRequestList() {
   if (!employee) return null;
 
   const rows = listQuery.data?.purchaseRequests ?? [];
-  const activeRows = activeProjectFilter ? rows.filter((row) => row.projectId === activeProjectFilter) : rows;
+  const activeRows = !activeProjectFilter
+    ? rows
+    : activeProjectFilter === INTERNAL_FILTER_ID
+      ? rows.filter((row) => row.projectId == null && row.externalSaleId == null)
+      : rows.filter((row) => row.projectId === activeProjectFilter);
   const pending = activeRows.filter((row) => row.status === "owner_pending" || row.status === "boss_pending");
   const inProgress = activeRows.filter((row) => row.status === "authorized" && !row.appliedToProjectAt);
   const history = historyQuery.data?.purchaseRequests ?? [];
   const projectOptions = projectsQuery.data?.projects ?? [];
+  // Option "Inventaire" ajoutée au filtre partagé (actif + Historique) — les
+  // demandes Interne ne sont jamais dans projectOptions (toujours des vrais
+  // projets, voir fetchProjects/api.ts).
+  const projectFilterOptions: ProjectOption[] = [...projectOptions, { id: INTERNAL_FILTER_ID, projectNumber: "", name: "Inventaire" }];
   const historyFilterActive = Boolean(historyDateFrom || historyDateTo || historyProjectId);
   const openRow = rows.find((row) => row.id === openId) ?? history.find((row) => row.id === openId);
 
@@ -224,7 +246,7 @@ export function PurchaseRequestList() {
         <ProjectFilterInput
           id="pr-active-project-filter"
           label="Filtrer par projet (En attente d'approbation + Autorisées)"
-          projects={projectOptions}
+          projects={projectFilterOptions}
           value={activeProjectFilter}
           onChange={setActiveProjectFilter}
         />
@@ -247,6 +269,7 @@ export function PurchaseRequestList() {
                 <th>Fournisseur(s)</th>
                 <th>Prix</th>
                 <th>Proposé par</th>
+                <th>Demandé le</th>
                 {(pending.some(canActOn) || pending.some((row) => row.requesterId === employee.id)) && <th>Actions</th>}
               </tr>
             </thead>
@@ -262,7 +285,7 @@ export function PurchaseRequestList() {
                       </button>
                     </td>
                     <td>{row.categoryName ?? "— (liste rapide)"}</td>
-                    <td>{row.projectLabel ?? row.externalSaleLabel ?? "—"}</td>
+                    <td>{projectOrSaleLabel(row)}</td>
                     <td>
                       {isOwn ? (
                         <input
@@ -274,7 +297,7 @@ export function PurchaseRequestList() {
                           }}
                         />
                       ) : (
-                        row.description
+                        truncate(row.description, 60)
                       )}
                       {productMeta(row) && <div className="cell-sub">{productMeta(row)}</div>}
                       {row.editedAt && <div className="cell-sub">Modifiée le {formatDate(row.editedAt)}</div>}
@@ -295,6 +318,7 @@ export function PurchaseRequestList() {
                     </td>
                     <td>{formatRange(row)}</td>
                     <td>{row.requesterName}</td>
+                    <td>{formatDate(row.requestedAt)}</td>
                     {(canAct || isOwn) && (
                       <td>
                         {canAct && (
@@ -366,6 +390,8 @@ export function PurchaseRequestList() {
                   <th>Projet / Vente</th>
                   <th>Description</th>
                   <th>Prix</th>
+                  <th>Proposé par</th>
+                  <th>Demandé le</th>
                   <th>Réception visée</th>
                   <th>Suivi</th>
                   {canManageFulfillment && <th>Actions</th>}
@@ -380,12 +406,14 @@ export function PurchaseRequestList() {
                       </button>
                     </td>
                     <td>{row.categoryName ?? "— (liste rapide)"}</td>
-                    <td>{row.projectLabel ?? row.externalSaleLabel ?? "—"}</td>
+                    <td>{projectOrSaleLabel(row)}</td>
                     <td>
                       {row.description}
                       {productMeta(row) && <div className="cell-sub">{productMeta(row)}</div>}
                     </td>
                     <td>{formatRange(row)}</td>
+                    <td>{row.requesterName}</td>
+                    <td>{formatDate(row.requestedAt)}</td>
                     <td>{row.expectedReceiptDate ? formatCalendarDate(row.expectedReceiptDate) : "—"}</td>
                     <td>
                       {canManageFulfillment ? (
@@ -477,7 +505,7 @@ export function PurchaseRequestList() {
               largeur disponible du cadre (mise en page de bloc normale),
               plus besoin de contrainte flex spéciale. */}
           <div style={{ marginTop: 12 }}>
-            <ProjectFilterInput id="pr-history-project-filter" label="Projet" projects={projectOptions} value={historyProjectId} onChange={setHistoryProjectId} />
+            <ProjectFilterInput id="pr-history-project-filter" label="Projet" projects={projectFilterOptions} value={historyProjectId} onChange={setHistoryProjectId} />
           </div>
           {historyFilterActive && (
             <button
@@ -517,6 +545,7 @@ export function PurchaseRequestList() {
                 <th>Description</th>
                 <th>Prix</th>
                 <th>Proposé par</th>
+                <th>Demandé le</th>
                 <th>Statut</th>
               </tr>
             </thead>
@@ -529,13 +558,14 @@ export function PurchaseRequestList() {
                     </button>
                   </td>
                   <td>{row.categoryName ?? "— (liste rapide)"}</td>
-                  <td>{row.projectLabel ?? "—"}</td>
+                  <td>{projectOrSaleLabel(row)}</td>
                   <td>
                     {row.description}
                     {productMeta(row) && <div className="cell-sub">{productMeta(row)}</div>}
                   </td>
                   <td>{formatRange(row)}</td>
                   <td>{row.requesterName}</td>
+                  <td>{formatDate(row.requestedAt)}</td>
                   <td>{row.appliedToProjectAt ? `Appliquée au projet le ${formatDate(row.appliedToProjectAt)}` : (STATUS_LABELS[row.status] ?? row.status)}</td>
                 </tr>
               ))}
