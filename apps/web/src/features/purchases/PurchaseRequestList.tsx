@@ -22,6 +22,7 @@ import {
   type FulfillmentStatus,
   type ProjectOption,
 } from "./api.js";
+import { PurchaseRequestActionDrawer } from "./PurchaseRequestActionDrawer.js";
 
 function projectOptionLabel(project: ProjectOption): string {
   return `${project.projectNumber} — ${project.name}`;
@@ -153,6 +154,13 @@ export function PurchaseRequestList() {
   // Distinct de historyProjectId ci-dessus, qui filtre côté serveur une
   // requête séparée et bornée.
   const [activeProjectFilter, setActiveProjectFilter] = useState("");
+  // Détail (photos + statut) ouvert en cliquant le # d'une demande, dans
+  // n'importe laquelle des 3 sections (6 novembre 2026, demande explicite —
+  // impossible jusqu'ici de voir une photo depuis cette page). Cherche
+  // d'abord dans rows (couvre En attente + Autorisées), sinon dans history
+  // — voir PurchaseRequestActionDrawer.fallbackRow pour pourquoi l'Historique
+  // a besoin de ce filet (jamais dans la requête active partagée).
+  const [openId, setOpenId] = useState<string | null>(null);
   const historyFilter = {
     dateFrom: historyDateFrom || undefined,
     dateTo: historyDateTo || undefined,
@@ -200,6 +208,7 @@ export function PurchaseRequestList() {
   const history = historyQuery.data?.purchaseRequests ?? [];
   const projectOptions = projectsQuery.data?.projects ?? [];
   const historyFilterActive = Boolean(historyDateFrom || historyDateTo || historyProjectId);
+  const openRow = rows.find((row) => row.id === openId) ?? history.find((row) => row.id === openId);
 
   function canActOn(row: PurchaseRequestDto): boolean {
     const thresholds = buildFrozenPurchaseThresholdsMap({ category: row.categoryName, thresholdAmountAtSubmission: row.thresholdAmountAtSubmission ?? null });
@@ -247,7 +256,11 @@ export function PurchaseRequestList() {
                 const canAct = canActOn(row);
                 return (
                   <tr key={row.id}>
-                    <td>{row.displayId}</td>
+                    <td>
+                      <button type="button" className="link-button" onClick={() => setOpenId(row.id)}>
+                        {row.displayId}
+                      </button>
+                    </td>
                     <td>{row.categoryName ?? "— (liste rapide)"}</td>
                     <td>{row.projectLabel ?? row.externalSaleLabel ?? "—"}</td>
                     <td>
@@ -361,7 +374,11 @@ export function PurchaseRequestList() {
               <tbody>
                 {inProgress.map((row) => (
                   <tr key={row.id}>
-                    <td>{row.displayId}</td>
+                    <td>
+                      <button type="button" className="link-button" onClick={() => setOpenId(row.id)}>
+                        {row.displayId}
+                      </button>
+                    </td>
                     <td>{row.categoryName ?? "— (liste rapide)"}</td>
                     <td>{row.projectLabel ?? row.externalSaleLabel ?? "—"}</td>
                     <td>
@@ -506,7 +523,11 @@ export function PurchaseRequestList() {
             <tbody>
               {history.map((row) => (
                 <tr key={row.id}>
-                  <td>{row.displayId}</td>
+                  <td>
+                    <button type="button" className="link-button" onClick={() => setOpenId(row.id)}>
+                      {row.displayId}
+                    </button>
+                  </td>
                   <td>{row.categoryName ?? "— (liste rapide)"}</td>
                   <td>{row.projectLabel ?? "—"}</td>
                   <td>
@@ -523,6 +544,8 @@ export function PurchaseRequestList() {
           </div>
         )}
       </div>
+
+      {openId && <PurchaseRequestActionDrawer id={openId} fallbackRow={openRow} onClose={() => setOpenId(null)} />}
     </>
   );
 }

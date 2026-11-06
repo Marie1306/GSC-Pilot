@@ -75,6 +75,14 @@ export function PurchaseFulfillmentActionDrawer({ id, onClose }: PurchaseFulfill
         Demandé par : {row.requesterName}
       </p>
 
+      {row.photos.length > 0 && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+          {row.photos.map((photo) => (
+            <img key={photo.id} src={photo.imageDataUrl} alt="" style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 6 }} />
+          ))}
+        </div>
+      )}
+
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <input
