@@ -61,6 +61,7 @@ export interface ExternalSaleDetailDto {
   fulfillmentScheduled: string | null;
   billingReady: boolean;
   fulfillmentConfirmationNote: string | null;
+  invoiceRequestedAt: string | null;
   createdAt: string;
   lines: PurchaseRequestDto[];
 }
@@ -119,4 +120,9 @@ export function confirmExternalSaleFulfillment(id: string, note?: string): Promi
 /** Marquer/démarquer manuellement une vente comme terminée — réversible (19 octobre 2026). */
 export function setExternalSaleCompleted(id: string, completed: boolean): Promise<void> {
   return apiFetch(`/api/external-sales/${id}/completed`, { method: "PATCH", body: JSON.stringify({ completed }) });
+}
+
+/** Demander la facturation (10 novembre 2026) — geste séparé et définitif, voir requestExternalSaleInvoice côté API. */
+export function requestExternalSaleInvoice(id: string): Promise<void> {
+  return apiFetch(`/api/external-sales/${id}/request-invoice`, { method: "POST" });
 }

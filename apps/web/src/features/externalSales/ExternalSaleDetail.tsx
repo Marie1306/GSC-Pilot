@@ -1,15 +1,20 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { canManageExternalSales } from "@gsc-pilot/business-rules";
+import { canManageExternalSales, canRequestInvoice } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { formatCalendarDate } from "../../lib/date.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { STATUS_LABELS, FULFILLMENT_STATUS_LABELS, applyPurchaseRequestToExternalSale } from "../purchases/api.js";
-import { fetchExternalSaleDetail, formatCurrency, setExternalSaleCompleted, EXTERNAL_SALE_STATUS_LABELS } from "./api.js";
+import { fetchExternalSaleDetail, formatCurrency, setExternalSaleCompleted, requestExternalSaleInvoice, EXTERNAL_SALE_STATUS_LABELS } from "./api.js";
 import { ExternalSaleFulfillment } from "./ExternalSaleFulfillment.js";
 
 interface ExternalSaleDetailProps {
   id: string;
   onClose: () => void;
+}
+
+/** invoiceRequestedAt est un vrai timestamp (posé par requestExternalSaleInvoice), jamais une des 5 colonnes date-calendrier bogue connu — formatCalendarDate ne s'applique pas ici, voir lib/date.ts. */
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" });
 }
 
 /**
@@ -41,7 +46,12 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
     mutationFn: (completed: boolean) => setExternalSaleCompleted(id, completed),
     onSuccess: invalidate,
   });
+  const requestInvoiceMutation = useMutation({
+    mutationFn: () => requestExternalSaleInvoice(id),
+    onSuccess: invalidate,
+  });
   const canManage = !!employee && canManageExternalSales(employee.persona);
+  const canRequestInvoiceForSale = !!employee && canRequestInvoice(employee.persona);
   const isCompleted = sale?.status === "ready_invoice";
 
   return (
@@ -51,13 +61,20 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
           <div>
             <h2>{sale ? `${sale.displayId} — ${sale.company ?? sale.contactName}` : "Vente externe"}</h2>
             {sale && (
-              <p className="modal-subtitle">
-                {formatCalendarDate(sale.createdAt)}
-                {" · "}
-                <span className={`badge-pill ${isCompleted ? "badge-conforme" : "badge-neutral"}`}>
-                  {EXTERNAL_SALE_STATUS_LABELS[sale.status] ?? sale.status}
-                </span>
-              </p>
+              <>
+                <p className="modal-subtitle">
+                  {formatCalendarDate(sale.createdAt)}
+                  {" · "}
+                  <span className={`badge-pill ${isCompleted ? "badge-conforme" : "badge-neutral"}`}>
+                    {EXTERNAL_SALE_STATUS_LABELS[sale.status] ?? sale.status}
+                  </span>
+                </p>
+                {sale.invoiceRequestedAt && (
+                  <p style={{ margin: "4px 0 0", color: "var(--gsc-color-muted)", fontSize: 13 }}>
+                    Facturation demandée le {formatDateTime(sale.invoiceRequestedAt)}
+                  </p>
+                )}
+              </>
             )}
           </div>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Fermer">
@@ -147,6 +164,11 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
           )}
         </div>
 
+        {requestInvoiceMutation.isError && (
+          <p className="form-error" style={{ margin: "0 16px" }}>
+            {requestInvoiceMutation.error instanceof ApiError ? requestInvoiceMutation.error.message : "Erreur — réessayez."}
+          </p>
+        )}
         <div className="modal-footer">
           {sale && canManage && (
             <button
@@ -156,6 +178,16 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
               onClick={() => completedMutation.mutate(!isCompleted)}
             >
               {isCompleted ? "Réactiver la vente" : "Terminer la vente"}
+            </button>
+          )}
+          {sale && isCompleted && canRequestInvoiceForSale && !sale.invoiceRequestedAt && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={requestInvoiceMutation.isPending}
+              onClick={() => requestInvoiceMutation.mutate()}
+            >
+              Demander la facturation
             </button>
           )}
           <button type="button" className="btn btn-secondary" onClick={onClose}>

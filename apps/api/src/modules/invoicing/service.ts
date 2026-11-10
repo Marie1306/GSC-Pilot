@@ -2,13 +2,16 @@
  * GSC Pilot — Facturation, vue consolidée (20 août 2026)
  *
  * Regroupe dans un seul écran les jalons de facturation déjà DEMANDÉS
- * (projets, via requestInvoice — voir projects/service.ts) et les appels
+ * (projets, via requestInvoice — voir projects/service.ts), les appels
  * de service envoyés à l'administration (voir serviceCalls/service.ts,
  * sendServiceCallToAdmin, qui crée son propre jalon à 100 % au moment de
- * l'envoi). Un jalon de projet jamais demandé reste invisible ici — visible
- * seulement dans le Cycle de facturation du projet lui-même — comportement
- * voulu, voir le commentaire d'origine sur requestInvoice : « Fait
- * apparaître la demande dans le centre d'actions d'Administration ».
+ * l'envoi), et depuis le 10 novembre 2026 les ventes externes terminées
+ * (requestExternalSaleInvoice, externalSales/service.ts — même patron à
+ * 100 % qu'un appel de service). Un jalon de projet jamais demandé reste
+ * invisible ici — visible seulement dans le Cycle de facturation du projet
+ * lui-même — comportement voulu, voir le commentaire d'origine sur
+ * requestInvoice : « Fait apparaître la demande dans le centre d'actions
+ * d'Administration ».
  *
  * Réutilise entièrement invoiceStatus (billing.ts) pour le statut calculé
  * — aucune nouvelle règle ici, seulement l'agrégation cross-dossier. Les
@@ -32,7 +35,7 @@ export interface InvoiceEntryDto {
   isExtra: boolean;
   requestedAt: string | null;
   processedAt: string | null;
-  sourceType: "project" | "rolling" | "serviceCall";
+  sourceType: "project" | "rolling" | "serviceCall" | "externalSale";
   sourceLabel: string;
   clientLabel: string;
 }
@@ -44,6 +47,7 @@ export async function listInvoiceEntries(): Promise<InvoiceEntryDto[]> {
       project: { include: { contact: { select: { name: true, company: true } } } },
       rolling: { include: { contact: { select: { name: true, company: true } } } },
       serviceCall: { include: { contact: { select: { name: true, company: true } } } },
+      externalSale: { include: { contact: { select: { name: true, company: true } } } },
     },
     orderBy: { requestedAt: "desc" },
   });
@@ -64,6 +68,10 @@ export async function listInvoiceEntries(): Promise<InvoiceEntryDto[]> {
       sourceType = "rolling";
       sourceLabel = row.rolling.rollingNumber;
       clientLabel = row.rolling.contact.company ?? row.rolling.contact.name;
+    } else if (row.externalSale) {
+      sourceType = "externalSale";
+      sourceLabel = row.externalSale.displayId;
+      clientLabel = row.externalSale.contact.company ?? row.externalSale.contact.name;
     }
 
     const statusInput: InvoiceLike = {

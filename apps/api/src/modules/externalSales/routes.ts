@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { canManageExternalSales, FULFILLMENT_MODES, type FulfillmentMode } from "@gsc-pilot/business-rules";
+import { canManageExternalSales, canRequestInvoice, FULFILLMENT_MODES, type FulfillmentMode } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import {
   createExternalSale,
@@ -11,6 +11,7 @@ import {
   confirmExternalSaleFulfillment,
   getNextExternalSaleDisplayId,
   setExternalSaleCompleted,
+  requestExternalSaleInvoice,
 } from "./service.js";
 
 export const externalSalesRouter = Router();
@@ -98,3 +99,15 @@ externalSalesRouter.patch("/external-sales/:id/completed", requireAuth, requireP
   await setExternalSaleCompleted(id, completed);
   res.status(204).end();
 });
+
+/** Demander la facturation (10 novembre 2026) — Direction seulement, même permission que pour Projet/Roulement/Appel de service (canRequestInvoice), jamais canManageExternalSales. Voir requestExternalSaleInvoice. */
+externalSalesRouter.post(
+  "/external-sales/:id/request-invoice",
+  requireAuth,
+  requirePermission((persona) => canRequestInvoice(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    await requestExternalSaleInvoice(id, req.employee!.id);
+    res.status(204).end();
+  },
+);

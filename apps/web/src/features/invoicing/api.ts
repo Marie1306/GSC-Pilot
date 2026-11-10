@@ -27,7 +27,7 @@ export interface InvoiceEntryDto {
   isExtra: boolean;
   requestedAt: string | null;
   processedAt: string | null;
-  sourceType: "project" | "rolling" | "serviceCall";
+  sourceType: "project" | "rolling" | "serviceCall" | "externalSale";
   sourceLabel: string;
   clientLabel: string;
 }

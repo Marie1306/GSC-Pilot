@@ -222,12 +222,22 @@ export interface ExternalSaleDetailDto {
   fulfillmentScheduled: string | null;
   billingReady: boolean;
   fulfillmentConfirmationNote: string | null;
+  /** Posé par requestExternalSaleInvoice — jamais réinitialisé (même principe que partout ailleurs : gelé une fois demandé). */
+  invoiceRequestedAt: string | null;
   createdAt: string;
   lines: PurchaseRequestDto[];
 }
 
 async function loadExternalSaleOrThrow(id: string) {
-  const sale = await prisma.externalSale.findUnique({ where: { id }, include: { contact: { select: { name: true, company: true } } } });
+  const sale = await prisma.externalSale.findUnique({
+    where: { id },
+    include: {
+      contact: { select: { name: true, company: true } },
+      // Au plus une ligne (requestExternalSaleInvoice bloque une 2e demande)
+      // — voir ExternalSaleDetailDto.invoiceRequestedAt ci-dessous.
+      invoiceEntries: { select: { requestedAt: true } },
+    },
+  });
   if (!sale) throw new HttpError(404, "Vente externe introuvable.");
   return sale;
 }
@@ -268,6 +278,7 @@ export async function getExternalSaleDetail(id: string, viewerPersona: Persona):
     fulfillmentScheduled: sale.fulfillmentScheduled?.toISOString() ?? null,
     billingReady: sale.billingReady,
     fulfillmentConfirmationNote: sale.fulfillmentConfirmationNote,
+    invoiceRequestedAt: sale.invoiceEntries[0]?.requestedAt?.toISOString() ?? null,
     createdAt: sale.createdAt.toISOString(),
     lines: purchaseRows.map((row) => toPurchaseRequestDto(row, viewerPersona)),
   };
@@ -396,4 +407,35 @@ export async function confirmExternalSaleFulfillment(id: string, note?: string):
 export async function setExternalSaleCompleted(id: string, completed: boolean): Promise<void> {
   await loadExternalSaleOrThrow(id);
   await prisma.externalSale.update({ where: { id }, data: { status: completed ? "ready_invoice" : "active" } });
+}
+
+/**
+ * Demande la facturation d'une vente externe terminée (10 novembre 2026,
+ * demande explicite) — geste séparé de setExternalSaleCompleted ci-dessus
+ * (jamais combiné) : "Terminer la vente" reste réversible ("Réactiver la
+ * vente"), alors qu'une demande de facturation n'a pas d'équivalent
+ * "annuler" une fois envoyée à l'administration — même principe que
+ * requestInvoice (projects/service.ts). Un seul jalon à 100 % du prix
+ * vendu, requestedAt posé immédiatement — même patron que
+ * sendServiceCallToAdmin (serviceCalls/service.ts) : une vente externe,
+ * comme un appel de service, ne se répartit jamais en plusieurs jalons
+ * (computeBillingPlan reste réservé aux projets). Alimente l'écran
+ * Facturation consolidé (voir invoicing/service.ts, listInvoiceEntries,
+ * étendu pour reconnaître cette nouvelle source).
+ */
+export async function requestExternalSaleInvoice(id: string, requestedById: string): Promise<void> {
+  const sale = await loadExternalSaleOrThrow(id);
+  if (sale.status !== "ready_invoice") throw new HttpError(400, "La vente doit d'abord être terminée.");
+  if (sale.invoiceEntries.length > 0) throw new HttpError(409, "Facturation déjà demandée pour cette vente.");
+  await prisma.invoicePlanEntry.create({
+    data: {
+      externalSaleId: id,
+      label: sale.displayId,
+      pct: 100,
+      amount: sale.salePrice,
+      requestedById,
+      requestedAt: new Date(),
+      sortOrder: 0,
+    },
+  });
 }
