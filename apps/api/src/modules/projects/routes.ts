@@ -10,6 +10,7 @@ import {
   canCreateInvoiceRecord,
   canRecordPayment,
   canHoldInvoice,
+  canDeleteInvoiceEntry,
   canManageWarranty,
   canManageProject,
   canArchiveProject,
@@ -40,6 +41,7 @@ import {
   correctInvoicePaidAmount,
   holdInvoiceEntry,
   releaseInvoiceHold,
+  deleteInvoicePlanEntry,
   setWarrantyExpected,
   activateOrUpdateWarranty,
   getWarrantyHistory,
@@ -290,6 +292,18 @@ projectsRouter.patch(
     const entryId = z.uuid().parse(req.params.entryId);
     const entry = await releaseInvoiceHold(entryId);
     res.json({ entry });
+  },
+);
+
+/** Supprimer une facture d'un dossier déjà supprimé (10 novembre 2026) — canDeleteInvoiceEntry, jamais canCreateInvoiceRecord/canRecordPayment. Voir deleteInvoicePlanEntry pour la vérification "dossier bien supprimé". */
+projectsRouter.delete(
+  "/invoice-plan/:entryId",
+  requireAuth,
+  requirePermission((persona) => canDeleteInvoiceEntry(persona)),
+  async (req, res) => {
+    const entryId = z.uuid().parse(req.params.entryId);
+    await deleteInvoicePlanEntry(entryId);
+    res.status(204).end();
   },
 );
 

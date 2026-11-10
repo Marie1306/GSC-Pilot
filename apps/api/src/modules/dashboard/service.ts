@@ -133,7 +133,10 @@ export async function getDashboardSummary(viewerPersona: Persona, viewerEmployee
 
   if (canCreateInvoiceRecord(viewerPersona)) {
     const entries = await listInvoiceEntries();
-    summary.invoicingToProcessCount = entries.filter((entry) => !entry.invoiceNumber).length;
+    // sourceDeleted exclu (10 novembre 2026) — rien à traiter pour un dossier
+    // déjà à la corbeille ; receivableBalance/recentInvoices ci-dessous
+    // restent inchangés (argent réellement dû, indépendant du dossier GSC Pilot).
+    summary.invoicingToProcessCount = entries.filter((entry) => !entry.invoiceNumber && !entry.sourceDeleted).length;
     // Même calcul que la tuile « Solde à recevoir » de la page Facturation
     // (InvoicingPage.tsx) — jamais recalculé différemment ici.
     summary.receivableBalance = round2(

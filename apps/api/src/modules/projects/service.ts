@@ -1208,6 +1208,44 @@ export async function releaseInvoiceHold(entryId: string): Promise<InvoicePlanEn
   return toInvoicePlanEntryDto(row);
 }
 
+/**
+ * Supprimer une facture dont le dossier d'origine a été supprimé (10
+ * novembre 2026, demande explicite — rapporté : "si le projet ou le
+ * roulement a été supprimé, la facturation reste existante, c'est ceci que
+ * je veux supprimer"). Jamais pour un dossier actif — contrairement aux
+ * autres actions ci-dessus (suspendre/corriger), c'est une vraie
+ * suppression de ligne, sécuritaire seulement parce que le dossier parent
+ * n'existe plus (rien à casser dans un cycle de facturation qui n'est plus
+ * suivi). Étendu aux 4 types de dossier (projet/roulement/call/vente
+ * externe) — même bogue potentiel pour les 4, pas seulement projet/roulement
+ * mentionnés initialement. Bloqué si un paiement est déjà enregistré (même
+ * principe que canRecordPayment/correctInvoicePaidAmount) : corriger le
+ * montant payé à 0$ d'abord. Pour un jalon "extra" (avenant), nettoie aussi
+ * Amendment.invoiceRequestId (référence simple, pas de contrainte FK —
+ * jamais laissée pendante par souci de propreté).
+ */
+export async function deleteInvoicePlanEntry(entryId: string): Promise<void> {
+  const entry = await prisma.invoicePlanEntry.findUnique({
+    where: { id: entryId },
+    include: {
+      project: { select: { deletedAt: true } },
+      rolling: { select: { deletedAt: true } },
+      serviceCall: { select: { deletedAt: true } },
+      externalSale: { select: { deletedAt: true } },
+    },
+  });
+  if (!entry) throw new HttpError(404, "Jalon de facturation introuvable.");
+  const sourceDeleted = Boolean(entry.project?.deletedAt || entry.rolling?.deletedAt || entry.serviceCall?.deletedAt || entry.externalSale?.deletedAt);
+  if (!sourceDeleted) throw new HttpError(400, "Impossible de supprimer une facture d'un dossier actif.");
+  if (Number(entry.paidAmount) > 0) {
+    throw new HttpError(400, "Un paiement est déjà enregistré sur cette facture — corriger le montant payé à 0 $ avant de supprimer.");
+  }
+  await prisma.$transaction([
+    ...(entry.isExtra ? [prisma.amendment.updateMany({ where: { invoiceRequestId: entryId }, data: { invoiceRequestId: null } })] : []),
+    prisma.invoicePlanEntry.delete({ where: { id: entryId } }),
+  ]);
+}
+
 // ---------------------------------------------------------------------------
 // Garantie — warranty.ts (Projet 2D, 17 août 2026). warrantyExpected est une
 // simple case informative (pas d'historique — n'active rien seule).

@@ -257,6 +257,15 @@ describe("Facturation", () => {
   it("Propriétaire voit la facturation en consultation (demande de l'utilisatrice, 31 août 2026)", () => {
     expect(P.canViewInvoicing(BOSS)).toBe(true);
   });
+  it("Direction supprime une facture d'un dossier supprimé (10 novembre 2026)", () => {
+    expect(P.canDeleteInvoiceEntry(OWNER)).toBe(true);
+  });
+  it("Administration ne supprime jamais une facture (contrairement à créer/enregistrer un paiement)", () => {
+    expect(P.canDeleteInvoiceEntry(ADMIN)).toBe(false);
+  });
+  it("Propriétaire ne supprime jamais une facture", () => {
+    expect(P.canDeleteInvoiceEntry(BOSS)).toBe(false);
+  });
   it("Direction et Administration voient aussi la facturation", () => {
     expect(P.canViewInvoicing(OWNER)).toBe(true);
     expect(P.canViewInvoicing(ADMIN)).toBe(true);

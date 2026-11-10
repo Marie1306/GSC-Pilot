@@ -38,6 +38,8 @@ export interface InvoiceEntryDto {
   sourceType: "project" | "rolling" | "serviceCall" | "externalSale";
   sourceLabel: string;
   clientLabel: string;
+  /** Dossier d'origine à la corbeille (10 novembre 2026) — seul cas où deleteInvoicePlanEntry (projects/service.ts) accepte de supprimer la ligne. */
+  sourceDeleted: boolean;
 }
 
 export async function listInvoiceEntries(): Promise<InvoiceEntryDto[]> {
@@ -56,22 +58,27 @@ export async function listInvoiceEntries(): Promise<InvoiceEntryDto[]> {
     let sourceType: InvoiceEntryDto["sourceType"] = "project";
     let sourceLabel = "—";
     let clientLabel = "—";
+    let sourceDeleted = false;
     if (row.project) {
       sourceType = "project";
       sourceLabel = `${row.project.projectNumber} — ${row.project.name}`;
       clientLabel = row.project.contact.company ?? row.project.contact.name;
+      sourceDeleted = row.project.deletedAt !== null;
     } else if (row.serviceCall) {
       sourceType = "serviceCall";
       sourceLabel = `${row.serviceCall.displayId} — ${serviceCallDisplayTitle(row.serviceCall)}`;
       clientLabel = row.serviceCall.contact.company ?? row.serviceCall.contact.name;
+      sourceDeleted = row.serviceCall.deletedAt !== null;
     } else if (row.rolling) {
       sourceType = "rolling";
       sourceLabel = row.rolling.rollingNumber;
       clientLabel = row.rolling.contact.company ?? row.rolling.contact.name;
+      sourceDeleted = row.rolling.deletedAt !== null;
     } else if (row.externalSale) {
       sourceType = "externalSale";
       sourceLabel = row.externalSale.displayId;
       clientLabel = row.externalSale.contact.company ?? row.externalSale.contact.name;
+      sourceDeleted = row.externalSale.deletedAt !== null;
     }
 
     const statusInput: InvoiceLike = {
@@ -97,6 +104,7 @@ export async function listInvoiceEntries(): Promise<InvoiceEntryDto[]> {
       sourceType,
       sourceLabel,
       clientLabel,
+      sourceDeleted,
     };
   });
 }

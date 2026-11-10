@@ -160,7 +160,9 @@ export async function getActionCenterItems(viewerPersona: Persona, viewerEmploye
   if (canCreateInvoiceRecord(viewerPersona)) {
     const entries = await listInvoiceEntries();
     for (const entry of entries) {
-      if (!entry.invoiceNumber) {
+      // sourceDeleted exclu (10 novembre 2026) — rien à traiter pour un
+      // dossier déjà à la corbeille (voir dashboard/service.ts, même logique).
+      if (!entry.invoiceNumber && !entry.sourceDeleted) {
         items.push({
           id: entry.id,
           type: "invoicing",

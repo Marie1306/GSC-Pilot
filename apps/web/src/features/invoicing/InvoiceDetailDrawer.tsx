@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { canCreateInvoiceRecord, canRecordPayment, canHoldInvoice } from "@gsc-pilot/business-rules";
+import { canCreateInvoiceRecord, canRecordPayment, canHoldInvoice, canDeleteInvoiceEntry } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { OptionsDrawer } from "../../components/OptionsDrawer.js";
@@ -11,6 +11,7 @@ import {
   correctInvoicePaidAmount,
   holdInvoiceEntry,
   releaseInvoiceHold,
+  deleteInvoicePlanEntry,
   formatCurrency,
   INVOICE_STATUS_LABELS,
   INVOICE_STATUS_BADGE,
@@ -206,6 +207,14 @@ export function InvoiceDetailDrawer({ id, onClose }: InvoiceDetailDrawerProps) {
   });
   const holdMutation = useMutation({ mutationFn: () => holdInvoiceEntry(id), onSuccess: invalidate, onError: onMutationError });
   const releaseMutation = useMutation({ mutationFn: () => releaseInvoiceHold(id), onSuccess: invalidate, onError: onMutationError });
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteInvoicePlanEntry(id),
+    onSuccess: () => {
+      invalidate();
+      onClose();
+    },
+    onError: onMutationError,
+  });
 
   if (!employee) return null;
 
@@ -222,6 +231,7 @@ export function InvoiceDetailDrawer({ id, onClose }: InvoiceDetailDrawerProps) {
   const canRecord = canCreateInvoiceRecord(employee.persona);
   const canPay = canRecordPayment(employee.persona);
   const canHold = canHoldInvoice(employee.persona);
+  const canDelete = canDeleteInvoiceEntry(employee.persona);
   const balance = entry.amount - entry.paidAmount;
   const isFullyPaid = balance <= 0.005;
   const isOnHold = entry.status === "on_hold";
@@ -251,6 +261,33 @@ export function InvoiceDetailDrawer({ id, onClose }: InvoiceDetailDrawerProps) {
           <span className={`badge-pill ${INVOICE_STATUS_BADGE[entry.status]}`}>{INVOICE_STATUS_LABELS[entry.status]}</span>
         </div>
       </div>
+
+      {entry.sourceDeleted && (
+        <div style={{ marginBottom: 20 }}>
+          <p style={{ color: "var(--gsc-color-muted)", fontSize: 13, marginBottom: 8 }}>
+            ⚠ Le dossier d'origine ({entry.sourceLabel}) a été supprimé — cette facture n'est plus rattachée à rien d'actif.
+          </p>
+          {canDelete && entry.paidAmount === 0 && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                if (window.confirm(`Supprimer définitivement cette facture (${entry.sourceLabel} — ${entry.label}) ? Cette action est irréversible.`)) {
+                  deleteMutation.mutate();
+                }
+              }}
+            >
+              {deleteMutation.isPending ? "…" : "🗑 Supprimer"}
+            </button>
+          )}
+          {canDelete && entry.paidAmount > 0 && (
+            <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>
+              Un paiement est enregistré — corrige le montant payé à 0 $ (ci-dessous) avant de pouvoir supprimer.
+            </p>
+          )}
+        </div>
+      )}
 
       {!entry.invoiceNumber ? (
         canRecord && (

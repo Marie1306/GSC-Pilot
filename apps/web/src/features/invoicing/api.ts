@@ -7,6 +7,7 @@ export {
   correctInvoicePaidAmount,
   holdInvoiceEntry,
   releaseInvoiceHold,
+  deleteInvoicePlanEntry,
   formatCurrency,
   INVOICE_STATUS_LABELS,
   INVOICE_STATUS_BADGE,
@@ -30,6 +31,7 @@ export interface InvoiceEntryDto {
   sourceType: "project" | "rolling" | "serviceCall" | "externalSale";
   sourceLabel: string;
   clientLabel: string;
+  sourceDeleted: boolean;
 }
 
 /** Vue consolidée — jalons déjà demandés seulement (voir invoicing/service.ts, backend). */

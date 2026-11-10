@@ -516,6 +516,20 @@ export function canHoldInvoice(persona: Persona): boolean {
   assertRole(persona);
   return persona === ROLES.OWNER;
 }
+/**
+ * Supprimer une facture dont le dossier d'origine (projet/roulement/call/
+ * vente externe) a été supprimé (10 novembre 2026, demande explicite —
+ * confirmé que seul ce cas précis, jamais un dossier actif, doit être
+ * supprimable) : Direction seulement, même palier que les autres
+ * suppressions "corbeille" de l'application (canDeleteProject, etc.) —
+ * jamais Administration ici, contrairement à canCreateInvoiceRecord/
+ * canRecordPayment. La vérification "dossier bien supprimé" reste côté
+ * service (deleteInvoicePlanEntry, projects/service.ts), jamais devinée ici.
+ */
+export function canDeleteInvoiceEntry(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}
 
 // ---------------------------------------------------------------------------
 // Garantie

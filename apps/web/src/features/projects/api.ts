@@ -311,6 +311,11 @@ export function releaseInvoiceHold(entryId: string): Promise<{ entry: InvoicePla
   return apiFetch(`/api/invoice-plan/${entryId}/release-hold`, { method: "PATCH" });
 }
 
+/** Suppression réelle — seulement pour une facture d'un dossier déjà à la corbeille (voir InvoiceDetailDrawer.tsx, invoicing/api.ts). */
+export function deleteInvoicePlanEntry(entryId: string): Promise<void> {
+  return apiFetch(`/api/invoice-plan/${entryId}`, { method: "DELETE" });
+}
+
 // ---------------------------------------------------------------------------
 // Garantie (Projet 2D, 17 août 2026).
 // ---------------------------------------------------------------------------
