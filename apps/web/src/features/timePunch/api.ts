@@ -90,16 +90,38 @@ export function fetchPunchableEmployees(): Promise<{ employees: PunchableEmploye
   return apiFetch("/api/time-entries/employees");
 }
 
-export function fetchMyTimeEntries(): Promise<{ timeEntries: TimeEntryDto[] }> {
-  return apiFetch("/api/time-entries/mine");
+/** reference : "project:<id>" | "rolling:<id>" | "service:<id>" | "internal" — voir ReferenceFilterInput, TimePunchPage.tsx. */
+export interface TimeEntryListFilter {
+  dateFrom?: string;
+  dateTo?: string;
+  reference?: string;
+}
+
+export interface AllTimeEntryListFilter extends TimeEntryListFilter {
+  employeeId?: string;
+}
+
+function toQueryString(filter: TimeEntryListFilter | AllTimeEntryListFilter): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filter)) {
+    if (value) params.set(key, value);
+  }
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+/** Bornée à 25 entrées sans filtre actif — voir TIME_ENTRIES_PAGE_SIZE, apps/api. */
+export function fetchMyTimeEntries(filter: TimeEntryListFilter = {}): Promise<{ timeEntries: TimeEntryDto[] }> {
+  return apiFetch(`/api/time-entries/mine${toQueryString(filter)}`);
 }
 
 export function fetchTimeEntriesForApproval(): Promise<{ timeEntries: TimeEntryDto[] }> {
   return apiFetch("/api/time-entries/for-approval");
 }
 
-export function fetchAllTimeEntries(): Promise<{ timeEntries: TimeEntryDto[] }> {
-  return apiFetch("/api/time-entries/all");
+/** Bornée à 25 entrées sans filtre actif — voir TIME_ENTRIES_PAGE_SIZE, apps/api. */
+export function fetchAllTimeEntries(filter: AllTimeEntryListFilter = {}): Promise<{ timeEntries: TimeEntryDto[] }> {
+  return apiFetch(`/api/time-entries/all${toQueryString(filter)}`);
 }
 
 export interface PunchReferenceInput {

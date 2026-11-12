@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../lib/apiClient.js";
 import { formatCalendarDate } from "../../lib/date.js";
 import { OptionsDrawer } from "../../components/OptionsDrawer.js";
-import { fetchAllTimeEntries, approveTimeEntry } from "./api.js";
+import { fetchTimeEntriesForApproval, approveTimeEntry } from "./api.js";
 
 interface TimeEntryActionDrawerProps {
   id: string;
@@ -19,15 +19,18 @@ function formatHours(minutes: number | null): string {
 
 /**
  * Détail + approbation d'un punch, ouvert depuis le Centre d'actions (26
- * août 2026) — réutilise la même requête que TimePunchPage (queryKey
- * partagée, instantanée si déjà chargée) et EXACTEMENT la même mutation
- * d'approbation (approveTimeEntry), jamais une deuxième logique en
- * parallèle. Pas de "Rejeter" : un punch n'a que submitted/approved
- * (roles.ts/schema.prisma), contrairement aux achats.
+ * août 2026, type "hours_approval" seulement — voir ActionCenterPage.tsx)
+ * — EXACTEMENT la même mutation d'approbation (approveTimeEntry), jamais
+ * une deuxième logique en parallèle. Interroge for-approval (jamais "all",
+ * depuis le 12 novembre 2026 : "all" est désormais bornée à 25 entrées
+ * sans filtre actif, ce qui ferait manquer une demande d'approbation plus
+ * ancienne — for-approval reste volontairement non bornée, voir
+ * listTimeEntriesForApproval). Pas de "Rejeter" : un punch n'a que
+ * submitted/approved (roles.ts/schema.prisma), contrairement aux achats.
  */
 export function TimeEntryActionDrawer({ id, onClose }: TimeEntryActionDrawerProps) {
   const queryClient = useQueryClient();
-  const listQuery = useQuery({ queryKey: ["time-entries", "all"], queryFn: fetchAllTimeEntries });
+  const listQuery = useQuery({ queryKey: ["time-entries", "for-approval"], queryFn: fetchTimeEntriesForApproval });
   const row = listQuery.data?.timeEntries.find((r) => r.id === id);
   const [error, setError] = useState<string | null>(null);
 

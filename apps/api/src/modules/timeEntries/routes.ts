@@ -58,9 +58,22 @@ timeEntriesRouter.get(
   },
 );
 
+/** reference : "project:<id>" | "rolling:<id>" | "service:<id>" | "internal" — voir timeEntryReferenceWhere, service.ts. */
+const timeEntryFilterFields = {
+  dateFrom: z.iso.date().optional(),
+  dateTo: z.iso.date().optional(),
+  reference: z
+    .string()
+    .regex(/^(project|rolling|service):[0-9a-f-]{36}$|^internal$/)
+    .optional(),
+};
+const myEntriesFilterSchema = z.object(timeEntryFilterFields);
+const allEntriesFilterSchema = z.object({ ...timeEntryFilterFields, employeeId: z.uuid().optional() });
+
 timeEntriesRouter.get("/time-entries/mine", requireAuth, async (req, res) => {
   const employee = req.employee!;
-  res.json({ timeEntries: await listMyTimeEntries(employee.id, employee.persona) });
+  const filter = myEntriesFilterSchema.parse(req.query);
+  res.json({ timeEntries: await listMyTimeEntries(employee.id, employee.persona, filter) });
 });
 
 timeEntriesRouter.get(
@@ -77,7 +90,8 @@ timeEntriesRouter.get(
   requireAuth,
   requirePermissionWithDelegation((settings, persona) => canApprovePunch(settings, persona)),
   async (req, res) => {
-    res.json({ timeEntries: await listAllTimeEntries(req.employee!.persona) });
+    const filter = allEntriesFilterSchema.parse(req.query);
+    res.json({ timeEntries: await listAllTimeEntries(req.employee!.persona, filter) });
   },
 );
 

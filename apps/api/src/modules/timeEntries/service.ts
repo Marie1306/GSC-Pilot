@@ -350,11 +350,59 @@ export async function createManualEntry(actorEmployeeId: string, actorPersona: P
   return toDto(entry, actorPersona);
 }
 
-export async function listMyTimeEntries(employeeId: string, viewerPersona: Persona): Promise<TimeEntryDto[]> {
+/**
+ * Filtres communs à listMyTimeEntries/listAllTimeEntries (12 novembre 2026,
+ * demande explicite — la liste grossissait sans fin). `reference` encode à
+ * la fois le type ET l'id, même esprit que l'option "Inventaire" des
+ * Achats : "project:<id>" | "rolling:<id>" | "service:<id>" | "internal".
+ * "internal" filtre directement sur projectType (jamais sur l'absence des 3
+ * FK — un appel de service NON lié a aussi ses 3 FK nulles, projectType
+ * reste le seul discriminant fiable). Les 3 autres filtrent sur la vraie FK
+ * (projectId/rollingId/serviceCallId) plutôt que sur projectType, pour
+ * qu'un appel de service lié à un projet compte aussi dans les heures de
+ * CE projet quand on filtre par lui — comportement voulu, pas une
+ * approximation.
+ */
+export interface TimeEntryListFilter {
+  dateFrom?: string;
+  dateTo?: string;
+  employeeId?: string;
+  reference?: string;
+}
+
+const TIME_ENTRIES_PAGE_SIZE = 25;
+
+function timeEntryDateRangeWhere(filter: TimeEntryListFilter): Prisma.TimeEntryWhereInput {
+  if (!filter.dateFrom && !filter.dateTo) return {};
+  const gte = filter.dateFrom ? new Date(`${filter.dateFrom}T00:00:00.000Z`) : undefined;
+  let lt: Date | undefined;
+  if (filter.dateTo) {
+    lt = new Date(`${filter.dateTo}T00:00:00.000Z`);
+    lt.setUTCDate(lt.getUTCDate() + 1);
+  }
+  return { date: { ...(gte ? { gte } : {}), ...(lt ? { lt } : {}) } };
+}
+
+function timeEntryReferenceWhere(filter: TimeEntryListFilter): Prisma.TimeEntryWhereInput {
+  if (!filter.reference) return {};
+  if (filter.reference === "internal") return { projectType: "internal" };
+  const [kind, refId] = filter.reference.split(":");
+  if (kind === "project" && refId) return { projectId: refId };
+  if (kind === "rolling" && refId) return { rollingId: refId };
+  if (kind === "service" && refId) return { serviceCallId: refId };
+  return {};
+}
+
+function hasActiveTimeEntryFilter(filter: TimeEntryListFilter): boolean {
+  return Boolean(filter.dateFrom || filter.dateTo || filter.employeeId || filter.reference);
+}
+
+export async function listMyTimeEntries(employeeId: string, viewerPersona: Persona, filter: TimeEntryListFilter = {}): Promise<TimeEntryDto[]> {
   const entries = await prisma.timeEntry.findMany({
-    where: { employeeId, deletedAt: null },
+    where: { employeeId, deletedAt: null, ...timeEntryDateRangeWhere(filter), ...timeEntryReferenceWhere(filter) },
     include: ENTRY_INCLUDE,
     orderBy: { startAt: "desc" },
+    ...(hasActiveTimeEntryFilter(filter) ? {} : { take: TIME_ENTRIES_PAGE_SIZE }),
   });
   return entries.map((entry) => toDto(entry, viewerPersona));
 }
@@ -370,8 +418,18 @@ export async function listTimeEntriesForApproval(viewerPersona: Persona): Promis
 }
 
 /** Vue Direction — toutes les entrées, la plus récente d'abord. */
-export async function listAllTimeEntries(viewerPersona: Persona): Promise<TimeEntryDto[]> {
-  const entries = await prisma.timeEntry.findMany({ where: { deletedAt: null }, include: ENTRY_INCLUDE, orderBy: { startAt: "desc" } });
+export async function listAllTimeEntries(viewerPersona: Persona, filter: TimeEntryListFilter = {}): Promise<TimeEntryDto[]> {
+  const entries = await prisma.timeEntry.findMany({
+    where: {
+      deletedAt: null,
+      ...(filter.employeeId ? { employeeId: filter.employeeId } : {}),
+      ...timeEntryDateRangeWhere(filter),
+      ...timeEntryReferenceWhere(filter),
+    },
+    include: ENTRY_INCLUDE,
+    orderBy: { startAt: "desc" },
+    ...(hasActiveTimeEntryFilter(filter) ? {} : { take: TIME_ENTRIES_PAGE_SIZE }),
+  });
   return entries.map((entry) => toDto(entry, viewerPersona));
 }
 

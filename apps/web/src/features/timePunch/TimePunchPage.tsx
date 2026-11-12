@@ -9,7 +9,19 @@ import { useLocalTimer } from "../../offline/useLocalTimer.js";
 import { clearLocalActiveEntry, markPendingStop } from "../../offline/localTimer.js";
 import { enqueue } from "../../offline/sync.js";
 import { OfflineBanner } from "../../offline/OfflineBanner.js";
-import { fetchMyTimeEntries, fetchAllTimeEntries, stopTimer, approveTimeEntry, deleteTimeEntry, type TimeEntryDto, type ManualEntryInput } from "./api.js";
+import {
+  fetchMyTimeEntries,
+  fetchAllTimeEntries,
+  fetchProjectOptions,
+  fetchRollingOptions,
+  fetchServiceCallOptions,
+  fetchPunchableEmployees,
+  stopTimer,
+  approveTimeEntry,
+  deleteTimeEntry,
+  type TimeEntryDto,
+  type ManualEntryInput,
+} from "./api.js";
 import { StartTaskModal } from "./StartTaskModal.js";
 import { ManualEntryModal } from "./ManualEntryModal.js";
 import "./timePunch.css";
@@ -44,6 +56,59 @@ function referenceLabel(entry: TimeEntryDto): string {
   if (entry.projectType === "rolling") return entry.rollingLabel ?? "Roulement";
   if (entry.projectType === "service") return entry.categoryLabel;
   return entry.categoryLabel;
+}
+
+interface ReferenceOption {
+  /** "project:<id>" | "rolling:<id>" | "service:<id>" | "internal" — voir timeEntryReferenceWhere, apps/api. */
+  id: string;
+  label: string;
+}
+
+/**
+ * Filtre par référence avec recherche (12 novembre 2026, demande explicite)
+ * — même patron que ProjectFilterInput (PurchaseRequestList.tsx) : saisie
+ * libre + <datalist>, correspondance exacte seulement. Couvre les 4 types
+ * de référence d'un punch (projet/roulement/call/Interne), qui partagent
+ * déjà la colonne "Référence" du tableau — jamais seulement les projets.
+ */
+function ReferenceFilterInput({ id, label, options, value, onChange }: { id: string; label: string; options: ReferenceOption[]; value: string; onChange: (value: string) => void }) {
+  const selected = options.find((o) => o.id === value);
+  const [text, setText] = useState(selected ? selected.label : "");
+
+  const [prevValue, setPrevValue] = useState(value);
+  if (value !== prevValue) {
+    setPrevValue(value);
+    setText(selected ? selected.label : "");
+  }
+
+  const listId = `${id}-options`;
+  return (
+    <div className="field" style={{ marginBottom: 0 }}>
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        list={listId}
+        autoComplete="off"
+        placeholder="Tous — projet, roulement, call ou Interne"
+        value={text}
+        onChange={(event) => {
+          const typed = event.target.value;
+          setText(typed);
+          if (typed.trim() === "") {
+            onChange("");
+            return;
+          }
+          const match = options.find((o) => o.label === typed);
+          if (match) onChange(match.id);
+        }}
+      />
+      <datalist id={listId}>
+        {options.map((option) => (
+          <option key={option.id} value={option.label} />
+        ))}
+      </datalist>
+    </div>
+  );
 }
 
 const STATUS_BADGE: Record<string, string> = { submitted: "badge-neutral", approved: "badge-conforme" };
@@ -125,8 +190,48 @@ export function TimePunchPage() {
   const { localActive, pendingStopIds } = useLocalTimer();
   const isDirection = employee ? canApprovePunch({}, employee.persona) : false;
 
-  const myEntriesQuery = useQuery({ queryKey: ["time-entries", "mine"], queryFn: fetchMyTimeEntries });
-  const allEntriesQuery = useQuery({ queryKey: ["time-entries", "all"], queryFn: fetchAllTimeEntries, enabled: isDirection });
+  // Toujours non filtrée — sert à détecter le chronomètre actif (au plus une
+  // entrée sans endAt), jamais touchée par les filtres ci-dessous (12
+  // novembre 2026) : un filtre par date/référence pourrait exclure l'entrée
+  // active en cours si on la faisait dépendre du même état. Déjà bornée à 25
+  // entrées les plus récentes côté serveur quand aucun filtre n'est actif —
+  // l'entrée active, forcément très récente, y est toujours incluse.
+  const myEntriesQuery = useQuery({ queryKey: ["time-entries", "mine"], queryFn: () => fetchMyTimeEntries() });
+
+  // Filtres (12 novembre 2026, demande explicite) — une seule section de
+  // tableau est jamais affichée à la fois (voir `rows` plus bas, selon
+  // isDirection), donc un seul jeu d'état suffit pour les deux vues.
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [referenceFilter, setReferenceFilter] = useState("");
+  const [employeeFilter, setEmployeeFilter] = useState("");
+  const filterActive = Boolean(dateFrom || dateTo || referenceFilter || (isDirection && employeeFilter));
+  const activeFilterParams = { dateFrom: dateFrom || undefined, dateTo: dateTo || undefined, reference: referenceFilter || undefined };
+
+  const allEntriesQuery = useQuery({
+    queryKey: ["time-entries", "all", dateFrom, dateTo, referenceFilter, employeeFilter],
+    queryFn: () => fetchAllTimeEntries({ ...activeFilterParams, employeeId: employeeFilter || undefined }),
+    enabled: isDirection,
+  });
+  // Copie filtrée de "mine", seulement requêtée quand un filtre est
+  // vraiment actif — sinon myEntriesQuery (déjà bornée à 25) suffit déjà,
+  // jamais une 2e requête identique pour rien.
+  const myEntriesFilteredQuery = useQuery({
+    queryKey: ["time-entries", "mine", "filtered", dateFrom, dateTo, referenceFilter],
+    queryFn: () => fetchMyTimeEntries(activeFilterParams),
+    enabled: !isDirection && filterActive,
+  });
+
+  const projectOptionsQuery = useQuery({ queryKey: ["time-entries", "project-options"], queryFn: fetchProjectOptions });
+  const rollingOptionsQuery = useQuery({ queryKey: ["time-entries", "rolling-options"], queryFn: fetchRollingOptions });
+  const serviceCallOptionsQuery = useQuery({ queryKey: ["time-entries", "service-call-options"], queryFn: fetchServiceCallOptions });
+  const employeeOptionsQuery = useQuery({ queryKey: ["time-entries", "employees"], queryFn: fetchPunchableEmployees, enabled: isDirection });
+  const referenceOptions: ReferenceOption[] = [
+    ...(projectOptionsQuery.data?.projects ?? []).map((p) => ({ id: `project:${p.id}`, label: p.label })),
+    ...(rollingOptionsQuery.data?.rollings ?? []).map((r) => ({ id: `rolling:${r.id}`, label: r.label })),
+    ...(serviceCallOptionsQuery.data?.serviceCalls ?? []).map((s) => ({ id: `service:${s.id}`, label: s.label })),
+    { id: "internal", label: "Interne" },
+  ];
 
   const [localStartOpen, setLocalStartOpen] = useState(false);
   const [localManualOpen, setLocalManualOpen] = useState(false);
@@ -187,7 +292,8 @@ export function TimePunchPage() {
     : serverActiveEntry
       ? { startAt: serverActiveEntry.startAt, taskLabel: serverActiveEntry.taskLabel ?? "—", referenceLabel: referenceLabel(serverActiveEntry) }
       : undefined;
-  const rows = isDirection ? allEntriesQuery.data?.timeEntries ?? [] : myEntries;
+  const myDisplayRows = filterActive ? myEntriesFilteredQuery.data?.timeEntries ?? [] : myEntries;
+  const rows = isDirection ? allEntriesQuery.data?.timeEntries ?? [] : myDisplayRows;
 
   async function handleStop() {
     if (localActive) {
@@ -265,6 +371,53 @@ export function TimePunchPage() {
             <p className="modal-subtitle">Une entrée approuvée devient verrouillée; toute correction repasse en approbation.</p>
           </div>
         </div>
+
+        <div style={{ padding: "14px 16px 0", display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label htmlFor="punch-date-from">Du</label>
+            <input id="punch-date-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          </div>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label htmlFor="punch-date-to">Au</label>
+            <input id="punch-date-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          </div>
+          <div style={{ minWidth: 220 }}>
+            <ReferenceFilterInput id="punch-reference-filter" label="Projet / Roulement / Call / Interne" options={referenceOptions} value={referenceFilter} onChange={setReferenceFilter} />
+          </div>
+          {isDirection && (
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="punch-employee-filter">Employé</label>
+              <select id="punch-employee-filter" value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)}>
+                <option value="">Tous les employés</option>
+                {(employeeOptionsQuery.data?.employees ?? []).map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {candidate.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {filterActive && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-small"
+              onClick={() => {
+                setDateFrom("");
+                setDateTo("");
+                setReferenceFilter("");
+                setEmployeeFilter("");
+              }}
+            >
+              Réinitialiser
+            </button>
+          )}
+        </div>
+        {!filterActive && (
+          <p style={{ color: "var(--gsc-color-muted)", fontSize: 12, padding: "8px 16px 0" }}>
+            Les 25 entrées les plus récentes — filtrez par date, {isDirection ? "employé, " : ""}projet/roulement/call pour voir plus loin.
+          </p>
+        )}
+
         <div style={{ overflowX: "auto" }}>
           <table className="punch-table">
             <thead>
