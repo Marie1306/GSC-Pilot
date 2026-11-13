@@ -14,6 +14,7 @@ import { ApiError } from "../../lib/apiClient.js";
 import { convertBudgetToProject, fetchNextProjectNumber } from "../projects/api.js";
 import { convertBudgetToRolling } from "../rollings/api.js";
 import { BudgetOptionsMenu } from "./BudgetOptionsMenu.js";
+import { SoumissionCard } from "../soumissions/SoumissionCard.js";
 import {
   fetchBudgetDetail,
   updateRow,
@@ -838,6 +839,8 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                   )}
                 </div>
               </div>
+
+              <SoumissionCard budget={budget} />
 
               {budget.status === "won" && canConvert && !budget.readOnly && (
                 <div className="status-row">

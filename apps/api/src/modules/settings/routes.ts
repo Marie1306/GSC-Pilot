@@ -24,6 +24,7 @@ import {
   updateChecklistStep,
 } from "./checklistCatalogs.js";
 import { listDelegations, createDelegation, revokeDelegation } from "./delegation.js";
+import { getCompanyIdentity, updateCompanyIdentity } from "./companyIdentity.js";
 
 // Monté sur /api/settings (voir app.ts) — jamais sur /api directement, pour
 // que le .use() ci-dessous ne gate QUE les routes de ce module, pas tout
@@ -48,6 +49,23 @@ settingsRouter.get("/tech-levels", requireAuth, async (req, res) => {
   const techLevels = await listTechLevels();
   const showRates = canSeeFinancialValues(req.employee!.persona);
   res.json({ techLevels: showRates ? techLevels : scrubTechLevelRates(techLevels) });
+});
+
+/**
+ * Exception délibérée, même raison que GET /tech-levels ci-dessus : toute
+ * personne pouvant atteindre une vue d'impression (Soumission/Confirmation
+ * de commande/Facture — 13 novembre 2026) a besoin de l'en-tête d'entreprise
+ * pour l'imprimer, pas seulement Direction (ex. Propriétaire, qui gère les
+ * Soumissions sans avoir accès au reste de Paramètres — canAccessSettings
+ * est Direction seulement). Donnée non sensible (nom/adresse/téléphone/
+ * TPS#/TVQ# — déjà destinée à être imprimée pour un client), jamais un
+ * risque à l'exposer à tout employé authentifié. L'édition reste Direction
+ * seulement (PATCH /settings/company-identity ci-dessous, derrière le
+ * .use() plus bas).
+ */
+settingsRouter.get("/company-letterhead", requireAuth, async (_req, res) => {
+  const identity = await getCompanyIdentity();
+  res.json({ identity });
 });
 
 // Toute la section Paramètres est Direction seulement, sans exception (canAccessSettings, roles.ts) —
@@ -129,6 +147,32 @@ settingsRouter.patch("/checklist-steps/:id", async (req, res) => {
 settingsRouter.get("/margin-thresholds", async (_req, res) => {
   const thresholds = await getMarginThresholds();
   res.json({ thresholds });
+});
+
+settingsRouter.get("/company-identity", async (_req, res) => {
+  const identity = await getCompanyIdentity();
+  res.json({ identity });
+});
+
+const companyIdentitySchema = z.object({
+  companyLegalName: z.string().trim().optional().nullable(),
+  companyAddress: z.string().trim().optional().nullable(),
+  companyPhone: z.string().trim().optional().nullable(),
+  companyEmail: z.string().trim().optional().nullable(),
+  companyTpsNumber: z.string().trim().optional().nullable(),
+  companyTvqNumber: z.string().trim().optional().nullable(),
+});
+settingsRouter.patch("/company-identity", async (req, res) => {
+  const body = companyIdentitySchema.parse(req.body);
+  const identity = await updateCompanyIdentity({
+    companyLegalName: body.companyLegalName ?? null,
+    companyAddress: body.companyAddress ?? null,
+    companyPhone: body.companyPhone ?? null,
+    companyEmail: body.companyEmail ?? null,
+    companyTpsNumber: body.companyTpsNumber ?? null,
+    companyTvqNumber: body.companyTvqNumber ?? null,
+  });
+  res.json({ identity });
 });
 
 const marginThresholdsSchema = z.object({

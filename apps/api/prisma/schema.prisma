@@ -132,6 +132,7 @@ model Contact {
   deliveries     Delivery[]
   externalSales  ExternalSale[]
   seaoFiles      SeaoFile[]
+  soumissions    Soumission[]
 
   @@index([email])
   @@index([name])
@@ -364,6 +365,10 @@ model Budget {
   // filtre que pour "project" ci-dessus), mais rien ne la pose encore.
   rolling       Rolling?
   notes         BudgetNote[]
+  // Document client distinct composé depuis ce budgétaire (13 novembre
+  // 2026) — un budgétaire peut avoir plusieurs Soumissions au fil du temps
+  // (ex. révision après refus), jamais une seule relation @unique.
+  soumissions   Soumission[]
 
   @@index([status])
 }
@@ -420,6 +425,65 @@ model BudgetRow {
   // suivant — bug réel signalé par l'utilisatrice le 13 août 2026 (une
   // ligne « saute » en bas de la liste dès qu'on y saisit une valeur).
   sortOrder     Int           @default(0)
+}
+
+// ---------------------------------------------------------------------------
+// Soumissions (13 novembre 2026) — document client distinct composé par
+// Marie à partir d'un budgétaire « Prêt », JAMAIS un reflet automatique de
+// son contenu interne (confirmé explicitement : « on ne verra jamais toutes
+// les catégories d'un budgétaire » côté client — voir CLAUDE.md). Étape
+// intermédiaire qui se passe AVANT de marquer le budgétaire « Contrat
+// obtenu »/le convertir en projet — ces deux gestes existants
+// (canRecordBudgetOutcome/canConvertBudgetToProject) restent inchangés,
+// toujours déclenchés manuellement par Marie après coup, jamais automatisés
+// par la création d'une Soumission.
+// ---------------------------------------------------------------------------
+
+model Soumission {
+  id        String @id @default(uuid())
+  displayId String @unique // format SO-AAAA-NNNN
+  budgetId  String
+  budget    Budget @relation(fields: [budgetId], references: [id])
+  // Dénormalisé depuis budget.clientRequest.contactId à la création — même
+  // patron que Project/ExternalSale/Rolling.contactId (jamais traversé via
+  // budget→clientRequest→contact à chaque lecture).
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id])
+  status    String @default("draft") // draft | sent | accepted | declined
+  // draft seulement modifiable (voir updateSoumission, soumissions/service.ts)
+  // — une révision après envoi est une NOUVELLE Soumission, jamais une
+  // modification silencieuse d'un document déjà remis au client.
+  introText String? // texte libre d'introduction/contexte, optionnel
+  termsText String? // conditions/validité, optionnel
+  // Gelés à l'envoi (sendSoumission, status passe à "sent") via
+  // computeInvoiceTax — jamais recalculés après coup, même principe que
+  // InvoicePlanEntry.tpsAmount/tvqAmount/totalWithTax.
+  amountBeforeTax Decimal? @db.Decimal(12, 2)
+  tpsAmount       Decimal? @db.Decimal(12, 2)
+  tvqAmount       Decimal? @db.Decimal(12, 2)
+  totalWithTax    Decimal? @db.Decimal(12, 2)
+  sentAt    DateTime?
+  decidedAt DateTime? // accepted ou declined
+  createdById String
+  createdAt   DateTime @default(now())
+  // Corbeille — même mécanisme que Budget/Project.deletedAt. Bloqué si une
+  // Confirmation de commande existe déjà pour cette Soumission (voir
+  // deleteSoumission, soumissions/service.ts).
+  deletedAt DateTime?
+
+  lines SoumissionLine[]
+
+  @@index([budgetId])
+  @@index([status])
+}
+
+model SoumissionLine {
+  id           String     @id @default(uuid())
+  soumissionId String
+  soumission   Soumission @relation(fields: [soumissionId], references: [id], onDelete: Cascade)
+  label        String // texte libre, ex. "Fabrication et installation du système"
+  amount       Decimal    @db.Decimal(12, 2)
+  sortOrder    Int        @default(0)
 }
 
 // ---------------------------------------------------------------------------
@@ -1565,10 +1629,27 @@ model Settings {
   // cancelInvoiceRequest ("Annuler") — un numéro annulé reste brûlé.
   nextInvoiceNumber            Int      @default(1)
   invoiceNumberYear            Int      @default(2026)
+  // Soumissions (nouveau module, 13 novembre 2026) — SO-AAAA-NNNN, remise à
+  // zéro annuelle dès le départ, même mécanisme que externalSaleNumberYear.
+  nextSoumissionNumber         Int      @default(1)
+  soumissionNumberYear         Int      @default(2026)
   // TPS/TVQ séparées (confirmé) — Decimal(6,3), pas (5,2) comme les autres
   // %, pour ne jamais arrondir silencieusement 9.975 à 9.98.
   tpsRatePct                   Decimal  @default(5.000) @db.Decimal(6, 3)
   tvqRatePct                   Decimal  @default(9.975) @db.Decimal(6, 3)
+  // Identité de l'entreprise pour l'en-tête des documents client (Soumission/
+  // Confirmation de commande/Facture — 13 novembre 2026) — AUCUNE valeur par
+  // défaut, jamais devinée : vide tant que Marie ne les a pas saisies elle-
+  // même (nouvelle carte Paramètres). Avant ce chantier, "GSC Automation"
+  // était codé en dur dans chaque vue d'export existante, sans adresse ni
+  // numéros d'inscription TPS/TVQ (requis légalement sur un document client
+  // québécois) — jamais configurable nulle part.
+  companyLegalName             String?
+  companyAddress               String?
+  companyPhone                 String?
+  companyEmail                 String?
+  companyTpsNumber             String?
+  companyTvqNumber             String?
   punchRoundingMinutes         Int      @default(15)
   // Seuils du voyant de marge réelle (statut financier) — confirmé le 17
   // août 2026 : s'appliquent à projets, roulements et calls (recalculé à la

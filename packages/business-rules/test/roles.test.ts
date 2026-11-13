@@ -670,3 +670,15 @@ describe("Trésorerie (13 novembre 2026) — Direction+Propriétaire seulement, 
     expect(P.canManageTreasury(WAREHOUSE)).toBe(false);
   });
 });
+
+describe("Soumission (13 novembre 2026) — même palier que canCreateBudgetFromRequest", () => {
+  it("Direction et Propriétaire gèrent le cycle complet de la Soumission", () => {
+    expect(P.canManageSoumission(OWNER)).toBe(true);
+    expect(P.canManageSoumission(BOSS)).toBe(true);
+  });
+  it("Administration, Employé et Magasinier ne gèrent pas la Soumission", () => {
+    expect(P.canManageSoumission(ADMIN)).toBe(false);
+    expect(P.canManageSoumission(MEMBER)).toBe(false);
+    expect(P.canManageSoumission(WAREHOUSE)).toBe(false);
+  });
+});

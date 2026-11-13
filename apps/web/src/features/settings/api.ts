@@ -36,6 +36,23 @@ export function updateMarginThresholds(update: MarginThresholdsDto): Promise<{ t
   return apiFetch("/api/settings/margin-thresholds", { method: "PATCH", body: JSON.stringify(update) });
 }
 
+export interface CompanyIdentityDto {
+  companyLegalName: string | null;
+  companyAddress: string | null;
+  companyPhone: string | null;
+  companyEmail: string | null;
+  companyTpsNumber: string | null;
+  companyTvqNumber: string | null;
+}
+
+export function fetchCompanyIdentity(): Promise<{ identity: CompanyIdentityDto }> {
+  return apiFetch("/api/settings/company-identity");
+}
+
+export function updateCompanyIdentity(update: CompanyIdentityDto): Promise<{ identity: CompanyIdentityDto }> {
+  return apiFetch("/api/settings/company-identity", { method: "PATCH", body: JSON.stringify(update) });
+}
+
 /**
  * Classes facturables en service (TechLevel), confirmé le 18 août 2026 —
  * trois taux distincts (régulier/temps supplémentaire/extra), la classe

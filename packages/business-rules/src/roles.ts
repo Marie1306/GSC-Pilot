@@ -865,3 +865,16 @@ export function canManageTreasury(persona: Persona): boolean {
   assertRole(persona);
   return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
+
+/**
+ * Soumission (nouveau module, 13 novembre 2026) — composer, éditer, envoyer,
+ * marquer acceptée/refusée, et convertir en Confirmation de commande : une
+ * seule porte pour tout le cycle, Direction et Propriétaire seulement —
+ * même palier que canCreateBudgetFromRequest, puisque la Soumission découle
+ * directement d'un budgétaire. Administration exclue (jamais mentionnée par
+ * l'utilisatrice pour ce module, jamais deviné).
+ */
+export function canManageSoumission(persona: Persona): boolean {
+  assertRole(persona);
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
+}

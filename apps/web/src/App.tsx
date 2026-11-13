@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { canAccessBudget, canAccessOverviewViews, canAccessDeliveries, canAccessServiceCalls } from "@gsc-pilot/business-rules";
+import { canAccessBudget, canAccessOverviewViews, canAccessDeliveries, canAccessServiceCalls, canManageSoumission } from "@gsc-pilot/business-rules";
 import { AuthProvider } from "./lib/auth/AuthProvider.js";
 import { RequireRole } from "./lib/auth/RequireRole.js";
 import { AppShell } from "./components/AppShell.js";
@@ -9,6 +9,7 @@ import { AcceptInvitePage } from "./features/auth/AcceptInvitePage.js";
 import { BudgetExportView } from "./features/budgets/BudgetExportView.js";
 import { ProjectPostMortemExportView } from "./features/projects/ProjectPostMortemExportView.js";
 import { DeliveryExportView } from "./features/fulfillment/DeliveryExportView.js";
+import { SoumissionExportView } from "./features/soumissions/SoumissionExportView.js";
 import { ServiceCallExportView } from "./features/serviceCalls/ServiceCallExportView.js";
 import { NAV_ITEMS } from "./lib/nav.js";
 import { DashboardPage } from "./features/dashboard/DashboardPage.js";
@@ -96,6 +97,14 @@ export function App() {
             element={
               <RequireRole allow={canAccessServiceCalls}>
                 <ServiceCallExportView />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/soumissions/:id/export"
+            element={
+              <RequireRole allow={canManageSoumission}>
+                <SoumissionExportView />
               </RequireRole>
             }
           />
