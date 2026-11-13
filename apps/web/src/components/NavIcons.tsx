@@ -140,6 +140,12 @@ const PATHS: Record<string, (props: SVGProps<SVGSVGElement>) => React.JSX.Elemen
       <path d="M7.3 6.5h5.4M7.3 9.5h5.4M7.3 12.5h3" />
     </Base>
   ),
+  treasury: (props) => (
+    <Base {...props}>
+      <path d="M10 2.5v15" />
+      <path d="M13.3 6.2H8.8a2.4 2.4 0 0 0 0 4.8h2.4a2.4 2.4 0 0 1 0 4.8H6.7" />
+    </Base>
+  ),
   contacts: (props) => (
     <Base {...props}>
       <circle cx="7" cy="7" r="2.3" />
