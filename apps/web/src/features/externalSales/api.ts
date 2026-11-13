@@ -1,6 +1,7 @@
 import type { FulfillmentMode } from "@gsc-pilot/business-rules";
 import { apiFetch } from "../../lib/apiClient.js";
 import type { PurchaseRequestDto } from "../purchases/api.js";
+import type { InvoiceRequestPreviewDto } from "../projects/api.js";
 
 // Libellés de fulfillment + formatCurrency réutilisés tels quels depuis
 // projects/api.ts (mêmes valeurs que Project/Rolling — voir fulfillment.ts,
@@ -122,7 +123,12 @@ export function setExternalSaleCompleted(id: string, completed: boolean): Promis
   return apiFetch(`/api/external-sales/${id}/completed`, { method: "PATCH", body: JSON.stringify({ completed }) });
 }
 
-/** Demander la facturation (10 novembre 2026) — geste séparé et définitif, voir requestExternalSaleInvoice côté API. */
-export function requestExternalSaleInvoice(id: string): Promise<void> {
-  return apiFetch(`/api/external-sales/${id}/request-invoice`, { method: "POST" });
+/** Aperçu avant confirmation (RequestInvoiceModal, 13 novembre 2026) — jamais attribué/écrit. */
+export function previewExternalSaleInvoice(id: string): Promise<{ preview: InvoiceRequestPreviewDto }> {
+  return apiFetch(`/api/external-sales/${id}/invoice-preview`, { method: "POST" });
+}
+
+/** Geste unifié "Demander la facturation" — crée ET confirme le jalon (numéro/taxes/échéance) dans la même transaction. */
+export function requestExternalSaleInvoice(id: string, note?: string): Promise<void> {
+  return apiFetch(`/api/external-sales/${id}/request-invoice`, { method: "POST", body: JSON.stringify({ note }) });
 }

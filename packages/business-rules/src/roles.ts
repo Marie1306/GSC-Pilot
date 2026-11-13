@@ -262,10 +262,9 @@ export function canApproveServiceCall(persona: Persona): boolean {
   assertRole(persona);
   return persona === ROLES.OWNER;
 }
-export function canSendServiceCallToAdmin(persona: Persona): boolean {
-  assertRole(persona);
-  return persona === ROLES.OWNER;
-}
+// canSendServiceCallToAdmin retirée le 13 novembre 2026 — "Envoyer à
+// l'administration" est devenue une variante du geste unifié "Demander la
+// facturation" (canConfirmInvoiceRequest ci-dessous), voir serviceCalls/service.ts.
 
 /** Supprimer un appel de service (corbeille) : Direction seulement — même palier que canDeleteBudget/canDeleteProject/canDeleteClientRequest (19 août 2026). */
 export function canDeleteServiceCall(persona: Persona): boolean {
@@ -495,18 +494,35 @@ export function canModifyBillingCycle(persona: Persona): boolean {
   return persona === ROLES.OWNER;
 }
 /** Demander la facturation d'un jalon (fait apparaître la demande dans le
- * centre d'actions d'Administration) : Direction seulement. */
+ * centre d'actions d'Administration) : Direction seulement. Ne gouverne
+ * plus le geste "Demander la facturation" lui-même depuis le 13 novembre
+ * 2026 (voir canConfirmInvoiceRequest ci-dessous) — reste utilisée
+ * uniquement par updateProjectBillingPlan (modifier le cycle de jalons). */
 export function canRequestInvoice(persona: Persona): boolean {
   assertRole(persona);
   return persona === ROLES.OWNER;
 }
-/** Créer/enregistrer l'entrée de facture (directement, ou en traitant une
- * demande) : Direction et Administration toutes les deux — reflète la
- * façon dont l'équipe travaille en pratique, pas une restriction stricte. */
-export function canCreateInvoiceRecord(persona: Persona): boolean {
+/**
+ * Geste unifié "Demander la facturation" (13 novembre 2026, refonte —
+ * preview + confirmation en une seule fois : numéro réel attribué, taxes
+ * calculées, échéance net-30) et son pendant "Annuler la demande" —
+ * REMPLACE à la fois l'ancien canRequestInvoice (demande seule) et
+ * canCreateInvoiceRecord (enregistrement manuel du numéro, Sage) pour ce
+ * geste précis. Inclut explicitement le Propriétaire (ROLES.BOSS), sur
+ * confirmation directe de l'utilisatrice — exception délibérée à la règle
+ * du 31 août 2026 (le Propriétaire n'a que la CONSULTATION du module
+ * Facturation, canViewInvoicing ci-dessus) : cette exception ne couvre QUE
+ * ce geste précis, pas les autres actions de facturation (canRecordPayment/
+ * canHoldInvoice/canDeleteInvoiceEntry restent inchangées, Propriétaire
+ * toujours exclu). Gouverne aussi sendServiceCallToAdmin/
+ * requestExternalSaleInvoice, devenues des variantes du même geste.
+ */
+export function canConfirmInvoiceRequest(persona: Persona): boolean {
   assertRole(persona);
-  return ([ROLES.OWNER, ROLES.ADMIN] as Persona[]).includes(persona);
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
+// canCreateInvoiceRecord retirée le 13 novembre 2026 — l'enregistrement
+// manuel du numéro (Sage) n'existe plus, voir canConfirmInvoiceRequest.
 export function canRecordPayment(persona: Persona): boolean {
   assertRole(persona);
   return ([ROLES.OWNER, ROLES.ADMIN] as Persona[]).includes(persona);

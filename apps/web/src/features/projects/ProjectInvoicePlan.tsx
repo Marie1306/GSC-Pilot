@@ -1,12 +1,13 @@
 import { Fragment, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { canRequestInvoice, canCreateInvoiceRecord, canRecordPayment } from "@gsc-pilot/business-rules";
+import { canRequestInvoice, canConfirmInvoiceRequest, canRecordPayment } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
+import { RequestInvoiceModal } from "../invoicing/RequestInvoiceModal.js";
 import {
   fetchInvoicePlan,
-  requestInvoice,
-  recordInvoice,
+  previewInvoiceRequest,
+  confirmInvoiceRequest,
   recordInvoicePayment,
   updateInvoicePlan,
   formatCurrency,
@@ -24,7 +25,7 @@ function formatDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" }) : "—";
 }
 
-type ExpandedAction = { id: string; type: "record" | "payment" } | null;
+type ExpandedAction = { id: string; type: "payment" } | null;
 interface CycleStepDraft {
   label: string;
   pct: string;
@@ -35,19 +36,18 @@ interface CycleStepDraft {
  * une seule fois à la conversion (DEFAULT_BILLING_SPLIT, billing.ts). Depuis
  * le 26 août 2026, Direction/Propriétaire peuvent remplacer entièrement ces
  * jalons par un cycle personnalisé (updateProjectBillingPlan, même porte que
- * "Demander la facturation") — bloqué côté serveur (409) dès qu'un jalon a
- * déjà progressé, donc le déclencheur disparaît ici dans ce cas plutôt que
- * de laisser l'utilisatrice remplir un formulaire voué à échouer. Sage reste
- * la source réelle des factures — ceci n'est qu'un suivi manuel,
- * "Enregistrer" ne requiert jamais un "Demander" préalable.
+ * l'ancienne demande seule, canRequestInvoice) — bloqué côté serveur (409)
+ * dès qu'un jalon a déjà progressé. Depuis le 13 novembre 2026, "Demander la
+ * facturation" (RequestInvoiceModal, canConfirmInvoiceRequest) attribue
+ * réellement le numéro et les taxes en un seul geste — Sage n'est plus la
+ * source, plus de saisie manuelle séparée ("Enregistrer", retiré).
  */
 export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
   const { employee } = useAuth();
   const queryClient = useQueryClient();
   const planQuery = useQuery({ queryKey: ["invoice-plan", projectId], queryFn: () => fetchInvoicePlan(projectId) });
   const [expanded, setExpanded] = useState<ExpandedAction>(null);
-  const [invoiceNumberDraft, setInvoiceNumberDraft] = useState("");
-  const [dueDateDraft, setDueDateDraft] = useState("");
+  const [requestModalEntryId, setRequestModalEntryId] = useState<string | null>(null);
   const [paidAmountDraft, setPaidAmountDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [showCycleEditor, setShowCycleEditor] = useState(false);
@@ -61,13 +61,6 @@ export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
   };
   const onMutationError = (err: unknown) => setError(err instanceof ApiError ? err.message : "Une erreur est survenue — réessayez.");
 
-  const requestMutation = useMutation({ mutationFn: requestInvoice, onSuccess: invalidate, onError: onMutationError });
-  const recordMutation = useMutation({
-    mutationFn: ({ id, invoiceNumber, dueDate }: { id: string; invoiceNumber: string; dueDate?: string }) =>
-      recordInvoice(id, { invoiceNumber, dueDate }),
-    onSuccess: invalidate,
-    onError: onMutationError,
-  });
   const paymentMutation = useMutation({
     mutationFn: ({ id, amount }: { id: string; amount: number }) => recordInvoicePayment(id, amount),
     onSuccess: invalidate,
@@ -83,8 +76,8 @@ export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
   });
 
   if (!employee) return null;
-  const canRequest = canRequestInvoice(employee.persona);
-  const canRecord = canCreateInvoiceRecord(employee.persona);
+  const canModifyCycle = canRequestInvoice(employee.persona);
+  const canRequest = canConfirmInvoiceRequest(employee.persona);
   const canPay = canRecordPayment(employee.persona);
   const entries = planQuery.data?.entries ?? [];
 
@@ -108,11 +101,6 @@ export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
     );
   }
 
-  function openRecord(entry: InvoicePlanEntryDto) {
-    setExpanded({ id: entry.id, type: "record" });
-    setInvoiceNumberDraft(entry.invoiceNumber ?? "");
-    setDueDateDraft(entry.dueDate?.slice(0, 10) ?? "");
-  }
   function openPayment(entry: InvoicePlanEntryDto) {
     setExpanded({ id: entry.id, type: "payment" });
     setPaidAmountDraft("");
@@ -152,9 +140,11 @@ export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
         <div>
           <h3 style={{ fontSize: 15, margin: 0 }}>Cycle de facturation</h3>
-          <p style={{ margin: "4px 0 10px", color: "var(--gsc-color-muted)", fontSize: 13 }}>Suivi manuel — Sage reste la source réelle des factures.</p>
+          <p style={{ margin: "4px 0 10px", color: "var(--gsc-color-muted)", fontSize: 13 }}>
+            Numéro, taxes et échéance générés par l'appli à la confirmation de chaque jalon.
+          </p>
         </div>
-        {canRequest && !started && (
+        {canModifyCycle && !started && (
           <button
             type="button"
             className="btn btn-secondary btn-small"
@@ -280,15 +270,9 @@ export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
                         type="button"
                         className="btn"
                         style={{ flex: "none", whiteSpace: "nowrap" }}
-                        disabled={requestMutation.isPending}
-                        onClick={() => requestMutation.mutate(entry.id)}
+                        onClick={() => setRequestModalEntryId(entry.id)}
                       >
-                        ✉ {requestMutation.isPending ? "…" : "Demander la facturation"}
-                      </button>
-                    )}
-                    {canRecord && (
-                      <button type="button" className="btn btn-secondary btn-small" onClick={() => openRecord(entry)}>
-                        {entry.invoiceNumber ? "Modifier" : "Enregistrer"}
+                        ✉ Demander la facturation
                       </button>
                     )}
                     {entry.invoiceNumber && canPay && (
@@ -298,38 +282,6 @@ export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
                     )}
                   </td>
                 </tr>
-                {expanded?.id === entry.id && expanded.type === "record" && (
-                  <tr>
-                    <td colSpan={8}>
-                      <form
-                        className="form-grid"
-                        style={{ margin: "8px 0" }}
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          if (!invoiceNumberDraft.trim()) return;
-                          recordMutation.mutate({ id: entry.id, invoiceNumber: invoiceNumberDraft.trim(), dueDate: dueDateDraft || undefined });
-                        }}
-                      >
-                        <div className="field">
-                          <label>Numéro de facture</label>
-                          <input value={invoiceNumberDraft} onChange={(e) => setInvoiceNumberDraft(e.target.value)} />
-                        </div>
-                        <div className="field">
-                          <label>Échéance (facultatif)</label>
-                          <input type="date" value={dueDateDraft} onChange={(e) => setDueDateDraft(e.target.value)} />
-                        </div>
-                        <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                          <button type="submit" className="btn btn-small" disabled={!invoiceNumberDraft.trim() || recordMutation.isPending}>
-                            {recordMutation.isPending ? "…" : "Enregistrer"}
-                          </button>
-                          <button type="button" className="btn btn-secondary btn-small" onClick={() => setExpanded(null)}>
-                            Annuler
-                          </button>
-                        </div>
-                      </form>
-                    </td>
-                  </tr>
-                )}
                 {expanded?.id === entry.id && expanded.type === "payment" && (
                   <tr>
                     <td colSpan={8}>
@@ -364,6 +316,15 @@ export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
           </tbody>
         </table>
       </div>
+      {requestModalEntryId && (
+        <RequestInvoiceModal
+          subtitle={entries.find((entry) => entry.id === requestModalEntryId)?.label ?? ""}
+          fetchPreview={() => previewInvoiceRequest(requestModalEntryId)}
+          confirm={(note) => confirmInvoiceRequest(requestModalEntryId, note)}
+          onClose={() => setRequestModalEntryId(null)}
+          onSuccess={invalidate}
+        />
+      )}
     </div>
   );
 }

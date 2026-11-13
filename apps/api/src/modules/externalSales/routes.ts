@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { canManageExternalSales, canRequestInvoice, FULFILLMENT_MODES, type FulfillmentMode } from "@gsc-pilot/business-rules";
+import { canManageExternalSales, canConfirmInvoiceRequest, FULFILLMENT_MODES, type FulfillmentMode } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import {
   createExternalSale,
@@ -11,6 +11,7 @@ import {
   confirmExternalSaleFulfillment,
   getNextExternalSaleDisplayId,
   setExternalSaleCompleted,
+  previewExternalSaleInvoice,
   requestExternalSaleInvoice,
 } from "./service.js";
 
@@ -100,14 +101,28 @@ externalSalesRouter.patch("/external-sales/:id/completed", requireAuth, requireP
   res.status(204).end();
 });
 
-/** Demander la facturation (10 novembre 2026) — Direction seulement, même permission que pour Projet/Roulement/Appel de service (canRequestInvoice), jamais canManageExternalSales. Voir requestExternalSaleInvoice. */
+/** Aperçu avant confirmation (RequestInvoiceModal, 13 novembre 2026) — même porte que la demande elle-même. */
+externalSalesRouter.post(
+  "/external-sales/:id/invoice-preview",
+  requireAuth,
+  requirePermission((persona) => canConfirmInvoiceRequest(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const preview = await previewExternalSaleInvoice(id);
+    res.json({ preview });
+  },
+);
+
+/** Demander la facturation (13 novembre 2026) — geste unifié, Direction+Propriétaire (canConfirmInvoiceRequest), jamais canManageExternalSales. Voir requestExternalSaleInvoice. */
+const requestExternalSaleInvoiceSchema = z.object({ note: z.string().optional() });
 externalSalesRouter.post(
   "/external-sales/:id/request-invoice",
   requireAuth,
-  requirePermission((persona) => canRequestInvoice(persona)),
+  requirePermission((persona) => canConfirmInvoiceRequest(persona)),
   async (req, res) => {
     const id = z.uuid().parse(req.params.id);
-    await requestExternalSaleInvoice(id, req.employee!.id);
-    res.status(204).end();
+    const { note } = requestExternalSaleInvoiceSchema.parse(req.body);
+    const entry = await requestExternalSaleInvoice(id, req.employee!.id, note);
+    res.json({ entry });
   },
 );

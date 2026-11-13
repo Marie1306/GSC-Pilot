@@ -3,10 +3,13 @@
  *
  * Cycle confirmé (spécification, section « Appels de service — flux
  * complet ») : résumé obligatoire → signature client → approbation
- * Direction → envoi à Administration pour facturation. « Approuver » et
- * « Envoyer à l'administration » sont Direction seulement (canApproveServiceCall/
- * canSendServiceCallToAdmin, même porte que canRequestInvoice — écart
- * corrigé dans la vraie v19, jamais réintroduit ici).
+ * Direction → envoi à Administration pour facturation. « Approuver » reste
+ * Direction seulement (canApproveServiceCall). « Envoyer à
+ * l'administration » (sendServiceCallToAdmin) est devenue, le 13 novembre
+ * 2026, une variante du geste unifié "Demander la facturation" —
+ * canConfirmInvoiceRequest (Direction+Propriétaire), plus
+ * canSendServiceCallToAdmin (retirée, roles.ts) — crée ET confirme le jalon
+ * de facturation dans la même transaction, voir confirmInvoiceRequestInTx.
  *
  * Plusieurs techniciens peuvent être assignés au même call (confirmé le
  * 19 août 2026 par l'utilisatrice — « ils doivent parfois y aller à deux
@@ -32,6 +35,12 @@ import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
 import { ensureContactRow } from "../clientRequests/service.js";
 import { resolveSequentialNumber } from "../settings/sequentialNumbers.js";
+import {
+  buildInvoiceRequestPreview,
+  confirmInvoiceRequestInTx,
+  type InvoiceRequestPreviewDto,
+  type InvoicePlanEntryDto,
+} from "../projects/service.js";
 import type { Prisma, ServiceCall, ServiceCallPart, ServiceCallPhoto } from "../../generated/prisma/client.js";
 
 /** Remise à zéro annuelle (8 septembre 2026) — voir settings/sequentialNumbers.ts. */
@@ -536,36 +545,44 @@ export async function approveServiceCall(id: string, approverId: string): Promis
   });
 }
 
-/**
- * Direction seulement (canSendServiceCallToAdmin) — aucun courriel envoyé
- * cette passe (voir en-tête). Crée aussi le jalon de facturation (20 août
- * 2026, module Facturation) : un appel de service n'a pas de cycle à 4
- * jalons comme un projet (computeBillingPlan), un seul jalon à 100 % du
- * total réel suffit. requestedAt posé immédiatement (l'envoi EST la
- * demande, pas de "Demander" séparé comme pour un projet) — c'est ce champ
- * qui fait apparaître l'entrée dans la liste consolidée (voir invoicing/service.ts).
- */
-export async function sendServiceCallToAdmin(id: string, actorId: string): Promise<void> {
-  const call = await loadServiceCallOrThrow(id);
+async function assertServiceCallInvoiceable(call: Awaited<ReturnType<typeof loadServiceCallOrThrow>>): Promise<void> {
   if (!call.ownerApprovedAt) throw new HttpError(400, "Le call doit d'abord être approuvé par la Direction.");
   if (call.sentToAdminAt) throw new HttpError(409, "Déjà envoyé à l'administration.");
   if (call.projectId) throw new HttpError(400, "Ce call est lié à un projet (sous-garantie) — il ne peut pas être facturé séparément.");
   if (call.rollingId) throw new HttpError(400, "Ce call est lié à un roulement — il ne peut pas être facturé séparément.");
+}
+
+/** Aperçu avant confirmation (RequestInvoiceModal, 13 novembre 2026) — même rôle que previewInvoiceRequest (projects/service.ts) mais sans InvoicePlanEntry encore créée. */
+export async function previewServiceCallInvoice(id: string): Promise<InvoiceRequestPreviewDto> {
+  const call = await loadServiceCallOrThrow(id);
+  await assertServiceCallInvoiceable(call);
   const financials = await computeServiceCallFinancials(call);
-  await prisma.$transaction([
-    prisma.serviceCall.update({ where: { id }, data: { sentToAdminAt: new Date() } }),
-    prisma.invoicePlanEntry.create({
-      data: {
-        serviceCallId: id,
-        label: call.displayId,
-        pct: 100,
-        amount: financials.totalSale,
-        requestedById: actorId,
-        requestedAt: new Date(),
-        sortOrder: 0,
-      },
-    }),
-  ]);
+  return buildInvoiceRequestPreview(financials.totalSale);
+}
+
+/**
+ * Direction+Propriétaire (canConfirmInvoiceRequest, 13 novembre 2026 — avant
+ * cette date, Direction seulement via canSendServiceCallToAdmin, retirée).
+ * Aucun courriel envoyé cette passe (voir en-tête). Crée le jalon de
+ * facturation ET l'attribue réellement (numéro/taxes/échéance) dans la MÊME
+ * transaction — un appel de service n'a pas de cycle à 4 jalons comme un
+ * projet (computeBillingPlan), un seul jalon à 100 % du total réel suffit.
+ * Contrairement à Project/Rolling (jalon pré-existant, encore pending), il
+ * n'y a jamais d'état intermédiaire "créé mais sans numéro" ici — création
+ * et confirmation sont le même geste, confirmInvoiceRequestInTx
+ * (projects/service.ts) composée dans cette transaction.
+ */
+export async function sendServiceCallToAdmin(id: string, actorId: string, note?: string): Promise<InvoicePlanEntryDto> {
+  const call = await loadServiceCallOrThrow(id);
+  await assertServiceCallInvoiceable(call);
+  const financials = await computeServiceCallFinancials(call);
+  return prisma.$transaction(async (tx) => {
+    await tx.serviceCall.update({ where: { id }, data: { sentToAdminAt: new Date() } });
+    const entry = await tx.invoicePlanEntry.create({
+      data: { serviceCallId: id, label: call.displayId, pct: 100, amount: financials.totalSale, sortOrder: 0 },
+    });
+    return confirmInvoiceRequestInTx(tx, entry.id, actorId, { note });
+  });
 }
 
 /** Corbeille — même mécanisme que deleteClientRequest/deleteBudget/deleteProject (19 août 2026). */

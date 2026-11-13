@@ -11,7 +11,8 @@
  *     (roles.ts) avec les vrais paramètres de délégation/seuils gelés,
  *     jamais une approximation "owner_pending → Direction" qui ignorerait
  *     la délégation ou l'escalade de seuil.
- *   - Facturation demandée mais pas encore enregistrée (canCreateInvoiceRecord).
+ *   - (Catégorie "Facturation à traiter" retirée le 13 novembre 2026 — voir
+ *     plus bas, l'état qu'elle guettait ne peut plus se produire.)
  *   - Nouvelles demandes clients (statut "new", canCreateClientRequest) —
  *     ajouté le 23 août 2026 suite au rapport de l'utilisatrice : une
  *     demande fraîchement entrée doit être visible immédiatement, pas
@@ -39,7 +40,6 @@ import {
   canApprovePurchaseRequest,
   canManagePurchaseFulfillment,
   canApprovePunch,
-  canCreateInvoiceRecord,
   canCreateClientRequest,
   canPrepareSubassemblyPartsList,
   canManageSeao,
@@ -50,7 +50,6 @@ import {
 import { loadDelegationSettings } from "../../auth/delegation.js";
 import { listBudgets } from "../budgets/service.js";
 import { listPurchaseRequests } from "../purchases/service.js";
-import { listInvoiceEntries } from "../invoicing/service.js";
 import { listClientRequests } from "../clientRequests/service.js";
 import { listPendingPartsListSubassemblies } from "../subassemblies/service.js";
 import { listTimeEntriesForApproval } from "../timeEntries/service.js";
@@ -157,24 +156,12 @@ export async function getActionCenterItems(viewerPersona: Persona, viewerEmploye
     }
   }
 
-  if (canCreateInvoiceRecord(viewerPersona)) {
-    const entries = await listInvoiceEntries();
-    for (const entry of entries) {
-      // sourceDeleted exclu (10 novembre 2026) — rien à traiter pour un
-      // dossier déjà à la corbeille (voir dashboard/service.ts, même logique).
-      if (!entry.invoiceNumber && !entry.sourceDeleted) {
-        items.push({
-          id: entry.id,
-          type: "invoicing",
-          typeLabel: "Facturation à traiter",
-          label: `${entry.sourceLabel} — ${entry.label}`,
-          sublabel: entry.clientLabel,
-          amount: entry.amount,
-          createdAt: entry.requestedAt!,
-        });
-      }
-    }
-  }
+  // Catégorie "Facturation à traiter" retirée le 13 novembre 2026 : le
+  // geste unifié "Demander la facturation" (confirmInvoiceRequest,
+  // projects/service.ts) pose désormais requestedAt ET invoiceNumber dans
+  // la même transaction — l'état "demandée mais pas encore enregistrée"
+  // que cette catégorie guettait (listInvoiceEntries, !entry.invoiceNumber)
+  // ne peut plus jamais se produire. Voir CLAUDE.md.
 
   // Nouvelle demande client = signal immédiat pour Direction/Administration/
   // Propriétaire dès l'entrée (rapport de l'utilisatrice, 23 août 2026 :

@@ -4,8 +4,7 @@ import {
   canCreateRollingDirectly,
   canMarkProductionComplete,
   canChooseFulfillmentMode,
-  canRequestInvoice,
-  canCreateInvoiceRecord,
+  canConfirmInvoiceRequest,
   canRecordPayment,
   FULFILLMENT_MODES,
   type FulfillmentMode,
@@ -14,6 +13,7 @@ import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { fetchPunchableEmployees } from "../timePunch/api.js";
 import { FULFILLMENT_MODE_LABELS, FULFILLMENT_STATUS_LABELS } from "../projects/api.js";
+import { RequestInvoiceModal } from "../invoicing/RequestInvoiceModal.js";
 import {
   fetchRollingDetail,
   updateRollingSold,
@@ -21,8 +21,8 @@ import {
   markRollingProductionComplete,
   chooseRollingFulfillmentMode,
   confirmRollingFulfillment,
-  requestInvoice,
-  recordInvoice,
+  previewInvoiceRequest,
+  confirmInvoiceRequest,
   recordInvoicePayment,
   formatCurrency,
   type ChooseRollingFulfillmentInput,
@@ -59,9 +59,9 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
   const [address, setAddress] = useState("");
   const [scheduled, setScheduled] = useState("");
   const [confirmNote, setConfirmNote] = useState("");
-  const [invoiceNumberDraft, setInvoiceNumberDraft] = useState("");
+  const [requestModalEntryId, setRequestModalEntryId] = useState<string | null>(null);
   const [paidAmountDraft, setPaidAmountDraft] = useState("");
-  const [expandedEntry, setExpandedEntry] = useState<{ id: string; type: "record" | "payment" } | null>(null);
+  const [expandedEntry, setExpandedEntry] = useState<{ id: string; type: "payment" } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [optionsOpen, setOptionsOpen] = useState(false);
   // Signal d'ouverture pour le raccourci "Ajouter un achat" du menu Options —
@@ -111,15 +111,6 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
     },
     onError: onMutationError,
   });
-  const requestMutation = useMutation({ mutationFn: (entryId: string) => requestInvoice(entryId), onSuccess: invalidatePlan, onError: onMutationError });
-  const recordMutation = useMutation({
-    mutationFn: ({ entryId, invoiceNumber }: { entryId: string; invoiceNumber: string }) => recordInvoice(entryId, { invoiceNumber }),
-    onSuccess: () => {
-      setExpandedEntry(null);
-      invalidatePlan();
-    },
-    onError: onMutationError,
-  });
   const paymentMutation = useMutation({
     mutationFn: ({ entryId, paidAmount }: { entryId: string; paidAmount: number }) => recordInvoicePayment(entryId, paidAmount),
     onSuccess: () => {
@@ -133,8 +124,7 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
   const canEditSold = canCreateRollingDirectly(employee.persona);
   const canComplete = canMarkProductionComplete(employee.persona);
   const canChoose = canChooseFulfillmentMode(employee.persona);
-  const canRequest = canRequestInvoice(employee.persona);
-  const canRecord = canCreateInvoiceRecord(employee.persona);
+  const canRequest = canConfirmInvoiceRequest(employee.persona);
   const canPay = canRecordPayment(employee.persona);
   const canConfirm = canChoose && !!rolling?.fulfillmentMode && CONFIRMABLE_MODES.includes(rolling.fulfillmentMode) && rolling.fulfillmentStatus === "awaiting_confirmation";
 
@@ -496,22 +486,9 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
                           type="button"
                           className="btn"
                           style={{ flex: "none", whiteSpace: "nowrap" }}
-                          disabled={requestMutation.isPending}
-                          onClick={() => requestMutation.mutate(entry.id)}
+                          onClick={() => setRequestModalEntryId(entry.id)}
                         >
-                          ✉ {requestMutation.isPending ? "…" : "Demander la facturation"}
-                        </button>
-                      )}
-                      {canRecord && (
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-small"
-                          onClick={() => {
-                            setExpandedEntry({ id: entry.id, type: "record" });
-                            setInvoiceNumberDraft(entry.invoiceNumber ?? "");
-                          }}
-                        >
-                          {entry.invoiceNumber ? "Modifier" : "Enregistrer"}
+                          ✉ Demander la facturation
                         </button>
                       )}
                       {entry.invoiceNumber && canPay && (
@@ -534,30 +511,6 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
             </div>
           )}
 
-          {expandedEntry?.type === "record" && (
-            <form
-              className="form-grid"
-              style={{ marginTop: 10 }}
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (!invoiceNumberDraft.trim()) return;
-                recordMutation.mutate({ entryId: expandedEntry.id, invoiceNumber: invoiceNumberDraft.trim() });
-              }}
-            >
-              <div className="field">
-                <label>Numéro de facture</label>
-                <input value={invoiceNumberDraft} onChange={(e) => setInvoiceNumberDraft(e.target.value)} autoFocus />
-              </div>
-              <div className="field field-full" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button type="submit" className="btn btn-small" disabled={!invoiceNumberDraft.trim() || recordMutation.isPending}>
-                  {recordMutation.isPending ? "…" : "Enregistrer"}
-                </button>
-                <button type="button" className="btn btn-secondary btn-small" onClick={() => setExpandedEntry(null)}>
-                  Annuler
-                </button>
-              </div>
-            </form>
-          )}
           {expandedEntry?.type === "payment" && (
             <form
               className="form-grid"
@@ -603,6 +556,15 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
         onDeleted={onClose}
         onAddPurchase={() => setPurchaseOpenSignal((v) => v + 1)}
       />
+      {requestModalEntryId && (
+        <RequestInvoiceModal
+          subtitle={rolling.rollingNumber}
+          fetchPreview={() => previewInvoiceRequest(requestModalEntryId)}
+          confirm={(note) => confirmInvoiceRequest(requestModalEntryId, note)}
+          onClose={() => setRequestModalEntryId(null)}
+          onSuccess={invalidatePlan}
+        />
+      )}
     </div>
   );
 }

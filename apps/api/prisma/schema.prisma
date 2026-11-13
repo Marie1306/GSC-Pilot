@@ -702,8 +702,27 @@ model InvoicePlanEntry {
   pct            Decimal       @db.Decimal(5, 2)
   amount         Decimal       @db.Decimal(12, 2)
   status         String        @default("pending") // pending | sent | paid | on_hold (calculé à la lecture par billing.ts)
-  invoiceNumber  String? // saisi manuellement, reflète Sage
+  // Généré par l'appli (confirmInvoiceRequest, projects/service.ts) depuis
+  // le 13 novembre 2026 — plus de dépendance à Sage pour ce numéro (voir
+  // CLAUDE.md, refonte facturation/trésorerie). Jamais réutilisé une fois
+  // attribué, même après cancelInvoiceRequest ("Annuler") — le compteur
+  // Settings.nextInvoiceNumber n'est jamais décrémenté.
+  invoiceNumber  String?
   dueDate        DateTime?
+  // tpsAmount/tvqAmount/totalWithTax : gelés au moment de confirmInvoiceRequest
+  // (computeInvoiceTax, billing.ts) — jamais recalculés après coup, même
+  // principe que TimeEntry.costRate. Null tant que le jalon est pending.
+  tpsAmount      Decimal?      @db.Decimal(12, 2)
+  tvqAmount      Decimal?      @db.Decimal(12, 2)
+  totalWithTax   Decimal?      @db.Decimal(12, 2)
+  note           String? // saisie libre dans la fenêtre de confirmation (RequestInvoiceModal), reportée sur la facture
+  // Date prévue d'un jalon encore PENDING, fixée manuellement depuis le
+  // module Trésorerie (13 novembre 2026) — prioritaire sur la date de
+  // livraison prévue du dossier parent (fulfillmentScheduled/scheduledAt)
+  // pour placer ce montant dans sa semaine du prévisionnel. Sans effet une
+  // fois la facture confirmée (le vrai dueDate prend le relais) — voir
+  // setInvoicePlanEntryForecastDate, projects/service.ts.
+  forecastDate   DateTime?     @db.Date
   paidAmount     Decimal       @default(0) @db.Decimal(12, 2)
   paidAt         DateTime?
   isExtra        Boolean       @default(false) // 5e jalon (extra installation / avenant) plutôt qu'un des 4 standards
@@ -1540,6 +1559,16 @@ model Settings {
   nextSeaoNumber               Int      @default(1)
   seaoNumberYear               Int      @default(2026)
   seaoDefaultMarginPct         Decimal  @default(20) @db.Decimal(5, 2)
+  // Facturation générée par l'appli (13 novembre 2026, refonte — voir
+  // CLAUDE.md) — FA-AAAA-NNNN, remise à zéro annuelle dès le départ, même
+  // mécanisme que externalSaleNumberYear ci-dessus. Jamais décrémenté par
+  // cancelInvoiceRequest ("Annuler") — un numéro annulé reste brûlé.
+  nextInvoiceNumber            Int      @default(1)
+  invoiceNumberYear            Int      @default(2026)
+  // TPS/TVQ séparées (confirmé) — Decimal(6,3), pas (5,2) comme les autres
+  // %, pour ne jamais arrondir silencieusement 9.975 à 9.98.
+  tpsRatePct                   Decimal  @default(5.000) @db.Decimal(6, 3)
+  tvqRatePct                   Decimal  @default(9.975) @db.Decimal(6, 3)
   punchRoundingMinutes         Int      @default(15)
   // Seuils du voyant de marge réelle (statut financier) — confirmé le 17
   // août 2026 : s'appliquent à projets, roulements et calls (recalculé à la

@@ -34,7 +34,6 @@ export interface DashboardSummaryDto {
   activeProjectsCount?: number;
   activeRollingsCount?: number;
   budgetsInProgressCount?: number;
-  invoicingToProcessCount?: number;
   receivableBalance?: number;
   recentInvoices?: RecentInvoiceDto[];
   portfolioMarginPct?: number;

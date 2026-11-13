@@ -18,11 +18,12 @@ const TABS: { key: InvoiceEntryStatus | "all"; label: string }[] = [
 
 /**
  * Facturation — vue consolidée (20 août 2026, sur demande explicite de
- * l'utilisatrice). Regroupe les jalons de projet déjà demandés et les
- * appels de service envoyés à l'administration (voir invoicing/service.ts,
- * backend) — un jalon jamais demandé n'apparaît jamais ici, seulement dans
- * le Cycle de facturation du projet lui-même (comportement voulu). Suivi
- * manuel — Sage reste la source réelle de la facture, jamais générée ici.
+ * l'utilisatrice). Regroupe les jalons déjà confirmés (Project/Rolling/
+ * ServiceCall/ExternalSale, voir invoicing/service.ts, backend) — un jalon
+ * jamais demandé n'apparaît jamais ici, seulement dans le Cycle de
+ * facturation du dossier lui-même (comportement voulu). Depuis le 13
+ * novembre 2026, le numéro et les taxes sont générés par l'appli à la
+ * confirmation (RequestInvoiceModal) — Sage n'est plus la source.
  *
  * Sélectionner une ligne ouvre le détail en tiroir latéral droit (31 août
  * 2026, demande explicite de l'utilisatrice, mise en page inspirée de v19)
@@ -39,10 +40,12 @@ export function InvoicingPage() {
 
   const stats = { open: 0, openBalance: 0, overdue: 0, onHold: 0, received: 0 };
   for (const entry of entries) {
-    const balance = entry.amount - entry.paidAmount;
+    // totalWithTax ?? amount : même résolution tax-aware que le serveur (toInvoicePlanEntryDto) — null seulement pour une facture confirmée avant le 13 novembre 2026.
+    const totalDue = entry.totalWithTax ?? entry.amount;
+    const balance = totalDue - entry.paidAmount;
     stats.received += entry.paidAmount;
     if (entry.status !== "paid") {
-      stats.open += entry.amount;
+      stats.open += totalDue;
       stats.openBalance += balance;
     }
     if (entry.status === "overdue") stats.overdue += balance;
@@ -122,14 +125,17 @@ export function InvoicingPage() {
                   <th>Client / dossier</th>
                   <th>Envoyée</th>
                   <th>Échéance</th>
-                  <th className="num">Montant</th>
+                  <th className="num">Avant taxes</th>
+                  <th className="num">Après taxes</th>
                   <th className="num">Payé</th>
                   <th className="num">Solde</th>
                   <th>Statut</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((entry) => (
+                {filtered.map((entry) => {
+                  const totalDue = entry.totalWithTax ?? entry.amount;
+                  return (
                   <tr key={entry.id} className="clickable-row" onClick={() => setOpenId(entry.id)}>
                     <td>{entry.invoiceNumber ?? "—"}</td>
                     <td>
@@ -139,13 +145,15 @@ export function InvoicingPage() {
                     <td>{formatDate(entry.processedAt)}</td>
                     <td>{formatDate(entry.dueDate)}</td>
                     <td className="num">{formatCurrency(entry.amount)}</td>
+                    <td className="num">{formatCurrency(totalDue)}</td>
                     <td className="num">{formatCurrency(entry.paidAmount)}</td>
-                    <td className="num">{formatCurrency(entry.amount - entry.paidAmount)}</td>
+                    <td className="num">{formatCurrency(totalDue - entry.paidAmount)}</td>
                     <td>
                       <span className={`badge-pill ${INVOICE_STATUS_BADGE[entry.status]}`}>{INVOICE_STATUS_LABELS[entry.status]}</span>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -1,11 +1,19 @@
 /**
  * GSC Pilot — Facturation
  *
- * Confirmé le 8-9 août 2026. Rappel important : ce module ne génère PAS de
- * factures — Sage reste la source réelle. Ici, on calcule le PLAN (combien
- * facturer, quand) et le STATUT (à partir des dates/paiements déjà
- * enregistrés) — le suivi manuel lui-même reste un geste humain, par choix
- * (voir la spécification : « pour éviter d'alourdir l'application »).
+ * Confirmé le 8-9 août 2026. Ici, on calcule le PLAN (combien facturer,
+ * quand) et le STATUT (à partir des dates/paiements déjà enregistrés).
+ *
+ * Mise à jour le 13 novembre 2026 : jusqu'ici, ce module ne générait PAS de
+ * vraies factures (Sage restait la source réelle, le suivi manuel un geste
+ * humain délibéré — « pour éviter d'alourdir l'application »). Ce n'est
+ * plus le cas, Marie gérant maintenant la facturation elle-même dans
+ * l'appli — confirmInvoiceRequest (projects/service.ts) génère le numéro
+ * réel et computeInvoiceTax ci-dessous calcule TPS/TVQ séparément, Sage
+ * n'étant plus la source. computeBillingPlan/invoiceStatus/
+ * installationOverage restent la logique PORTÉE d'origine, jamais
+ * modifiée (voir CLAUDE.md) — computeInvoiceTax est entièrement nouveau,
+ * sans précédent v19 à porter.
  *
  * Porté depuis docs/handoff/03-modules-v01/billing.js — typage ajouté
  * uniquement, aucune ligne de logique changée (voir CLAUDE.md).
@@ -76,6 +84,26 @@ export function invoiceStatus(invoice: InvoiceLike, today: Date = new Date()): "
   const todayKey = today.toISOString().slice(0, 10);
   if (invoice.due && String(invoice.due).slice(0, 10) < todayKey) return "overdue";
   return "sent";
+}
+
+export interface InvoiceTaxBreakdown {
+  amountBeforeTax: number;
+  tpsAmount: number;
+  tvqAmount: number;
+  totalWithTax: number;
+}
+
+/**
+ * TPS/TVQ calculées séparément, jamais combinées (confirmé le 13 novembre
+ * 2026) — utilisée par previewInvoiceRequest/confirmInvoiceRequest
+ * (projects/service.ts) pour la nouvelle fenêtre de confirmation de
+ * facturation. Nouvelle fonction, aucun précédent v19 à porter.
+ */
+export function computeInvoiceTax(amountBeforeTax: number, tpsRatePct: number, tvqRatePct: number): InvoiceTaxBreakdown {
+  const base = round2(amountBeforeTax);
+  const tpsAmount = round2((base * Number(tpsRatePct || 0)) / 100);
+  const tvqAmount = round2((base * Number(tvqRatePct || 0)) / 100);
+  return { amountBeforeTax: base, tpsAmount, tvqAmount, totalWithTax: round2(base + tpsAmount + tvqAmount) };
 }
 
 export interface InstallationOverageResult {

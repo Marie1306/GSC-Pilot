@@ -6,7 +6,7 @@ import {
   canReassignServiceCall,
   canPriceServiceParts,
   canApproveServiceCall,
-  canSendServiceCallToAdmin,
+  canConfirmInvoiceRequest,
   canDeleteServiceCall,
 } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
@@ -20,6 +20,7 @@ import {
   priceServiceCallPart,
   captureServiceCallSignature,
   approveServiceCall,
+  previewServiceCallInvoice,
   sendServiceCallToAdmin,
   deleteServiceCall,
   getNextServiceCallDisplayId,
@@ -158,14 +159,28 @@ serviceCallsRouter.post(
   },
 );
 
+/** Aperçu avant confirmation (RequestInvoiceModal, 13 novembre 2026) — même porte que l'envoi lui-même. */
+serviceCallsRouter.post(
+  "/service-calls/:id/invoice-preview",
+  requireAuth,
+  requirePermission((persona) => canConfirmInvoiceRequest(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const preview = await previewServiceCallInvoice(id);
+    res.json({ preview });
+  },
+);
+
+const sendToAdminSchema = z.object({ note: z.string().optional() });
 serviceCallsRouter.post(
   "/service-calls/:id/send-to-admin",
   requireAuth,
-  requirePermission((persona) => canSendServiceCallToAdmin(persona)),
+  requirePermission((persona) => canConfirmInvoiceRequest(persona)),
   async (req, res) => {
     const id = z.uuid().parse(req.params.id);
-    await sendServiceCallToAdmin(id, req.employee!.id);
-    res.status(204).end();
+    const { note } = sendToAdminSchema.parse(req.body);
+    const entry = await sendServiceCallToAdmin(id, req.employee!.id, note);
+    res.json({ entry });
   },
 );
 

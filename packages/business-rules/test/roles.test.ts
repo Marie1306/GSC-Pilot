@@ -130,10 +130,8 @@ describe("Appels de service", () => {
     expect(P.canApproveServiceCall(ADMIN)).toBe(false);
     expect(P.canApproveServiceCall(BOSS)).toBe(false);
   });
-  it("Seule la Direction envoie un call à l'administration", () => {
-    expect(P.canSendServiceCallToAdmin(OWNER)).toBe(true);
-    expect(P.canSendServiceCallToAdmin(ADMIN)).toBe(false);
-  });
+  // canSendServiceCallToAdmin retirée le 13 novembre 2026 — voir
+  // canConfirmInvoiceRequest, testée dans "Facturation" ci-dessous.
 });
 
 describe("Budgétaire", () => {
@@ -233,14 +231,19 @@ describe("Facturation", () => {
   it("Administration ne demande pas (elle traite)", () => {
     expect(P.canRequestInvoice(ADMIN)).toBe(false);
   });
-  it("Administration crée une facture", () => {
-    expect(P.canCreateInvoiceRecord(ADMIN)).toBe(true);
+  // canCreateInvoiceRecord retirée le 13 novembre 2026 — voir
+  // canConfirmInvoiceRequest ci-dessous.
+  it("Direction confirme le geste unifié Demander la facturation (13 novembre 2026)", () => {
+    expect(P.canConfirmInvoiceRequest(OWNER)).toBe(true);
   });
-  it("Direction crée aussi une facture", () => {
-    expect(P.canCreateInvoiceRecord(OWNER)).toBe(true);
+  it("Propriétaire confirme aussi (exception délibérée à la règle de consultation seule)", () => {
+    expect(P.canConfirmInvoiceRequest(BOSS)).toBe(true);
   });
-  it("Propriétaire ne crée jamais de facture", () => {
-    expect(P.canCreateInvoiceRecord(BOSS)).toBe(false);
+  it("Administration ne confirme pas le geste unifié", () => {
+    expect(P.canConfirmInvoiceRequest(ADMIN)).toBe(false);
+  });
+  it("Employé ne confirme pas le geste unifié", () => {
+    expect(P.canConfirmInvoiceRequest(MEMBER)).toBe(false);
   });
   it("Direction enregistre le paiement", () => {
     expect(P.canRecordPayment(OWNER)).toBe(true);

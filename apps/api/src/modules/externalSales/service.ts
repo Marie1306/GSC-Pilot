@@ -42,6 +42,12 @@ import { ensureContactRow } from "../clientRequests/service.js";
 import { allocatePurchaseRequestNumbers, toPurchaseRequestDto, type PurchaseRequestDto } from "../purchases/service.js";
 import { resolveSequentialNumber } from "../settings/sequentialNumbers.js";
 import { createFulfillmentDelivery } from "../deliveries/service.js";
+import {
+  buildInvoiceRequestPreview,
+  confirmInvoiceRequestInTx,
+  type InvoiceRequestPreviewDto,
+  type InvoicePlanEntryDto,
+} from "../projects/service.js";
 import type { ExternalSale } from "../../generated/prisma/client.js";
 
 /** Remise à zéro annuelle (8 septembre 2026) — voir settings/sequentialNumbers.ts. */
@@ -409,33 +415,36 @@ export async function setExternalSaleCompleted(id: string, completed: boolean): 
   await prisma.externalSale.update({ where: { id }, data: { status: completed ? "ready_invoice" : "active" } });
 }
 
-/**
- * Demande la facturation d'une vente externe terminée (10 novembre 2026,
- * demande explicite) — geste séparé de setExternalSaleCompleted ci-dessus
- * (jamais combiné) : "Terminer la vente" reste réversible ("Réactiver la
- * vente"), alors qu'une demande de facturation n'a pas d'équivalent
- * "annuler" une fois envoyée à l'administration — même principe que
- * requestInvoice (projects/service.ts). Un seul jalon à 100 % du prix
- * vendu, requestedAt posé immédiatement — même patron que
- * sendServiceCallToAdmin (serviceCalls/service.ts) : une vente externe,
- * comme un appel de service, ne se répartit jamais en plusieurs jalons
- * (computeBillingPlan reste réservé aux projets). Alimente l'écran
- * Facturation consolidé (voir invoicing/service.ts, listInvoiceEntries,
- * étendu pour reconnaître cette nouvelle source).
- */
-export async function requestExternalSaleInvoice(id: string, requestedById: string): Promise<void> {
+/** Aperçu avant confirmation (RequestInvoiceModal, 13 novembre 2026) — même rôle que previewInvoiceRequest (projects/service.ts) mais sans InvoicePlanEntry encore créée. */
+export async function previewExternalSaleInvoice(id: string): Promise<InvoiceRequestPreviewDto> {
   const sale = await loadExternalSaleOrThrow(id);
   if (sale.status !== "ready_invoice") throw new HttpError(400, "La vente doit d'abord être terminée.");
   if (sale.invoiceEntries.length > 0) throw new HttpError(409, "Facturation déjà demandée pour cette vente.");
-  await prisma.invoicePlanEntry.create({
-    data: {
-      externalSaleId: id,
-      label: sale.displayId,
-      pct: 100,
-      amount: sale.salePrice,
-      requestedById,
-      requestedAt: new Date(),
-      sortOrder: 0,
-    },
+  return buildInvoiceRequestPreview(Number(sale.salePrice));
+}
+
+/**
+ * Demande la facturation d'une vente externe terminée — geste séparé de
+ * setExternalSaleCompleted ci-dessus (jamais combiné) : "Terminer la vente"
+ * reste réversible ("Réactiver la vente"), la facturation se corrige
+ * maintenant via cancelInvoiceRequest (projects/service.ts, "Annuler la
+ * demande", 13 novembre 2026 — avant cette date, aucun équivalent
+ * n'existait). Un seul jalon à 100 % du prix vendu — comme un appel de
+ * service, une vente externe ne se répartit jamais en plusieurs jalons
+ * (computeBillingPlan reste réservé aux projets). Crée le jalon ET
+ * l'attribue réellement (numéro/taxes/échéance) dans la MÊME transaction —
+ * jamais d'état intermédiaire "créé mais sans numéro", même principe que
+ * sendServiceCallToAdmin (serviceCalls/service.ts). Alimente l'écran
+ * Facturation consolidé (voir invoicing/service.ts, listInvoiceEntries).
+ */
+export async function requestExternalSaleInvoice(id: string, requestedById: string, note?: string): Promise<InvoicePlanEntryDto> {
+  const sale = await loadExternalSaleOrThrow(id);
+  if (sale.status !== "ready_invoice") throw new HttpError(400, "La vente doit d'abord être terminée.");
+  if (sale.invoiceEntries.length > 0) throw new HttpError(409, "Facturation déjà demandée pour cette vente.");
+  return prisma.$transaction(async (tx) => {
+    const entry = await tx.invoicePlanEntry.create({
+      data: { externalSaleId: id, label: sale.displayId, pct: 100, amount: sale.salePrice, sortOrder: 0 },
+    });
+    return confirmInvoiceRequestInTx(tx, entry.id, requestedById, { note });
   });
 }

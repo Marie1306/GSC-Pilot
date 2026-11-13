@@ -75,9 +75,6 @@ export function DashboardPage() {
   if (summary?.receivableBalance !== undefined) {
     tiles.push({ label: "Solde à recevoir", value: formatCurrency(summary.receivableBalance) });
   }
-  if (summary?.invoicingToProcessCount !== undefined) {
-    tiles.push({ label: "Facturation à traiter", value: summary.invoicingToProcessCount });
-  }
   if (summary?.portfolioMarginPct !== undefined) {
     tiles.push({ label: "Marge réelle — projets actifs", value: `${summary.portfolioMarginPct} %` });
   }

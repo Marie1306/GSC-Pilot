@@ -4,7 +4,7 @@ import {
   canReassignServiceCall,
   canPriceServiceParts,
   canApproveServiceCall,
-  canSendServiceCallToAdmin,
+  canConfirmInvoiceRequest,
   canSeeServicePricing,
   canDeleteServiceCall,
 } from "@gsc-pilot/business-rules";
@@ -15,6 +15,7 @@ import { enqueue } from "../../offline/sync.js";
 import { OfflineBanner } from "../../offline/OfflineBanner.js";
 import { fetchPunchableEmployees } from "../timePunch/api.js";
 import { StartTaskModal } from "../timePunch/StartTaskModal.js";
+import { RequestInvoiceModal } from "../invoicing/RequestInvoiceModal.js";
 import {
   fetchServiceCallDetail,
   updateServiceCall,
@@ -23,6 +24,7 @@ import {
   priceServiceCallPart,
   captureServiceCallSignature,
   approveServiceCall,
+  previewServiceCallInvoice,
   sendServiceCallToAdmin,
   deleteServiceCall,
   MEAL_LABELS,
@@ -72,6 +74,7 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
   const [signing, setSigning] = useState(false);
   const [punching, setPunching] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [sendModalOpen, setSendModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Terrain saisi hors ligne — spec confirmée 23 août 2026 (le call doit avoir été ouvert en ligne au préalable ; création/assignation/approbation restent en ligne).
   const [pendingParts, setPendingParts] = useState<PendingPart[]>([]);
@@ -133,7 +136,6 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
     onError: onMutationError,
   });
   const approveMutation = useMutation({ mutationFn: () => approveServiceCall(id), onSuccess: invalidate, onError: onMutationError });
-  const sendMutation = useMutation({ mutationFn: () => sendServiceCallToAdmin(id), onSuccess: invalidate, onError: onMutationError });
   const deleteMutation = useMutation({
     mutationFn: () => deleteServiceCall(id),
     onSuccess: () => {
@@ -157,7 +159,7 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
   const canReassign = canReassignServiceCall(employee.persona);
   const canPrice = canPriceServiceParts(employee.persona);
   const canApprove = canApproveServiceCall(employee.persona);
-  const canSend = canSendServiceCallToAdmin(employee.persona);
+  const canSend = canConfirmInvoiceRequest(employee.persona);
   const canDelete = canDeleteServiceCall(employee.persona);
   const employees = employeesQuery.data?.employees ?? [];
   const totalMinutes = call.timeEntries.reduce((sum, entry) => sum + (entry.roundedMinutes ?? 0), 0);
@@ -587,12 +589,22 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
             </button>
           )}
           {canSend && call.status === "approved" && !call.sentToAdminAt && !call.projectId && (
-            <button type="button" className="btn" disabled={sendMutation.isPending} onClick={() => sendMutation.mutate()}>
-              {sendMutation.isPending ? "Envoi…" : "Envoyer à l'administration"}
+            <button type="button" className="btn" onClick={() => setSendModalOpen(true)}>
+              Envoyer à l'administration
             </button>
           )}
         </div>
       </div>
+
+      {sendModalOpen && (
+        <RequestInvoiceModal
+          subtitle={call.displayId}
+          fetchPreview={() => previewServiceCallInvoice(id)}
+          confirm={(note) => sendServiceCallToAdmin(id, note)}
+          onClose={() => setSendModalOpen(false)}
+          onSuccess={invalidate}
+        />
+      )}
 
       {punching && (
         <StartTaskModal

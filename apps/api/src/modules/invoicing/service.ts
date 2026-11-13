@@ -2,21 +2,19 @@
  * GSC Pilot — Facturation, vue consolidée (20 août 2026)
  *
  * Regroupe dans un seul écran les jalons de facturation déjà DEMANDÉS
- * (projets, via requestInvoice — voir projects/service.ts), les appels
- * de service envoyés à l'administration (voir serviceCalls/service.ts,
- * sendServiceCallToAdmin, qui crée son propre jalon à 100 % au moment de
- * l'envoi), et depuis le 10 novembre 2026 les ventes externes terminées
- * (requestExternalSaleInvoice, externalSales/service.ts — même patron à
- * 100 % qu'un appel de service). Un jalon de projet jamais demandé reste
- * invisible ici — visible seulement dans le Cycle de facturation du projet
- * lui-même — comportement voulu, voir le commentaire d'origine sur
- * requestInvoice : « Fait apparaître la demande dans le centre d'actions
- * d'Administration ».
+ * (projets/roulements, via le geste unifié "Demander la facturation" —
+ * confirmInvoiceRequest, projects/service.ts), les appels de service
+ * envoyés à l'administration (sendServiceCallToAdmin, serviceCalls/
+ * service.ts) et les ventes externes terminées (requestExternalSaleInvoice,
+ * externalSales/service.ts) — les 3 derniers créent ET confirment leur
+ * jalon à 100 % dans la même transaction depuis le 13 novembre 2026. Un
+ * jalon de projet jamais demandé reste invisible ici — visible seulement
+ * dans le Cycle de facturation du projet lui-même (comportement voulu).
  *
  * Réutilise entièrement invoiceStatus (billing.ts) pour le statut calculé
  * — aucune nouvelle règle ici, seulement l'agrégation cross-dossier. Les
- * actions elles-mêmes (demander/enregistrer/paiement) restent les
- * fonctions déjà vérifiées de projects/service.ts — jamais réimplémentées.
+ * actions elles-mêmes (confirmer/annuler/paiement) restent les fonctions
+ * déjà vérifiées de projects/service.ts — jamais réimplémentées.
  */
 import { invoiceStatus, type InvoiceLike } from "@gsc-pilot/business-rules";
 import { prisma } from "../../db.js";
@@ -30,6 +28,10 @@ export interface InvoiceEntryDto {
   status: "pending" | "sent" | "paid" | "on_hold" | "overdue";
   invoiceNumber: string | null;
   dueDate: string | null;
+  tpsAmount: number | null;
+  tvqAmount: number | null;
+  totalWithTax: number | null;
+  note: string | null;
   paidAmount: number;
   paidAt: string | null;
   isExtra: boolean;
@@ -81,8 +83,9 @@ export async function listInvoiceEntries(): Promise<InvoiceEntryDto[]> {
       sourceDeleted = row.externalSale.deletedAt !== null;
     }
 
+    // totalWithTax ?? amount : même résolution tax-aware que toInvoicePlanEntryDto (projects/service.ts), 13 novembre 2026.
     const statusInput: InvoiceLike = {
-      amount: Number(row.amount),
+      amount: Number(row.totalWithTax ?? row.amount),
       paid: Number(row.paidAmount),
       status: row.status,
       due: row.dueDate?.toISOString(),
@@ -96,6 +99,10 @@ export async function listInvoiceEntries(): Promise<InvoiceEntryDto[]> {
       status: invoiceStatus(statusInput),
       invoiceNumber: row.invoiceNumber,
       dueDate: row.dueDate?.toISOString() ?? null,
+      tpsAmount: row.tpsAmount !== null ? Number(row.tpsAmount) : null,
+      tvqAmount: row.tvqAmount !== null ? Number(row.tvqAmount) : null,
+      totalWithTax: row.totalWithTax !== null ? Number(row.totalWithTax) : null,
+      note: row.note,
       paidAmount: Number(row.paidAmount),
       paidAt: row.paidAt?.toISOString() ?? null,
       isExtra: row.isExtra,

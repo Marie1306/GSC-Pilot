@@ -1,6 +1,6 @@
 // Porté 1-pour-1 depuis docs/handoff/03-modules-v01/billing.test.js (15 assertions).
 import { describe, it, expect } from "vitest";
-import { computeBillingPlan, invoiceStatus, installationOverage } from "../src/billing.js";
+import { computeBillingPlan, invoiceStatus, installationOverage, computeInvoiceTax } from "../src/billing.js";
 
 describe("Plan de facturation par défaut (exemple confirmé : projet à 1000$)", () => {
   const plan = computeBillingPlan(1000);
@@ -54,5 +54,25 @@ describe("Extras d'installation (confirmé et approuvé le 8 août)", () => {
   });
   it("Aucun extra si heures exactes", () => {
     expect(installationOverage(20, 20, 95)).toBe(null);
+  });
+});
+
+describe("Taxes de facturation — TPS/TVQ séparées (confirmé le 13 novembre 2026)", () => {
+  it("1000$ à 5% TPS / 9.975% TVQ : TPS = 50$, TVQ = 99.75$, total = 1149.75$", () => {
+    const tax = computeInvoiceTax(1000, 5, 9.975);
+    expect(tax.amountBeforeTax).toBe(1000);
+    expect(tax.tpsAmount).toBe(50);
+    expect(tax.tvqAmount).toBe(99.75);
+    expect(tax.totalWithTax).toBe(1149.75);
+  });
+  it("9.975% n'est jamais arrondi à 9.98 avant le calcul", () => {
+    const tax = computeInvoiceTax(10000, 5, 9.975);
+    expect(tax.tvqAmount).toBe(997.5);
+  });
+  it("Taux à 0% : aucune taxe ajoutée", () => {
+    const tax = computeInvoiceTax(500, 0, 0);
+    expect(tax.tpsAmount).toBe(0);
+    expect(tax.tvqAmount).toBe(0);
+    expect(tax.totalWithTax).toBe(500);
   });
 });

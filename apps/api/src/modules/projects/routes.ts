@@ -7,7 +7,7 @@ import {
   canMarkProductionComplete,
   canChooseFulfillmentMode,
   canRequestInvoice,
-  canCreateInvoiceRecord,
+  canConfirmInvoiceRequest,
   canRecordPayment,
   canHoldInvoice,
   canDeleteInvoiceEntry,
@@ -35,8 +35,10 @@ import {
   confirmProjectFulfillment,
   getInvoicePlan,
   updateProjectBillingPlan,
-  requestInvoice,
-  recordInvoice,
+  previewInvoiceRequest,
+  confirmInvoiceRequest,
+  cancelInvoiceRequest,
+  setInvoicePlanEntryForecastDate,
   recordInvoicePayment,
   correctInvoicePaidAmount,
   holdInvoiceEntry,
@@ -225,26 +227,52 @@ projectsRouter.put(
   },
 );
 
+/** Geste unifié "Demander la facturation" (13 novembre 2026) — Direction+Propriétaire (canConfirmInvoiceRequest). Preview jamais gelé, confirm attribue réellement le numéro. */
 projectsRouter.post(
-  "/invoice-plan/:entryId/request",
+  "/invoice-plan/:entryId/preview",
   requireAuth,
-  requirePermission((persona) => canRequestInvoice(persona)),
+  requirePermission((persona) => canConfirmInvoiceRequest(persona)),
   async (req, res) => {
     const entryId = z.uuid().parse(req.params.entryId);
-    const entry = await requestInvoice(entryId, req.employee!.id);
+    const preview = await previewInvoiceRequest(entryId);
+    res.json({ preview });
+  },
+);
+
+const confirmInvoiceRequestSchema = z.object({ note: z.string().optional() });
+projectsRouter.post(
+  "/invoice-plan/:entryId/confirm",
+  requireAuth,
+  requirePermission((persona) => canConfirmInvoiceRequest(persona)),
+  async (req, res) => {
+    const entryId = z.uuid().parse(req.params.entryId);
+    const body = confirmInvoiceRequestSchema.parse(req.body);
+    const entry = await confirmInvoiceRequest(entryId, req.employee!.id, body);
     res.json({ entry });
   },
 );
 
-const recordInvoiceSchema = z.object({ invoiceNumber: z.string().min(1), dueDate: z.iso.date().optional() });
+/** "Annuler la demande" (13 novembre 2026) — même porte que confirmer, bloqué si déjà payée (voir cancelInvoiceRequest). */
 projectsRouter.post(
-  "/invoice-plan/:entryId/record",
+  "/invoice-plan/:entryId/cancel",
   requireAuth,
-  requirePermission((persona) => canCreateInvoiceRecord(persona)),
+  requirePermission((persona) => canConfirmInvoiceRequest(persona)),
   async (req, res) => {
     const entryId = z.uuid().parse(req.params.entryId);
-    const body = recordInvoiceSchema.parse(req.body);
-    const entry = await recordInvoice(entryId, req.employee!.id, body);
+    const entry = await cancelInvoiceRequest(entryId, req.employee!.id, req.employee!.persona);
+    res.json({ entry });
+  },
+);
+
+const forecastDateSchema = z.object({ forecastDate: z.iso.date().nullable() });
+projectsRouter.patch(
+  "/invoice-plan/:entryId/forecast-date",
+  requireAuth,
+  requirePermission((persona) => canConfirmInvoiceRequest(persona)),
+  async (req, res) => {
+    const entryId = z.uuid().parse(req.params.entryId);
+    const { forecastDate } = forecastDateSchema.parse(req.body);
+    const entry = await setInvoicePlanEntryForecastDate(entryId, forecastDate);
     res.json({ entry });
   },
 );

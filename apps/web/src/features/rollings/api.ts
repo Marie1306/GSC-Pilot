@@ -2,12 +2,12 @@ import { apiFetch } from "../../lib/apiClient.js";
 
 export {
   formatCurrency,
-  requestInvoice,
-  recordInvoice,
+  previewInvoiceRequest,
+  confirmInvoiceRequest,
   recordInvoicePayment,
   FINANCIAL_STATUS_LABELS,
   type InvoicePlanEntryDto,
-  type RecordInvoiceInput,
+  type InvoiceRequestPreviewDto,
   type FinancialStatus,
   type ProjectComparatifRow,
   type ApprovedTimeEntryDto,

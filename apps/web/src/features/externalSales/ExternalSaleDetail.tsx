@@ -1,10 +1,19 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { canManageExternalSales, canRequestInvoice } from "@gsc-pilot/business-rules";
+import { canManageExternalSales, canConfirmInvoiceRequest } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { formatCalendarDate } from "../../lib/date.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { STATUS_LABELS, FULFILLMENT_STATUS_LABELS, applyPurchaseRequestToExternalSale } from "../purchases/api.js";
-import { fetchExternalSaleDetail, formatCurrency, setExternalSaleCompleted, requestExternalSaleInvoice, EXTERNAL_SALE_STATUS_LABELS } from "./api.js";
+import { RequestInvoiceModal } from "../invoicing/RequestInvoiceModal.js";
+import {
+  fetchExternalSaleDetail,
+  formatCurrency,
+  setExternalSaleCompleted,
+  previewExternalSaleInvoice,
+  requestExternalSaleInvoice,
+  EXTERNAL_SALE_STATUS_LABELS,
+} from "./api.js";
 import { ExternalSaleFulfillment } from "./ExternalSaleFulfillment.js";
 
 interface ExternalSaleDetailProps {
@@ -30,6 +39,7 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
   const queryClient = useQueryClient();
   const detailQuery = useQuery({ queryKey: ["external-sale", id], queryFn: () => fetchExternalSaleDetail(id) });
   const sale = detailQuery.data;
+  const [requestModalOpen, setRequestModalOpen] = useState(false);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["external-sale", id] });
@@ -46,12 +56,8 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
     mutationFn: (completed: boolean) => setExternalSaleCompleted(id, completed),
     onSuccess: invalidate,
   });
-  const requestInvoiceMutation = useMutation({
-    mutationFn: () => requestExternalSaleInvoice(id),
-    onSuccess: invalidate,
-  });
   const canManage = !!employee && canManageExternalSales(employee.persona);
-  const canRequestInvoiceForSale = !!employee && canRequestInvoice(employee.persona);
+  const canRequestInvoiceForSale = !!employee && canConfirmInvoiceRequest(employee.persona);
   const isCompleted = sale?.status === "ready_invoice";
 
   return (
@@ -164,11 +170,6 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
           )}
         </div>
 
-        {requestInvoiceMutation.isError && (
-          <p className="form-error" style={{ margin: "0 16px" }}>
-            {requestInvoiceMutation.error instanceof ApiError ? requestInvoiceMutation.error.message : "Erreur — réessayez."}
-          </p>
-        )}
         <div className="modal-footer">
           {sale && canManage && (
             <button
@@ -181,12 +182,7 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
             </button>
           )}
           {sale && isCompleted && canRequestInvoiceForSale && !sale.invoiceRequestedAt && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={requestInvoiceMutation.isPending}
-              onClick={() => requestInvoiceMutation.mutate()}
-            >
+            <button type="button" className="btn btn-secondary" onClick={() => setRequestModalOpen(true)}>
               Demander la facturation
             </button>
           )}
@@ -195,6 +191,15 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
           </button>
         </div>
       </div>
+      {requestModalOpen && sale && (
+        <RequestInvoiceModal
+          subtitle={sale.displayId}
+          fetchPreview={() => previewExternalSaleInvoice(id)}
+          confirm={(note) => requestExternalSaleInvoice(id, note)}
+          onClose={() => setRequestModalOpen(false)}
+          onSuccess={invalidate}
+        />
+      )}
     </div>
   );
 }

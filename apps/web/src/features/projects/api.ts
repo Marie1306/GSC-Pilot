@@ -163,6 +163,11 @@ export interface InvoicePlanEntryDto {
   status: InvoiceEntryStatus;
   invoiceNumber: string | null;
   dueDate: string | null;
+  tpsAmount: number | null;
+  tvqAmount: number | null;
+  totalWithTax: number | null;
+  note: string | null;
+  forecastDate: string | null;
   paidAmount: number;
   paidAt: string | null;
   isExtra: boolean;
@@ -280,17 +285,34 @@ export function updateInvoicePlan(projectId: string, steps: BillingPlanStepInput
   return apiFetch(`/api/projects/${projectId}/invoice-plan`, { method: "PUT", body: JSON.stringify({ steps }) });
 }
 
-export function requestInvoice(entryId: string): Promise<{ entry: InvoicePlanEntryDto }> {
-  return apiFetch(`/api/invoice-plan/${entryId}/request`, { method: "POST" });
+export interface InvoiceRequestPreviewDto {
+  nextInvoiceNumber: string;
+  amountBeforeTax: number;
+  tpsAmount: number;
+  tvqAmount: number;
+  totalWithTax: number;
+  today: string;
+  dueDate: string;
 }
 
-export interface RecordInvoiceInput {
-  invoiceNumber: string;
-  dueDate?: string;
+/** Aperçu avant confirmation (RequestInvoiceModal, 13 novembre 2026) — jamais attribué/écrit. */
+export function previewInvoiceRequest(entryId: string): Promise<{ preview: InvoiceRequestPreviewDto }> {
+  return apiFetch(`/api/invoice-plan/${entryId}/preview`, { method: "POST" });
 }
 
-export function recordInvoice(entryId: string, input: RecordInvoiceInput): Promise<{ entry: InvoicePlanEntryDto }> {
-  return apiFetch(`/api/invoice-plan/${entryId}/record`, { method: "POST", body: JSON.stringify(input) });
+/** Geste unifié "Demander la facturation" — attribue réellement le numéro, calcule les taxes, pose l'échéance net-30. */
+export function confirmInvoiceRequest(entryId: string, note?: string): Promise<{ entry: InvoicePlanEntryDto }> {
+  return apiFetch(`/api/invoice-plan/${entryId}/confirm`, { method: "POST", body: JSON.stringify({ note }) });
+}
+
+/** "Annuler la demande" — remet le jalon à pending ; le numéro n'est jamais réutilisé. */
+export function cancelInvoiceRequest(entryId: string): Promise<{ entry: InvoicePlanEntryDto }> {
+  return apiFetch(`/api/invoice-plan/${entryId}/cancel`, { method: "POST" });
+}
+
+/** Date prévisionnelle manuelle (module Trésorerie, 13 novembre 2026) — sans effet une fois la facture confirmée. */
+export function setInvoicePlanEntryForecastDate(entryId: string, forecastDate: string | null): Promise<{ entry: InvoicePlanEntryDto }> {
+  return apiFetch(`/api/invoice-plan/${entryId}/forecast-date`, { method: "PATCH", body: JSON.stringify({ forecastDate }) });
 }
 
 /** amount = montant de CE versement (s'ajoute au paidAmount déjà reçu côté serveur — voir projects/service.ts) — jamais le cumulatif à ressaisir. */

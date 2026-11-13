@@ -27,6 +27,7 @@ import {
   sectionSummary,
   computeBillingPlan,
   invoiceStatus,
+  computeInvoiceTax,
   type BillingSplitStep,
   FULFILLMENT_MODES,
   chooseFulfillment as chooseFulfillmentPure,
@@ -45,7 +46,8 @@ import { ensureContactRow } from "../clientRequests/service.js";
 import { projectPurchasesActual, listProjectPurchaseEntries } from "../purchases/service.js";
 import { parseBillingSplit } from "../settings/billingSplit.js";
 import { createFulfillmentDelivery } from "../deliveries/service.js";
-import type { Project } from "../../generated/prisma/client.js";
+import { resolveSequentialNumber } from "../settings/sequentialNumbers.js";
+import type { Project, Prisma } from "../../generated/prisma/client.js";
 
 export interface ConvertBudgetToProjectInput {
   name: string;
@@ -1010,8 +1012,10 @@ export async function confirmProjectFulfillment(projectId: string, note?: string
 // créé une seule fois à la conversion (voir convertBudgetToProject ci-dessus)
 // avec DEFAULT_BILLING_SPLIT — modifier la répartition après coup
 // (billingSplitOverride, canModifyBillingCycle) reste hors de cette phase.
-// Sage reste la source réelle de la facture (billing.ts) : on ne fait
-// qu'enregistrer manuellement ce qui a déjà été fait là-bas.
+//
+// Depuis le 13 novembre 2026 : le numéro de facture est généré par l'appli
+// (confirmInvoiceRequest ci-dessous), Sage n'est plus la source réelle —
+// voir CLAUDE.md pour le contexte complet de cette refonte.
 // ---------------------------------------------------------------------------
 
 export interface InvoicePlanEntryDto {
@@ -1022,6 +1026,11 @@ export interface InvoicePlanEntryDto {
   status: "pending" | "sent" | "paid" | "on_hold" | "overdue";
   invoiceNumber: string | null;
   dueDate: string | null;
+  tpsAmount: number | null;
+  tvqAmount: number | null;
+  totalWithTax: number | null;
+  note: string | null;
+  forecastDate: string | null;
   paidAmount: number;
   paidAt: string | null;
   isExtra: boolean;
@@ -1041,6 +1050,11 @@ export function toInvoicePlanEntryDto(row: {
   status: string;
   invoiceNumber: string | null;
   dueDate: Date | null;
+  tpsAmount: unknown;
+  tvqAmount: unknown;
+  totalWithTax: unknown;
+  note: string | null;
+  forecastDate: Date | null;
   paidAmount: unknown;
   paidAt: Date | null;
   isExtra: boolean;
@@ -1054,14 +1068,29 @@ export function toInvoicePlanEntryDto(row: {
     label: row.label,
     pct: Number(row.pct),
     amount: Number(row.amount),
-    status: invoiceStatus({
-      amount: Number(row.amount),
-      paid: Number(row.paidAmount),
-      status: row.status,
-      due: row.dueDate?.toISOString(),
-    }),
+    // invoiceStatus (billing.ts, PORTÉE, jamais modifiée) ne retourne jamais
+    // "pending" — conçue pour une facture déjà envoyée. Un jalon jamais
+    // demandé, ou qu'on vient d'Annuler (cancelInvoiceRequest, 13 novembre
+    // 2026), retomberait sinon silencieusement sur "sent" (aucun statut
+    // "on_hold"/due ne matche, le dernier `return "sent"` l'attrape toujours)
+    // — court-circuité ici, jamais dans billing.ts. totalWithTax ?? amount :
+    // une fois confirmée, le solde dû doit refléter le montant RÉEL après
+    // taxes, jamais le montant avant taxes.
+    status: row.requestedAt
+      ? invoiceStatus({
+          amount: Number(row.totalWithTax ?? row.amount),
+          paid: Number(row.paidAmount),
+          status: row.status,
+          due: row.dueDate?.toISOString(),
+        })
+      : "pending",
     invoiceNumber: row.invoiceNumber,
     dueDate: row.dueDate?.toISOString() ?? null,
+    tpsAmount: row.tpsAmount !== null ? Number(row.tpsAmount) : null,
+    tvqAmount: row.tvqAmount !== null ? Number(row.tvqAmount) : null,
+    totalWithTax: row.totalWithTax !== null ? Number(row.totalWithTax) : null,
+    note: row.note,
+    forecastDate: row.forecastDate?.toISOString() ?? null,
     paidAmount: Number(row.paidAmount),
     paidAt: row.paidAt?.toISOString() ?? null,
     isExtra: row.isExtra,
@@ -1070,6 +1099,184 @@ export function toInvoicePlanEntryDto(row: {
     processedById: row.processedById,
     processedAt: row.processedAt?.toISOString() ?? null,
   };
+}
+
+/** Remise à zéro annuelle (13 novembre 2026) — voir settings/sequentialNumbers.ts. */
+function resolveNextInvoiceNumber(settings: { nextInvoiceNumber: number; invoiceNumberYear: number }, year?: number) {
+  return resolveSequentialNumber({ next: settings.nextInvoiceNumber, year: settings.invoiceNumberYear }, year);
+}
+function formatInvoiceDisplayId(year: number, number: number): string {
+  return `FA-${year}-${String(number).padStart(4, "0")}`;
+}
+
+function addDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+export interface InvoiceRequestPreviewDto {
+  nextInvoiceNumber: string;
+  amountBeforeTax: number;
+  tpsAmount: number;
+  tvqAmount: number;
+  totalWithTax: number;
+  today: string;
+  dueDate: string;
+}
+
+/**
+ * Cœur du calcul d'aperçu (numéro/taxes/échéance), SANS rien attribuer ni
+ * écrire (même patron que getNextExternalSaleDisplayId,
+ * externalSales/service.ts:70) — partagé par previewInvoiceRequest
+ * ci-dessous (Project/Rolling, jalon déjà existant) ET par
+ * previewServiceCallInvoice/previewExternalSaleInvoice (serviceCalls/
+ * externalSales, aucune InvoicePlanEntry encore créée à ce stade) : un seul
+ * calcul, jamais 3 copies divergentes.
+ */
+export async function buildInvoiceRequestPreview(amountBeforeTax: number): Promise<InvoiceRequestPreviewDto> {
+  const settings = await prisma.settings.findFirst();
+  if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
+  const { year, number } = resolveNextInvoiceNumber(settings);
+  const tax = computeInvoiceTax(amountBeforeTax, Number(settings.tpsRatePct), Number(settings.tvqRatePct));
+  const today = new Date();
+  return {
+    nextInvoiceNumber: formatInvoiceDisplayId(year, number),
+    amountBeforeTax: tax.amountBeforeTax,
+    tpsAmount: tax.tpsAmount,
+    tvqAmount: tax.tvqAmount,
+    totalWithTax: tax.totalWithTax,
+    today: today.toISOString(),
+    dueDate: addDays(today, 30).toISOString(),
+  };
+}
+
+/**
+ * Aperçu avant confirmation (RequestInvoiceModal, 13 novembre 2026) pour un
+ * jalon déjà existant (Project/Rolling). Jamais pour un jalon déjà demandé —
+ * à ce stade, Annuler puis re-demander est le seul chemin.
+ */
+export async function previewInvoiceRequest(entryId: string): Promise<InvoiceRequestPreviewDto> {
+  const entry = await prisma.invoicePlanEntry.findUnique({ where: { id: entryId } });
+  if (!entry) throw new HttpError(404, "Jalon de facturation introuvable.");
+  if (entry.requestedAt) throw new HttpError(400, "La facturation de ce jalon a déjà été demandée.");
+  return buildInvoiceRequestPreview(Number(entry.amount));
+}
+
+export interface ConfirmInvoiceRequestInput {
+  note?: string;
+}
+
+/**
+ * Geste unifié "Demander la facturation" (13 novembre 2026, refonte —
+ * REMPLACE l'ancien requestInvoice+recordInvoice en deux temps) : attribue
+ * réellement le numéro, calcule les taxes, pose requestedAt/processedAt
+ * ensemble — Direction/Propriétaire traitent eux-mêmes, plus d'étape
+ * "à traiter" séparée pour Administration. Accepte un `tx` pour être composée
+ * dans une transaction plus large (sendServiceCallToAdmin/
+ * requestExternalSaleInvoice, qui créent l'entrée ET la confirment d'un coup).
+ */
+export async function confirmInvoiceRequestInTx(
+  tx: Prisma.TransactionClient,
+  entryId: string,
+  actorId: string,
+  input: ConfirmInvoiceRequestInput = {},
+): Promise<InvoicePlanEntryDto> {
+  const entry = await tx.invoicePlanEntry.findUnique({ where: { id: entryId } });
+  if (!entry) throw new HttpError(404, "Jalon de facturation introuvable.");
+  if (entry.requestedAt) throw new HttpError(400, "La facturation de ce jalon a déjà été demandée.");
+  const settings = await tx.settings.findFirst();
+  if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
+  const { year, number } = resolveNextInvoiceNumber(settings);
+  const invoiceNumber = formatInvoiceDisplayId(year, number);
+  const tax = computeInvoiceTax(Number(entry.amount), Number(settings.tpsRatePct), Number(settings.tvqRatePct));
+  const now = new Date();
+  await tx.settings.update({ where: { id: settings.id }, data: { nextInvoiceNumber: number + 1, invoiceNumberYear: year } });
+  const row = await tx.invoicePlanEntry.update({
+    where: { id: entryId },
+    data: {
+      invoiceNumber,
+      dueDate: addDays(now, 30),
+      tpsAmount: tax.tpsAmount,
+      tvqAmount: tax.tvqAmount,
+      totalWithTax: tax.totalWithTax,
+      note: input.note?.trim() || null,
+      status: "sent",
+      requestedById: actorId,
+      requestedAt: now,
+      processedById: actorId,
+      processedAt: now,
+    },
+  });
+  return toInvoicePlanEntryDto(row);
+}
+
+export function confirmInvoiceRequest(entryId: string, actorId: string, input: ConfirmInvoiceRequestInput = {}): Promise<InvoicePlanEntryDto> {
+  return prisma.$transaction((tx) => confirmInvoiceRequestInTx(tx, entryId, actorId, input));
+}
+
+/**
+ * "Annuler la demande" (13 novembre 2026, correction minimale confirmée par
+ * l'utilisatrice) — remet le jalon à pending. Bloqué si un paiement a déjà
+ * été reçu (même porte que correctInvoicePaidAmount ci-dessous : corriger le
+ * montant payé à 0$ d'abord serait la seule façon de contourner, comportement
+ * voulu). Le numéro n'est JAMAIS réutilisé (nextInvoiceNumber n'est jamais
+ * décrémenté, comportement déjà naturel de resolveSequentialNumber) —
+ * journalisé dans AuditLogEntry pour que l'écart dans la séquence soit
+ * explicable plus tard.
+ */
+export async function cancelInvoiceRequest(entryId: string, actorId: string, actorPersona: Persona): Promise<InvoicePlanEntryDto> {
+  const entry = await prisma.invoicePlanEntry.findUnique({ where: { id: entryId } });
+  if (!entry) throw new HttpError(404, "Jalon de facturation introuvable.");
+  if (!entry.invoiceNumber) throw new HttpError(400, "Cette facture n'a pas encore été confirmée.");
+  if (Number(entry.paidAmount) > 0) throw new HttpError(409, "Impossible d'annuler : un paiement a déjà été enregistré pour cette facture.");
+  return prisma.$transaction(async (tx) => {
+    const row = await tx.invoicePlanEntry.update({
+      where: { id: entryId },
+      data: {
+        invoiceNumber: null,
+        dueDate: null,
+        tpsAmount: null,
+        tvqAmount: null,
+        totalWithTax: null,
+        note: null,
+        status: "pending",
+        requestedById: null,
+        requestedAt: null,
+        processedById: null,
+        processedAt: null,
+      },
+    });
+    await tx.auditLogEntry.create({
+      data: {
+        actorId,
+        actorPersona,
+        action: "invoice_request_cancelled",
+        entityType: "InvoicePlanEntry",
+        entityId: entryId,
+        meta: { cancelledInvoiceNumber: entry.invoiceNumber },
+      },
+    });
+    return toInvoicePlanEntryDto(row);
+  });
+}
+
+/**
+ * Date prévisionnelle fixée manuellement depuis le module Trésorerie (13
+ * novembre 2026, demande explicite : "je choisis moi-même une date... pas me
+ * promener de projet en projet") — même porte que confirmer/annuler
+ * (canConfirmInvoiceRequest). Sans effet une fois la facture confirmée (le
+ * vrai dueDate prend le relais, jamais de double-date confuse).
+ */
+export async function setInvoicePlanEntryForecastDate(entryId: string, forecastDate: string | null): Promise<InvoicePlanEntryDto> {
+  const entry = await prisma.invoicePlanEntry.findUnique({ where: { id: entryId } });
+  if (!entry) throw new HttpError(404, "Jalon de facturation introuvable.");
+  if (entry.requestedAt) throw new HttpError(400, "Cette facture est déjà confirmée — la date réelle s'applique désormais.");
+  const row = await prisma.invoicePlanEntry.update({
+    where: { id: entryId },
+    data: { forecastDate: forecastDate ? new Date(forecastDate) : null },
+  });
+  return toInvoicePlanEntryDto(row);
 }
 
 export async function getInvoicePlan(projectId: string): Promise<InvoicePlanEntryDto[]> {
@@ -1117,37 +1324,6 @@ export async function updateProjectBillingPlan(projectId: string, steps: Billing
   ]);
 
   return getInvoicePlan(projectId);
-}
-
-/** Fait apparaître la demande dans le centre d'actions d'Administration (Direction seulement, canRequestInvoice). */
-export async function requestInvoice(entryId: string, requestedById: string): Promise<InvoicePlanEntryDto> {
-  const entry = await prisma.invoicePlanEntry.findUnique({ where: { id: entryId } });
-  if (!entry) throw new HttpError(404, "Jalon de facturation introuvable.");
-  if (entry.requestedAt) throw new HttpError(400, "La facturation de ce jalon a déjà été demandée.");
-  const row = await prisma.invoicePlanEntry.update({ where: { id: entryId }, data: { requestedById, requestedAt: new Date() } });
-  return toInvoicePlanEntryDto(row);
-}
-
-export interface RecordInvoiceInput {
-  invoiceNumber: string;
-  dueDate?: string;
-}
-
-/** Enregistrer l'entrée de facture — directement, ou en traitant une demande (canCreateInvoiceRecord, jamais un préalable de "demander" d'abord). */
-export async function recordInvoice(entryId: string, processedById: string, input: RecordInvoiceInput): Promise<InvoicePlanEntryDto> {
-  const entry = await prisma.invoicePlanEntry.findUnique({ where: { id: entryId } });
-  if (!entry) throw new HttpError(404, "Jalon de facturation introuvable.");
-  const row = await prisma.invoicePlanEntry.update({
-    where: { id: entryId },
-    data: {
-      invoiceNumber: input.invoiceNumber,
-      dueDate: input.dueDate ? new Date(input.dueDate) : null,
-      status: "sent",
-      processedById,
-      processedAt: new Date(),
-    },
-  });
-  return toInvoicePlanEntryDto(row);
 }
 
 /**

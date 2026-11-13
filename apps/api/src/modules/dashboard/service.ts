@@ -23,7 +23,7 @@
  * (plus gros morceau, à venir) — volontairement simple : quelques
  * compteurs par rôle, jamais une deuxième liste d'actions à traiter.
  */
-import { canAccessOverviewViews, canCreateInvoiceRecord, canSeeFinancialValues, type FinancialStatus, type Persona } from "@gsc-pilot/business-rules";
+import { canAccessOverviewViews, canViewInvoicing, canSeeFinancialValues, type FinancialStatus, type Persona } from "@gsc-pilot/business-rules";
 import { listProjects } from "../projects/service.js";
 import { listRollings } from "../rollings/service.js";
 import { listBudgets } from "../budgets/service.js";
@@ -72,7 +72,6 @@ export interface DashboardSummaryDto {
   activeProjectsCount?: number;
   activeRollingsCount?: number;
   budgetsInProgressCount?: number;
-  invoicingToProcessCount?: number;
   receivableBalance?: number;
   recentInvoices?: RecentInvoiceDto[];
   portfolioMarginPct?: number;
@@ -131,16 +130,21 @@ export async function getDashboardSummary(viewerPersona: Persona, viewerEmployee
     summary.channelConversion = await getChannelConversion();
   }
 
-  if (canCreateInvoiceRecord(viewerPersona)) {
+  if (canViewInvoicing(viewerPersona)) {
     const entries = await listInvoiceEntries();
-    // sourceDeleted exclu (10 novembre 2026) — rien à traiter pour un dossier
-    // déjà à la corbeille ; receivableBalance/recentInvoices ci-dessous
-    // restent inchangés (argent réellement dû, indépendant du dossier GSC Pilot).
-    summary.invoicingToProcessCount = entries.filter((entry) => !entry.invoiceNumber && !entry.sourceDeleted).length;
+    // invoicingToProcessCount retiré le 13 novembre 2026 : le geste unifié
+    // "Demander la facturation" pose requestedAt ET invoiceNumber ensemble,
+    // l'état qu'il guettait (!entry.invoiceNumber) ne peut plus se produire
+    // — voir CLAUDE.md.
+    //
     // Même calcul que la tuile « Solde à recevoir » de la page Facturation
-    // (InvoicingPage.tsx) — jamais recalculé différemment ici.
+    // (InvoicingPage.tsx) — totalWithTax ?? amount, tax-aware depuis le 13
+    // novembre 2026 (null seulement pour une facture confirmée avant cette
+    // date) — jamais recalculé différemment ici.
     summary.receivableBalance = round2(
-      entries.filter((entry) => entry.status !== "paid").reduce((sum, entry) => sum + (entry.amount - entry.paidAmount), 0),
+      entries
+        .filter((entry) => entry.status !== "paid")
+        .reduce((sum, entry) => sum + ((entry.totalWithTax ?? entry.amount) - entry.paidAmount), 0),
     );
     // « Factures récemment envoyées » — mêmes entrées que Facturation,
     // seulement celles déjà enregistrées (invoiceNumber posé), triées par

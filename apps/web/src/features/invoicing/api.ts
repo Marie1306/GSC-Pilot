@@ -1,8 +1,9 @@
 import { apiFetch } from "../../lib/apiClient.js";
 
 export {
-  requestInvoice,
-  recordInvoice,
+  previewInvoiceRequest,
+  confirmInvoiceRequest,
+  cancelInvoiceRequest,
   recordInvoicePayment,
   correctInvoicePaidAmount,
   holdInvoiceEntry,
@@ -12,7 +13,7 @@ export {
   INVOICE_STATUS_LABELS,
   INVOICE_STATUS_BADGE,
   type InvoiceEntryStatus,
-  type RecordInvoiceInput,
+  type InvoiceRequestPreviewDto,
 } from "../projects/api.js";
 
 export interface InvoiceEntryDto {
@@ -23,6 +24,10 @@ export interface InvoiceEntryDto {
   status: "pending" | "sent" | "paid" | "on_hold" | "overdue";
   invoiceNumber: string | null;
   dueDate: string | null;
+  tpsAmount: number | null;
+  tvqAmount: number | null;
+  totalWithTax: number | null;
+  note: string | null;
   paidAmount: number;
   paidAt: string | null;
   isExtra: boolean;

@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { canCreateInvoiceRecord, canRecordPayment, canHoldInvoice, canDeleteInvoiceEntry } from "@gsc-pilot/business-rules";
+import { canConfirmInvoiceRequest, canRecordPayment, canHoldInvoice, canDeleteInvoiceEntry } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { OptionsDrawer } from "../../components/OptionsDrawer.js";
 import {
   fetchInvoiceEntries,
-  recordInvoice,
+  cancelInvoiceRequest,
   recordInvoicePayment,
   correctInvoicePaidAmount,
   holdInvoiceEntry,
@@ -39,7 +39,7 @@ function formatDate(iso: string | null): string {
 function RecordPaymentModal({ entry, onClose, onSuccess }: { entry: InvoiceEntryDto; onClose: () => void; onSuccess: () => void }) {
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const balance = entry.amount - entry.paidAmount;
+  const balance = (entry.totalWithTax ?? entry.amount) - entry.paidAmount;
 
   const mutation = useMutation({
     mutationFn: (value: number) => recordInvoicePayment(entry.id, value),
@@ -188,8 +188,6 @@ export function InvoiceDetailDrawer({ id, onClose }: InvoiceDetailDrawerProps) {
   const queryClient = useQueryClient();
   const listQuery = useQuery({ queryKey: ["invoicing", "entries"], queryFn: fetchInvoiceEntries });
   const entry = listQuery.data?.entries.find((e) => e.id === id);
-  const [invoiceNumberDraft, setInvoiceNumberDraft] = useState("");
-  const [dueDateDraft, setDueDateDraft] = useState("");
   const [payOpen, setPayOpen] = useState(false);
   const [correctOpen, setCorrectOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -200,8 +198,8 @@ export function InvoiceDetailDrawer({ id, onClose }: InvoiceDetailDrawerProps) {
   };
   const onMutationError = (err: unknown) => setError(err instanceof ApiError ? err.message : "Une erreur est survenue — réessayez.");
 
-  const recordMutation = useMutation({
-    mutationFn: () => recordInvoice(id, { invoiceNumber: invoiceNumberDraft.trim(), dueDate: dueDateDraft || undefined }),
+  const cancelMutation = useMutation({
+    mutationFn: () => cancelInvoiceRequest(id),
     onSuccess: invalidate,
     onError: onMutationError,
   });
@@ -228,13 +226,17 @@ export function InvoiceDetailDrawer({ id, onClose }: InvoiceDetailDrawerProps) {
     );
   }
 
-  const canRecord = canCreateInvoiceRecord(employee.persona);
+  const canConfirm = canConfirmInvoiceRequest(employee.persona);
   const canPay = canRecordPayment(employee.persona);
   const canHold = canHoldInvoice(employee.persona);
   const canDelete = canDeleteInvoiceEntry(employee.persona);
-  const balance = entry.amount - entry.paidAmount;
+  // totalWithTax ?? amount : même résolution que le statut côté serveur (toInvoicePlanEntryDto) —
+  // null seulement pour une facture confirmée avant le 13 novembre 2026 (champ nouveau, jamais recalculé après coup).
+  const totalDue = entry.totalWithTax ?? entry.amount;
+  const balance = totalDue - entry.paidAmount;
   const isFullyPaid = balance <= 0.005;
   const isOnHold = entry.status === "on_hold";
+  const canCancel = canConfirm && entry.paidAmount === 0;
 
   return (
     <OptionsDrawer eyebrow="Facturation" title={entry.invoiceNumber ?? entry.sourceLabel} onClose={onClose}>
@@ -244,10 +246,31 @@ export function InvoiceDetailDrawer({ id, onClose }: InvoiceDetailDrawerProps) {
       {error && <p className="form-error">{error}</p>}
 
       <div className="stat-tile-grid" style={{ marginBottom: 20 }}>
-        <div className="stat-tile">
-          <span className="stat-tile-label">Montant</span>
-          <span className="stat-tile-value">{formatCurrency(entry.amount)}</span>
-        </div>
+        {entry.totalWithTax !== null ? (
+          <>
+            <div className="stat-tile">
+              <span className="stat-tile-label">Avant taxes</span>
+              <span className="stat-tile-value">{formatCurrency(entry.amount)}</span>
+            </div>
+            <div className="stat-tile">
+              <span className="stat-tile-label">TPS</span>
+              <span className="stat-tile-value">{formatCurrency(entry.tpsAmount ?? 0)}</span>
+            </div>
+            <div className="stat-tile">
+              <span className="stat-tile-label">TVQ</span>
+              <span className="stat-tile-value">{formatCurrency(entry.tvqAmount ?? 0)}</span>
+            </div>
+            <div className="stat-tile">
+              <span className="stat-tile-label">Total avec taxes</span>
+              <span className="stat-tile-value">{formatCurrency(entry.totalWithTax)}</span>
+            </div>
+          </>
+        ) : (
+          <div className="stat-tile">
+            <span className="stat-tile-label">Montant</span>
+            <span className="stat-tile-value">{formatCurrency(entry.amount)}</span>
+          </div>
+        )}
         <div className="stat-tile">
           <span className="stat-tile-label">Payé</span>
           <span className="stat-tile-value">{formatCurrency(entry.paidAmount)}</span>
@@ -261,6 +284,9 @@ export function InvoiceDetailDrawer({ id, onClose }: InvoiceDetailDrawerProps) {
           <span className={`badge-pill ${INVOICE_STATUS_BADGE[entry.status]}`}>{INVOICE_STATUS_LABELS[entry.status]}</span>
         </div>
       </div>
+      {entry.note && (
+        <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--gsc-color-muted)" }}>Note : {entry.note}</p>
+      )}
 
       {entry.sourceDeleted && (
         <div style={{ marginBottom: 20 }}>
@@ -289,87 +315,72 @@ export function InvoiceDetailDrawer({ id, onClose }: InvoiceDetailDrawerProps) {
         </div>
       )}
 
-      {!entry.invoiceNumber ? (
-        canRecord && (
-          <form
-            className="form-grid"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!invoiceNumberDraft.trim()) return;
-              recordMutation.mutate();
+      <p style={{ margin: "0 0 8px", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.04, color: "var(--gsc-color-muted)" }}>
+        Échéancier
+      </p>
+      <div className="action-item-list" style={{ marginBottom: 20 }}>
+        <div className="action-item-row" style={{ cursor: "default" }}>
+          <div className="action-item-main">
+            <span className="action-item-label">✉️ Facture envoyée</span>
+          </div>
+          <span className="action-item-date">{formatDate(entry.processedAt)}</span>
+        </div>
+        {entry.dueDate && (
+          <div className="action-item-row" style={{ cursor: "default" }}>
+            <div className="action-item-main">
+              <span className="action-item-label">📅 Date d'échéance</span>
+            </div>
+            <span className="action-item-date">{formatDate(entry.dueDate)}</span>
+          </div>
+        )}
+        {entry.paidAt && (
+          <div className="action-item-row" style={{ cursor: "default" }}>
+            <div className="action-item-main">
+              <span className="action-item-label">✓ Paiement reçu</span>
+              <span className="action-item-sublabel">{formatCurrency(entry.paidAmount)} au total</span>
+            </div>
+            <span className="action-item-date">{formatDate(entry.paidAt)}</span>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {canHold &&
+          !isFullyPaid &&
+          (isOnHold ? (
+            <button type="button" className="btn btn-secondary" disabled={releaseMutation.isPending} onClick={() => releaseMutation.mutate()}>
+              {releaseMutation.isPending ? "…" : "Retirer la suspension"}
+            </button>
+          ) : (
+            <button type="button" className="btn btn-secondary" disabled={holdMutation.isPending} onClick={() => holdMutation.mutate()}>
+              {holdMutation.isPending ? "…" : "Mettre en suspens"}
+            </button>
+          ))}
+        {canPay && !isFullyPaid && (
+          <button type="button" className="btn" onClick={() => setPayOpen(true)}>
+            Paiement reçu
+          </button>
+        )}
+        {canPay && entry.paidAmount > 0 && (
+          <button type="button" className="btn btn-secondary" onClick={() => setCorrectOpen(true)}>
+            Corriger le montant payé
+          </button>
+        )}
+        {canCancel && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={cancelMutation.isPending}
+            onClick={() => {
+              if (window.confirm(`Annuler la demande de facturation ${entry.invoiceNumber} ? Le numéro ne sera jamais réutilisé.`)) {
+                cancelMutation.mutate();
+              }
             }}
           >
-            <div className="field">
-              <label htmlFor="inv-number">Numéro de facture</label>
-              <input id="inv-number" value={invoiceNumberDraft} onChange={(event) => setInvoiceNumberDraft(event.target.value)} />
-            </div>
-            <div className="field">
-              <label htmlFor="inv-due">Échéance (facultatif)</label>
-              <input id="inv-due" type="date" value={dueDateDraft} onChange={(event) => setDueDateDraft(event.target.value)} />
-            </div>
-            <div className="field field-full">
-              <button type="submit" className="btn btn-small" disabled={!invoiceNumberDraft.trim() || recordMutation.isPending}>
-                {recordMutation.isPending ? "…" : "✓ Enregistrer"}
-              </button>
-            </div>
-          </form>
-        )
-      ) : (
-        <>
-          <p style={{ margin: "0 0 8px", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.04, color: "var(--gsc-color-muted)" }}>
-            Échéancier
-          </p>
-          <div className="action-item-list" style={{ marginBottom: 20 }}>
-            <div className="action-item-row" style={{ cursor: "default" }}>
-              <div className="action-item-main">
-                <span className="action-item-label">✉️ Facture envoyée</span>
-              </div>
-              <span className="action-item-date">{formatDate(entry.processedAt)}</span>
-            </div>
-            {entry.dueDate && (
-              <div className="action-item-row" style={{ cursor: "default" }}>
-                <div className="action-item-main">
-                  <span className="action-item-label">📅 Date d'échéance</span>
-                </div>
-                <span className="action-item-date">{formatDate(entry.dueDate)}</span>
-              </div>
-            )}
-            {entry.paidAt && (
-              <div className="action-item-row" style={{ cursor: "default" }}>
-                <div className="action-item-main">
-                  <span className="action-item-label">✓ Paiement reçu</span>
-                  <span className="action-item-sublabel">{formatCurrency(entry.paidAmount)} au total</span>
-                </div>
-                <span className="action-item-date">{formatDate(entry.paidAt)}</span>
-              </div>
-            )}
-          </div>
-
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {canHold &&
-              !isFullyPaid &&
-              (isOnHold ? (
-                <button type="button" className="btn btn-secondary" disabled={releaseMutation.isPending} onClick={() => releaseMutation.mutate()}>
-                  {releaseMutation.isPending ? "…" : "Retirer la suspension"}
-                </button>
-              ) : (
-                <button type="button" className="btn btn-secondary" disabled={holdMutation.isPending} onClick={() => holdMutation.mutate()}>
-                  {holdMutation.isPending ? "…" : "Mettre en suspens"}
-                </button>
-              ))}
-            {canPay && !isFullyPaid && (
-              <button type="button" className="btn" onClick={() => setPayOpen(true)}>
-                Paiement reçu
-              </button>
-            )}
-            {canPay && entry.paidAmount > 0 && (
-              <button type="button" className="btn btn-secondary" onClick={() => setCorrectOpen(true)}>
-                Corriger le montant payé
-              </button>
-            )}
-          </div>
-        </>
-      )}
+            {cancelMutation.isPending ? "…" : "Annuler la demande"}
+          </button>
+        )}
+      </div>
 
       {payOpen && <RecordPaymentModal entry={entry} onClose={() => setPayOpen(false)} onSuccess={invalidate} />}
       {correctOpen && <CorrectPaymentModal entry={entry} onClose={() => setCorrectOpen(false)} onSuccess={invalidate} />}

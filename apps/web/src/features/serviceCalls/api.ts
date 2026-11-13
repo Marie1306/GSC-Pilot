@@ -1,4 +1,5 @@
 import { apiFetch } from "../../lib/apiClient.js";
+import type { InvoiceRequestPreviewDto } from "../projects/api.js";
 
 export interface AssignedEmployeeDto {
   id: string;
@@ -164,8 +165,14 @@ export function approveServiceCall(id: string): Promise<void> {
   return apiFetch(`/api/service-calls/${id}/approve`, { method: "POST" });
 }
 
-export function sendServiceCallToAdmin(id: string): Promise<void> {
-  return apiFetch(`/api/service-calls/${id}/send-to-admin`, { method: "POST" });
+/** Aperçu avant confirmation (RequestInvoiceModal, 13 novembre 2026) — jamais attribué/écrit. */
+export function previewServiceCallInvoice(id: string): Promise<{ preview: InvoiceRequestPreviewDto }> {
+  return apiFetch(`/api/service-calls/${id}/invoice-preview`, { method: "POST" });
+}
+
+/** Geste unifié "Demander la facturation" — crée ET confirme le jalon (numéro/taxes/échéance) dans la même transaction. */
+export function sendServiceCallToAdmin(id: string, note?: string): Promise<void> {
+  return apiFetch(`/api/service-calls/${id}/send-to-admin`, { method: "POST", body: JSON.stringify({ note }) });
 }
 
 export function deleteServiceCall(id: string): Promise<void> {
