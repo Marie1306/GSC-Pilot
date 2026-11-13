@@ -846,3 +846,22 @@ export function canManageToolboxLibrary(persona: Persona): boolean {
   assertRole(persona);
   return ([ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS] as Persona[]).includes(persona);
 }
+
+// ---------------------------------------------------------------------------
+// Trésorerie (nouveau module, 13 novembre 2026) — prévisionnel 13 semaines,
+// dépenses récurrentes, entrées ponctuelles, bascule chèque/marge de crédit.
+// ---------------------------------------------------------------------------
+
+/**
+ * Module Trésorerie au complet (voir/modifier le tableau, soldes d'ouverture,
+ * dépenses récurrentes, entrées ponctuelles, date prévisionnelle des jalons
+ * pas encore facturés) : Direction et Propriétaire SEULEMENT — déviation
+ * volontaire du trio habituel des nouveaux modules (canManageExternalSales/
+ * canManageSeao/canManageToolboxLibrary ci-dessus, tous les 3 Owner+Admin+
+ * Boss), Administration explicitement exclue sur confirmation directe de
+ * l'utilisatrice.
+ */
+export function canManageTreasury(persona: Persona): boolean {
+  assertRole(persona);
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
+}

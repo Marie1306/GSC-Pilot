@@ -23,7 +23,7 @@
  * (plus gros morceau, à venir) — volontairement simple : quelques
  * compteurs par rôle, jamais une deuxième liste d'actions à traiter.
  */
-import { canAccessOverviewViews, canViewInvoicing, canSeeFinancialValues, type FinancialStatus, type Persona } from "@gsc-pilot/business-rules";
+import { canAccessOverviewViews, canViewInvoicing, canSeeFinancialValues, startOfWeek, type FinancialStatus, type Persona } from "@gsc-pilot/business-rules";
 import { listProjects } from "../projects/service.js";
 import { listRollings } from "../rollings/service.js";
 import { listBudgets } from "../budgets/service.js";
@@ -37,15 +37,9 @@ function round2(value: number): number {
   return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 }
 
-/** Lundi de la semaine courante (semaine québécoise lun-dim) — affichage seulement, jamais une règle de paie. */
-function startOfWeek(date: Date): Date {
-  const day = date.getDay(); // 0 = dimanche
-  const diff = (day === 0 ? -6 : 1) - day;
-  const monday = new Date(date);
-  monday.setDate(date.getDate() + diff);
-  monday.setHours(0, 0, 0, 0);
-  return monday;
-}
+// startOfWeek promue vers packages/business-rules/src/treasury.ts le 13
+// novembre 2026 (devenue partagée avec le module Trésorerie) — corps
+// inchangé, copie privée retirée d'ici.
 
 export interface ProjectHealthDto {
   projectNumber: string;

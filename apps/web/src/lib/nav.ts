@@ -11,6 +11,7 @@ import {
   canAccessActionCenter,
   canManageExternalSales,
   canManageSeao,
+  canManageTreasury,
   type Persona,
 } from "@gsc-pilot/business-rules";
 
@@ -88,8 +89,11 @@ export const NAV_ITEMS: NavItem[] = [
   // Facturation : Direction, Administration et Propriétaire (consultation
   // seulement pour ce dernier — demande de l'utilisatrice le 31 août 2026,
   // voir canViewInvoicing/roles.ts ; les boutons d'action restent gardés
-  // séparément par canCreateInvoiceRecord/canRecordPayment/canHoldInvoice).
+  // séparément par canConfirmInvoiceRequest/canRecordPayment/canHoldInvoice).
   { key: "invoicing", label: "Factures / paiements", path: "/facturation", section: "admin", allow: canViewInvoicing },
+  // Trésorerie (13 novembre 2026) — Direction+Propriétaire SEULEMENT,
+  // Administration exclue (canManageTreasury, déviation confirmée).
+  { key: "treasury", label: "Trésorerie", path: "/tresorerie", section: "admin", allow: canManageTreasury },
   { key: "contacts", label: "Contacts", path: "/contacts", section: "admin", allow: canAccessOverviewViews },
   { key: "settings", label: "Paramètres", path: "/parametres", section: "admin", allow: canAccessSettings },
 ];

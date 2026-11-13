@@ -44,44 +44,90 @@ export interface InvoiceEntryDto {
   sourceDeleted: boolean;
 }
 
+/** include Prisma partagé par listInvoiceEntries ci-dessous et listPendingInvoiceEntriesForForecast (treasury/service.ts) — un seul endroit à tenir à jour. */
+export const INVOICE_ENTRY_SOURCE_INCLUDE = {
+  project: { include: { contact: { select: { name: true, company: true } } } },
+  rolling: { include: { contact: { select: { name: true, company: true } } } },
+  serviceCall: { include: { contact: { select: { name: true, company: true } } } },
+  externalSale: { include: { contact: { select: { name: true, company: true } } } },
+} as const;
+
+export interface InvoiceEntrySourceInfo {
+  sourceType: InvoiceEntryDto["sourceType"];
+  sourceLabel: string;
+  clientLabel: string;
+  sourceDeleted: boolean;
+  // Date de livraison prévue du dossier parent (fulfillmentScheduled pour
+  // Project/Rolling/ExternalSale, scheduledAt pour ServiceCall) — ancrage
+  // par défaut du prévisionnel (module Trésorerie, 13 novembre 2026) pour
+  // un jalon encore pending. Toujours lue même si le jalon est déjà
+  // confirmé (listInvoiceEntries ne s'en sert pas, mais la resolution reste
+  // la même pour les 2 appelants — un seul point de vérité).
+  parentScheduledDate: Date | null;
+}
+
+type ContactLike = { name: string; company: string | null };
+
+/**
+ * Résout le dossier d'origine (projet/roulement/call/vente externe) d'une
+ * InvoicePlanEntry — extrait le 13 novembre 2026 (module Trésorerie en a
+ * besoin aussi, pour le prévisionnel des jalons pas encore facturés) pour
+ * ne jamais dupliquer ce chaînage if/else une deuxième fois.
+ */
+export function resolveInvoiceEntrySource(row: {
+  project: { projectNumber: string; name: string; deletedAt: Date | null; fulfillmentScheduled: Date | null; contact: ContactLike } | null;
+  serviceCall: { displayId: string; title: string | null; request: string; deletedAt: Date | null; scheduledAt: Date | null; contact: ContactLike } | null;
+  rolling: { rollingNumber: string; deletedAt: Date | null; fulfillmentScheduled: Date | null; contact: ContactLike } | null;
+  externalSale: { displayId: string; deletedAt: Date | null; fulfillmentScheduled: Date | null; contact: ContactLike } | null;
+}): InvoiceEntrySourceInfo {
+  if (row.project) {
+    return {
+      sourceType: "project",
+      sourceLabel: `${row.project.projectNumber} — ${row.project.name}`,
+      clientLabel: row.project.contact.company ?? row.project.contact.name,
+      sourceDeleted: row.project.deletedAt !== null,
+      parentScheduledDate: row.project.fulfillmentScheduled,
+    };
+  }
+  if (row.serviceCall) {
+    return {
+      sourceType: "serviceCall",
+      sourceLabel: `${row.serviceCall.displayId} — ${serviceCallDisplayTitle(row.serviceCall)}`,
+      clientLabel: row.serviceCall.contact.company ?? row.serviceCall.contact.name,
+      sourceDeleted: row.serviceCall.deletedAt !== null,
+      parentScheduledDate: row.serviceCall.scheduledAt,
+    };
+  }
+  if (row.rolling) {
+    return {
+      sourceType: "rolling",
+      sourceLabel: row.rolling.rollingNumber,
+      clientLabel: row.rolling.contact.company ?? row.rolling.contact.name,
+      sourceDeleted: row.rolling.deletedAt !== null,
+      parentScheduledDate: row.rolling.fulfillmentScheduled,
+    };
+  }
+  if (row.externalSale) {
+    return {
+      sourceType: "externalSale",
+      sourceLabel: row.externalSale.displayId,
+      clientLabel: row.externalSale.contact.company ?? row.externalSale.contact.name,
+      sourceDeleted: row.externalSale.deletedAt !== null,
+      parentScheduledDate: row.externalSale.fulfillmentScheduled,
+    };
+  }
+  return { sourceType: "project", sourceLabel: "—", clientLabel: "—", sourceDeleted: false, parentScheduledDate: null };
+}
+
 export async function listInvoiceEntries(): Promise<InvoiceEntryDto[]> {
   const rows = await prisma.invoicePlanEntry.findMany({
     where: { requestedAt: { not: null } },
-    include: {
-      project: { include: { contact: { select: { name: true, company: true } } } },
-      rolling: { include: { contact: { select: { name: true, company: true } } } },
-      serviceCall: { include: { contact: { select: { name: true, company: true } } } },
-      externalSale: { include: { contact: { select: { name: true, company: true } } } },
-    },
+    include: INVOICE_ENTRY_SOURCE_INCLUDE,
     orderBy: { requestedAt: "desc" },
   });
 
   return rows.map((row) => {
-    let sourceType: InvoiceEntryDto["sourceType"] = "project";
-    let sourceLabel = "—";
-    let clientLabel = "—";
-    let sourceDeleted = false;
-    if (row.project) {
-      sourceType = "project";
-      sourceLabel = `${row.project.projectNumber} — ${row.project.name}`;
-      clientLabel = row.project.contact.company ?? row.project.contact.name;
-      sourceDeleted = row.project.deletedAt !== null;
-    } else if (row.serviceCall) {
-      sourceType = "serviceCall";
-      sourceLabel = `${row.serviceCall.displayId} — ${serviceCallDisplayTitle(row.serviceCall)}`;
-      clientLabel = row.serviceCall.contact.company ?? row.serviceCall.contact.name;
-      sourceDeleted = row.serviceCall.deletedAt !== null;
-    } else if (row.rolling) {
-      sourceType = "rolling";
-      sourceLabel = row.rolling.rollingNumber;
-      clientLabel = row.rolling.contact.company ?? row.rolling.contact.name;
-      sourceDeleted = row.rolling.deletedAt !== null;
-    } else if (row.externalSale) {
-      sourceType = "externalSale";
-      sourceLabel = row.externalSale.displayId;
-      clientLabel = row.externalSale.contact.company ?? row.externalSale.contact.name;
-      sourceDeleted = row.externalSale.deletedAt !== null;
-    }
+    const { sourceType, sourceLabel, clientLabel, sourceDeleted } = resolveInvoiceEntrySource(row);
 
     // totalWithTax ?? amount : même résolution tax-aware que toInvoicePlanEntryDto (projects/service.ts), 13 novembre 2026.
     const statusInput: InvoiceLike = {

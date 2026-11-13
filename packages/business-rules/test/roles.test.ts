@@ -658,3 +658,15 @@ describe("Boîte à outils (16 septembre 2026) — gestion de la bibliothèque (
     expect(P.canManageToolboxLibrary(WAREHOUSE)).toBe(false);
   });
 });
+
+describe("Trésorerie (13 novembre 2026) — Direction+Propriétaire seulement, Administration exclue (déviation confirmée)", () => {
+  it("Direction et Propriétaire gèrent la Trésorerie", () => {
+    expect(P.canManageTreasury(OWNER)).toBe(true);
+    expect(P.canManageTreasury(BOSS)).toBe(true);
+  });
+  it("Administration, Employé et Magasinier ne gèrent pas la Trésorerie", () => {
+    expect(P.canManageTreasury(ADMIN)).toBe(false);
+    expect(P.canManageTreasury(MEMBER)).toBe(false);
+    expect(P.canManageTreasury(WAREHOUSE)).toBe(false);
+  });
+});

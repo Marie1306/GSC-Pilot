@@ -34,6 +34,7 @@ import { teamNotesRouter } from "./modules/teamNotes/routes.js";
 import { externalSalesRouter } from "./modules/externalSales/routes.js";
 import { seaoRouter } from "./modules/seao/routes.js";
 import { toolboxRouter } from "./modules/toolbox/routes.js";
+import { treasuryRouter } from "./modules/treasury/routes.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -102,6 +103,7 @@ export function createApp() {
   app.use("/api", externalSalesRouter);
   app.use("/api", seaoRouter);
   app.use("/api", toolboxRouter);
+  app.use("/api", treasuryRouter);
   app.use("/api/settings", settingsRouter);
 
   // En production, l'API sert aussi le build statique de apps/web (un seul

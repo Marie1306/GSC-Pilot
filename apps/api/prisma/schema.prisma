@@ -1855,3 +1855,61 @@ model ToolboxMessage {
 
   @@index([threadId, createdAt])
 }
+
+// ---------------------------------------------------------------------------
+// Trésorerie (nouveau module, 13 novembre 2026) — prévisionnel 13 semaines/
+// horizon 6 mois, dépenses récurrentes, entrées ponctuelles, bascule
+// chèque/marge de crédit par tranches de 20 000$. Accès canManageTreasury
+// (roles.ts) — Direction+Propriétaire SEULEMENT, Administration exclue
+// (déviation volontaire du patron habituel des nouveaux modules, confirmée
+// explicitement par l'utilisatrice). Voir packages/business-rules/src/treasury.ts.
+// ---------------------------------------------------------------------------
+
+/// Singleton (une seule ligne), même patron que Settings/BudgetModel.
+model TreasurySettings {
+  id                     String   @id @default(uuid())
+  checkingOpeningBalance Decimal  @db.Decimal(12, 2)
+  checkingOpeningDate    DateTime @db.Date
+  // Montant DÛ sur la marge de crédit (0 = marge remboursée au complet) —
+  // jamais un solde disponible, toujours ce qui reste à rembourser.
+  locOpeningBalance      Decimal  @db.Decimal(12, 2)
+  locOpeningDate         DateTime @db.Date
+  // Seuil de bascule bidirectionnel chèque/marge — confirmé 20 000$,
+  // configurable plutôt que figé en dur (même philosophie que les autres
+  // seuils de l'application, ex. externalSaleDefaultMarginPct).
+  sweepThreshold         Decimal  @default(20000) @db.Decimal(12, 2)
+  updatedAt              DateTime @updatedAt
+}
+
+model RecurringExpense {
+  id            String                     @id @default(uuid())
+  label         String
+  dayOfMonth    Int // 1-31 — clampé au dernier jour du mois courant si le mois en a moins (ex. 31 en février)
+  defaultAmount Decimal                     @db.Decimal(12, 2) // signé : négatif = sortie, positif = entrée récurrente (même convention que les achats réels, 2 septembre 2026)
+  active        Boolean                     @default(true)
+  deletedAt     DateTime?
+  createdAt     DateTime                    @default(now())
+  overrides     RecurringExpenseOverride[]
+}
+
+/// Montant différent pour UN mois précis (ex. prime d'assurance variable) — l'occurrence de ce mois utilise ce montant au lieu de defaultAmount, jamais les autres mois.
+model RecurringExpenseOverride {
+  id                 String           @id @default(uuid())
+  recurringExpenseId String
+  recurringExpense   RecurringExpense @relation(fields: [recurringExpenseId], references: [id])
+  yearMonth          String // "2026-12"
+  amount             Decimal          @db.Decimal(12, 2)
+
+  @@unique([recurringExpenseId, yearMonth])
+}
+
+/// Entrée ponctuelle (jamais récurrente) — même convention de montant signé que RecurringExpense ci-dessus.
+model TreasuryManualEntry {
+  id          String    @id @default(uuid())
+  label       String
+  amount      Decimal   @db.Decimal(12, 2)
+  date        DateTime  @db.Date
+  createdById String
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+}
