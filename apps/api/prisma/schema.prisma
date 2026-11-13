@@ -445,8 +445,11 @@ model Soumission {
   budgetId  String
   budget    Budget @relation(fields: [budgetId], references: [id])
   // Dénormalisé depuis budget.clientRequest.contactId à la création — même
-  // patron que Project/ExternalSale/Rolling.contactId (jamais traversé via
-  // budget→clientRequest→contact à chaque lecture).
+  // patron que Project/ExternalSale/Rolling.contactId. Gardé pour la
+  // traçabilité, mais l'affichage « Présenté à » (nom/entreprise/courriel/
+  // téléphone/adresse) lit plutôt ClientRequest via budget.clientRequestId
+  // (14 novembre 2026) — même patron que getBudgetDetail, budgets/service.ts
+  // — puisque Contact n'a pas de champ adresse, contrairement à ClientRequest.
   contactId String?
   contact   Contact? @relation(fields: [contactId], references: [id])
   status    String @default("draft") // draft | sent | accepted | declined
@@ -481,9 +484,16 @@ model SoumissionLine {
   id           String     @id @default(uuid())
   soumissionId String
   soumission   Soumission @relation(fields: [soumissionId], references: [id], onDelete: Cascade)
-  label        String // texte libre, ex. "Fabrication et installation du système"
-  amount       Decimal    @db.Decimal(12, 2)
-  sortOrder    Int        @default(0)
+  // Texte libre, multi-paragraphe (ex. portée, exclusions, notes) — confirmé
+  // le 14 novembre 2026 avec de vrais exemples : jamais une seule ligne.
+  label     String
+  // Quantité × prix unitaire (ex. "1x 1 000$" dans les vraies soumissions de
+  // Marie) — amount reste le MONTANT CALCULÉ et stocké (qty × unitPrice),
+  // jamais recalculé à la lecture, même principe que BudgetRow/ExternalSale.
+  qty       Decimal @default(1) @db.Decimal(10, 2)
+  unitPrice Decimal @default(0) @db.Decimal(12, 2)
+  amount    Decimal @db.Decimal(12, 2)
+  sortOrder Int     @default(0)
 }
 
 // ---------------------------------------------------------------------------
@@ -1648,8 +1658,19 @@ model Settings {
   companyAddress               String?
   companyPhone                 String?
   companyEmail                 String?
+  companyWebsite               String?
+  // No d'entreprise (NEQ) — distinct des numéros d'inscription TPS/TVQ
+  // ci-dessous, les trois apparaissent séparément sur un document client
+  // réel (confirmé le 14 novembre 2026, vérifié sur 3 vraies soumissions).
+  companyBusinessNumber        String?
   companyTpsNumber             String?
   companyTvqNumber             String?
+  // Note légale standard (ex. heures supplémentaires/matériel additionnel
+  // facturés en sus) — identique sur les vraies soumissions de Marie,
+  // modifiable ici, PRÉ-REMPLIE automatiquement à la composition d'une
+  // nouvelle Soumission (PrepareSoumissionModal.tsx, jamais imposée —
+  // modifiable au cas par cas sur chaque soumission après coup).
+  soumissionDefaultNote         String?
   punchRoundingMinutes         Int      @default(15)
   // Seuils du voyant de marge réelle (statut financier) — confirmé le 17
   // août 2026 : s'appliquent à projets, roulements et calls (recalculé à la

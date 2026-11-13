@@ -41,8 +41,11 @@ export interface CompanyIdentityDto {
   companyAddress: string | null;
   companyPhone: string | null;
   companyEmail: string | null;
+  companyWebsite: string | null;
+  companyBusinessNumber: string | null;
   companyTpsNumber: string | null;
   companyTvqNumber: string | null;
+  soumissionDefaultNote: string | null;
 }
 
 export function fetchCompanyIdentity(): Promise<{ identity: CompanyIdentityDto }> {

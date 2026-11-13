@@ -159,8 +159,11 @@ const companyIdentitySchema = z.object({
   companyAddress: z.string().trim().optional().nullable(),
   companyPhone: z.string().trim().optional().nullable(),
   companyEmail: z.string().trim().optional().nullable(),
+  companyWebsite: z.string().trim().optional().nullable(),
+  companyBusinessNumber: z.string().trim().optional().nullable(),
   companyTpsNumber: z.string().trim().optional().nullable(),
   companyTvqNumber: z.string().trim().optional().nullable(),
+  soumissionDefaultNote: z.string().trim().optional().nullable(),
 });
 settingsRouter.patch("/company-identity", async (req, res) => {
   const body = companyIdentitySchema.parse(req.body);
@@ -169,8 +172,11 @@ settingsRouter.patch("/company-identity", async (req, res) => {
     companyAddress: body.companyAddress ?? null,
     companyPhone: body.companyPhone ?? null,
     companyEmail: body.companyEmail ?? null,
+    companyWebsite: body.companyWebsite ?? null,
+    companyBusinessNumber: body.companyBusinessNumber ?? null,
     companyTpsNumber: body.companyTpsNumber ?? null,
     companyTvqNumber: body.companyTvqNumber ?? null,
+    soumissionDefaultNote: body.soumissionDefaultNote ?? null,
   });
   res.json({ identity });
 });

@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../lib/apiClient.js";
+import { fetchCompanyLetterhead } from "../../lib/companyLetterhead.js";
 import { computeDetailedSummary, formatCurrency, type BudgetDetail } from "../budgets/api.js";
 import { createSoumission, type SoumissionLineInput } from "./api.js";
 
@@ -19,12 +20,27 @@ interface PrepareSoumissionModalProps {
  * même modal (plutôt qu'un modal élargi à deux colonnes, jamais vu ailleurs
  * dans l'appli) — les deux restent visibles sans fermer l'un pour voir
  * l'autre, cohérent avec la largeur de modal déjà standard (720px).
+ *
+ * Lignes en quantité × prix unitaire (14 novembre 2026, confirmé avec de
+ * vraies soumissions — ex. "1x 1 000$"), libellé en texte libre
+ * multi-paragraphe (une soumission est parfois ventilée en plusieurs lignes :
+ * conception, fabrication, installation, options...). Le champ Conditions
+ * est pré-rempli automatiquement avec la note légale standard (Paramètres,
+ * CompanyIdentityCard.tsx) à l'ouverture — modifiable au cas par cas, jamais
+ * imposée.
  */
 export function PrepareSoumissionModal({ budget, onClose }: PrepareSoumissionModalProps) {
   const queryClient = useQueryClient();
   const [introText, setIntroText] = useState("");
-  const [termsText, setTermsText] = useState("");
-  const [lines, setLines] = useState<SoumissionLineInput[]>([{ label: "", amount: 0 }]);
+  const [termsText, setTermsText] = useState<string | null>(null);
+  const [lines, setLines] = useState<SoumissionLineInput[]>([{ label: "", qty: 1, unitPrice: 0 }]);
+
+  // Même patron que CompanyIdentityCard/MarginThresholdsCard (draftFor) :
+  // termsText reste nul tant que Marie n'a rien tapé, l'affichage retombe
+  // sur la note par défaut lue en direct — jamais un useEffect qui copie la
+  // donnée serveur dans le state au chargement (cascading renders inutiles).
+  const letterheadQuery = useQuery({ queryKey: ["company-letterhead"], queryFn: fetchCompanyLetterhead });
+  const effectiveTermsText = termsText ?? letterheadQuery.data?.identity.soumissionDefaultNote ?? "";
 
   const detailedSummary = computeDetailedSummary(budget);
 
@@ -32,8 +48,8 @@ export function PrepareSoumissionModal({ budget, onClose }: PrepareSoumissionMod
     mutationFn: () =>
       createSoumission(budget.id, {
         introText: introText.trim() || undefined,
-        termsText: termsText.trim() || undefined,
-        lines: lines.filter((line) => line.label.trim().length > 0 && line.amount > 0),
+        termsText: effectiveTermsText.trim() || undefined,
+        lines: lines.filter((line) => line.label.trim().length > 0 && line.qty > 0 && line.unitPrice > 0),
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["soumissions", budget.id] });
@@ -48,8 +64,8 @@ export function PrepareSoumissionModal({ budget, onClose }: PrepareSoumissionMod
     setLines((current) => current.filter((_, i) => i !== index));
   }
 
-  const total = lines.reduce((sum, line) => sum + (Number.isFinite(line.amount) ? line.amount : 0), 0);
-  const validLines = lines.filter((line) => line.label.trim().length > 0 && line.amount > 0);
+  const validLines = lines.filter((line) => line.label.trim().length > 0 && line.qty > 0 && line.unitPrice > 0);
+  const total = validLines.reduce((sum, line) => sum + line.qty * line.unitPrice, 0);
   const canCreate = validLines.length > 0;
 
   return (
@@ -116,7 +132,9 @@ export function PrepareSoumissionModal({ budget, onClose }: PrepareSoumissionMod
             <table className="shortlist-table">
               <thead>
                 <tr>
-                  <th>Libellé</th>
+                  <th>Description</th>
+                  <th className="num">Qté</th>
+                  <th className="num">Prix unitaire</th>
                   <th className="num">Montant</th>
                   <th></th>
                 </tr>
@@ -125,22 +143,27 @@ export function PrepareSoumissionModal({ budget, onClose }: PrepareSoumissionMod
                 {lines.map((line, index) => (
                   <tr key={index}>
                     <td>
-                      <input
-                        type="text"
-                        placeholder="Ex. Fabrication et installation du système"
+                      <textarea
+                        rows={2}
+                        style={{ width: "100%" }}
+                        placeholder="Ex. Conception et fabrication de 5 portes pour chutes à buanderies, avec panneau de contrôle..."
                         value={line.label}
                         onChange={(e) => updateLine(index, { label: e.target.value })}
                       />
+                    </td>
+                    <td className="num">
+                      <input type="number" min={0} step="0.01" value={line.qty || ""} onChange={(e) => updateLine(index, { qty: Number(e.target.value) })} />
                     </td>
                     <td className="num">
                       <input
                         type="number"
                         min={0}
                         step="0.01"
-                        value={line.amount || ""}
-                        onChange={(e) => updateLine(index, { amount: Number(e.target.value) })}
+                        value={line.unitPrice || ""}
+                        onChange={(e) => updateLine(index, { unitPrice: Number(e.target.value) })}
                       />
                     </td>
+                    <td className="num">{formatCurrency((line.qty || 0) * (line.unitPrice || 0))}</td>
                     <td>
                       <button type="button" className="btn btn-secondary btn-small" onClick={() => removeLine(index)} disabled={lines.length === 1}>
                         🗑
@@ -151,14 +174,19 @@ export function PrepareSoumissionModal({ budget, onClose }: PrepareSoumissionMod
               </tbody>
             </table>
           </div>
-          <button type="button" className="btn btn-secondary btn-small" style={{ marginTop: 8 }} onClick={() => setLines((current) => [...current, { label: "", amount: 0 }])}>
+          <button
+            type="button"
+            className="btn btn-secondary btn-small"
+            style={{ marginTop: 8 }}
+            onClick={() => setLines((current) => [...current, { label: "", qty: 1, unitPrice: 0 }])}
+          >
             + Ajouter une ligne
           </button>
 
           <div className="form-grid" style={{ marginTop: 16 }}>
             <div className="field field-full">
-              <label>Conditions / validité (optionnel)</label>
-              <textarea rows={2} value={termsText} onChange={(e) => setTermsText(e.target.value)} />
+              <label>Conditions (pré-remplies depuis Paramètres, modifiable pour cette soumission)</label>
+              <textarea rows={4} value={effectiveTermsText} onChange={(e) => setTermsText(e.target.value)} />
             </div>
           </div>
 

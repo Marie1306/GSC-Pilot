@@ -10,7 +10,8 @@ const canManage = (persona: Parameters<typeof canManageSoumission>[0]) => canMan
 
 const lineSchema = z.object({
   label: z.string().min(1, "Le libellé est requis."),
-  amount: z.number().positive(),
+  qty: z.number().positive(),
+  unitPrice: z.number().positive(),
 });
 
 soumissionsRouter.get("/budgets/:budgetId/soumissions", requireAuth, requirePermission(canManage), async (req, res) => {

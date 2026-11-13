@@ -11,13 +11,26 @@
  * toujours déclenchés manuellement par Marie après coup.
  *
  * Numérotation SO-AAAA-NNNN à remise à zéro annuelle dès le départ (même
- * mécanisme que Vente externe/SEAO, settings/sequentialNumbers.ts).
+ * mécanisme que Vente externe/SEAO, settings/sequentialNumbers.ts) —
+ * confirmé explicitement le 14 novembre 2026 : contrairement au numéro de
+ * projet (octroyé seulement à la vente), ce module a besoin d'un numéro dès
+ * la composition, bien avant qu'un projet existe.
  *
  * TPS/TVQ gelées à l'envoi (sendSoumission) via computeInvoiceTax
  * (business-rules/billing.ts, déjà utilisée par la Facturation) — jamais
  * recalculées après coup.
+ *
+ * Lignes en quantité × prix unitaire (soumissionLineAmount, business-rules)
+ * — confirmé le 14 novembre 2026 avec de vraies soumissions ("1x 1 000$").
+ * Le libellé est un champ texte libre multi-paragraphe (portée, exclusions,
+ * notes) — jamais une seule ligne.
+ *
+ * L'affichage client (« Présenté à » — nom/entreprise/courriel/téléphone/
+ * adresse) lit ClientRequest via budget.clientRequestId, jamais Contact
+ * directement (qui n'a pas de champ adresse) — même patron que
+ * getBudgetDetail (budgets/service.ts).
  */
-import { computeInvoiceTax } from "@gsc-pilot/business-rules";
+import { computeInvoiceTax, soumissionLineAmount } from "@gsc-pilot/business-rules";
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
 import { resolveSequentialNumber } from "../settings/sequentialNumbers.js";
@@ -34,15 +47,36 @@ function formatSoumissionDisplayId(year: number, number: number): string {
 
 const SOUMISSION_DETAIL_INCLUDE = {
   lines: { orderBy: { sortOrder: "asc" as const } },
-  budget: { select: { displayId: true } },
-  contact: { select: { name: true, company: true } },
+  budget: { select: { displayId: true, clientRequestId: true } },
 } satisfies Prisma.SoumissionInclude;
 
 type SoumissionWithDetail = Prisma.SoumissionGetPayload<{ include: typeof SOUMISSION_DETAIL_INCLUDE }>;
 
+interface ClientDisplayInfo {
+  contactName: string | null;
+  company: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+}
+
+const EMPTY_CLIENT_DISPLAY: ClientDisplayInfo = { contactName: null, company: null, email: null, phone: null, address: null };
+
+/** Même patron que getBudgetDetail (budgets/service.ts) : lu explicitement via Budget.clientRequestId (scalaire simple, pas de @relation), jamais via Contact qui n'a pas de champ adresse. */
+async function resolveClientDisplay(clientRequestId: string | null): Promise<ClientDisplayInfo> {
+  if (!clientRequestId) return EMPTY_CLIENT_DISPLAY;
+  const clientRequest = await prisma.clientRequest.findUnique({
+    where: { id: clientRequestId },
+    select: { contactName: true, company: true, email: true, phone: true, address: true },
+  });
+  return clientRequest ?? EMPTY_CLIENT_DISPLAY;
+}
+
 export interface SoumissionLineDto {
   id: string;
   label: string;
+  qty: number;
+  unitPrice: number;
   amount: number;
   sortOrder: number;
 }
@@ -54,6 +88,9 @@ export interface SoumissionDetailDto {
   budgetDisplayId: string;
   contactName: string | null;
   company: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
   status: string;
   introText: string | null;
   termsText: string | null;
@@ -67,14 +104,18 @@ export interface SoumissionDetailDto {
   lines: SoumissionLineDto[];
 }
 
-function toSoumissionDetailDto(row: SoumissionWithDetail): SoumissionDetailDto {
+async function toSoumissionDetailDto(row: SoumissionWithDetail): Promise<SoumissionDetailDto> {
+  const client = await resolveClientDisplay(row.budget.clientRequestId);
   return {
     id: row.id,
     displayId: row.displayId,
     budgetId: row.budgetId,
     budgetDisplayId: row.budget.displayId,
-    contactName: row.contact?.name ?? null,
-    company: row.contact?.company ?? null,
+    contactName: client.contactName,
+    company: client.company,
+    email: client.email,
+    phone: client.phone,
+    address: client.address,
     status: row.status,
     introText: row.introText,
     termsText: row.termsText,
@@ -85,20 +126,29 @@ function toSoumissionDetailDto(row: SoumissionWithDetail): SoumissionDetailDto {
     sentAt: row.sentAt?.toISOString() ?? null,
     decidedAt: row.decidedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
-    lines: row.lines.map((line) => ({ id: line.id, label: line.label, amount: Number(line.amount), sortOrder: line.sortOrder })),
+    lines: row.lines.map((line) => ({
+      id: line.id,
+      label: line.label,
+      qty: Number(line.qty),
+      unitPrice: Number(line.unitPrice),
+      amount: Number(line.amount),
+      sortOrder: line.sortOrder,
+    })),
   };
 }
 
 export interface SoumissionLineInput {
   label: string;
-  amount: number;
+  qty: number;
+  unitPrice: number;
 }
 
 function assertValidLines(lines: SoumissionLineInput[]): void {
   if (!lines || lines.length === 0) throw new HttpError(400, "Au moins une ligne est requise.");
   for (const line of lines) {
-    if (!line.label?.trim()) throw new HttpError(400, "Chaque ligne doit avoir un libellé.");
-    if (!(line.amount > 0)) throw new HttpError(400, "Chaque ligne doit avoir un montant positif.");
+    if (!line.label?.trim()) throw new HttpError(400, "Chaque ligne doit avoir une description.");
+    if (!(line.qty > 0)) throw new HttpError(400, "Chaque ligne doit avoir une quantité positive.");
+    if (!(line.unitPrice > 0)) throw new HttpError(400, "Chaque ligne doit avoir un prix unitaire positif.");
   }
 }
 
@@ -133,13 +183,13 @@ export async function createSoumission(budgetId: string, createdById: string, in
     ? ((await prisma.clientRequest.findUnique({ where: { id: budget.clientRequestId }, select: { contactId: true } }))?.contactId ?? null)
     : null;
 
-  return prisma.$transaction(async (tx) => {
+  const soumission = await prisma.$transaction(async (tx) => {
     const settings = await tx.settings.findFirst();
     if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
     const { year, number } = resolveNextSoumissionNumber(settings);
     const displayId = formatSoumissionDisplayId(year, number);
 
-    const soumission = await tx.soumission.create({
+    const created = await tx.soumission.create({
       data: {
         displayId,
         budgetId,
@@ -147,14 +197,24 @@ export async function createSoumission(budgetId: string, createdById: string, in
         introText: input.introText?.trim() || null,
         termsText: input.termsText?.trim() || null,
         createdById,
-        lines: { create: input.lines.map((line, index) => ({ label: line.label.trim(), amount: line.amount, sortOrder: index })) },
+        lines: {
+          create: input.lines.map((line, index) => ({
+            label: line.label.trim(),
+            qty: line.qty,
+            unitPrice: line.unitPrice,
+            amount: soumissionLineAmount(line.qty, line.unitPrice),
+            sortOrder: index,
+          })),
+        },
       },
       include: SOUMISSION_DETAIL_INCLUDE,
     });
     await tx.settings.update({ where: { id: settings.id }, data: { nextSoumissionNumber: number + 1, soumissionNumberYear: year } });
 
-    return toSoumissionDetailDto(soumission);
+    return created;
   });
+
+  return toSoumissionDetailDto(soumission);
 }
 
 async function loadSoumissionOrThrow(id: string): Promise<SoumissionWithDetail> {
@@ -175,20 +235,27 @@ export async function updateSoumission(id: string, input: UpdateSoumissionInput)
   if (soumission.status !== "draft") throw new HttpError(400, "Seule une soumission à l'état brouillon peut être modifiée.");
   if (input.lines) assertValidLines(input.lines);
 
-  return prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx) => {
     if (input.lines) {
       await tx.soumissionLine.deleteMany({ where: { soumissionId: id } });
       await tx.soumissionLine.createMany({
-        data: input.lines.map((line, index) => ({ soumissionId: id, label: line.label.trim(), amount: line.amount, sortOrder: index })),
+        data: input.lines.map((line, index) => ({
+          soumissionId: id,
+          label: line.label.trim(),
+          qty: line.qty,
+          unitPrice: line.unitPrice,
+          amount: soumissionLineAmount(line.qty, line.unitPrice),
+          sortOrder: index,
+        })),
       });
     }
-    const updated = await tx.soumission.update({
+    return tx.soumission.update({
       where: { id },
       data: { introText: input.introText?.trim() || undefined, termsText: input.termsText?.trim() || undefined },
       include: SOUMISSION_DETAIL_INCLUDE,
     });
-    return toSoumissionDetailDto(updated);
   });
+  return toSoumissionDetailDto(updated);
 }
 
 /** Gèle amountBeforeTax/tpsAmount/tvqAmount/totalWithTax via computeInvoiceTax — jamais recalculés après coup, même principe que InvoicePlanEntry. */
@@ -242,7 +309,7 @@ export async function listSoumissionsForBudget(budgetId: string): Promise<Soumis
     include: SOUMISSION_DETAIL_INCLUDE,
     orderBy: { createdAt: "desc" },
   });
-  return rows.map(toSoumissionDetailDto);
+  return Promise.all(rows.map(toSoumissionDetailDto));
 }
 
 export async function getSoumissionDetail(id: string): Promise<SoumissionDetailDto> {

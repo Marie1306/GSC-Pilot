@@ -19,3 +19,4 @@ export * from "./gantt-schedule.js";
 export * from "./external-sales.js";
 export * from "./seao.js";
 export * from "./treasury.js";
+export * from "./soumissions.js";

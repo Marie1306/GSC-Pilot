@@ -15,6 +15,8 @@ export const SOUMISSION_STATUS_LABELS: Record<SoumissionStatus, string> = {
 export interface SoumissionLineDto {
   id: string;
   label: string;
+  qty: number;
+  unitPrice: number;
   amount: number;
   sortOrder: number;
 }
@@ -26,6 +28,9 @@ export interface SoumissionDetailDto {
   budgetDisplayId: string;
   contactName: string | null;
   company: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
   status: SoumissionStatus;
   introText: string | null;
   termsText: string | null;
@@ -49,7 +54,8 @@ export function fetchSoumissionDetail(id: string): Promise<{ soumission: Soumiss
 
 export interface SoumissionLineInput {
   label: string;
-  amount: number;
+  qty: number;
+  unitPrice: number;
 }
 
 export interface CreateSoumissionInput {

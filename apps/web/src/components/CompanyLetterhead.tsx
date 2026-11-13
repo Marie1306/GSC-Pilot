@@ -1,18 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "../lib/apiClient.js";
-
-interface CompanyLetterheadData {
-  companyLegalName: string | null;
-  companyAddress: string | null;
-  companyPhone: string | null;
-  companyEmail: string | null;
-  companyTpsNumber: string | null;
-  companyTvqNumber: string | null;
-}
-
-function fetchCompanyLetterhead(): Promise<{ identity: CompanyLetterheadData }> {
-  return apiFetch("/api/settings/company-letterhead");
-}
+import { fetchCompanyLetterhead } from "../lib/companyLetterhead.js";
 
 /**
  * En-tête d'entreprise partagé (13 novembre 2026) — premières vues
@@ -36,15 +23,15 @@ export function CompanyLetterhead() {
     <div className="pdf-export-company">
       <strong>{identity?.companyLegalName || "GSC Automation"}</strong>
       {identity?.companyAddress && <div>{identity.companyAddress}</div>}
-      {(identity?.companyPhone || identity?.companyEmail) && (
+      {(identity?.companyPhone || identity?.companyEmail || identity?.companyWebsite) && (
         <div>
-          {identity?.companyPhone}
-          {identity?.companyPhone && identity?.companyEmail && " · "}
-          {identity?.companyEmail}
+          {[identity?.companyPhone, identity?.companyEmail, identity?.companyWebsite].filter(Boolean).join(" · ")}
         </div>
       )}
-      {(identity?.companyTpsNumber || identity?.companyTvqNumber) && (
+      {(identity?.companyBusinessNumber || identity?.companyTpsNumber || identity?.companyTvqNumber) && (
         <div style={{ fontSize: 11, color: "var(--gsc-color-muted)" }}>
+          {identity?.companyBusinessNumber && <>No d'entreprise : {identity.companyBusinessNumber}</>}
+          {identity?.companyBusinessNumber && (identity?.companyTpsNumber || identity?.companyTvqNumber) && " · "}
           {identity?.companyTpsNumber && <>TPS : {identity.companyTpsNumber}</>}
           {identity?.companyTpsNumber && identity?.companyTvqNumber && " · "}
           {identity?.companyTvqNumber && <>TVQ : {identity.companyTvqNumber}</>}

@@ -50,8 +50,20 @@ export function SoumissionExportView() {
         <div className="pdf-export-notes">
           <strong>Soumission {soumission.displayId}</strong>
           <p>
-            <strong>Client :</strong> {soumission.company ?? soumission.contactName ?? "—"}
+            <strong>Présenté à :</strong> {soumission.company ?? soumission.contactName ?? "—"}
             {soumission.company && soumission.contactName ? ` (${soumission.contactName})` : ""}
+            {soumission.address && (
+              <>
+                <br />
+                {soumission.address}
+              </>
+            )}
+            {(soumission.email || soumission.phone) && (
+              <>
+                <br />
+                {[soumission.email, soumission.phone].filter(Boolean).join(" · ")}
+              </>
+            )}
           </p>
           <p>
             <strong>Référence budgétaire :</strong> {soumission.budgetDisplayId} &nbsp; <strong>Date :</strong> {formatDate(soumission.sentAt)}
@@ -69,14 +81,18 @@ export function SoumissionExportView() {
           <table>
             <thead>
               <tr>
+                <th className="num">Qté</th>
                 <th>Description</th>
+                <th className="num">Prix unitaire</th>
                 <th className="num">Montant</th>
               </tr>
             </thead>
             <tbody>
               {soumission.lines.map((line) => (
                 <tr key={line.id}>
-                  <td>{line.label}</td>
+                  <td className="num">{line.qty}</td>
+                  <td style={{ whiteSpace: "pre-wrap" }}>{line.label}</td>
+                  <td className="num">{formatCurrency(line.unitPrice)}</td>
                   <td className="num">{formatCurrency(line.amount)}</td>
                 </tr>
               ))}
