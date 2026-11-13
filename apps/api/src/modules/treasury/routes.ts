@@ -35,6 +35,7 @@ const settingsSchema = z.object({
   locOpeningBalance: z.number().nonnegative(),
   locOpeningDate: z.iso.date(),
   sweepThreshold: z.number().positive(),
+  locCreditLimit: z.number().positive(),
 });
 treasuryRouter.put("/treasury/settings", requireAuth, requireTreasury, async (req, res) => {
   const body = settingsSchema.parse(req.body);
@@ -45,7 +46,13 @@ treasuryRouter.get("/treasury/recurring-expenses", requireAuth, requireTreasury,
   res.json({ expenses: await listRecurringExpenses() });
 });
 
-const createExpenseSchema = z.object({ label: z.string().min(1), dayOfMonth: z.number().int(), defaultAmount: z.number() });
+const createExpenseSchema = z.object({
+  label: z.string().min(1),
+  frequency: z.enum(["monthly", "weekly"]),
+  dayOfMonth: z.number().int().min(1).max(31).optional(),
+  dayOfWeek: z.number().int().min(1).max(7).optional(),
+  defaultAmount: z.number().positive(),
+});
 treasuryRouter.post("/treasury/recurring-expenses", requireAuth, requireTreasury, async (req, res) => {
   const body = createExpenseSchema.parse(req.body);
   res.status(201).json({ expense: await createRecurringExpense(body) });
@@ -53,8 +60,10 @@ treasuryRouter.post("/treasury/recurring-expenses", requireAuth, requireTreasury
 
 const updateExpenseSchema = z.object({
   label: z.string().min(1).optional(),
-  dayOfMonth: z.number().int().optional(),
-  defaultAmount: z.number().optional(),
+  frequency: z.enum(["monthly", "weekly"]).optional(),
+  dayOfMonth: z.number().int().min(1).max(31).optional(),
+  dayOfWeek: z.number().int().min(1).max(7).optional(),
+  defaultAmount: z.number().positive().optional(),
   active: z.boolean().optional(),
 });
 treasuryRouter.patch("/treasury/recurring-expenses/:id", requireAuth, requireTreasury, async (req, res) => {
@@ -70,7 +79,7 @@ treasuryRouter.delete("/treasury/recurring-expenses/:id", requireAuth, requireTr
 });
 
 const yearMonthSchema = z.string().regex(/^\d{4}-\d{2}$/);
-const overrideSchema = z.object({ amount: z.number() });
+const overrideSchema = z.object({ amount: z.number().positive() });
 treasuryRouter.put("/treasury/recurring-expenses/:id/overrides/:yearMonth", requireAuth, requireTreasury, async (req, res) => {
   const id = z.uuid().parse(req.params.id);
   const yearMonth = yearMonthSchema.parse(req.params.yearMonth);

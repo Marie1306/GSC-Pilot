@@ -9,6 +9,7 @@ const EMPTY: TreasurySettingsDto = {
   locOpeningBalance: 0,
   locOpeningDate: new Date().toISOString().slice(0, 10),
   sweepThreshold: 20000,
+  locCreditLimit: 200000,
 };
 
 /**
@@ -69,6 +70,10 @@ export function TreasurySettingsCard({ settings }: { settings: TreasurySettingsD
         <div className="field">
           <label>Seuil de bascule ($)</label>
           <input type="number" min={1} step="0.01" value={draft.sweepThreshold} onChange={(e) => set("sweepThreshold", Number(e.target.value))} />
+        </div>
+        <div className="field">
+          <label>Plafond de la marge de crédit ($)</label>
+          <input type="number" min={1} step="0.01" value={draft.locCreditLimit} onChange={(e) => set("locCreditLimit", Number(e.target.value))} />
         </div>
       </div>
 

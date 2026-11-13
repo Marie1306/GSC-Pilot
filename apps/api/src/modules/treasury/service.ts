@@ -44,6 +44,7 @@ export interface TreasurySettingsDto {
   locOpeningBalance: number;
   locOpeningDate: string;
   sweepThreshold: number;
+  locCreditLimit: number;
 }
 
 function toTreasurySettingsDto(row: {
@@ -52,6 +53,7 @@ function toTreasurySettingsDto(row: {
   locOpeningBalance: unknown;
   locOpeningDate: Date;
   sweepThreshold: unknown;
+  locCreditLimit: unknown;
 }): TreasurySettingsDto {
   return {
     checkingOpeningBalance: Number(row.checkingOpeningBalance),
@@ -59,6 +61,7 @@ function toTreasurySettingsDto(row: {
     locOpeningBalance: Number(row.locOpeningBalance),
     locOpeningDate: row.locOpeningDate.toISOString().slice(0, 10),
     sweepThreshold: Number(row.sweepThreshold),
+    locCreditLimit: Number(row.locCreditLimit),
   };
 }
 
@@ -73,10 +76,12 @@ export interface UpsertTreasurySettingsInput {
   locOpeningBalance: number;
   locOpeningDate: string;
   sweepThreshold: number;
+  locCreditLimit: number;
 }
 
 /** Pas encore de ligne la première fois que Marie configure la Trésorerie (table neuve, jamais seedée) — créée à la première sauvegarde, mise à jour ensuite. */
 export async function upsertTreasurySettings(input: UpsertTreasurySettingsInput): Promise<TreasurySettingsDto> {
+  if (input.locCreditLimit <= 0) throw new HttpError(400, "Le plafond de la marge de crédit doit être positif.");
   const existing = await prisma.treasurySettings.findFirst();
   const data = {
     checkingOpeningBalance: input.checkingOpeningBalance,
@@ -84,6 +89,7 @@ export async function upsertTreasurySettings(input: UpsertTreasurySettingsInput)
     locOpeningBalance: input.locOpeningBalance,
     locOpeningDate: new Date(input.locOpeningDate),
     sweepThreshold: input.sweepThreshold,
+    locCreditLimit: input.locCreditLimit,
   };
   const row = existing
     ? await prisma.treasurySettings.update({ where: { id: existing.id }, data })
@@ -95,6 +101,8 @@ export async function upsertTreasurySettings(input: UpsertTreasurySettingsInput)
 // Dépenses récurrentes
 // ---------------------------------------------------------------------------
 
+export type RecurringExpenseFrequency = "monthly" | "weekly";
+
 export interface RecurringExpenseOverrideDto {
   yearMonth: string;
   amount: number;
@@ -102,7 +110,9 @@ export interface RecurringExpenseOverrideDto {
 export interface RecurringExpenseDto {
   id: string;
   label: string;
-  dayOfMonth: number;
+  frequency: RecurringExpenseFrequency;
+  dayOfMonth: number | null;
+  dayOfWeek: number | null;
   defaultAmount: number;
   active: boolean;
   overrides: RecurringExpenseOverrideDto[];
@@ -111,7 +121,9 @@ export interface RecurringExpenseDto {
 function toRecurringExpenseDto(row: {
   id: string;
   label: string;
-  dayOfMonth: number;
+  frequency: string;
+  dayOfMonth: number | null;
+  dayOfWeek: number | null;
   defaultAmount: unknown;
   active: boolean;
   overrides: { yearMonth: string; amount: unknown }[];
@@ -119,7 +131,9 @@ function toRecurringExpenseDto(row: {
   return {
     id: row.id,
     label: row.label,
+    frequency: row.frequency === "weekly" ? "weekly" : "monthly",
     dayOfMonth: row.dayOfMonth,
+    dayOfWeek: row.dayOfWeek,
     defaultAmount: Number(row.defaultAmount),
     active: row.active,
     overrides: row.overrides.map((o) => ({ yearMonth: o.yearMonth, amount: Number(o.amount) })),
@@ -130,22 +144,39 @@ export async function listRecurringExpenses(): Promise<RecurringExpenseDto[]> {
   const rows = await prisma.recurringExpense.findMany({
     where: { deletedAt: null },
     include: { overrides: true },
-    orderBy: { dayOfMonth: "asc" },
+    orderBy: { label: "asc" },
   });
   return rows.map(toRecurringExpenseDto);
 }
 
+/** defaultAmount : TOUJOURS positif (confirmé — "une dépense récurrente est une sortie de fonds"), jamais une convention de signe ici. */
+function assertValidFrequencyFields(frequency: RecurringExpenseFrequency, dayOfMonth: number | undefined, dayOfWeek: number | undefined): void {
+  if (frequency === "monthly") {
+    if (dayOfMonth === undefined || dayOfMonth < 1 || dayOfMonth > 31) throw new HttpError(400, "Le jour du mois doit être entre 1 et 31.");
+  } else {
+    if (dayOfWeek === undefined || dayOfWeek < 1 || dayOfWeek > 7) throw new HttpError(400, "Le jour de la semaine doit être entre 1 (lundi) et 7 (dimanche).");
+  }
+}
+
 export interface CreateRecurringExpenseInput {
   label: string;
-  dayOfMonth: number;
+  frequency: RecurringExpenseFrequency;
+  dayOfMonth?: number;
+  dayOfWeek?: number;
   defaultAmount: number;
 }
 
 export async function createRecurringExpense(input: CreateRecurringExpenseInput): Promise<RecurringExpenseDto> {
-  if (input.dayOfMonth < 1 || input.dayOfMonth > 31) throw new HttpError(400, "Le jour du mois doit être entre 1 et 31.");
-  if (input.defaultAmount === 0) throw new HttpError(400, "Le montant ne peut pas être zéro.");
+  assertValidFrequencyFields(input.frequency, input.dayOfMonth, input.dayOfWeek);
+  if (input.defaultAmount <= 0) throw new HttpError(400, "Le montant doit être positif — une dépense récurrente est toujours une sortie de fonds.");
   const row = await prisma.recurringExpense.create({
-    data: { label: input.label.trim(), dayOfMonth: input.dayOfMonth, defaultAmount: input.defaultAmount },
+    data: {
+      label: input.label.trim(),
+      frequency: input.frequency,
+      dayOfMonth: input.frequency === "monthly" ? input.dayOfMonth : null,
+      dayOfWeek: input.frequency === "weekly" ? input.dayOfWeek : null,
+      defaultAmount: input.defaultAmount,
+    },
     include: { overrides: true },
   });
   return toRecurringExpenseDto(row);
@@ -153,19 +184,36 @@ export async function createRecurringExpense(input: CreateRecurringExpenseInput)
 
 export interface UpdateRecurringExpenseInput {
   label?: string;
+  frequency?: RecurringExpenseFrequency;
   dayOfMonth?: number;
+  dayOfWeek?: number;
   defaultAmount?: number;
   active?: boolean;
 }
 
 export async function updateRecurringExpense(id: string, input: UpdateRecurringExpenseInput): Promise<RecurringExpenseDto> {
-  if (input.dayOfMonth !== undefined && (input.dayOfMonth < 1 || input.dayOfMonth > 31)) {
-    throw new HttpError(400, "Le jour du mois doit être entre 1 et 31.");
+  if (input.frequency) {
+    assertValidFrequencyFields(input.frequency, input.dayOfMonth, input.dayOfWeek);
+  } else {
+    if (input.dayOfMonth !== undefined && (input.dayOfMonth < 1 || input.dayOfMonth > 31)) {
+      throw new HttpError(400, "Le jour du mois doit être entre 1 et 31.");
+    }
+    if (input.dayOfWeek !== undefined && (input.dayOfWeek < 1 || input.dayOfWeek > 7)) {
+      throw new HttpError(400, "Le jour de la semaine doit être entre 1 (lundi) et 7 (dimanche).");
+    }
   }
-  if (input.defaultAmount === 0) throw new HttpError(400, "Le montant ne peut pas être zéro.");
+  if (input.defaultAmount !== undefined && input.defaultAmount <= 0) {
+    throw new HttpError(400, "Le montant doit être positif — une dépense récurrente est toujours une sortie de fonds.");
+  }
   const row = await prisma.recurringExpense.update({
     where: { id },
-    data: { ...input, label: input.label?.trim() },
+    data: {
+      ...input,
+      label: input.label?.trim(),
+      // Changer de fréquence efface le jour de l'autre fréquence — jamais un dayOfMonth fantôme sur une dépense devenue hebdomadaire, ou l'inverse.
+      ...(input.frequency === "monthly" ? { dayOfWeek: null } : {}),
+      ...(input.frequency === "weekly" ? { dayOfMonth: null } : {}),
+    },
     include: { overrides: true },
   });
   return toRecurringExpenseDto(row);
@@ -176,9 +224,11 @@ export async function deleteRecurringExpense(id: string): Promise<void> {
   await prisma.recurringExpense.update({ where: { id }, data: { deletedAt: new Date() } });
 }
 
-/** Remplace le montant d'UN mois précis (ex. prime d'assurance variable) — jamais les autres mois (voir resolveRecurringOccurrences, business-rules). */
+/** Remplace le montant d'UN mois précis (ex. prime d'assurance variable) — jamais les autres mois (voir resolveRecurringOccurrences, business-rules). Mensuel seulement — jamais demandé pour une dépense hebdomadaire (salaires, etc.). */
 export async function setRecurringExpenseOverride(recurringExpenseId: string, yearMonth: string, amount: number): Promise<RecurringExpenseDto> {
-  if (amount === 0) throw new HttpError(400, "Le montant ne peut pas être zéro.");
+  if (amount <= 0) throw new HttpError(400, "Le montant doit être positif — une dépense récurrente est toujours une sortie de fonds.");
+  const expense = await prisma.recurringExpense.findUniqueOrThrow({ where: { id: recurringExpenseId } });
+  if (expense.frequency !== "monthly") throw new HttpError(400, "Un ajustement ponctuel n'est offert que pour une dépense mensuelle.");
   await prisma.recurringExpenseOverride.upsert({
     where: { recurringExpenseId_yearMonth: { recurringExpenseId, yearMonth } },
     create: { recurringExpenseId, yearMonth, amount },
@@ -268,7 +318,13 @@ export async function getForecastTable(weekCount: number = DEFAULT_WEEK_COUNT): 
   const expenses = await prisma.recurringExpense.findMany({ where: { deletedAt: null, active: true }, include: { overrides: true } });
   const recurringOccurrences = expenses.flatMap((expense) =>
     resolveRecurringOccurrences(
-      { dayOfMonth: expense.dayOfMonth, defaultAmount: Number(expense.defaultAmount) },
+      {
+        label: expense.label,
+        frequency: expense.frequency === "weekly" ? "weekly" : "monthly",
+        dayOfMonth: expense.dayOfMonth,
+        dayOfWeek: expense.dayOfWeek,
+        defaultAmount: Number(expense.defaultAmount),
+      },
       expense.overrides.map((o) => ({ yearMonth: o.yearMonth, amount: Number(o.amount) })),
       anchorDate,
       horizonEnd,
@@ -284,6 +340,7 @@ export async function getForecastTable(weekCount: number = DEFAULT_WEEK_COUNT): 
     checkingOpeningBalance: Number(settings.checkingOpeningBalance),
     locOpeningBalance: Number(settings.locOpeningBalance),
     sweepThreshold: Number(settings.sweepThreshold),
+    locCreditLimit: Number(settings.locCreditLimit),
     confirmedInvoices,
     recurringOccurrences,
     manualEntries,

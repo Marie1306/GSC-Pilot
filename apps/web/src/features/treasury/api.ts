@@ -9,6 +9,7 @@ export interface TreasurySettingsDto {
   locOpeningBalance: number;
   locOpeningDate: string;
   sweepThreshold: number;
+  locCreditLimit: number;
 }
 
 export function fetchTreasurySettings(): Promise<{ settings: TreasurySettingsDto | null }> {
@@ -19,6 +20,18 @@ export function saveTreasurySettings(input: TreasurySettingsDto): Promise<{ sett
   return apiFetch("/api/treasury/settings", { method: "PUT", body: JSON.stringify(input) });
 }
 
+export type RecurringExpenseFrequency = "monthly" | "weekly";
+
+export const WEEKDAY_LABELS: Record<number, string> = {
+  1: "Lundi",
+  2: "Mardi",
+  3: "Mercredi",
+  4: "Jeudi",
+  5: "Vendredi",
+  6: "Samedi",
+  7: "Dimanche",
+};
+
 export interface RecurringExpenseOverrideDto {
   yearMonth: string;
   amount: number;
@@ -26,7 +39,9 @@ export interface RecurringExpenseOverrideDto {
 export interface RecurringExpenseDto {
   id: string;
   label: string;
-  dayOfMonth: number;
+  frequency: RecurringExpenseFrequency;
+  dayOfMonth: number | null;
+  dayOfWeek: number | null;
   defaultAmount: number;
   active: boolean;
   overrides: RecurringExpenseOverrideDto[];
@@ -38,7 +53,9 @@ export function fetchRecurringExpenses(): Promise<{ expenses: RecurringExpenseDt
 
 export interface CreateRecurringExpenseInput {
   label: string;
-  dayOfMonth: number;
+  frequency: RecurringExpenseFrequency;
+  dayOfMonth?: number;
+  dayOfWeek?: number;
   defaultAmount: number;
 }
 export function createRecurringExpense(input: CreateRecurringExpenseInput): Promise<{ expense: RecurringExpenseDto }> {
@@ -47,7 +64,9 @@ export function createRecurringExpense(input: CreateRecurringExpenseInput): Prom
 
 export interface UpdateRecurringExpenseInput {
   label?: string;
+  frequency?: RecurringExpenseFrequency;
   dayOfMonth?: number;
+  dayOfWeek?: number;
   defaultAmount?: number;
   active?: boolean;
 }
@@ -103,13 +122,19 @@ export interface ConfirmedInvoiceEventDto {
   sourceLabel: string;
   clientLabel: string;
 }
+export interface LabeledAmountDto {
+  label: string;
+  amount: number;
+}
 export interface ForecastWeekRowDto {
   weekStart: string;
   weekEnd: string;
   invoiceTotal: number;
   invoiceDetails: ConfirmedInvoiceEventDto[];
   recurringTotal: number;
+  recurringDetails: LabeledAmountDto[];
   manualTotal: number;
+  manualDetails: LabeledAmountDto[];
   checkingBalanceBeforeSweep: number;
   sweeps: LocSweepStepDto[];
   checkingBalance: number;
