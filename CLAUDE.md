@@ -1222,3 +1222,60 @@ migrate deploy` automatiquement (nécessiterait que Render ait un accès
 réseau direct à la base, à confirmer), soit au minimum un rappel
 explicite à l'utilisatrice à la fin de toute session qui ajoute une
 migration.
+
+## Processus de déploiement — éviter une 3e panne du tableau de bord (13 novembre 2026)
+
+Demande explicite de l'utilisatrice (« le plan de déploiement pour la
+suite »), posée après la Trésorerie et avant d'attaquer le chantier
+Soumission/Confirmation de commande/Facturation (voir plan de fondation,
+`/root/.claude/plans/magical-finding-fog.md` si encore présent) —
+formalise ce qui n'était jusqu'ici qu'un constat répété deux fois (9 et
+16 septembre 2026, voir plus haut) sans jamais devenir une règle écrite.
+
+**Cause unique des deux pannes passées** : Render ne lance jamais `prisma
+migrate deploy` contre la vraie base — seul `postinstall`/`prisma
+generate` tourne au déploiement (régénère le client contre le nouveau
+schéma, sans jamais rien appliquer en base). Le code neuf attend alors
+des colonnes/tables absentes tant que la migration n'a pas été collée
+manuellement dans Supabase.
+
+**Option recommandée, pas encore confirmée faite par Marie** — automatiser
+dans Render (cette session n'a aucun accès réseau à son tableau de bord,
+donc jamais vérifiable directement d'ici) :
+1. Vérifier si le service `gsc-pilot` (plan Starter) a accès à la
+   fonction **"Pre-Deploy Command"** de Render (roule une commande avant
+   que le nouveau déploiement ne reçoive du trafic, pendant que l'ancienne
+   instance continue de servir).
+2. Si oui, ajouter la variable d'environnement `DIRECT_URL` dans Render
+   (distincte de `DATABASE_URL` déjà présente — connexion directe à
+   Supabase sans le pooler pgbouncer, déjà exigée par
+   `apps/api/prisma.config.ts` pour toute opération DDL, jamais encore
+   fournie côté Render puisque jamais utilisée là).
+3. Définir la commande : `npm run db:migrate:deploy -w apps/api` (script
+   déjà existant dans `apps/api/package.json`, jamais branché à Render).
+
+Si une prochaine session reprend ce chantier, vérifier d'abord si Marie a
+confirmé l'avoir fait avant de supposer que les migrations s'appliquent
+désormais automatiquement.
+
+**Filet de sécurité — valable immédiatement, peu importe l'automatisation
+ci-dessus, et adopté dès maintenant pour cette session et les
+suivantes** :
+- **Ordre des opérations inversé** : coller le SQL de migration dans
+  Supabase et obtenir confirmation explicite de Marie *avant* de pousser
+  le code qui en dépend, jamais après. L'ordre suivi jusqu'ici (pousser,
+  puis remettre le SQL) crée exactement la fenêtre qui a cassé 2 fois —
+  Render déploie le code neuf dès le push, sans attendre que la base soit
+  prête.
+- **Aucune tâche touchant le schéma n'est considérée "terminée"** tant
+  que (a) le SQL a été remis à Marie ET (b) une confirmation explicite
+  qu'il a été collé a été reçue — jamais seulement supposée après un
+  délai.
+
+**Spécifique au chantier Soumission/Confirmation de commande/Facturation
+(à venir)** : le livrer par étapes plus petites (Soumission, puis
+Confirmation de commande, puis Facturation étendue — chaque document a
+sa propre numérotation/gabarit) avec vérification en production entre
+chaque étape, plutôt qu'un seul gros lot comme pour la Trésorerie — réduit
+le rayon d'explosion si une migration est oubliée, et laisse Marie tester
+chaque pièce avant que la suivante arrive.
