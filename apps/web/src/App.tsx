@@ -10,6 +10,7 @@ import { BudgetExportView } from "./features/budgets/BudgetExportView.js";
 import { ProjectPostMortemExportView } from "./features/projects/ProjectPostMortemExportView.js";
 import { DeliveryExportView } from "./features/fulfillment/DeliveryExportView.js";
 import { SoumissionExportView } from "./features/soumissions/SoumissionExportView.js";
+import { ConfirmationExportView } from "./features/confirmationsDeCommande/ConfirmationExportView.js";
 import { ServiceCallExportView } from "./features/serviceCalls/ServiceCallExportView.js";
 import { NAV_ITEMS } from "./lib/nav.js";
 import { DashboardPage } from "./features/dashboard/DashboardPage.js";
@@ -105,6 +106,14 @@ export function App() {
             element={
               <RequireRole allow={canManageSoumission}>
                 <SoumissionExportView />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/confirmations/:id/export"
+            element={
+              <RequireRole allow={canManageSoumission}>
+                <ConfirmationExportView />
               </RequireRole>
             }
           />

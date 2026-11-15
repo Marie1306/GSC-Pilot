@@ -36,6 +36,7 @@ import { seaoRouter } from "./modules/seao/routes.js";
 import { toolboxRouter } from "./modules/toolbox/routes.js";
 import { treasuryRouter } from "./modules/treasury/routes.js";
 import { soumissionsRouter } from "./modules/soumissions/routes.js";
+import { confirmationsDeCommandeRouter } from "./modules/confirmationsDeCommande/routes.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -106,6 +107,7 @@ export function createApp() {
   app.use("/api", toolboxRouter);
   app.use("/api", treasuryRouter);
   app.use("/api", soumissionsRouter);
+  app.use("/api", confirmationsDeCommandeRouter);
   app.use("/api/settings", settingsRouter);
 
   // En production, l'API sert aussi le build statique de apps/web (un seul

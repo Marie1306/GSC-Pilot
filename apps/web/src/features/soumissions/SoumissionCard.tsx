@@ -4,7 +4,8 @@ import { canManageSoumission } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import type { BudgetDetail } from "../budgets/api.js";
-import { fetchSoumissionsForBudget, sendSoumission, decideSoumission, deleteSoumission, formatCurrency, SOUMISSION_STATUS_LABELS } from "./api.js";
+import { fetchSoumissionsForBudget, sendSoumission, decideSoumission, deleteSoumission, formatCurrency, SOUMISSION_STATUS_LABELS, type SoumissionDetailDto } from "./api.js";
+import { fetchConfirmationForSoumission, convertSoumissionToConfirmation, type ConvertSoumissionInput } from "../confirmationsDeCommande/api.js";
 import { PrepareSoumissionModal } from "./PrepareSoumissionModal.js";
 
 function formatDate(iso: string): string {
@@ -74,57 +75,17 @@ export function SoumissionCard({ budget }: SoumissionCardProps) {
             </thead>
             <tbody>
               {soumissions.map((soumission) => (
-                <tr key={soumission.id}>
-                  <td>{soumission.displayId}</td>
-                  <td>{SOUMISSION_STATUS_LABELS[soumission.status]}</td>
-                  <td className="num">{soumission.totalWithTax !== null ? formatCurrency(soumission.totalWithTax) : "—"}</td>
-                  <td>{formatDate(soumission.createdAt)}</td>
-                  <td style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                    {soumission.status === "draft" && (
-                      <button type="button" className="btn btn-small" disabled={sendMutation.isPending} onClick={() => sendMutation.mutate(soumission.id)}>
-                        Envoyer
-                      </button>
-                    )}
-                    {soumission.status === "sent" && (
-                      <>
-                        <button
-                          type="button"
-                          className="btn btn-small"
-                          disabled={decideMutation.isPending}
-                          onClick={() => decideMutation.mutate({ id: soumission.id, outcome: "accepted" })}
-                        >
-                          Marquer acceptée
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-small"
-                          disabled={decideMutation.isPending}
-                          onClick={() => decideMutation.mutate({ id: soumission.id, outcome: "declined" })}
-                        >
-                          Marquer refusée
-                        </button>
-                      </>
-                    )}
-                    {soumission.sentAt && (
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-small"
-                        onClick={() => window.open(`/soumissions/${soumission.id}/export`, "_blank", "noopener")}
-                      >
-                        Imprimer
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-small"
-                      onClick={() => {
-                        if (window.confirm(`Supprimer la soumission ${soumission.displayId} ?`)) deleteMutation.mutate(soumission.id);
-                      }}
-                    >
-                      🗑
-                    </button>
-                  </td>
-                </tr>
+                <SoumissionRow
+                  key={soumission.id}
+                  soumission={soumission}
+                  onSend={() => sendMutation.mutate(soumission.id)}
+                  onDecide={(outcome) => decideMutation.mutate({ id: soumission.id, outcome })}
+                  onDelete={() => {
+                    if (window.confirm(`Supprimer la soumission ${soumission.displayId} ?`)) deleteMutation.mutate(soumission.id);
+                  }}
+                  sendPending={sendMutation.isPending}
+                  decidePending={decideMutation.isPending}
+                />
               ))}
             </tbody>
           </table>
@@ -135,5 +96,129 @@ export function SoumissionCard({ budget }: SoumissionCardProps) {
 
       {showPrepare && <PrepareSoumissionModal budget={budget} onClose={() => setShowPrepare(false)} />}
     </section>
+  );
+}
+
+interface SoumissionRowProps {
+  soumission: SoumissionDetailDto;
+  onSend: () => void;
+  onDecide: (outcome: "accepted" | "declined") => void;
+  onDelete: () => void;
+  sendPending: boolean;
+  decidePending: boolean;
+}
+
+/**
+ * Extrait en composant propre (15 novembre 2026) — chaque ligne a besoin de
+ * sa propre requête (la confirmation éventuellement déjà créée pour CETTE
+ * soumission précise), ce qui exige un composant par ligne pour respecter
+ * les règles des hooks (useQuery à l'intérieur d'un .map() sur le parent
+ * serait un nombre de hooks variable d'un rendu à l'autre).
+ */
+function SoumissionRow({ soumission, onSend, onDecide, onDelete, sendPending, decidePending }: SoumissionRowProps) {
+  const queryClient = useQueryClient();
+  const [showConvert, setShowConvert] = useState(false);
+  const [clientPoNumber, setClientPoNumber] = useState("");
+
+  const confirmationQuery = useQuery({
+    queryKey: ["confirmation-for-soumission", soumission.id],
+    queryFn: () => fetchConfirmationForSoumission(soumission.id),
+    enabled: soumission.status === "accepted",
+  });
+  const confirmation = confirmationQuery.data?.confirmation ?? null;
+
+  const convertMutation = useMutation({
+    mutationFn: (input: ConvertSoumissionInput) => convertSoumissionToConfirmation(soumission.id, input),
+    onSuccess: () => {
+      setShowConvert(false);
+      void queryClient.invalidateQueries({ queryKey: ["confirmation-for-soumission", soumission.id] });
+    },
+  });
+
+  return (
+    <>
+      <tr>
+        <td>{soumission.displayId}</td>
+        <td>{SOUMISSION_STATUS_LABELS[soumission.status]}</td>
+        <td className="num">{soumission.totalWithTax !== null ? formatCurrency(soumission.totalWithTax) : "—"}</td>
+        <td>{formatDate(soumission.createdAt)}</td>
+        <td style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
+          {soumission.status === "draft" && (
+            <button type="button" className="btn btn-small" disabled={sendPending} onClick={onSend}>
+              Envoyer
+            </button>
+          )}
+          {soumission.status === "sent" && (
+            <>
+              <button type="button" className="btn btn-small" disabled={decidePending} onClick={() => onDecide("accepted")}>
+                Marquer acceptée
+              </button>
+              <button type="button" className="btn btn-secondary btn-small" disabled={decidePending} onClick={() => onDecide("declined")}>
+                Marquer refusée
+              </button>
+            </>
+          )}
+          {soumission.sentAt && (
+            <button type="button" className="btn btn-secondary btn-small" onClick={() => window.open(`/soumissions/${soumission.id}/export`, "_blank", "noopener")}>
+              Imprimer
+            </button>
+          )}
+          {soumission.status === "accepted" && !confirmation && (
+            <button type="button" className="btn btn-small" onClick={() => setShowConvert(true)}>
+              Convertir en confirmation de commande
+            </button>
+          )}
+          {confirmation && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-small"
+              onClick={() => window.open(`/confirmations/${confirmation.id}/export`, "_blank", "noopener")}
+            >
+              Confirmation {confirmation.displayId}
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn btn-secondary btn-small"
+            disabled={!!confirmation}
+            title={confirmation ? "Déjà convertie en confirmation de commande — ne peut plus être supprimée." : undefined}
+            onClick={onDelete}
+          >
+            🗑
+          </button>
+        </td>
+      </tr>
+      {showConvert && (
+        <tr>
+          <td colSpan={5} style={{ background: "var(--gsc-color-surface2)" }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "10px 4px", flexWrap: "wrap" }}>
+              <input
+                type="text"
+                placeholder="No de bon de commande du client (optionnel)"
+                value={clientPoNumber}
+                onChange={(e) => setClientPoNumber(e.target.value)}
+                style={{ flex: 1, minWidth: 220 }}
+              />
+              <button
+                type="button"
+                className="btn btn-small"
+                disabled={convertMutation.isPending}
+                onClick={() => convertMutation.mutate({ clientPoNumber: clientPoNumber.trim() || undefined })}
+              >
+                {convertMutation.isPending ? "…" : "Confirmer la conversion"}
+              </button>
+              <button type="button" className="btn btn-secondary btn-small" onClick={() => setShowConvert(false)}>
+                Annuler
+              </button>
+            </div>
+            {convertMutation.isError && (
+              <p className="form-error" style={{ margin: "0 4px 8px" }}>
+                {convertMutation.error instanceof ApiError ? convertMutation.error.message : "Une erreur est survenue — réessayez."}
+              </p>
+            )}
+          </td>
+        </tr>
+      )}
+    </>
   );
 }

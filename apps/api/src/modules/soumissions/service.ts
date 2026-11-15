@@ -297,9 +297,16 @@ export async function decideSoumission(id: string, outcome: SoumissionOutcome): 
   return toSoumissionDetailDto(updated);
 }
 
-/** Corbeille — même mécanisme que Budget/Project.deletedAt. */
+/**
+ * Corbeille — même mécanisme que Budget/Project.deletedAt. Bloquée si une
+ * Confirmation de commande a déjà été créée (Partie 2, 15 novembre 2026) —
+ * même garde que assertBudgetNotConverted, jamais supprimer la source d'un
+ * document en aval déjà créé.
+ */
 export async function deleteSoumission(id: string): Promise<void> {
   await loadSoumissionOrThrow(id);
+  const confirmation = await prisma.confirmationDeCommande.findUnique({ where: { soumissionId: id } });
+  if (confirmation) throw new HttpError(409, "Cette soumission a déjà été convertie en confirmation de commande.");
   await prisma.soumission.update({ where: { id }, data: { deletedAt: new Date() } });
 }
 

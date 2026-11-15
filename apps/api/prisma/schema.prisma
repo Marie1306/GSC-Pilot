@@ -133,6 +133,7 @@ model Contact {
   externalSales  ExternalSale[]
   seaoFiles      SeaoFile[]
   soumissions    Soumission[]
+  confirmationsDeCommande ConfirmationDeCommande[]
 
   @@index([email])
   @@index([name])
@@ -475,6 +476,9 @@ model Soumission {
   deletedAt DateTime?
 
   lines SoumissionLine[]
+  // Une seule confirmation par soumission (15 novembre 2026, Partie 2) — voir
+  // le commentaire de deletedAt ci-dessus, implémenté dans deleteSoumission.
+  confirmation ConfirmationDeCommande?
 
   @@index([budgetId])
   @@index([status])
@@ -494,6 +498,63 @@ model SoumissionLine {
   unitPrice Decimal @default(0) @db.Decimal(12, 2)
   amount    Decimal @db.Decimal(12, 2)
   sortOrder Int     @default(0)
+}
+
+// Confirmation de commande (15 novembre 2026, Partie 2) — vraie conversion
+// depuis une Soumission ACCEPTÉE (même esprit que convertBudgetToProject) :
+// copie gelée des lignes et des montants de taxe déjà gelés sur la
+// Soumission à son envoi — jamais recalculés, née déjà "complète" (pas de
+// statut draft/sent propre, contrairement à Soumission, puisqu'elle ne fait
+// que reprendre un contenu déjà figé).
+model ConfirmationDeCommande {
+  id           String     @id @default(uuid())
+  displayId    String     @unique // format CC-AAAA-NNNN
+  // Limite assumée (pas demandé par Marie, jamais rencontré) : @unique au
+  // niveau DB, pas seulement vérifié en code parmi les non-supprimées
+  // (contrairement à Project.projectNumber, corrigé le 2 septembre 2026
+  // pour exactement cette raison) — si une confirmation est un jour mise à
+  // la corbeille, reconvertir la même soumission échouera tant que la
+  // ligne supprimée n'est pas purgée ou restaurée manuellement (le module
+  // Corbeille, settings/trash.ts, ne couvre d'ailleurs pas encore ce
+  // modèle ni Soumission). À revoir si Marie rencontre ce cas réel.
+  soumissionId String     @unique
+  soumission   Soumission @relation(fields: [soumissionId], references: [id])
+  // Dénormalisé depuis soumission.contactId — même patron que Soumission
+  // elle-même. L'affichage "Présenté à" relit ClientRequest via
+  // soumission.budget.clientRequestId, même mécanisme que Soumission.
+  contactId      String?
+  contact        Contact? @relation(fields: [contactId], references: [id])
+  // Référence du bon de commande du client, si elle en fournit une —
+  // jamais obligatoire, jamais devinée.
+  clientPoNumber String?
+  // Copiés tels quels depuis la Soumission acceptée — « même disposition,
+  // mêmes lignes » (confirmé 13 novembre 2026) s'applique aussi à ces deux
+  // champs, pas seulement aux lignes/montants.
+  introText String?
+  termsText String?
+  // Copiés tels quels depuis la Soumission acceptée au moment de la
+  // conversion — toujours déjà non nuls à ce stade (une Soumission
+  // "accepted" a nécessairement déjà été "sent" avant).
+  amountBeforeTax Decimal @db.Decimal(12, 2)
+  tpsAmount       Decimal @db.Decimal(12, 2)
+  tvqAmount       Decimal @db.Decimal(12, 2)
+  totalWithTax    Decimal @db.Decimal(12, 2)
+  createdById String
+  createdAt   DateTime @default(now())
+  deletedAt   DateTime?
+
+  lines ConfirmationDeCommandeLine[]
+}
+
+model ConfirmationDeCommandeLine {
+  id             String                 @id @default(uuid())
+  confirmationId String
+  confirmation   ConfirmationDeCommande @relation(fields: [confirmationId], references: [id], onDelete: Cascade)
+  label          String
+  qty            Decimal @db.Decimal(10, 2)
+  unitPrice      Decimal @db.Decimal(12, 2)
+  amount         Decimal @db.Decimal(12, 2)
+  sortOrder      Int     @default(0)
 }
 
 // ---------------------------------------------------------------------------
@@ -1643,6 +1704,10 @@ model Settings {
   // zéro annuelle dès le départ, même mécanisme que externalSaleNumberYear.
   nextSoumissionNumber         Int      @default(1)
   soumissionNumberYear         Int      @default(2026)
+  // Confirmation de commande (Partie 2, 15 novembre 2026) — CC-AAAA-NNNN,
+  // même mécanisme que ci-dessus.
+  nextConfirmationNumber       Int      @default(1)
+  confirmationNumberYear       Int      @default(2026)
   // TPS/TVQ séparées (confirmé) — Decimal(6,3), pas (5,2) comme les autres
   // %, pour ne jamais arrondir silencieusement 9.975 à 9.98.
   tpsRatePct                   Decimal  @default(5.000) @db.Decimal(6, 3)
