@@ -155,7 +155,7 @@ function assertValidLines(lines: SoumissionLineInput[]): void {
 async function loadBudgetForSoumissionOrThrow(budgetId: string) {
   const budget = await prisma.budget.findUnique({
     where: { id: budgetId },
-    select: { id: true, status: true, deletedAt: true, clientRequestId: true },
+    select: { id: true, displayId: true, status: true, deletedAt: true, clientRequestId: true },
   });
   if (!budget) throw new HttpError(404, "Budgétaire introuvable.");
   if (budget.deletedAt) throw new HttpError(400, "Ce budgétaire est dans la corbeille.");
@@ -215,6 +215,60 @@ export async function createSoumission(budgetId: string, createdById: string, in
   });
 
   return toSoumissionDetailDto(soumission);
+}
+
+/**
+ * Aperçu avant création officielle (15 novembre 2026, demande explicite) —
+ * calcule tout ce qu'afficherait la vraie soumission (numéro proposé,
+ * affichage client, taxes) SANS rien écrire en base, même esprit que
+ * previewInvoiceRequest (projects/service.ts). Le numéro n'est JAMAIS
+ * attribué ici (resolveNextSoumissionNumber lu mais jamais appliqué à
+ * Settings) — une création réelle juste après pourrait en théorie obtenir
+ * un numéro différent si une autre soumission était créée entre-temps,
+ * acceptable pour un simple aperçu visuel.
+ */
+export async function previewSoumission(budgetId: string, input: CreateSoumissionInput): Promise<SoumissionDetailDto> {
+  const budget = await loadBudgetForSoumissionOrThrow(budgetId);
+  assertValidLines(input.lines);
+
+  const settings = await prisma.settings.findFirst();
+  if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
+  const { year, number } = resolveNextSoumissionNumber(settings);
+  const displayId = formatSoumissionDisplayId(year, number);
+
+  const client = await resolveClientDisplay(budget.clientRequestId);
+  const amountBeforeTax = input.lines.reduce((sum, line) => sum + soumissionLineAmount(line.qty, line.unitPrice), 0);
+  const tax = computeInvoiceTax(amountBeforeTax, Number(settings.tpsRatePct), Number(settings.tvqRatePct));
+
+  return {
+    id: "preview",
+    displayId,
+    budgetId,
+    budgetDisplayId: budget.displayId,
+    contactName: client.contactName,
+    company: client.company,
+    email: client.email,
+    phone: client.phone,
+    address: client.address,
+    status: "draft",
+    introText: input.introText?.trim() || null,
+    termsText: input.termsText?.trim() || null,
+    amountBeforeTax: tax.amountBeforeTax,
+    tpsAmount: tax.tpsAmount,
+    tvqAmount: tax.tvqAmount,
+    totalWithTax: tax.totalWithTax,
+    sentAt: null,
+    decidedAt: null,
+    createdAt: new Date().toISOString(),
+    lines: input.lines.map((line, index) => ({
+      id: `preview-${index}`,
+      label: line.label.trim(),
+      qty: line.qty,
+      unitPrice: line.unitPrice,
+      amount: soumissionLineAmount(line.qty, line.unitPrice),
+      sortOrder: index,
+    })),
+  };
 }
 
 async function loadSoumissionOrThrow(id: string): Promise<SoumissionWithDetail> {

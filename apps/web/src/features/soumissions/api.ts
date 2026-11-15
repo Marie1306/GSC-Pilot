@@ -68,6 +68,11 @@ export function createSoumission(budgetId: string, input: CreateSoumissionInput)
   return apiFetch(`/api/budgets/${budgetId}/soumissions`, { method: "POST", body: JSON.stringify(input) });
 }
 
+/** Aperçu avant création officielle (15 novembre 2026) — rien n'est écrit en base, voir previewSoumission côté serveur. */
+export function previewSoumission(budgetId: string, input: CreateSoumissionInput): Promise<{ soumission: SoumissionDetailDto }> {
+  return apiFetch(`/api/budgets/${budgetId}/soumissions/preview`, { method: "POST", body: JSON.stringify(input) });
+}
+
 export interface UpdateSoumissionInput {
   introText?: string;
   termsText?: string;

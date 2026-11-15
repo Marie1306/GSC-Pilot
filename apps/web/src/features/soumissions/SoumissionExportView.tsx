@@ -1,13 +1,17 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { CompanyLetterhead } from "../../components/CompanyLetterhead.js";
 import { fetchCompanyLetterhead } from "../../lib/companyLetterhead.js";
-import { fetchSoumissionDetail, formatCurrency } from "./api.js";
+import { fetchSoumissionDetail, formatCurrency, type SoumissionDetailDto } from "./api.js";
 
 function formatDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString("fr-CA", { year: "numeric", month: "long", day: "numeric" }) : "—";
 }
+
+// Clé sessionStorage posée par PrepareSoumissionModal.tsx — voir son
+// commentaire sur previewMutation.
+const PREVIEW_STORAGE_KEY = "soumission-preview";
 
 /**
  * Vue d'export PDF d'une Soumission — même mécanisme que toujours
@@ -30,26 +34,51 @@ function formatDate(iso: string | null): string {
  * construites) — seuls le titre et le contenu des lignes/totaux
  * différeront alors (la Facture ajoutera une colonne % pour un jalon
  * partiel, voir le plan).
+ *
+ * Aperçu avant création officielle (15 novembre 2026, demande explicite) —
+ * id==="preview" : aucun fetch par id (rien n'existe encore en base), le
+ * contenu vient de sessionStorage (posé par PrepareSoumissionModal.tsx
+ * juste avant d'ouvrir cet onglet) plutôt qu'un state React/Context, pour
+ * survivre au nouvel onglet (window.open). Même rendu que le document
+ * officiel à l'identique, sauf : pas d'impression automatique (Marie
+ * regarde, elle n'imprime pas forcément) et un bandeau "APERÇU" pour
+ * qu'il n'y ait aucune confusion avec un vrai document déjà créé.
  */
 export function SoumissionExportView() {
   const { id } = useParams<{ id: string }>();
+  const isPreview = id === "preview";
+
+  const previewData = useMemo<SoumissionDetailDto | null>(() => {
+    if (!isPreview) return null;
+    const raw = sessionStorage.getItem(PREVIEW_STORAGE_KEY);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as SoumissionDetailDto;
+    } catch {
+      return null;
+    }
+  }, [isPreview]);
+
   const detailQuery = useQuery({
     queryKey: ["soumission", id],
     queryFn: () => fetchSoumissionDetail(id!),
-    enabled: !!id,
+    enabled: !isPreview && !!id,
   });
   const letterheadQuery = useQuery({ queryKey: ["company-letterhead"], queryFn: fetchCompanyLetterhead });
-  const soumission = detailQuery.data?.soumission;
+  const soumission = isPreview ? previewData : detailQuery.data?.soumission;
   const identity = letterheadQuery.data?.identity;
 
   useEffect(() => {
-    if (!soumission) return;
+    if (!soumission || isPreview) return;
     const timer = setTimeout(() => window.print(), 400);
     return () => clearTimeout(timer);
-  }, [soumission]);
+  }, [soumission, isPreview]);
 
   if (!id) return null;
-  if (!soumission) return <div style={{ padding: 40 }}>{detailQuery.isError ? "Soumission introuvable." : "Chargement…"}</div>;
+  if (!soumission) {
+    const message = isPreview ? "Aucun aperçu à afficher — reviens à la fenêtre de préparation." : detailQuery.isError ? "Soumission introuvable." : "Chargement…";
+    return <div style={{ padding: 40 }}>{message}</div>;
+  }
 
   const registrationLine = [
     identity?.companyBusinessNumber && `N° d'entreprise ${identity.companyBusinessNumber}`,
@@ -66,6 +95,24 @@ export function SoumissionExportView() {
       </button>
 
       <div className="pdf-export-page">
+        {isPreview && (
+          <div
+            className="no-print"
+            style={{
+              background: "var(--gsc-color-amber-soft)",
+              color: "var(--gsc-color-amber)",
+              border: "1px solid var(--gsc-color-amber)",
+              borderRadius: "var(--gsc-radius-sm)",
+              padding: "8px 14px",
+              fontSize: 13,
+              fontWeight: 700,
+              marginBottom: 18,
+            }}
+          >
+            APERÇU — cette soumission n'a pas encore été créée. Le numéro ci-dessous n'est pas réservé.
+          </div>
+        )}
+
         <div className="pdf-export-doc-header">
           <CompanyLetterhead />
           <div>
@@ -77,7 +124,7 @@ export function SoumissionExportView() {
               </div>
               <div>
                 <span>Date </span>
-                <strong>{formatDate(soumission.sentAt)}</strong>
+                <strong>{formatDate(soumission.sentAt ?? soumission.createdAt)}</strong>
               </div>
               <div>
                 <span>Réf. budgétaire </span>
@@ -158,7 +205,7 @@ export function SoumissionExportView() {
           </div>
         )}
 
-        <div className="pdf-export-doc-footer">{registrationLine || " "}</div>
+        <div className="pdf-export-doc-footer">{registrationLine || " "}</div>
       </div>
     </div>
   );

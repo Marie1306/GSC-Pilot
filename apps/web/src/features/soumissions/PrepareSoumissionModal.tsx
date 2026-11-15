@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../lib/apiClient.js";
 import { fetchCompanyLetterhead } from "../../lib/companyLetterhead.js";
 import { computeDetailedSummary, formatCurrency, type BudgetDetail } from "../budgets/api.js";
-import { createSoumission, type SoumissionLineInput } from "./api.js";
+import { createSoumission, previewSoumission, type SoumissionLineInput } from "./api.js";
 
 interface PrepareSoumissionModalProps {
   budget: BudgetDetail;
@@ -54,6 +54,27 @@ export function PrepareSoumissionModal({ budget, onClose }: PrepareSoumissionMod
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["soumissions", budget.id] });
       onClose();
+    },
+  });
+
+  /**
+   * Prévisualisation avant création officielle (15 novembre 2026, demande
+   * explicite) — aucune soumission n'est créée, previewSoumission calcule
+   * tout côté serveur (numéro proposé, taxes) sans rien écrire. Le résultat
+   * (même forme que SoumissionDetailDto) est passé à SoumissionExportView
+   * via sessionStorage plutôt qu'un fetch par id, puisque rien n'existe
+   * encore en base pour cet id.
+   */
+  const previewMutation = useMutation({
+    mutationFn: () =>
+      previewSoumission(budget.id, {
+        introText: introText.trim() || undefined,
+        termsText: effectiveTermsText.trim() || undefined,
+        lines: lines.filter((line) => line.label.trim().length > 0 && line.qty > 0 && line.unitPrice > 0),
+      }),
+    onSuccess: (result) => {
+      sessionStorage.setItem("soumission-preview", JSON.stringify(result.soumission));
+      window.open("/soumissions/preview/export", "_blank", "noopener");
     },
   });
 
@@ -201,9 +222,12 @@ export function PrepareSoumissionModal({ budget, onClose }: PrepareSoumissionMod
             </div>
           </div>
 
-          {createMutation.isError && (
+          {(createMutation.isError || previewMutation.isError) && (
             <p className="form-error" style={{ marginTop: 8 }}>
-              {createMutation.error instanceof ApiError ? createMutation.error.message : "Une erreur est survenue — réessayez."}
+              {(() => {
+                const error = createMutation.error ?? previewMutation.error;
+                return error instanceof ApiError ? error.message : "Une erreur est survenue — réessayez.";
+              })()}
             </p>
           )}
         </div>
@@ -211,6 +235,9 @@ export function PrepareSoumissionModal({ budget, onClose }: PrepareSoumissionMod
         <div className="modal-footer">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Annuler
+          </button>
+          <button type="button" className="btn btn-secondary" disabled={!canCreate || previewMutation.isPending} onClick={() => previewMutation.mutate()}>
+            {previewMutation.isPending ? "…" : "Prévisualiser"}
           </button>
           <button type="button" className="btn" disabled={!canCreate || createMutation.isPending} onClick={() => createMutation.mutate()}>
             {createMutation.isPending ? "Création…" : "Créer la soumission"}

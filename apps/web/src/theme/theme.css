@@ -1202,5 +1202,16 @@ a {
   }
   @page {
     margin: 16mm;
+    /*
+     * Portrait explicite (15 novembre 2026) — sans cette ligne, Chrome
+     * propose parfois "Orientation paysage" par défaut dans la boîte
+     * d'impression (mémorisé d'un job précédent, ou deviné) ; appliquée à
+     * un contenu pensé pour une page Letter PORTRAIT (816×1056px), le
+     * paysage casse la pagination (le contenu d'une seule page déborde
+     * sur une 2e page presque vide — rapporté par Marie). Un simple
+     * indice, l'utilisatrice peut toujours choisir Paysage elle-même si
+     * elle le veut vraiment.
+     */
+    size: portrait;
   }
 }

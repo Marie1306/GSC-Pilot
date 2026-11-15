@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { canManageSoumission } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
-import { createSoumission, updateSoumission, sendSoumission, decideSoumission, deleteSoumission, listSoumissionsForBudget, getSoumissionDetail } from "./service.js";
+import { createSoumission, previewSoumission, updateSoumission, sendSoumission, decideSoumission, deleteSoumission, listSoumissionsForBudget, getSoumissionDetail } from "./service.js";
 
 export const soumissionsRouter = Router();
 
@@ -30,6 +30,15 @@ soumissionsRouter.post("/budgets/:budgetId/soumissions", requireAuth, requirePer
   const body = createSoumissionSchema.parse(req.body);
   const soumission = await createSoumission(budgetId, req.employee!.id, body);
   res.status(201).json({ soumission });
+});
+
+// Aperçu avant création officielle (15 novembre 2026) — lecture seule, aucun
+// numéro réellement attribué (voir previewSoumission, service.ts).
+soumissionsRouter.post("/budgets/:budgetId/soumissions/preview", requireAuth, requirePermission(canManage), async (req, res) => {
+  const budgetId = z.uuid().parse(req.params.budgetId);
+  const body = createSoumissionSchema.parse(req.body);
+  const soumission = await previewSoumission(budgetId, body);
+  res.json({ soumission });
 });
 
 soumissionsRouter.get("/soumissions/:id", requireAuth, requirePermission(canManage), async (req, res) => {
