@@ -132,8 +132,10 @@ export function PrepareSoumissionModal({ budget, onClose }: PrepareSoumissionMod
             <table className="shortlist-table">
               <thead>
                 <tr>
+                  <th className="num" style={{ width: 70 }}>
+                    Qté
+                  </th>
                   <th>Description</th>
-                  <th className="num">Qté</th>
                   <th className="num">Prix unitaire</th>
                   <th className="num">Montant</th>
                   <th></th>
@@ -142,6 +144,9 @@ export function PrepareSoumissionModal({ budget, onClose }: PrepareSoumissionMod
               <tbody>
                 {lines.map((line, index) => (
                   <tr key={index}>
+                    <td className="num">
+                      <input type="number" min={0} step="0.01" value={line.qty || ""} onChange={(e) => updateLine(index, { qty: Number(e.target.value) })} />
+                    </td>
                     <td>
                       <textarea
                         rows={2}
@@ -150,9 +155,6 @@ export function PrepareSoumissionModal({ budget, onClose }: PrepareSoumissionMod
                         value={line.label}
                         onChange={(e) => updateLine(index, { label: e.target.value })}
                       />
-                    </td>
-                    <td className="num">
-                      <input type="number" min={0} step="0.01" value={line.qty || ""} onChange={(e) => updateLine(index, { qty: Number(e.target.value) })} />
                     </td>
                     <td className="num">
                       <input
