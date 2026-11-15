@@ -1035,6 +1035,159 @@ a {
   color: var(--gsc-color-muted);
 }
 
+/*
+ * Gabarit Soumission / Confirmation de commande / Facture (15 novembre
+ * 2026) — co-conçu avec Marie à partir de ses vrais documents Sage
+ * (maquette Artifact), revampé plutôt que copié tel quel : logo, bandeau
+ * rouge de marque, carte "Présenté à" unique, total mis en évidence.
+ * Classes propres à cette famille de 3 documents (SoumissionExportView.tsx
+ * en premier ; Confirmation/Facture à venir, Parties 2/3) — n'affectent
+ * jamais .pdf-export-header/.pdf-export-brand ci-dessus, réutilisées
+ * telles quelles par Post-mortem/Livraison/Call de service.
+ */
+.pdf-export-eyebrow {
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.6px;
+  color: var(--gsc-color-muted);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.pdf-export-company {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.pdf-export-company-logo {
+  height: 56px;
+  width: auto;
+  flex-shrink: 0;
+}
+.pdf-export-company-name {
+  display: block;
+  font-size: 15px;
+}
+.pdf-export-company-line {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--gsc-color-muted);
+  line-height: 1.5;
+}
+.pdf-export-doc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+.pdf-export-doc-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--gsc-color-brand);
+  letter-spacing: 0.5px;
+  text-align: right;
+  text-transform: uppercase;
+}
+.pdf-export-doc-meta {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.8;
+  text-align: right;
+}
+.pdf-export-doc-meta span {
+  color: var(--gsc-color-muted);
+}
+.pdf-export-doc-accent {
+  height: 3px;
+  background: var(--gsc-color-brand);
+  border-radius: 2px;
+  margin: 18px 0;
+}
+.pdf-export-client-card {
+  background: var(--gsc-color-surface2);
+  border-radius: var(--gsc-radius-base);
+  padding: 14px 18px;
+  max-width: 360px;
+}
+.pdf-export-client-card strong {
+  display: block;
+  font-size: 13px;
+}
+.pdf-export-client-card-line {
+  font-size: 12px;
+  color: var(--gsc-color-muted);
+  margin-top: 4px;
+  line-height: 1.5;
+}
+.pdf-export-doc-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.pdf-export-doc-table th {
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.5px;
+  color: var(--gsc-color-muted);
+  text-transform: uppercase;
+  text-align: left;
+  padding: 0 10px 8px 0;
+  border-bottom: 2px solid var(--gsc-color-line-strong);
+}
+.pdf-export-doc-table td {
+  font-size: 12.5px;
+  padding: 10px 10px 10px 0;
+  border-bottom: 1px solid var(--gsc-color-line);
+  vertical-align: top;
+  white-space: pre-wrap;
+}
+.pdf-export-doc-table th.num,
+.pdf-export-doc-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pdf-export-totals {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+.pdf-export-totals-box {
+  width: 260px;
+}
+.pdf-export-totals-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12.5px;
+  padding: 4px 0;
+}
+.pdf-export-totals-row span:first-child {
+  color: var(--gsc-color-muted);
+}
+.pdf-export-totals-row.pdf-export-totals-last {
+  border-bottom: 1px solid var(--gsc-color-line);
+}
+.pdf-export-total-highlight {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--gsc-color-brand);
+  border-radius: var(--gsc-radius-sm);
+  padding: 10px 14px;
+  margin-top: 10px;
+  color: #fff;
+}
+.pdf-export-total-highlight strong:last-child {
+  font-size: 16px;
+}
+.pdf-export-doc-footer {
+  text-align: center;
+  margin-top: 32px;
+  padding-top: 12px;
+  border-top: 1px solid var(--gsc-color-line);
+  font-size: 10.5px;
+  color: var(--gsc-color-muted2);
+}
+
 @media print {
   .no-print {
     display: none !important;
