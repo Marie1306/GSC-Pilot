@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { CompanyLetterhead } from "../../components/CompanyLetterhead.js";
 import { fetchCompanyLetterhead } from "../../lib/companyLetterhead.js";
+import { printWhenReady } from "../../lib/printWhenReady.js";
 import { fetchSoumissionDetail, formatCurrency, type SoumissionDetailDto } from "./api.js";
 
 function formatDate(iso: string | null): string {
@@ -70,8 +71,7 @@ export function SoumissionExportView() {
 
   useEffect(() => {
     if (!soumission || isPreview) return;
-    const timer = setTimeout(() => window.print(), 400);
-    return () => clearTimeout(timer);
+    return printWhenReady();
   }, [soumission, isPreview]);
 
   if (!id) return null;

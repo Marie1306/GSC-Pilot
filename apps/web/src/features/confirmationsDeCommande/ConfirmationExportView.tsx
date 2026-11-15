@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { CompanyLetterhead } from "../../components/CompanyLetterhead.js";
 import { fetchCompanyLetterhead } from "../../lib/companyLetterhead.js";
+import { printWhenReady } from "../../lib/printWhenReady.js";
 import { fetchConfirmationDetail, formatCurrency } from "./api.js";
 
 function formatDate(iso: string): string {
@@ -33,8 +34,7 @@ export function ConfirmationExportView() {
 
   useEffect(() => {
     if (!confirmation) return;
-    const timer = setTimeout(() => window.print(), 400);
-    return () => clearTimeout(timer);
+    return printWhenReady();
   }, [confirmation]);
 
   if (!id) return null;

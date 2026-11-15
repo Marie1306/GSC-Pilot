@@ -29,7 +29,7 @@ export function CompanyLetterhead() {
 
   return (
     <div className="pdf-export-company">
-      <img src={logo} alt="GSC Automation" className="pdf-export-company-logo" />
+      <img src={logo} alt="GSC Automation" width={34} height={56} className="pdf-export-company-logo" />
       <div>
         <strong className="pdf-export-company-name">{identity?.companyLegalName || "GSC Automation"}</strong>
         {identity?.companyAddress && <div className="pdf-export-company-line">{identity.companyAddress}</div>}
