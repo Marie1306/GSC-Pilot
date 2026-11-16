@@ -38,7 +38,7 @@
  * Un Bon de travail déjà facturé (invoicePlanEntryId posé) est figé — même
  * principe qu'une facture envoyée partout ailleurs dans l'appli.
  */
-import { canSeeServicePricing, saleFromCost, serviceCallLaborTotals, serviceCallExpenseTotal, type Persona } from "@gsc-pilot/business-rules";
+import { canSeeServicePricing, saleFromCost, serviceCallLaborTotals, serviceCallExpenseTotal, rateForType, type Persona } from "@gsc-pilot/business-rules";
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
 import { ensureContactRow } from "../clientRequests/service.js";
@@ -757,6 +757,127 @@ async function computeBonDeTravailFinancials(bt: BonDeTravailFinancialsInput): P
     totalCost: Math.round((labor.cost + partsCost + expenses) * 100) / 100,
     totalSale: Math.round((labor.sale + partsSale + expenses) * 100) / 100,
   };
+}
+
+const SERVICE_RATE_TYPE_LABELS_FR: Record<string, string> = { regular: "régulier", overtime: "temps supplémentaire", extra: "extra" };
+const SERVICE_CALL_MEAL_LINE_LABELS: Record<"mealsBreakfastCount" | "mealsLunchCount" | "mealsDinnerCount", string> = {
+  mealsBreakfastCount: "Déjeuner",
+  mealsLunchCount: "Dîner",
+  mealsDinnerCount: "Souper",
+};
+
+export interface InvoiceLineDto {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+}
+
+export interface InvoiceBonDeTravailBreakdownDto {
+  id: string;
+  displayId: string;
+  scheduledAt: string | null;
+  lines: InvoiceLineDto[];
+}
+
+/**
+ * Ventilation par Bon de travail des Factures de Call de service (Chantier D
+ * Partie 3, 16 novembre 2026) — gabarit confirmé contre une vraie facture
+ * historique de Marie (2 BT) : une sous-section par BT suivie UNIQUEMENT des
+ * lignes qui s'appliquent à CE BT (jamais une ligne à 0$ pour une catégorie
+ * inutilisée). Pure présentation — dérivée des mêmes champs déjà gelés
+ * qu'utilise computeBonDeTravailFinancials (jamais recalculée
+ * indépendamment), mais à un niveau de détail plus fin (par ligne plutôt
+ * qu'un seul total). Le total affiché à l'écran/export reste TOUJOURS
+ * entry.amount/totalWithTax, jamais re-dérivé en sommant ces lignes — un
+ * arrondi par ligne plutôt qu'un seul arrondi global peut en théorie dévier
+ * de quelques cents, acceptable pour un détail d'affichage puisque le
+ * montant réellement facturé/taxé ne vient jamais de cette somme.
+ *
+ * Prend TOUS les ids d'InvoicePlanEntry de type serviceCall en un seul appel
+ * (listInvoiceEntries, invoicing/service.ts) — une seule requête batchée,
+ * jamais un aller-retour par facture (même discipline que listServiceCalls/
+ * salePrice, Chantier C Partie B).
+ */
+export async function getServiceCallInvoiceBreakdowns(invoicePlanEntryIds: string[]): Promise<Record<string, InvoiceBonDeTravailBreakdownDto[]>> {
+  if (invoicePlanEntryIds.length === 0) return {};
+  const settings = await prisma.settings.findFirst();
+  if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
+  const bts = await prisma.bonDeTravail.findMany({
+    where: { invoicePlanEntryId: { in: invoicePlanEntryIds } },
+    include: {
+      timeEntries: { where: { deletedAt: null, status: "approved" }, include: { task: { select: { label: true, specificServiceRate: true } } } },
+      parts: { where: { costPerUnit: { not: null } } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  const techLevelIds = [...new Set(bts.flatMap((bt) => bt.timeEntries.map((entry) => entry.techLevelId).filter((id): id is string => !!id)))];
+  const techLevels = await prisma.techLevel.findMany({ where: { id: { in: techLevelIds } } });
+  const techLevelsById = Object.fromEntries(techLevels.map((techLevel) => [techLevel.id, techLevel]));
+
+  const result: Record<string, InvoiceBonDeTravailBreakdownDto[]> = {};
+  for (const bt of bts) {
+    const lines: InvoiceLineDto[] = [];
+
+    // Main-d'œuvre — groupée par (libellé, taux) réellement appliqué, jamais une ligne par punch individuel.
+    const laborGroups = new Map<string, { label: string; rate: number; hours: number }>();
+    for (const entry of bt.timeEntries) {
+      const hours = Number(entry.roundedMinutes || 0) / 60;
+      if (hours <= 0) continue;
+      let label: string;
+      let rate: number;
+      if (entry.task?.specificServiceRate !== null && entry.task?.specificServiceRate !== undefined) {
+        rate = Number(entry.task.specificServiceRate);
+        label = entry.task.label;
+      } else {
+        const techLevel = entry.techLevelId ? techLevelsById[entry.techLevelId] : undefined;
+        if (!techLevel || (entry.rateType !== "regular" && entry.rateType !== "overtime" && entry.rateType !== "extra")) continue;
+        rate = rateForType(
+          { regularRate: Number(techLevel.regularRate), overtimeRate: Number(techLevel.overtimeRate), extraRate: Number(techLevel.extraRate) },
+          entry.rateType,
+        );
+        label = `${techLevel.label} - taux horaire ${SERVICE_RATE_TYPE_LABELS_FR[entry.rateType]}`;
+      }
+      const key = `${label}__${rate}`;
+      const existing = laborGroups.get(key);
+      if (existing) existing.hours += hours;
+      else laborGroups.set(key, { label, rate, hours });
+    }
+    for (const group of laborGroups.values()) {
+      const quantity = Math.round(group.hours * 100) / 100;
+      lines.push({ description: group.label, quantity, unitPrice: group.rate, amount: Math.round(quantity * group.rate * 100) / 100 });
+    }
+
+    // Déplacement.
+    const km = bt.kmTraveled !== null ? Number(bt.kmTraveled) : 0;
+    if (km > 0) {
+      const mileageRate = Number(settings.mileageRate);
+      lines.push({ description: "Kilométrage", quantity: km, unitPrice: mileageRate, amount: Math.round(km * mileageRate * 100) / 100 });
+    }
+
+    // Repas — une ligne par type réellement réclamé (compteur > 0 seulement).
+    const mealFields: Array<["mealsBreakfastCount" | "mealsLunchCount" | "mealsDinnerCount", number]> = [
+      ["mealsBreakfastCount", Number(settings.breakfastRate)],
+      ["mealsLunchCount", Number(settings.lunchRate)],
+      ["mealsDinnerCount", Number(settings.dinnerRate)],
+    ];
+    for (const [field, rate] of mealFields) {
+      const count = bt[field];
+      if (count > 0) lines.push({ description: SERVICE_CALL_MEAL_LINE_LABELS[field], quantity: count, unitPrice: rate, amount: Math.round(count * rate * 100) / 100 });
+    }
+
+    // Pièces tarifées.
+    for (const part of bt.parts) {
+      const qty = Number(part.qty);
+      const unitPrice = Number(part.salePricePerUnit ?? 0);
+      lines.push({ description: part.name, quantity: qty, unitPrice, amount: Math.round(qty * unitPrice * 100) / 100 });
+    }
+
+    const entryId = bt.invoicePlanEntryId;
+    if (!entryId) continue; // ne devrait jamais arriver (filtré par la requête), garde TypeScript seulement
+    (result[entryId] ??= []).push({ id: bt.id, displayId: bt.displayId, scheduledAt: bt.scheduledAt?.toISOString() ?? null, lines });
+  }
+  return result;
 }
 
 export interface BonDeTravailDetailDto {

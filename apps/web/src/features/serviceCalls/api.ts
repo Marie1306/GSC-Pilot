@@ -1,4 +1,5 @@
 import { apiFetch } from "../../lib/apiClient.js";
+import type { InvoiceRequestPreviewDto } from "../projects/api.js";
 
 export interface AssignedEmployeeDto {
   id: string;
@@ -237,4 +238,29 @@ export function captureBonDeTravailSignature(id: string, dataUrl: string, signer
 
 export function approveBonDeTravail(id: string): Promise<void> {
   return apiFetch(`/api/service-calls/bons-travail/${id}/approve`, { method: "POST" });
+}
+
+// ---------------------------------------------------------------------------
+// Facturation sélective (Chantier D Partie 3, 16 novembre 2026) — Marie
+// choisit lesquels des Bons de travail approuvés pas encore facturés vont
+// sur une même facture. Réutilise RequestInvoiceModal.tsx telle quelle.
+// ---------------------------------------------------------------------------
+
+export interface InvoiceableBonDeTravailDto {
+  id: string;
+  displayId: string;
+  scheduledAt: string | null;
+  amount: number;
+}
+
+export function fetchInvoiceableBonsDeTravail(serviceCallId: string): Promise<{ bonsDeTravail: InvoiceableBonDeTravailDto[] }> {
+  return apiFetch(`/api/service-calls/${serviceCallId}/invoiceable-bons-travail`);
+}
+
+export function previewServiceCallInvoiceForSelection(serviceCallId: string, bonDeTravailIds: string[]): Promise<{ preview: InvoiceRequestPreviewDto }> {
+  return apiFetch(`/api/service-calls/${serviceCallId}/invoice-selection/preview`, { method: "POST", body: JSON.stringify({ bonDeTravailIds }) });
+}
+
+export function createServiceCallInvoiceForSelection(serviceCallId: string, bonDeTravailIds: string[], note?: string): Promise<void> {
+  return apiFetch(`/api/service-calls/${serviceCallId}/invoice-selection/confirm`, { method: "POST", body: JSON.stringify({ bonDeTravailIds, note }) });
 }

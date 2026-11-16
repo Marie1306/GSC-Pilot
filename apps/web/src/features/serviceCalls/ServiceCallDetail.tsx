@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { canReassignServiceCall, canCreateBonDeTravail, canDeleteServiceCall } from "@gsc-pilot/business-rules";
+import { canReassignServiceCall, canCreateBonDeTravail, canDeleteServiceCall, canConfirmInvoiceRequest } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { fetchPunchableEmployees } from "../timePunch/api.js";
 import { fetchServiceCallDetail, updateServiceCall, createBonDeTravail, deleteServiceCall, SERVICE_CALL_STATUS_LABELS, type BonDeTravailSummaryDto } from "./api.js";
 import { BonDeTravailDetail } from "./BonDeTravailDetail.js";
+import { SelectBonsDeTravailModal } from "./SelectBonsDeTravailModal.js";
 import "./serviceCalls.css";
 
 interface ServiceCallDetailProps {
@@ -51,6 +52,7 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openBtId, setOpenBtId] = useState<string | null>(null);
+  const [selectionOpen, setSelectionOpen] = useState(false);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["service-call", id] });
@@ -246,6 +248,11 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
               )}
             </div>
           )}
+          {canConfirmInvoiceRequest(employee.persona) && !call.projectId && !call.rollingId && (
+            <button type="button" className="btn btn-secondary" onClick={() => setSelectionOpen(true)}>
+              Sélectionner les Bons de travail à facturer
+            </button>
+          )}
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Fermer
           </button>
@@ -253,6 +260,14 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
       </div>
 
       {openBtId && <BonDeTravailDetail id={openBtId} onClose={() => setOpenBtId(null)} />}
+      {selectionOpen && (
+        <SelectBonsDeTravailModal
+          serviceCallId={id}
+          serviceCallDisplayId={call.displayId}
+          onClose={() => setSelectionOpen(false)}
+          onSuccess={invalidate}
+        />
+      )}
     </div>
   );
 }

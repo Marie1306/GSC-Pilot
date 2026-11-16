@@ -19,7 +19,7 @@
  */
 import { invoiceStatus, type InvoiceLike } from "@gsc-pilot/business-rules";
 import { prisma } from "../../db.js";
-import { serviceCallDisplayTitle } from "../serviceCalls/service.js";
+import { serviceCallDisplayTitle, getServiceCallInvoiceBreakdowns, type InvoiceBonDeTravailBreakdownDto } from "../serviceCalls/service.js";
 
 export interface InvoiceAmendmentLineDto {
   id: string;
@@ -65,6 +65,11 @@ export interface InvoiceEntryDto {
   // temps. baseAmount = amount moins la somme de ces lignes.
   amendmentLines: InvoiceAmendmentLineDto[];
   baseAmount: number;
+  // Ventilation par Bon de travail (16 novembre 2026, Chantier D Partie 3) —
+  // seulement pour sourceType==="serviceCall", undefined sinon (jamais un
+  // tableau vide par défaut, pour distinguer "pas ce type" de "ce BT n'a
+  // produit aucune ligne" bien que ce 2e cas ne devrait jamais arriver).
+  serviceCallBonsDeTravail?: InvoiceBonDeTravailBreakdownDto[];
 }
 
 /** include Prisma partagé par listInvoiceEntries ci-dessous et listPendingInvoiceEntriesForForecast (treasury/service.ts) — un seul endroit à tenir à jour. */
@@ -172,6 +177,9 @@ export async function listInvoiceEntries(): Promise<InvoiceEntryDto[]> {
     orderBy: { requestedAt: "desc" },
   });
 
+  const serviceCallEntryIds = rows.filter((row) => row.serviceCall).map((row) => row.id);
+  const serviceCallBreakdowns = await getServiceCallInvoiceBreakdowns(serviceCallEntryIds);
+
   return rows.map((row) => {
     const { sourceType, sourceLabel, clientLabel, sourceDeleted, contact } = resolveInvoiceEntrySource(row);
     const amount = Number(row.amount);
@@ -192,6 +200,7 @@ export async function listInvoiceEntries(): Promise<InvoiceEntryDto[]> {
       amount,
       amendmentLines,
       baseAmount: round2(amount - amendmentLines.reduce((sum, line) => sum + line.amount, 0)),
+      ...(sourceType === "serviceCall" && { serviceCallBonsDeTravail: serviceCallBreakdowns[row.id] ?? [] }),
       contactName: contact.name,
       company: contact.company,
       email: contact.email,
