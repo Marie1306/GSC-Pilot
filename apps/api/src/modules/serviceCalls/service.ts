@@ -190,30 +190,80 @@ export interface ServiceCallListItemDto {
   assignedEmployees: AssignedEmployeeDto[];
   scheduledAt: string | null;
   createdAt: string;
+  // Prix de vente total (main-d'œuvre + pièces + frais), visible seulement
+  // si canSeeServicePricing — pour le filtre par tranche de prix (16
+  // novembre 2026, Chantier C Partie B). Calculé en un seul passage
+  // batché pour toute la liste (Settings/TechLevel chargés UNE fois,
+  // jamais par ligne — voir ci-dessous) plutôt qu'en appelant
+  // computeServiceCallFinancials par call, qui referait ces lookups à
+  // chaque fois (équivalent d'un N+1). Mêmes fonctions pures que le
+  // détail (serviceCallLaborTotals/serviceCallExpenseTotal, jamais
+  // réimplémentées), donc même résultat exact.
+  salePrice?: number;
 }
 
 export async function listServiceCalls(viewerPersona: Persona, viewerEmployeeId: string): Promise<ServiceCallListItemDto[]> {
+  const showPricing = canSeeServicePricing(viewerPersona);
   const calls = await prisma.serviceCall.findMany({
     where: {
       deletedAt: null,
       ...(viewerPersona === "member" ? { assignedEmployees: { some: { id: viewerEmployeeId } } } : {}),
     },
-    include: { contact: { select: { name: true, company: true } }, assignedEmployees: { select: { id: true, name: true } } },
+    include: {
+      contact: { select: { name: true, company: true } },
+      assignedEmployees: { select: { id: true, name: true } },
+      timeEntries: { include: { task: { select: { specificServiceRate: true } } } },
+      parts: true,
+    },
     orderBy: { createdAt: "desc" },
   });
 
-  return calls.map((call) => ({
-    id: call.id,
-    displayId: call.displayId,
-    status: call.status,
-    contactName: call.contact.name,
-    company: call.contact.company,
-    title: serviceCallDisplayTitle(call),
-    request: call.request,
-    assignedEmployees: call.assignedEmployees,
-    scheduledAt: call.scheduledAt?.toISOString() ?? null,
-    createdAt: call.createdAt.toISOString(),
-  }));
+  // Settings/TechLevel chargés UNE SEULE FOIS pour toute la liste, jamais
+  // par ligne — autrement équivalent à un N+1 (voir commentaire sur
+  // salePrice ci-dessus).
+  const [techLevels, settings] = await Promise.all([prisma.techLevel.findMany(), prisma.settings.findFirst()]);
+  if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
+  const techLevelsById = Object.fromEntries(
+    techLevels.map((t) => [t.id, { regularRate: Number(t.regularRate), overtimeRate: Number(t.overtimeRate), extraRate: Number(t.extraRate) }]),
+  );
+  const expenseRates = {
+    mileageRate: Number(settings.mileageRate),
+    breakfastRate: Number(settings.breakfastRate),
+    lunchRate: Number(settings.lunchRate),
+    dinnerRate: Number(settings.dinnerRate),
+  };
+
+  return calls.map((call) => {
+    const labor = serviceCallLaborTotals(
+      call.timeEntries.map((entry) => ({
+        status: entry.status,
+        roundedMinutes: entry.roundedMinutes,
+        costRate: Number(entry.costRate),
+        techLevelId: entry.techLevelId,
+        rateType: entry.rateType,
+        specificRate: entry.task?.specificServiceRate !== null && entry.task?.specificServiceRate !== undefined ? Number(entry.task.specificServiceRate) : null,
+      })),
+      techLevelsById,
+    );
+    const pricedParts = call.parts.filter((part) => part.costPerUnit !== null);
+    const partsSale = pricedParts.reduce((sum, part) => sum + Number(part.salePricePerUnit ?? 0) * Number(part.qty), 0);
+    const expenses = serviceCallExpenseTotal(call.kmTraveled ? Number(call.kmTraveled) : null, call.mealsClaimed, expenseRates);
+    const salePrice = Math.round((labor.sale + partsSale + expenses) * 100) / 100;
+
+    return {
+      id: call.id,
+      displayId: call.displayId,
+      status: call.status,
+      contactName: call.contact.name,
+      company: call.contact.company,
+      title: serviceCallDisplayTitle(call),
+      request: call.request,
+      assignedEmployees: call.assignedEmployees,
+      scheduledAt: call.scheduledAt?.toISOString() ?? null,
+      createdAt: call.createdAt.toISOString(),
+      ...(showPricing && { salePrice }),
+    };
+  });
 }
 
 export interface ServiceCallPartDto {

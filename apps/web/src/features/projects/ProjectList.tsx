@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { canCreateProjectDirectly } from "@gsc-pilot/business-rules";
+import { canCreateProjectDirectly, canSeeFinancialValues } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
-import { fetchProjects, STATUS_LABELS, FINANCIAL_STATUS_LABELS, LIFECYCLE_TAB_LABELS, type ProjectLifecycleTab } from "./api.js";
+import { ListFilterBar } from "../../components/ListFilterBar.js";
+import { fetchProjects, STATUS_LABELS, FINANCIAL_STATUS_LABELS, LIFECYCLE_TAB_LABELS, type ProjectLifecycleTab, type ProjectListItem } from "./api.js";
 
 interface ProjectListProps {
   onOpen: (id: string) => void;
@@ -15,6 +16,18 @@ function formatDate(iso: string): string {
 
 const TABS: ProjectLifecycleTab[] = ["active", "warranty", "closed"];
 
+/** Filtre par numéro/nom/client + tranche de prix vendu (16 novembre 2026, Chantier C Partie B). */
+function matchesFilter(row: ProjectListItem, search: string, minPrice: string, maxPrice: string): boolean {
+  const term = search.trim().toLowerCase();
+  if (term) {
+    const haystack = [row.projectNumber, row.name, row.company, row.contactName].filter(Boolean).join(" ").toLowerCase();
+    if (!haystack.includes(term)) return false;
+  }
+  if (minPrice && (row.sold === undefined || row.sold < Number(minPrice))) return false;
+  if (maxPrice && (row.sold === undefined || row.sold > Number(maxPrice))) return false;
+  return true;
+}
+
 /**
  * Onglets Actifs/Garantie/Fermés (Projet 2D, 17 août 2026) — dérivés côté
  * serveur (lifecycleTab, warranty.ts), jamais un filtre par requête séparée
@@ -23,9 +36,15 @@ const TABS: ProjectLifecycleTab[] = ["active", "warranty", "closed"];
 export function ProjectList({ onOpen, onCreate }: ProjectListProps) {
   const { employee } = useAuth();
   const listQuery = useQuery({ queryKey: ["projects"], queryFn: fetchProjects });
-  const allRows = listQuery.data?.projects ?? [];
   const [tab, setTab] = useState<ProjectLifecycleTab>("active");
+  const [search, setSearch] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const allRows = (listQuery.data?.projects ?? []).filter((row) => matchesFilter(row, search, minPrice, maxPrice));
   const rows = allRows.filter((row) => row.lifecycleTab === tab);
+  // Champs prix min/max omis si le rôle ne voit pas sold (sinon tout
+  // exclu dès qu'une valeur est tapée, sold étant toujours undefined).
+  const showPriceFilter = !!employee && canSeeFinancialValues(employee.persona);
 
   return (
     <div className="card" style={{ marginTop: 20 }}>
@@ -37,6 +56,15 @@ export function ProjectList({ onOpen, onCreate }: ProjectListProps) {
           </button>
         )}
       </div>
+      <ListFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Numéro, nom ou client"
+        minPrice={minPrice}
+        maxPrice={maxPrice}
+        onMinPriceChange={showPriceFilter ? setMinPrice : undefined}
+        onMaxPriceChange={showPriceFilter ? setMaxPrice : undefined}
+      />
       <div style={{ display: "flex", gap: 8, margin: "0 0 16px" }}>
         {TABS.map((t) => (
           <button

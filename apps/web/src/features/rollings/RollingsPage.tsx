@@ -1,14 +1,27 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { canCreateRollingDirectly } from "@gsc-pilot/business-rules";
+import { canCreateRollingDirectly, canSeeFinancialValues } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
+import { ListFilterBar } from "../../components/ListFilterBar.js";
 import { fetchRollings, formatCurrency, type RollingListItemDto } from "./api.js";
 import { RollingDetail } from "./RollingDetail.js";
 import { RollingForm } from "./RollingForm.js";
 import "./rollings.css";
 
 const STATUS_LABELS: Record<string, string> = { active: "Actif", ready_invoice: "Terminé" };
+
+/** Filtre par numéro/client + tranche de prix vendu (16 novembre 2026, Chantier C Partie B) — pas de champ "nom" (Roulement n'en a pas). */
+function matchesFilter(row: RollingListItemDto, search: string, minPrice: string, maxPrice: string): boolean {
+  const term = search.trim().toLowerCase();
+  if (term) {
+    const haystack = [row.rollingNumber, row.company, row.contactName].filter(Boolean).join(" ").toLowerCase();
+    if (!haystack.includes(term)) return false;
+  }
+  if (minPrice && (row.sold === undefined || row.sold < Number(minPrice))) return false;
+  if (maxPrice && (row.sold === undefined || row.sold > Number(maxPrice))) return false;
+  return true;
+}
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("fr-CA", { day: "numeric", month: "short", year: "numeric" });
@@ -96,9 +109,14 @@ export function RollingsPage() {
     );
   }
 
+  const [search, setSearch] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+
   if (!employee) return null;
   const canCreate = canCreateRollingDirectly(employee.persona);
-  const rollings = rollingsQuery.data?.rollings ?? [];
+  const showPriceFilter = canSeeFinancialValues(employee.persona);
+  const rollings = (rollingsQuery.data?.rollings ?? []).filter((row) => matchesFilter(row, search, minPrice, maxPrice));
   const activeRollings = rollings.filter((rolling) => rolling.status !== "ready_invoice");
   const completedRollings = rollings.filter((rolling) => rolling.status === "ready_invoice");
 
@@ -113,6 +131,15 @@ export function RollingsPage() {
             </button>
           )}
         </div>
+        <ListFilterBar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Numéro ou client"
+          minPrice={minPrice}
+          maxPrice={maxPrice}
+          onMinPriceChange={showPriceFilter ? setMinPrice : undefined}
+          onMaxPriceChange={showPriceFilter ? setMaxPrice : undefined}
+        />
         {rollingsQuery.isError ? (
           <p className="form-error">Impossible de charger les roulements.</p>
         ) : activeRollings.length === 0 ? (

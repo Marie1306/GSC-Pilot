@@ -17,6 +17,8 @@ export interface ServiceCallListItemDto {
   assignedEmployees: AssignedEmployeeDto[];
   scheduledAt: string | null;
   createdAt: string;
+  // Visible seulement si canSeeServicePricing (16 novembre 2026, filtre par prix).
+  salePrice?: number;
 }
 
 export function fetchNextServiceCallNumber(): Promise<{ nextDisplayId: string }> {

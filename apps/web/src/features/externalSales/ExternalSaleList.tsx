@@ -1,8 +1,22 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { canManageExternalSales } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { formatCalendarDate } from "../../lib/date.js";
+import { ListFilterBar } from "../../components/ListFilterBar.js";
 import { fetchExternalSales, formatCurrency, EXTERNAL_SALE_STATUS_LABELS, type ExternalSaleListItemDto } from "./api.js";
+
+/** Filtre par numéro/client + tranche de prix vendu (16 novembre 2026, Chantier C Partie B) — pas de champ "nom" (Vente externe n'en a pas). */
+function matchesFilter(row: ExternalSaleListItemDto, search: string, minPrice: string, maxPrice: string): boolean {
+  const term = search.trim().toLowerCase();
+  if (term) {
+    const haystack = [row.displayId, row.company, row.contactName].filter(Boolean).join(" ").toLowerCase();
+    if (!haystack.includes(term)) return false;
+  }
+  if (minPrice && row.salePrice < Number(minPrice)) return false;
+  if (maxPrice && row.salePrice > Number(maxPrice)) return false;
+  return true;
+}
 
 interface ExternalSaleListProps {
   onOpen: (id: string) => void;
@@ -56,8 +70,11 @@ function ExternalSaleGrid({ rows, onOpen }: { rows: ExternalSaleListItemDto[]; o
  */
 export function ExternalSaleList({ onOpen, onCreate }: ExternalSaleListProps) {
   const { employee } = useAuth();
+  const [search, setSearch] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
   const listQuery = useQuery({ queryKey: ["external-sales"], queryFn: fetchExternalSales });
-  const rows = listQuery.data?.externalSales ?? [];
+  const rows = (listQuery.data?.externalSales ?? []).filter((row) => matchesFilter(row, search, minPrice, maxPrice));
   const activeRows = rows.filter((row) => row.status !== "ready_invoice");
   const completedRows = rows.filter((row) => row.status === "ready_invoice");
 
@@ -72,6 +89,15 @@ export function ExternalSaleList({ onOpen, onCreate }: ExternalSaleListProps) {
             </button>
           )}
         </div>
+        <ListFilterBar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Numéro ou client"
+          minPrice={minPrice}
+          maxPrice={maxPrice}
+          onMinPriceChange={setMinPrice}
+          onMaxPriceChange={setMaxPrice}
+        />
         {activeRows.length === 0 && <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucune vente externe active.</p>}
         {activeRows.length > 0 && <ExternalSaleGrid rows={activeRows} onOpen={onOpen} />}
       </div>
