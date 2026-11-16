@@ -253,6 +253,9 @@ export function RollingPostMortem({ id, onClose }: RollingPostMortemProps) {
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Fermer
           </button>
+          <button type="button" className="btn btn-secondary" onClick={() => window.open(`/roulements/${id}/post-mortem/export`, "_blank", "noopener")}>
+            📄 Exporter en PDF
+          </button>
         </div>
       </div>
     </div>

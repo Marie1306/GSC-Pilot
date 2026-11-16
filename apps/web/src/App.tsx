@@ -11,6 +11,7 @@ import { ProjectPostMortemExportView } from "./features/projects/ProjectPostMort
 import { DeliveryExportView } from "./features/fulfillment/DeliveryExportView.js";
 import { SoumissionExportView } from "./features/soumissions/SoumissionExportView.js";
 import { ConfirmationExportView } from "./features/confirmationsDeCommande/ConfirmationExportView.js";
+import { RollingPostMortemExportView } from "./features/rollings/RollingPostMortemExportView.js";
 import { ServiceCallExportView } from "./features/serviceCalls/ServiceCallExportView.js";
 import { NAV_ITEMS } from "./lib/nav.js";
 import { DashboardPage } from "./features/dashboard/DashboardPage.js";
@@ -114,6 +115,14 @@ export function App() {
             element={
               <RequireRole allow={canManageSoumission}>
                 <ConfirmationExportView />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/roulements/:id/post-mortem/export"
+            element={
+              <RequireRole allow={canAccessOverviewViews}>
+                <RollingPostMortemExportView />
               </RequireRole>
             }
           />
