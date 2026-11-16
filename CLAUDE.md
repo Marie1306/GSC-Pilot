@@ -1279,3 +1279,129 @@ sa propre numérotation/gabarit) avec vérification en production entre
 chaque étape, plutôt qu'un seul gros lot comme pour la Trésorerie — réduit
 le rayon d'explosion si une migration est oubliée, et laisse Marie tester
 chaque pièce avant que la suivante arrive.
+
+**Soumission, Confirmation de commande, export PDF Facture (ventilation
+avenant incluse), Chantier C (section Documents + filtres sur les 4
+listes) et Chantier D (refonte complète du Call de service en Bons de
+travail) ont tous été livrés et confirmés fonctionnels en production
+depuis la rédaction de la section ci-dessus** — voir
+`/root/.claude/plans/magical-finding-fog.md` pour le détail complet de
+chacun (décisions confirmées, schéma, vérifications) si ce fichier est
+encore présent dans une prochaine session ; ce plan reste la source la
+plus à jour pour ces chantiers tant qu'il n'a pas été remplacé. Résumé
+très court de Chantier D (16 novembre 2026, demande explicite) : un Call
+de service est devenu un DOSSIER contenant plusieurs `BonDeTravail` (un
+par déplacement physique, plusieurs techniciens possibles par BT) —
+repas en compteurs × tarif (plus un drapeau), BT imprimé/exporté
+toujours sans prix, facturation sélective (Marie choisit lesquels des BT
+approuvés vont sur une même facture, plusieurs factures possibles par
+Call dans le temps). Migration en 2 blocs (additif puis retrait des
+anciennes colonnes `ServiceCall`) — le retrait (Bloc 3,
+`20261116192609_bon_de_travail_cleanup`) est le premier de ce projet à
+retirer des colonnes que le code encore en production lisait : collé
+seulement APRÈS le nouveau code poussé/redéployé, jamais avant (sinon ça
+casse la prod avant même un déploiement) — à retenir pour toute future
+migration de ce genre.
+
+## Facture de Projet — ventilation par produit depuis la Confirmation de commande (16 novembre 2026)
+
+Premier test réel de facturation par Marie après la livraison du chantier
+Soumission/Confirmation/Facture (voir plus haut) : capture d'écran d'une
+vraie Facture (FA-2026-0001, jalon 25 %) montrant une seule ligne
+générique **« Signature du contrat (25 %) »** au lieu des vrais produits
+de la Confirmation de commande d'origine (CC-2026-0001, 2 lignes :
+« machine... » 17 117,88 $ et « option... » 1 000,00 $) — contrairement à
+la maquette déjà co-conçue avec elle (voir Artifact du 16 novembre,
+`Facture — jalon 25 % (maquette)`) qui montrait Qté/Description/Prix
+unitaire/**%**, avec la note « Qté et Prix unitaire restent ceux de la
+confirmation de commande — la colonne % indique la portion facturée sur
+ce jalon ; Montant = Qté × Prix unitaire × % ». Le montant total affiché
+était correct (4 529,47 $ = 18 117,88 $ × 25 %) — seul l'AFFICHAGE des
+lignes était en cause, jamais le calcul du montant réellement facturé/
+taxé (déjà gelé par `confirmInvoiceRequest`, jamais retouché ici).
+
+**Cause** : une `InvoicePlanEntry` de Projet n'a jamais eu de lien direct
+vers une Confirmation de commande — seulement vers `Project.budgetId`.
+`InvoiceExportView.tsx`/`InvoiceDetailDrawer.tsx` n'avaient donc aucun
+moyen d'afficher les vrais produits, et retombaient sur
+`{label} ({pct} %)` (le libellé générique du jalon standard,
+`computeBillingPlan`, `billing.ts` — jamais modifié, logique portée
+d'origine).
+
+**Corrigé** : nouvelle `getConfirmationBreakdownsByBudgetIds`
+(`confirmationsDeCommande/service.ts`) — retrouve, par `budgetId`, la
+Confirmation de commande la plus récente (un budget n'en a normalement
+qu'une seule active) avec ses lignes. Câblée dans `listInvoiceEntries`
+(`invoicing/service.ts`, un seul appel batché pour tous les budgets de la
+page, jamais un aller-retour par facture) : `InvoiceEntryDto` gagne
+`projectConfirmation?: { displayId, introText, termsText, lines }`,
+chaque ligne = `{description, quantity, unitPrice, pct, amount}` avec
+`amount = qty × unitPrice × pct/100` (`pct` = celui de CETTE
+InvoicePlanEntry précise, jamais recalculé). Repli explicite sur l'ancien
+affichage à une seule ligne si le projet n'a pas de Confirmation de
+commande (ex. projet créé directement, sans passer par Soumission/CC) —
+`projectConfirmation` reste alors `undefined`, jamais un tableau vide
+deviné.
+
+`InvoiceExportView.tsx` : la table se scinde maintenant en 3 gabarits
+selon le cas — Confirmation de commande (5 colonnes Qté/Description/Prix
+unitaire/%/Montant, note de lecture en italique sous la table,
+introText/termsText de la Confirmation repris tels quels, même pattern
+que `ConfirmationExportView.tsx`), Bons de travail de Call de service
+(une sous-section par BT, 4 colonnes sans %, même mécanisme que
+Chantier D Partie 3, jamais construit avant ce jour — voir ci-dessus),
+ou le repli générique à une seule ligne. Dans les 3 cas, le sous-total/
+TPS/TVQ/Montant total affichés restent TOUJOURS `entry.amount`/
+`tpsAmount`/`tvqAmount`/`totalWithTax` (déjà gelés), jamais re-dérivés en
+sommant les lignes affichées — un arrondi par ligne plutôt qu'un seul
+arrondi global peut en théorie dévier de quelques cents de ce total,
+accepté comme limite d'affichage puisque le montant réellement facturé/
+taxé ne vient jamais de cette somme.
+
+**Limite assumée, pas encore rencontrée en pratique** : les lignes
+affichées utilisent le `pct` du jalon (25 %, 40 %, etc.) appliqué au prix
+unitaire de la Confirmation de commande — ce qui suppose que
+`Project.sold` (gelé à la conversion Budget→Projet, toujours depuis le
+total du budgétaire, `detail.totals.totalSale` — jamais depuis la
+Confirmation de commande, les deux restent deux chemins indépendants)
+correspond bien au total de la Confirmation de commande. C'était
+exactement le cas dans le test réel de Marie (18 117,88 $ des deux
+côtés), donc la somme des lignes retombe pile sur le montant du jalon —
+mais rien dans le code ne garantit cette égalité si jamais `sold` était
+ajusté après coup sans retoucher la Confirmation. Si ça arrive un jour
+(lignes affichées ne totalisant pas tout à fait le jalon), ce sera la
+cause — pas un nouveau bogue de calcul.
+
+Vérifié contre Postgres local (script jetable, supprimé après usage) en
+reproduisant EXACTEMENT les montants réels de Marie (budget/soumission/
+confirmation à 18 117,88 $, projet avec `sold` identique, jalon 25 % à
+4 529,47 $) : les 2 lignes affichées donnent 4 279,47 $ + 250,00 $ =
+4 529,47 $, pile le montant réel rapporté. Scénario de repli (projet créé
+directement, sans budget ni Confirmation) vérifié séparément :
+`projectConfirmation` bien absent, ancien affichage conservé. 525 tests
+(inchangé — correctif d'affichage pur, aucune règle métier testée
+séparément). `npm run typecheck && npm run lint && npm test && npm run
+build` verts, **revérifié par tar-copy + `npm ci && npm run build &&
+npm test`** (même discipline que tout changement sensible). Aucune
+migration — rien à coller dans Supabase pour ce correctif précis.
+
+**Bogue séparé signalé par Marie en même temps — paysage au lieu de
+portrait sur la Facture** : aucune règle CSS `landscape` trouvée nulle
+part dans le code (grep exhaustif sur tout `apps/web/src`) — seules 2
+règles `@page` existent (`theme.css`, `size: portrait` explicite depuis
+le 15 novembre 2026 ; `budgets.css`, sans `size` du tout, ne peut donc
+pas écraser la première). Reproduit en rendu isolé (Chromium headless,
+`page.pdf()`, avec le VRAI CSS buildé de production, sans jamais passer
+`landscape`/`format` à Playwright pour laisser `@page` seul décider,
+exactement comme `window.print()`) : résultat 612×792pt, portrait
+confirmé. Very probablement une préférence mémorisée par le dialogue
+d'impression du navigateur (Chrome retient parfois l'orientation
+choisie manuellement pour un site/une page précise, indépendamment de ce
+que la page demande en CSS, tant qu'elle n'est pas changée à nouveau
+manuellement) plutôt qu'un vrai défaut de l'application — aucun
+changement de code possible pour forcer ça depuis le serveur. Remède
+suggéré à Marie : dans la boîte de dialogue d'impression de la Facture,
+vérifier "Mise en page"/"Plus de paramètres" et choisir explicitement
+Portrait une fois — si Chrome mémorise ce choix par site comme pour les
+autres documents déjà corrects, ça ne devrait plus revenir. À revoir
+seulement si ça persiste après ce geste.
