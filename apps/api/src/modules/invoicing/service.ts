@@ -20,6 +20,7 @@
 import { invoiceStatus, type InvoiceLike } from "@gsc-pilot/business-rules";
 import { prisma } from "../../db.js";
 import { serviceCallDisplayTitle, getServiceCallInvoiceBreakdowns, type InvoiceBonDeTravailBreakdownDto } from "../serviceCalls/service.js";
+import { getConfirmationBreakdownsByBudgetIds } from "../confirmationsDeCommande/service.js";
 
 export interface InvoiceAmendmentLineDto {
   id: string;
@@ -70,6 +71,28 @@ export interface InvoiceEntryDto {
   // tableau vide par défaut, pour distinguer "pas ce type" de "ce BT n'a
   // produit aucune ligne" bien que ce 2e cas ne devrait jamais arriver).
   serviceCallBonsDeTravail?: InvoiceBonDeTravailBreakdownDto[];
+  // Ventilation par produit de la Confirmation de commande d'origine (16
+  // novembre 2026, rapporté en échec par Marie sur un premier test réel —
+  // voir CLAUDE.md) — seulement pour sourceType==="project" ET quand le
+  // budget d'origine a une Confirmation de commande (undefined sinon, ex.
+  // projet créé directement sans passer par Soumission/Confirmation —
+  // repli sur l'ancien affichage "{label} ({pct}%)" dans ce cas).
+  projectConfirmation?: InvoiceProjectConfirmationDto;
+}
+
+export interface InvoiceProjectConfirmationLineDto {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  pct: number;
+  amount: number;
+}
+
+export interface InvoiceProjectConfirmationDto {
+  displayId: string;
+  introText: string | null;
+  termsText: string | null;
+  lines: InvoiceProjectConfirmationLineDto[];
 }
 
 /** include Prisma partagé par listInvoiceEntries ci-dessous et listPendingInvoiceEntriesForForecast (treasury/service.ts) — un seul endroit à tenir à jour. */
@@ -180,10 +203,27 @@ export async function listInvoiceEntries(): Promise<InvoiceEntryDto[]> {
   const serviceCallEntryIds = rows.filter((row) => row.serviceCall).map((row) => row.id);
   const serviceCallBreakdowns = await getServiceCallInvoiceBreakdowns(serviceCallEntryIds);
 
+  const projectBudgetIds = [...new Set(rows.map((row) => row.project?.budgetId).filter((id): id is string => !!id))];
+  const confirmationsByBudgetId = await getConfirmationBreakdownsByBudgetIds(projectBudgetIds);
+
   return rows.map((row) => {
     const { sourceType, sourceLabel, clientLabel, sourceDeleted, contact } = resolveInvoiceEntrySource(row);
     const amount = Number(row.amount);
+    const pct = Number(row.pct);
     const amendmentLines = row.targetedByAmendments.map((a) => ({ id: a.id, displayId: a.displayId, description: a.description, amount: Number(a.sale) }));
+    const confirmation = row.project?.budgetId ? confirmationsByBudgetId[row.project.budgetId] : undefined;
+    const projectConfirmation: InvoiceProjectConfirmationDto | undefined = confirmation && {
+      displayId: confirmation.displayId,
+      introText: confirmation.introText,
+      termsText: confirmation.termsText,
+      lines: confirmation.lines.map((line) => ({
+        description: line.label,
+        quantity: line.qty,
+        unitPrice: line.unitPrice,
+        pct,
+        amount: round2(line.qty * line.unitPrice * (pct / 100)),
+      })),
+    };
 
     // totalWithTax ?? amount : même résolution tax-aware que toInvoicePlanEntryDto (projects/service.ts), 13 novembre 2026.
     const statusInput: InvoiceLike = {
@@ -196,11 +236,12 @@ export async function listInvoiceEntries(): Promise<InvoiceEntryDto[]> {
     return {
       id: row.id,
       label: row.label,
-      pct: Number(row.pct),
+      pct,
       amount,
       amendmentLines,
       baseAmount: round2(amount - amendmentLines.reduce((sum, line) => sum + line.amount, 0)),
       ...(sourceType === "serviceCall" && { serviceCallBonsDeTravail: serviceCallBreakdowns[row.id] ?? [] }),
+      ...(sourceType === "project" && projectConfirmation && { projectConfirmation }),
       contactName: contact.name,
       company: contact.company,
       email: contact.email,

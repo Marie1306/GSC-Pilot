@@ -24,6 +24,20 @@ function formatDate(iso: string | null): string {
  * ligne par avenant qui le cible (amendmentLines, pleine valeur, jamais
  * réduite par le %) — le total de la table retombe exactement sur
  * `amount`, déjà gelé et déjà celui utilisé pour les taxes.
+ *
+ * Ventilation par produit (16 novembre 2026, 2e correctif — premier test
+ * réel en échec rapporté par Marie, voir CLAUDE.md) : pour un jalon de
+ * Projet dont le budget d'origine a une Confirmation de commande,
+ * `entry.projectConfirmation` remplace la ligne générique "{label}
+ * ({pct}%)" par les VRAIS produits de la confirmation (qté/description/
+ * prix unitaire identiques, colonne % = ce jalon précis) — gabarit
+ * confirmé par Marie (maquette). Repli sur l'ancien affichage sinon (projet
+ * créé directement, sans Soumission/Confirmation). Pour un Call de
+ * service, `entry.serviceCallBonsDeTravail` fait la même chose par Bon de
+ * travail (Chantier D Partie 3) — une sous-section par BT, seulement ses
+ * propres lignes (jamais une ligne à 0 $). Dans les deux cas, le
+ * sous-total/TPS/TVQ/total affichés restent TOUJOURS entry.amount/
+ * tpsAmount/tvqAmount/totalWithTax, jamais re-dérivés de ces lignes.
  */
 export function InvoiceExportView() {
   const { entryId } = useParams<{ entryId: string }>();
@@ -74,6 +88,20 @@ export function InvoiceExportView() {
                 <span>Réf. </span>
                 <strong>{entry.sourceLabel}</strong>
               </div>
+              {entry.projectConfirmation && (
+                <>
+                  <div>
+                    <span>Réf. confirmation </span>
+                    <strong>{entry.projectConfirmation.displayId}</strong>
+                  </div>
+                  <div>
+                    <span>Jalon facturé </span>
+                    <strong>
+                      {entry.label} ({entry.pct} %)
+                    </strong>
+                  </div>
+                </>
+              )}
               {entry.dueDate && (
                 <div>
                   <span>Échéance </span>
@@ -93,36 +121,122 @@ export function InvoiceExportView() {
           {(entry.email || entry.phone) && <div className="pdf-export-client-card-line">{[entry.email, entry.phone].filter(Boolean).join(" · ")}</div>}
         </div>
 
+        {entry.projectConfirmation?.introText && (
+          <p style={{ marginTop: 18, fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{entry.projectConfirmation.introText}</p>
+        )}
         {entry.note && <p style={{ marginTop: 18, fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{entry.note}</p>}
 
-        <table className="pdf-export-doc-table" style={{ marginTop: 22 }}>
-          <thead>
-            <tr>
-              <th>Description</th>
-              <th className="num" style={{ width: 110 }}>
-                Montant
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>
-                {entry.label}
-                {!entry.isExtra && ` (${entry.pct} %)`}
-              </td>
-              <td className="num">{formatCurrency(entry.baseAmount)}</td>
-            </tr>
-            {entry.amendmentLines.map((line) => (
-              <tr key={line.id}>
-                <td>
-                  Avenant {line.displayId}
-                  {line.description ? ` — ${line.description}` : ""}
-                </td>
-                <td className="num">{formatCurrency(line.amount)}</td>
+        {entry.projectConfirmation ? (
+          <table className="pdf-export-doc-table" style={{ marginTop: 22 }}>
+            <thead>
+              <tr>
+                <th className="num" style={{ width: 44 }}>
+                  Qté
+                </th>
+                <th>Description</th>
+                <th className="num" style={{ width: 110 }}>
+                  Prix unitaire
+                </th>
+                <th className="num" style={{ width: 60 }}>
+                  %
+                </th>
+                <th className="num" style={{ width: 110 }}>
+                  Montant
+                </th>
               </tr>
+            </thead>
+            <tbody>
+              {entry.projectConfirmation.lines.map((line, index) => (
+                <tr key={index}>
+                  <td className="num">{line.quantity}</td>
+                  <td>{line.description}</td>
+                  <td className="num">{formatCurrency(line.unitPrice)}</td>
+                  <td className="num">{line.pct} %</td>
+                  <td className="num" style={{ fontWeight: 650 }}>
+                    {formatCurrency(line.amount)}
+                  </td>
+                </tr>
+              ))}
+              {entry.amendmentLines.map((line) => (
+                <tr key={line.id}>
+                  <td colSpan={4}>
+                    Avenant {line.displayId}
+                    {line.description ? ` — ${line.description}` : ""}
+                  </td>
+                  <td className="num" style={{ fontWeight: 650 }}>
+                    {formatCurrency(line.amount)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : entry.serviceCallBonsDeTravail ? (
+          <table className="pdf-export-doc-table" style={{ marginTop: 22 }}>
+            {entry.serviceCallBonsDeTravail.map((bt) => (
+              <tbody key={bt.id}>
+                <tr>
+                  <th colSpan={4} style={{ textAlign: "left", background: "var(--gsc-color-surface2)" }}>
+                    Bon de travail {bt.displayId}
+                    {bt.scheduledAt ? ` — ${formatDate(bt.scheduledAt)}` : ""}
+                  </th>
+                </tr>
+                {bt.lines.length === 0 && (
+                  <tr>
+                    <td colSpan={4} style={{ color: "var(--gsc-color-muted)" }}>
+                      Aucune ligne.
+                    </td>
+                  </tr>
+                )}
+                {bt.lines.map((line, index) => (
+                  <tr key={index}>
+                    <td className="num">{line.quantity}</td>
+                    <td>{line.description}</td>
+                    <td className="num">{formatCurrency(line.unitPrice)}</td>
+                    <td className="num" style={{ fontWeight: 650 }}>
+                      {formatCurrency(line.amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
             ))}
-          </tbody>
-        </table>
+          </table>
+        ) : (
+          <table className="pdf-export-doc-table" style={{ marginTop: 22 }}>
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th className="num" style={{ width: 110 }}>
+                  Montant
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  {entry.label}
+                  {!entry.isExtra && ` (${entry.pct} %)`}
+                </td>
+                <td className="num">{formatCurrency(entry.baseAmount)}</td>
+              </tr>
+              {entry.amendmentLines.map((line) => (
+                <tr key={line.id}>
+                  <td>
+                    Avenant {line.displayId}
+                    {line.description ? ` — ${line.description}` : ""}
+                  </td>
+                  <td className="num">{formatCurrency(line.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {entry.projectConfirmation && (
+          <p style={{ marginTop: 8, fontSize: 11.5, color: "var(--gsc-color-muted)", fontStyle: "italic" }}>
+            Qté et Prix unitaire restent ceux de la confirmation de commande — la colonne % indique la portion facturée sur ce jalon ; Montant = Qté
+            × Prix unitaire × %.
+          </p>
+        )}
 
         <div className="pdf-export-totals">
           <div className="pdf-export-totals-box">
@@ -156,6 +270,13 @@ export function InvoiceExportView() {
             )}
           </div>
         </div>
+
+        {entry.projectConfirmation?.termsText && (
+          <div style={{ marginTop: 22 }}>
+            <div className="pdf-export-eyebrow">Conditions</div>
+            <p style={{ fontSize: 11.5, color: "var(--gsc-color-muted)", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{entry.projectConfirmation.termsText}</p>
+          </div>
+        )}
 
         <div className="pdf-export-doc-footer">{registrationLine || " "}</div>
       </div>

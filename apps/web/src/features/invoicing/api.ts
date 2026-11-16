@@ -52,6 +52,43 @@ export interface InvoiceEntryDto {
   phone: string | null;
   amendmentLines: InvoiceAmendmentLineDto[];
   baseAmount: number;
+  // Ventilation par Bon de travail (Chantier D Partie 3, 16 novembre 2026) —
+  // seulement pour sourceType==="serviceCall".
+  serviceCallBonsDeTravail?: InvoiceBonDeTravailBreakdownDto[];
+  // Ventilation par produit de la Confirmation de commande d'origine (16
+  // novembre 2026) — seulement pour sourceType==="project" quand le budget
+  // d'origine a une Confirmation de commande (undefined sinon — repli sur
+  // l'ancien affichage "{label} ({pct}%)").
+  projectConfirmation?: InvoiceProjectConfirmationDto;
+}
+
+export interface InvoiceLineDto {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+}
+
+export interface InvoiceBonDeTravailBreakdownDto {
+  id: string;
+  displayId: string;
+  scheduledAt: string | null;
+  lines: InvoiceLineDto[];
+}
+
+export interface InvoiceProjectConfirmationLineDto {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  pct: number;
+  amount: number;
+}
+
+export interface InvoiceProjectConfirmationDto {
+  displayId: string;
+  introText: string | null;
+  termsText: string | null;
+  lines: InvoiceProjectConfirmationLineDto[];
 }
 
 /** Vue consolidée — jalons déjà demandés seulement (voir invoicing/service.ts, backend). */

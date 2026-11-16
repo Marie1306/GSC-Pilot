@@ -182,6 +182,46 @@ export async function getConfirmationForSoumission(soumissionId: string): Promis
   return row ? toConfirmationDetailDto(row) : null;
 }
 
+export interface ConfirmationBreakdownForInvoice {
+  displayId: string;
+  introText: string | null;
+  termsText: string | null;
+  lines: { label: string; qty: number; unitPrice: number }[];
+}
+
+/**
+ * Pour la ventilation par produit d'une Facture de Projet (invoicing/
+ * service.ts, 16 novembre 2026, demande explicite de Marie après un test
+ * réel en échec — voir CLAUDE.md) : une InvoicePlanEntry de Projet n'a
+ * aucun lien direct vers une Confirmation de commande, seulement vers
+ * Project.budgetId — ce budgetId est la seule façon de la retrouver. Un
+ * budget n'a normalement qu'une seule confirmation active (une Soumission
+ * acceptée à la fois en pratique), mais si plusieurs existaient, on ne
+ * garde que la plus récente plutôt que de deviner laquelle est "la bonne".
+ * Une seule requête batchée pour tous les budgets demandés — jamais un
+ * aller-retour par facture (même discipline que listServiceCalls/salePrice).
+ */
+export async function getConfirmationBreakdownsByBudgetIds(budgetIds: string[]): Promise<Record<string, ConfirmationBreakdownForInvoice>> {
+  if (budgetIds.length === 0) return {};
+  const confirmations = await prisma.confirmationDeCommande.findMany({
+    where: { deletedAt: null, soumission: { budgetId: { in: budgetIds } } },
+    include: { lines: { orderBy: { sortOrder: "asc" } }, soumission: { select: { budgetId: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  const result: Record<string, ConfirmationBreakdownForInvoice> = {};
+  for (const confirmation of confirmations) {
+    const budgetId = confirmation.soumission.budgetId;
+    if (result[budgetId]) continue; // déjà la plus récente (tri desc) — cas rare de plusieurs confirmations pour 1 budget
+    result[budgetId] = {
+      displayId: confirmation.displayId,
+      introText: confirmation.introText,
+      termsText: confirmation.termsText,
+      lines: confirmation.lines.map((line) => ({ label: line.label, qty: Number(line.qty), unitPrice: Number(line.unitPrice) })),
+    };
+  }
+  return result;
+}
+
 /** Corbeille — même mécanisme que Soumission/Budget/Project.deletedAt. */
 export async function deleteConfirmationDeCommande(id: string): Promise<void> {
   const row = await prisma.confirmationDeCommande.findUnique({ where: { id } });
