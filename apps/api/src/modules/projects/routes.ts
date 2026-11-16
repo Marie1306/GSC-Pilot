@@ -19,11 +19,14 @@ import {
   canManagePostMortem,
   canSeeFinancialValues,
   canEditGanttSchedule,
+  canAccessOverviewViews,
+  canManageProjectDocuments,
   FULFILLMENT_MODES,
   type FulfillmentMode,
 } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import { prisma } from "../../db.js";
+import { createProjectDocumentUploadUrl, confirmProjectDocumentUpload, listProjectDocuments, getProjectDocumentDownloadUrl } from "./documents.js";
 import {
   listProjects,
   getProjectDetail,
@@ -527,3 +530,26 @@ projectsRouter.get(
     res.json({ entries });
   },
 );
+
+projectsRouter.get("/projects/:id/documents", requireAuth, requirePermission(canAccessOverviewViews), async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  res.json({ documents: await listProjectDocuments(id) });
+});
+
+projectsRouter.post("/projects/:id/documents/upload-url", requireAuth, requirePermission(canManageProjectDocuments), async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  const { fileName } = z.object({ fileName: z.string().min(1) }).parse(req.body);
+  res.json(await createProjectDocumentUploadUrl(id, fileName));
+});
+
+projectsRouter.post("/projects/:id/documents", requireAuth, requirePermission(canManageProjectDocuments), async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  const body = z.object({ storagePath: z.string().min(1), fileName: z.string().min(1), fileSize: z.number().int().positive() }).parse(req.body);
+  const document = await confirmProjectDocumentUpload(id, req.employee!.id, body);
+  res.status(201).json({ id: document.id });
+});
+
+projectsRouter.get("/projects/documents/:documentId/download-url", requireAuth, requirePermission(canAccessOverviewViews), async (req, res) => {
+  const documentId = z.uuid().parse(req.params.documentId);
+  res.json({ url: await getProjectDocumentDownloadUrl(documentId) });
+});

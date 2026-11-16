@@ -5,6 +5,10 @@ interface PdfDropzoneProps {
   onFileSelected: (file: File) => void;
   disabled?: boolean;
   label?: string;
+  // Défaut inchangé pour SEAO/Boîte à outils (toujours du PDF) — élargi le
+  // 16 novembre 2026 pour la section Documents du Projet, où un contrat
+  // signé pourrait arriver en photo/scan plutôt qu'en PDF.
+  accept?: string;
 }
 
 /**
@@ -13,7 +17,12 @@ interface PdfDropzoneProps {
  * par grep avant de l'ajouter). Ne fait qu'émettre le File choisi — l'appelant
  * décide du flux d'upload (voir lib/storageUpload.ts).
  */
-export function PdfDropzone({ onFileSelected, disabled, label = "Glisser un PDF ici, ou cliquer pour parcourir" }: PdfDropzoneProps) {
+export function PdfDropzone({
+  onFileSelected,
+  disabled,
+  label = "Glisser un PDF ici, ou cliquer pour parcourir",
+  accept = "application/pdf",
+}: PdfDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -42,7 +51,7 @@ export function PdfDropzone({ onFileSelected, disabled, label = "Glisser un PDF 
       <input
         ref={inputRef}
         type="file"
-        accept="application/pdf"
+        accept={accept}
         hidden
         disabled={disabled}
         onChange={(event) => {

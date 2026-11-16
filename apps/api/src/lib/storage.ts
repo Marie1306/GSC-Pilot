@@ -10,10 +10,11 @@
  * scellé au chemin exact, jamais un accès Storage public (aucune politique
  * RLS Storage n'existe, voir GSC_Pilot_Architecture.md).
  *
- * Deux buckets privés utilisés par ce projet : "seao-documents",
- * "toolbox-charts" — créés manuellement par Marie dans Supabase (cette
- * session n'a aucun accès réseau à Supabase, même contournement que pour
- * toutes les migrations précédentes, voir CLAUDE.md).
+ * Trois buckets privés utilisés par ce projet : "seao-documents",
+ * "toolbox-charts", "project-documents" (16 novembre 2026, section
+ * Documents du Projet) — créés manuellement par Marie dans Supabase
+ * (cette session n'a aucun accès réseau à Supabase, même contournement
+ * que pour toutes les migrations précédentes, voir CLAUDE.md).
  */
 import { supabaseAdmin } from "../auth/supabase.js";
 import { HttpError } from "../middleware/errorHandler.js";
@@ -21,6 +22,7 @@ import { HttpError } from "../middleware/errorHandler.js";
 export const STORAGE_BUCKETS = {
   SEAO_DOCUMENTS: "seao-documents",
   TOOLBOX_CHARTS: "toolbox-charts",
+  PROJECT_DOCUMENTS: "project-documents",
 } as const;
 export type StorageBucket = (typeof STORAGE_BUCKETS)[keyof typeof STORAGE_BUCKETS];
 

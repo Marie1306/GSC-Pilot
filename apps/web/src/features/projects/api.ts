@@ -495,3 +495,19 @@ export interface ApprovedPurchaseEntryDto {
 export function fetchApprovedPurchaseEntries(id: string): Promise<{ entries: ApprovedPurchaseEntryDto[] }> {
   return apiFetch(`/api/projects/${id}/approved-purchases`);
 }
+
+export interface ProjectDocumentDto {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  uploadedByName: string;
+  uploadedAt: string;
+}
+
+export function fetchProjectDocuments(projectId: string): Promise<{ documents: ProjectDocumentDto[] }> {
+  return apiFetch(`/api/projects/${projectId}/documents`);
+}
+
+export function fetchProjectDocumentDownloadUrl(documentId: string): Promise<{ url: string }> {
+  return apiFetch(`/api/projects/documents/${documentId}/download-url`);
+}

@@ -878,3 +878,19 @@ export function canManageSoumission(persona: Persona): boolean {
   assertRole(persona);
   return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
+
+/**
+ * Section Documents du Projet (16 novembre 2026) — gouverne SEULEMENT le
+ * dépôt d'un nouveau document téléversé, jamais la lecture/le
+ * téléchargement (voir canAccessOverviewViews, plus large, pour ça).
+ * Même ensemble que canManageSoumission (confirmé explicitement par Marie
+ * — construit en prévision du futur contrat d'offre de service, même
+ * palier que les autres documents client), mais nom distinct : capacité
+ * différente, même principe que canApprovePurchaseRequest/
+ * canManagePurchaseFulfillment qui ne partagent jamais leur nom même
+ * quand leur portée se recoupe.
+ */
+export function canManageProjectDocuments(persona: Persona): boolean {
+  assertRole(persona);
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
+}

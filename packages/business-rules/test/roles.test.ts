@@ -682,3 +682,15 @@ describe("Soumission (13 novembre 2026) — même palier que canCreateBudgetFrom
     expect(P.canManageSoumission(WAREHOUSE)).toBe(false);
   });
 });
+
+describe("Documents du Projet (16 novembre 2026) — dépôt seulement, même ensemble que canManageSoumission", () => {
+  it("Direction et Propriétaire peuvent déposer un document", () => {
+    expect(P.canManageProjectDocuments(OWNER)).toBe(true);
+    expect(P.canManageProjectDocuments(BOSS)).toBe(true);
+  });
+  it("Administration, Employé et Magasinier ne peuvent pas déposer un document", () => {
+    expect(P.canManageProjectDocuments(ADMIN)).toBe(false);
+    expect(P.canManageProjectDocuments(MEMBER)).toBe(false);
+    expect(P.canManageProjectDocuments(WAREHOUSE)).toBe(false);
+  });
+});

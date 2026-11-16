@@ -6,6 +6,7 @@ import { ProjectSubassemblies } from "./ProjectSubassemblies.js";
 import { ProjectAmendments } from "./ProjectAmendments.js";
 import { ProjectFulfillment } from "./ProjectFulfillment.js";
 import { ProjectInvoicePlan } from "./ProjectInvoicePlan.js";
+import { ProjectDocuments } from "./ProjectDocuments.js";
 import { ProjectWarranty } from "./ProjectWarranty.js";
 import { ProjectOptionsMenu } from "./ProjectOptionsMenu.js";
 import { ProjectPlanningEditor } from "./ProjectPlanningEditor.js";
@@ -280,6 +281,8 @@ export function ProjectDetail({ id, onClose }: ProjectDetailProps) {
               <ProjectFulfillment project={project} />
 
               <ProjectInvoicePlan projectId={project.id} />
+
+              <ProjectDocuments projectId={project.id} budgetId={project.budgetId} />
 
               <ProjectWarranty project={project} />
 

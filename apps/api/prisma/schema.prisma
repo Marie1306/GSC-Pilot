@@ -690,8 +690,32 @@ model Project {
   // @unique là-bas) — un dossier SEAO gagné peut être converti en projet,
   // jamais l'inverse. Même patron que Budget.project.
   seaoFile         SeaoFile?
+  documents        ProjectDocument[]
 
   @@index([status])
+}
+
+/**
+ * Documents téléversés sur un projet (section « Documents », 16 novembre
+ * 2026) — distinct des documents déjà GÉNÉRÉS par l'appli (Soumission/
+ * Confirmation de commande/Facture/Post-mortem/Budgétaire, qui restent de
+ * simples liens vers leurs vues d'export existantes, jamais dupliqués
+ * ici). Construit en prévision du futur contrat d'offre de service signé
+ * par le client (pas encore bâti) — capacité générique de dépôt, pas
+ * limitée à ce seul futur usage. Même forme que ToolboxChart/SeaoDocument
+ * (déjà en production) — aucun champ inventé sans précédent. Jamais de
+ * suppression pour l'instant (ni l'un ni l'autre de ces 2 précédents n'en
+ * offre une, jamais demandé par Marie ici non plus).
+ */
+model ProjectDocument {
+  id           String   @id @default(uuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id])
+  fileName     String
+  storagePath  String // bucket "project-documents", voir lib/storage.ts
+  fileSize     Int
+  uploadedById String
+  uploadedAt   DateTime @default(now())
 }
 
 /**
