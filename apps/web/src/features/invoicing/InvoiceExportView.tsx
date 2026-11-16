@@ -170,7 +170,7 @@ export function InvoiceExportView() {
               ))}
             </tbody>
           </table>
-        ) : entry.serviceCallBonsDeTravail ? (
+        ) : entry.serviceCallBonsDeTravail && entry.serviceCallBonsDeTravail.length > 0 ? (
           <table className="pdf-export-doc-table" style={{ marginTop: 22 }}>
             {entry.serviceCallBonsDeTravail.map((bt) => (
               <tbody key={bt.id}>
