@@ -16,11 +16,20 @@
   text-align: center;
 }
 
+/* 16 novembre 2026 — bogue réel trouvé en cherchant pourquoi TOUTE
+   impression de l'appli ressortait blanche (pas seulement l'étiquette QR) :
+   `body *` ci-dessous n'était scopé à rien — une fois ce fichier chargé
+   dans le bundle (il l'est globalement, comme toute feuille de style de
+   l'appli), la règle s'appliquait à CHAQUE impression de CHAQUE page,
+   masquant tout le document puisque .qr-print-area n'existe que dans cette
+   fenêtre contextuelle précise. `:has()` restreint maintenant la règle au
+   seul cas où cette fenêtre est réellement ouverte — aucune autre vue
+   d'impression/export n'est plus touchée. */
 @media print {
   .no-print {
     display: none !important;
   }
-  body * {
+  body:has(.qr-print-area) * {
     visibility: hidden;
   }
   .qr-print-area,

@@ -52,19 +52,6 @@ export function createApp() {
           // navigateur (connexion, session) — sans ça, la CSP par défaut
           // (connect-src replié sur default-src 'self') bloque ces appels.
           "connect-src": ["'self'", env.SUPABASE_URL],
-          // 16 novembre 2026 — PDF/impression ressortaient "tout blancs"
-          // pour Marie (Edge/Windows), sur TOUTES les pages, pas seulement
-          // les vues d'export : les outils de développement montraient
-          // "Content Security Policy ... blocks the use of `eval`", alors
-          // qu'aucun eval n'existe dans le code de l'appli (vérifié dans
-          // le bundle de production) — piste retenue : le mécanisme
-          // interne d'aperçu avant impression d'Edge en a besoin, bloqué
-          // par le script-src par défaut de Helmet (['self'], sans
-          // 'unsafe-eval'). Assoupli après confirmation explicite de
-          // Marie (compromis sécurité accepté sciemment pour une appli
-          // interne derrière authentification) — à l'essai, pas encore
-          // confirmé que ça règle vraiment l'impression.
-          "script-src": ["'self'", "'unsafe-eval'"],
         },
       },
     }),
