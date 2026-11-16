@@ -874,6 +874,11 @@ model InvoicePlanEntry {
   // "l'ordre doit rester fixé"). Peuplé à la création (index dans le plan
   // pour les 4 jalons standards, max+1 pour un extra ajouté après coup).
   sortOrder      Int           @default(0)
+  // Avenants dont la pleine valeur a été ajoutée à CETTE entrée plutôt que
+  // dans un document séparé (16 novembre 2026, voir Amendment.
+  // targetInvoicePlanEntryId ci-dessous) — jamais le contraire (une entrée
+  // n'a elle-même aucun lien direct vers "son" avenant).
+  targetedByAmendments Amendment[] @relation("AmendmentTarget")
 
   @@index([status])
 }
@@ -1492,7 +1497,20 @@ model Amendment {
   backupCost            Decimal  @db.Decimal(12, 2)
   totalCost             Decimal  @db.Decimal(12, 2)
   sale                  Decimal  @db.Decimal(12, 2)
+  // Document séparé historique (5e jalon isExtra) — repli UNIQUEMENT quand
+  // aucun jalon standard pending n'existe pour absorber l'avenant (voir
+  // targetInvoicePlanEntryId ci-dessous, cas normal depuis le 16 novembre
+  // 2026). Un avenant donné n'a jamais les deux à la fois.
   invoiceRequestId      String?
+  // Jalon standard dont le montant plein (jamais réduit par son %) absorbe
+  // cet avenant — choisi automatiquement à la création (dernier jalon
+  // standard pas encore envoyé, selectAmendmentTargetInvoiceEntry,
+  // business-rules/amendments.ts). Bogue réel corrigé le 16 novembre 2026 :
+  // avant, TOUS les jalons (même déjà envoyés/gelés) étaient recalculés au
+  // pct du nouveau total, cassant les factures déjà envoyées et remettant à
+  // zéro les avenants précédents — voir magical-finding-fog.md.
+  targetInvoicePlanEntryId String?
+  targetInvoicePlanEntry   InvoicePlanEntry? @relation("AmendmentTarget", fields: [targetInvoicePlanEntryId], references: [id])
   description           String? // description des ajouts, facultative (demandée par l'utilisatrice le 24 août 2026)
 
   tasks ProjectTask[]

@@ -155,6 +155,13 @@ export const INVOICE_STATUS_BADGE: Record<InvoiceEntryStatus, string> = {
   overdue: "badge-critical",
 };
 
+export interface InvoiceAmendmentLineDto {
+  id: string;
+  displayId: string;
+  description: string | null;
+  amount: number;
+}
+
 export interface InvoicePlanEntryDto {
   id: string;
   label: string;
@@ -175,6 +182,11 @@ export interface InvoicePlanEntryDto {
   requestedAt: string | null;
   processedById: string | null;
   processedAt: string | null;
+  // Avenants dont la pleine valeur a été ajoutée à cette entrée (16
+  // novembre 2026) — vide la plupart du temps. baseAmount = amount moins
+  // la somme de ces lignes, pour l'affichage seulement.
+  amendmentLines: InvoiceAmendmentLineDto[];
+  baseAmount: number;
 }
 
 const currencyFormatter = new Intl.NumberFormat("fr-CA", { style: "currency", currency: "CAD" });

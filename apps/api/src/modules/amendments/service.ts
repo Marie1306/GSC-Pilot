@@ -4,15 +4,25 @@
  * Réutilise amendments.ts tel quel : calculateAmendment (taux internes
  * fixes, back-up sur le taux GELÉ du projet — jamais celui des Paramètres,
  * bug historique documenté dans la spec), applyAmendmentToProject (addition
- * aux banques existantes + recalcul du plan de facturation sur pct×nouveau
- * total, jamais un remplacement), amendmentTasks, amendmentInvoiceRequest
- * (même mécanisme que les extras d'installation — InvoicePlanEntry.isExtra,
- * jamais construit avant maintenant : voir ProjectInvoicePlan.tsx, déjà prêt
- * à l'afficher). Numérotation AV-NNN, sans année (Settings.nextAmendmentNumber).
+ * aux banques existantes du projet — heures/coûts/prix vendu, jamais un
+ * remplacement), amendmentTasks.
+ *
+ * Routage vers le plan de facturation (16 novembre 2026, corrige un bogue
+ * réel jamais exercé en production — voir amendments.ts et
+ * magical-finding-fog.md) : selectAmendmentTargetInvoiceEntry choisit le
+ * DERNIER jalon standard pas encore envoyé pour y ajouter la pleine valeur
+ * de l'avenant (jamais réduite par son %, jamais sur un jalon déjà gelé).
+ * Si aucun jalon standard n'est disponible (les 4 déjà envoyés, cas rare),
+ * repli sur le comportement historique : amendmentInvoiceRequest + un 5e
+ * InvoicePlanEntry séparé (isExtra:true, déjà affiché par
+ * ProjectInvoicePlan.tsx). Un avenant donné emprunte TOUJOURS exactement un
+ * seul des deux chemins (targetInvoicePlanEntryId XOR invoiceRequestId).
+ * Numérotation AV-NNN, sans année (Settings.nextAmendmentNumber).
  */
 import {
   calculateAmendment,
   applyAmendmentToProject,
+  selectAmendmentTargetInvoiceEntry,
   amendmentTasks,
   amendmentInvoiceRequest,
   productionCategoryLabel,
@@ -24,6 +34,10 @@ import {
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
 import type { Amendment } from "../../generated/prisma/client.js";
+
+function round2(value: number): number {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
 
 export interface CreateAmendmentInput {
   hoursByCategory: Record<string, number>;
@@ -92,14 +106,13 @@ export async function createAmendment(projectId: string, createdById: string, in
   if (Object.keys(input.hoursByCategory).length === 0) throw new HttpError(400, "Au moins une catégorie d'heures est requise.");
 
   const invoicePlanRows = await prisma.invoicePlanEntry.findMany({ where: { projectId }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] });
-  const projectLike: AmendmentProjectLike & { invoicePlan: { id: string; label: string; pct: number; amount: number }[] } = {
+  const projectLike: AmendmentProjectLike = {
     laborHours: Number(project.laborHours),
     laborCost: Number(project.laborCost),
     backupHours: Number(project.backupHours),
     backupHoursCost: Number(project.backupHoursCost),
     plannedPurchases: Number(project.plannedPurchases),
     sold: Number(project.sold),
-    invoicePlan: invoicePlanRows.map((r) => ({ id: r.id, label: r.label, pct: Number(r.pct), amount: Number(r.amount) })),
   };
 
   // projectBackupRate TOUJOURS le taux gelé du projet, jamais un input client
@@ -113,11 +126,17 @@ export async function createAmendment(projectId: string, createdById: string, in
   });
   applyAmendmentToProject(projectLike, calc);
 
+  // Choisi AVANT la transaction (lecture seule, même moment que le reste du
+  // calcul) — le dernier jalon standard pas encore envoyé absorbe la pleine
+  // valeur de l'avenant ; null si les 4 sont déjà envoyés (repli ci-dessous).
+  const target = selectAmendmentTargetInvoiceEntry(invoicePlanRows);
+
   const settings = await prisma.settings.findFirst();
   if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
   const displayId = `AV-${String(settings.nextAmendmentNumber).padStart(3, "0")}`;
 
   const tasks = amendmentTasks(displayId, input.hoursByCategory);
+  // Seulement utilisé si `target` est null (repli, voir plus bas).
   const invoiceRequest = amendmentInvoiceRequest(displayId, calc);
 
   const created = await prisma.$transaction(async (tx) => {
@@ -156,24 +175,33 @@ export async function createAmendment(projectId: string, createdById: string, in
       },
     });
 
-    for (const step of projectLike.invoicePlan) {
-      await tx.invoicePlanEntry.update({ where: { id: step.id }, data: { amount: step.amount } });
+    if (target) {
+      // Pleine valeur de l'avenant ajoutée EN SUPPLÉMENT du montant actuel du
+      // jalon cible — jamais réduite par son %, jamais un nouveau document.
+      const targetRow = invoicePlanRows.find((row) => row.id === target.id)!;
+      await tx.invoicePlanEntry.update({
+        where: { id: target.id },
+        data: { amount: round2(Number(targetRow.amount) + calc.sale) },
+      });
+      await tx.amendment.update({ where: { id: amendment.id }, data: { targetInvoicePlanEntryId: target.id } });
+    } else {
+      // Repli — comportement historique : aucun jalon standard pending
+      // disponible (les 4 déjà envoyés, cas rare), document séparé.
+      const invoiceEntry = await tx.invoicePlanEntry.create({
+        data: {
+          projectId,
+          label: invoiceRequest.label,
+          pct: 0,
+          amount: invoiceRequest.amount,
+          status: invoiceRequest.status,
+          isExtra: true,
+          // Ajouté après coup — toujours à la suite des jalons existants
+          // (invoicePlanRows déjà triée par sortOrder, voir ci-dessus).
+          sortOrder: invoicePlanRows.length,
+        },
+      });
+      await tx.amendment.update({ where: { id: amendment.id }, data: { invoiceRequestId: invoiceEntry.id } });
     }
-
-    const invoiceEntry = await tx.invoicePlanEntry.create({
-      data: {
-        projectId,
-        label: invoiceRequest.label,
-        pct: 0,
-        amount: invoiceRequest.amount,
-        status: invoiceRequest.status,
-        isExtra: true,
-        // Ajouté après coup — toujours à la suite des jalons existants
-        // (invoicePlanRows déjà triée par sortOrder, voir ci-dessus).
-        sortOrder: invoicePlanRows.length,
-      },
-    });
-    await tx.amendment.update({ where: { id: amendment.id }, data: { invoiceRequestId: invoiceEntry.id } });
 
     for (const task of tasks) {
       await tx.projectTask.create({

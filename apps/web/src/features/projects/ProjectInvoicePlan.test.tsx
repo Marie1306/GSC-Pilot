@@ -46,6 +46,8 @@ function baseEntry(overrides: Partial<InvoicePlanEntryDto> = {}): InvoicePlanEnt
     requestedAt: null,
     processedById: null,
     processedAt: null,
+    amendmentLines: [],
+    baseAmount: 3000,
     ...overrides,
   };
 }

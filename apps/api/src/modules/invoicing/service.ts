@@ -20,6 +20,13 @@ import { invoiceStatus, type InvoiceLike } from "@gsc-pilot/business-rules";
 import { prisma } from "../../db.js";
 import { serviceCallDisplayTitle } from "../serviceCalls/service.js";
 
+export interface InvoiceAmendmentLineDto {
+  id: string;
+  displayId: string;
+  description: string | null;
+  amount: number;
+}
+
 export interface InvoiceEntryDto {
   id: string;
   label: string;
@@ -42,14 +49,29 @@ export interface InvoiceEntryDto {
   clientLabel: string;
   /** Dossier d'origine à la corbeille (10 novembre 2026) — seul cas où deleteInvoicePlanEntry (projects/service.ts) accepte de supprimer la ligne. */
   sourceDeleted: boolean;
+  // Carte client détaillée (16 novembre 2026, export PDF Facture) — à côté
+  // de clientLabel ci-dessus (déjà affiché tel quel dans InvoicingPage.tsx,
+  // jamais retiré), pour la carte « Présenté à » de InvoiceExportView.tsx
+  // (même forme que Soumission/Confirmation). Contact n'a pas de champ
+  // adresse (contrairement à ClientRequest, voir soumissions/service.ts) —
+  // aucune adresse disponible ici, jamais devinée.
+  contactName: string | null;
+  company: string | null;
+  email: string | null;
+  phone: string | null;
+  // Avenants dont la pleine valeur a été ajoutée à CETTE entrée (16
+  // novembre 2026, selectAmendmentTargetInvoiceEntry) — vide la plupart du
+  // temps. baseAmount = amount moins la somme de ces lignes.
+  amendmentLines: InvoiceAmendmentLineDto[];
+  baseAmount: number;
 }
 
 /** include Prisma partagé par listInvoiceEntries ci-dessous et listPendingInvoiceEntriesForForecast (treasury/service.ts) — un seul endroit à tenir à jour. */
 export const INVOICE_ENTRY_SOURCE_INCLUDE = {
-  project: { include: { contact: { select: { name: true, company: true } } } },
-  rolling: { include: { contact: { select: { name: true, company: true } } } },
-  serviceCall: { include: { contact: { select: { name: true, company: true } } } },
-  externalSale: { include: { contact: { select: { name: true, company: true } } } },
+  project: { include: { contact: { select: { name: true, company: true, email: true, phone: true } } } },
+  rolling: { include: { contact: { select: { name: true, company: true, email: true, phone: true } } } },
+  serviceCall: { include: { contact: { select: { name: true, company: true, email: true, phone: true } } } },
+  externalSale: { include: { contact: { select: { name: true, company: true, email: true, phone: true } } } },
 } as const;
 
 export interface InvoiceEntrySourceInfo {
@@ -64,9 +86,10 @@ export interface InvoiceEntrySourceInfo {
   // confirmé (listInvoiceEntries ne s'en sert pas, mais la resolution reste
   // la même pour les 2 appelants — un seul point de vérité).
   parentScheduledDate: Date | null;
+  contact: ContactLike;
 }
 
-type ContactLike = { name: string; company: string | null };
+type ContactLike = { name: string; company: string | null; email: string | null; phone: string | null };
 
 /**
  * Résout le dossier d'origine (projet/roulement/call/vente externe) d'une
@@ -87,6 +110,7 @@ export function resolveInvoiceEntrySource(row: {
       clientLabel: row.project.contact.company ?? row.project.contact.name,
       sourceDeleted: row.project.deletedAt !== null,
       parentScheduledDate: row.project.fulfillmentScheduled,
+      contact: row.project.contact,
     };
   }
   if (row.serviceCall) {
@@ -96,6 +120,7 @@ export function resolveInvoiceEntrySource(row: {
       clientLabel: row.serviceCall.contact.company ?? row.serviceCall.contact.name,
       sourceDeleted: row.serviceCall.deletedAt !== null,
       parentScheduledDate: row.serviceCall.scheduledAt,
+      contact: row.serviceCall.contact,
     };
   }
   if (row.rolling) {
@@ -105,6 +130,7 @@ export function resolveInvoiceEntrySource(row: {
       clientLabel: row.rolling.contact.company ?? row.rolling.contact.name,
       sourceDeleted: row.rolling.deletedAt !== null,
       parentScheduledDate: row.rolling.fulfillmentScheduled,
+      contact: row.rolling.contact,
     };
   }
   if (row.externalSale) {
@@ -114,20 +140,37 @@ export function resolveInvoiceEntrySource(row: {
       clientLabel: row.externalSale.contact.company ?? row.externalSale.contact.name,
       sourceDeleted: row.externalSale.deletedAt !== null,
       parentScheduledDate: row.externalSale.fulfillmentScheduled,
+      contact: row.externalSale.contact,
     };
   }
-  return { sourceType: "project", sourceLabel: "—", clientLabel: "—", sourceDeleted: false, parentScheduledDate: null };
+  return {
+    sourceType: "project",
+    sourceLabel: "—",
+    clientLabel: "—",
+    sourceDeleted: false,
+    parentScheduledDate: null,
+    contact: { name: "—", company: null, email: null, phone: null },
+  };
+}
+
+function round2(value: number): number {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 }
 
 export async function listInvoiceEntries(): Promise<InvoiceEntryDto[]> {
   const rows = await prisma.invoicePlanEntry.findMany({
     where: { requestedAt: { not: null } },
-    include: INVOICE_ENTRY_SOURCE_INCLUDE,
+    include: {
+      ...INVOICE_ENTRY_SOURCE_INCLUDE,
+      targetedByAmendments: { select: { id: true, displayId: true, description: true, sale: true } },
+    },
     orderBy: { requestedAt: "desc" },
   });
 
   return rows.map((row) => {
-    const { sourceType, sourceLabel, clientLabel, sourceDeleted } = resolveInvoiceEntrySource(row);
+    const { sourceType, sourceLabel, clientLabel, sourceDeleted, contact } = resolveInvoiceEntrySource(row);
+    const amount = Number(row.amount);
+    const amendmentLines = row.targetedByAmendments.map((a) => ({ id: a.id, displayId: a.displayId, description: a.description, amount: Number(a.sale) }));
 
     // totalWithTax ?? amount : même résolution tax-aware que toInvoicePlanEntryDto (projects/service.ts), 13 novembre 2026.
     const statusInput: InvoiceLike = {
@@ -141,7 +184,13 @@ export async function listInvoiceEntries(): Promise<InvoiceEntryDto[]> {
       id: row.id,
       label: row.label,
       pct: Number(row.pct),
-      amount: Number(row.amount),
+      amount,
+      amendmentLines,
+      baseAmount: round2(amount - amendmentLines.reduce((sum, line) => sum + line.amount, 0)),
+      contactName: contact.name,
+      company: contact.company,
+      email: contact.email,
+      phone: contact.phone,
       status: invoiceStatus(statusInput),
       invoiceNumber: row.invoiceNumber,
       dueDate: row.dueDate?.toISOString() ?? null,

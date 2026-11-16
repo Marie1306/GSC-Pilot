@@ -255,6 +255,12 @@ export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
                   <td>
                     {entry.label}
                     {entry.isExtra && <div className="cell-sub">Extra</div>}
+                    {entry.amendmentLines.map((line) => (
+                      <div className="cell-sub" key={line.id}>
+                        + {line.displayId}
+                        {line.description ? ` — ${line.description}` : ""} : {formatCurrency(line.amount)}
+                      </div>
+                    ))}
                   </td>
                   <td className="num">{entry.pct} %</td>
                   <td className="num">{formatCurrency(entry.amount)}</td>

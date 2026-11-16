@@ -287,6 +287,17 @@ export function InvoiceDetailDrawer({ id, onClose }: InvoiceDetailDrawerProps) {
       {entry.note && (
         <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--gsc-color-muted)" }}>Note : {entry.note}</p>
       )}
+      {entry.amendmentLines.length > 0 && (
+        <div style={{ margin: "0 0 16px", fontSize: 13, color: "var(--gsc-color-muted)" }}>
+          <div>Inclut {entry.amendmentLines.length > 1 ? "des avenants" : "un avenant"} en supplément, jamais réduits par le % de ce jalon :</div>
+          {entry.amendmentLines.map((line) => (
+            <div key={line.id}>
+              + {line.displayId}
+              {line.description ? ` — ${line.description}` : ""} : {formatCurrency(line.amount)}
+            </div>
+          ))}
+        </div>
+      )}
 
       {entry.sourceDeleted && (
         <div style={{ marginBottom: 20 }}>
@@ -366,6 +377,9 @@ export function InvoiceDetailDrawer({ id, onClose }: InvoiceDetailDrawerProps) {
             Corriger le montant payé
           </button>
         )}
+        <button type="button" className="btn btn-secondary" onClick={() => window.open(`/factures/${entry.id}/export`, "_blank", "noopener")}>
+          📄 Exporter en PDF
+        </button>
         {canCancel && (
           <button
             type="button"

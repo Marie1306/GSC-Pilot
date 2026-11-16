@@ -1,6 +1,13 @@
 import type { ComponentType } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { canAccessBudget, canAccessOverviewViews, canAccessDeliveries, canAccessServiceCalls, canManageSoumission } from "@gsc-pilot/business-rules";
+import {
+  canAccessBudget,
+  canAccessOverviewViews,
+  canAccessDeliveries,
+  canAccessServiceCalls,
+  canManageSoumission,
+  canViewInvoicing,
+} from "@gsc-pilot/business-rules";
 import { AuthProvider } from "./lib/auth/AuthProvider.js";
 import { RequireRole } from "./lib/auth/RequireRole.js";
 import { AppShell } from "./components/AppShell.js";
@@ -11,6 +18,7 @@ import { ProjectPostMortemExportView } from "./features/projects/ProjectPostMort
 import { DeliveryExportView } from "./features/fulfillment/DeliveryExportView.js";
 import { SoumissionExportView } from "./features/soumissions/SoumissionExportView.js";
 import { ConfirmationExportView } from "./features/confirmationsDeCommande/ConfirmationExportView.js";
+import { InvoiceExportView } from "./features/invoicing/InvoiceExportView.js";
 import { RollingPostMortemExportView } from "./features/rollings/RollingPostMortemExportView.js";
 import { ServiceCallExportView } from "./features/serviceCalls/ServiceCallExportView.js";
 import { NAV_ITEMS } from "./lib/nav.js";
@@ -123,6 +131,14 @@ export function App() {
             element={
               <RequireRole allow={canAccessOverviewViews}>
                 <RollingPostMortemExportView />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/factures/:entryId/export"
+            element={
+              <RequireRole allow={canViewInvoicing}>
+                <InvoiceExportView />
               </RequireRole>
             }
           />

@@ -130,14 +130,32 @@ export interface AmendmentProjectLike {
   backupHoursCost?: number;
   plannedPurchases?: number;
   sold?: number;
-  invoicePlan?: { pct: number; amount: number; [key: string]: unknown }[];
 }
 
 /**
  * Additionne un avenant calculé aux banques existantes du projet — jamais
- * un compartiment séparé. Recalcule aussi le plan de facturation sur le
- * nouveau prix vendu total, avec les mêmes pourcentages (même logique
- * que `billing.ts` — confirmé, comportement déjà correct dans la v19).
+ * un compartiment séparé.
+ *
+ * Jusqu'au 16 novembre 2026, cette fonction recalculait AUSSI chaque jalon
+ * du plan de facturation (`amount = nouveau sold total × pct / 100`) — un
+ * vrai bogue jamais exercé en production, trouvé pendant la co-conception
+ * de l'export PDF Facture (voir magical-finding-fog.md) : ça recalculait
+ * même les jalons déjà envoyés (`InvoicePlanEntry.totalWithTax`/
+ * `invoiceNumber` déjà gelés — une facture déjà remise au client ne doit
+ * JAMAIS changer après coup, même principe que `TimeEntry.costRate`
+ * partout ailleurs dans l'appli) et remettait à zéro tout avenant
+ * PRÉCÉDENT déjà créé (`pct:0` → `amount` recalculé à 0).
+ *
+ * Confirmé par Marie : un avenant ne se répartit JAMAIS au % d'un jalon —
+ * sa pleine valeur s'ajoute en supplément sur le DERNIER jalon standard
+ * pas encore envoyé (`selectAmendmentTargetInvoiceEntry` ci-dessous),
+ * jamais diluée. Cette fonction ne touche donc plus du tout au plan de
+ * facturation — seulement aux banques cumulatives du projet (heures,
+ * coûts, prix vendu). Le routage réel (choisir la cible, lui ajouter
+ * `calc.sale` en plus de son montant actuel, ou créer un document séparé
+ * si aucun jalon standard n'est disponible) se fait côté appelant
+ * (amendments/service.ts, `createAmendment`) puisqu'il a besoin d'écrire
+ * en base dans la même transaction.
  */
 export function applyAmendmentToProject<T extends AmendmentProjectLike>(project: T, calc: AmendmentCalcResult): T {
   project.laborHours = round2(Number(project.laborHours || 0) + calc.laborHours);
@@ -146,10 +164,30 @@ export function applyAmendmentToProject<T extends AmendmentProjectLike>(project:
   project.backupHoursCost = round2(Number(project.backupHoursCost || 0) + calc.backupCost);
   project.plannedPurchases = round2(Number(project.plannedPurchases || 0) + calc.purchases);
   project.sold = round2(Number(project.sold || 0) + calc.sale);
-  (project.invoicePlan || []).forEach((step) => {
-    step.amount = round2((Number(project.sold || 0) * Number(step.pct || 0)) / 100);
-  });
   return project;
+}
+
+export interface InvoicePlanEntryLike {
+  id: string;
+  sortOrder: number;
+  isExtra: boolean;
+  status: string;
+}
+
+/**
+ * Choisit le jalon standard qui doit absorber la pleine valeur d'un
+ * avenant (confirmé par Marie, 15 novembre 2026) : le DERNIER jalon
+ * standard (`isExtra:false`) pas encore envoyé (`status==="pending"`),
+ * par `sortOrder` décroissant — les jalons déjà envoyés n'ont jamais pris
+ * leur part de cet ajout, ils restent intouchés. Aucun candidat (les 4
+ * jalons standards sont déjà tous envoyés — cas rare, non couvert par
+ * Marie) → `null`, l'appelant retombe alors sur un document séparé
+ * (comportement historique, `amendmentInvoiceRequest` ci-dessous).
+ */
+export function selectAmendmentTargetInvoiceEntry<T extends InvoicePlanEntryLike>(entries: readonly T[]): T | null {
+  const candidates = entries.filter((entry) => !entry.isExtra && entry.status === "pending");
+  if (candidates.length === 0) return null;
+  return candidates.reduce((last, entry) => (entry.sortOrder > last.sortOrder ? entry : last));
 }
 
 export interface AmendmentTask {

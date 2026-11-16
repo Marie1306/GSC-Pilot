@@ -1018,6 +1018,13 @@ export async function confirmProjectFulfillment(projectId: string, note?: string
 // voir CLAUDE.md pour le contexte complet de cette refonte.
 // ---------------------------------------------------------------------------
 
+export interface InvoiceAmendmentLineDto {
+  id: string;
+  displayId: string;
+  description: string | null;
+  amount: number;
+}
+
 export interface InvoicePlanEntryDto {
   id: string;
   label: string;
@@ -1038,6 +1045,13 @@ export interface InvoicePlanEntryDto {
   requestedAt: string | null;
   processedById: string | null;
   processedAt: string | null;
+  // Avenants dont la pleine valeur a été ajoutée à CETTE entrée (16 novembre
+  // 2026, selectAmendmentTargetInvoiceEntry) — vide la plupart du temps.
+  // baseAmount = amount moins la somme de ces lignes, pour l'affichage
+  // (jamais recalculé indépendamment : amount reste la seule source de
+  // vérité facturée/taxée).
+  amendmentLines: InvoiceAmendmentLineDto[];
+  baseAmount: number;
 }
 
 // Exporté — réutilisé tel quel par rollings/service.ts (même format, même
@@ -1062,12 +1076,23 @@ export function toInvoicePlanEntryDto(row: {
   requestedAt: Date | null;
   processedById: string | null;
   processedAt: Date | null;
+  // Facultatif — seul getInvoicePlan (vue Cycle de facturation du projet)
+  // l'inclut aujourd'hui ; les autres appelants (confirm/cancel/paiement/
+  // suspens/etc.) ne rendent jamais leur propre valeur de retour (la
+  // réponse de leur mutation est ignorée côté client, qui invalide puis
+  // relit toujours via getInvoicePlan/listInvoiceEntries) — jamais besoin
+  // d'alourdir leur requête d'un include qui ne serait jamais affiché.
+  targetedByAmendments?: { id: string; displayId: string; description: string | null; sale: unknown }[];
 }): InvoicePlanEntryDto {
+  const amendmentLines = (row.targetedByAmendments ?? []).map((a) => ({ id: a.id, displayId: a.displayId, description: a.description, amount: Number(a.sale) }));
+  const amount = Number(row.amount);
   return {
     id: row.id,
     label: row.label,
     pct: Number(row.pct),
-    amount: Number(row.amount),
+    amount,
+    amendmentLines,
+    baseAmount: round2(amount - amendmentLines.reduce((sum, line) => sum + line.amount, 0)),
     // invoiceStatus (billing.ts, PORTÉE, jamais modifiée) ne retourne jamais
     // "pending" — conçue pour une facture déjà envoyée. Un jalon jamais
     // demandé, ou qu'on vient d'Annuler (cancelInvoiceRequest, 13 novembre
@@ -1280,7 +1305,11 @@ export async function setInvoicePlanEntryForecastDate(entryId: string, forecastD
 }
 
 export async function getInvoicePlan(projectId: string): Promise<InvoicePlanEntryDto[]> {
-  const rows = await prisma.invoicePlanEntry.findMany({ where: { projectId }, orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] });
+  const rows = await prisma.invoicePlanEntry.findMany({
+    where: { projectId },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    include: { targetedByAmendments: { select: { id: true, displayId: true, description: true, sale: true } } },
+  });
   return rows.map(toInvoicePlanEntryDto);
 }
 

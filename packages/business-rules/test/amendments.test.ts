@@ -1,6 +1,18 @@
 // Porté 1-pour-1 depuis docs/handoff/03-modules-v01/amendments.test.js (21 assertions).
+// Le bloc "Application au projet" ci-dessous a été ajusté le 16 novembre
+// 2026 (retrait de l'assertion sur invoicePlan, voir amendments.ts et
+// magical-finding-fog.md) — bogue réel confirmé par Marie, jamais un
+// comportement à préserver.
 import { describe, it, expect } from "vitest";
-import { calculateAmendment, applyAmendmentToProject, amendmentTasks, amendmentInvoiceRequest, type AmendmentProjectLike } from "../src/amendments.js";
+import {
+  calculateAmendment,
+  applyAmendmentToProject,
+  selectAmendmentTargetInvoiceEntry,
+  amendmentTasks,
+  amendmentInvoiceRequest,
+  type AmendmentProjectLike,
+  type InvoicePlanEntryLike,
+} from "../src/amendments.js";
 
 describe("Back-up : mêmes catégories admissibles que le calcul principal (134/44/338, taux figé 112$)", () => {
   it("Conception/Installation exclues même à 999h, back-up et coût corrects", () => {
@@ -40,7 +52,7 @@ describe("Marge et prix de vente", () => {
 });
 
 describe("Application au projet — additionne, ne remplace jamais", () => {
-  it("heures/coût/achats/prix vendu et plan de facturation tous additionnés", () => {
+  it("heures/coût/achats/prix vendu additionnés ; plus aucun lien avec le plan de facturation", () => {
     const project: AmendmentProjectLike = {
       laborHours: 50,
       laborCost: 5000,
@@ -48,10 +60,6 @@ describe("Application au projet — additionne, ne remplace jamais", () => {
       backupHoursCost: 560,
       plannedPurchases: 100,
       sold: 10000,
-      invoicePlan: [
-        { label: "Signature", pct: 25, amount: 2500 },
-        { label: "Livraison", pct: 75, amount: 7500 },
-      ],
     };
     const calc = calculateAmendment({ conception: 10 }, { marginPct: 20, backupPct: 0, projectBackupRate: 112, purchases: 50 });
     applyAmendmentToProject(project, calc);
@@ -59,7 +67,38 @@ describe("Application au projet — additionne, ne remplace jamais", () => {
     expect(project.laborCost).toBe(6170);
     expect(project.plannedPurchases).toBe(150);
     expect(project.sold).toBe(11525); // 10 000 + 1 525 (1220$ coût / 0,8)
-    expect(project.invoicePlan?.[0]?.amount).toBe(2881.25); // 25% de 11 525$, recalculé sur le nouveau total
+  });
+});
+
+describe("selectAmendmentTargetInvoiceEntry — le jalon qui absorbe l'avenant en entier (16 novembre 2026)", () => {
+  it("choisit le dernier jalon standard pending (sortOrder le plus élevé), ignore les jalons déjà envoyés", () => {
+    const entries: InvoicePlanEntryLike[] = [
+      { id: "a", sortOrder: 0, isExtra: false, status: "sent" },
+      { id: "b", sortOrder: 1, isExtra: false, status: "sent" },
+      { id: "c", sortOrder: 2, isExtra: false, status: "sent" },
+      { id: "d", sortOrder: 3, isExtra: false, status: "pending" },
+    ];
+    expect(selectAmendmentTargetInvoiceEntry(entries)?.id).toBe("d");
+  });
+
+  it("ignore les jalons isExtra (avenants précédents déjà routés en document séparé)", () => {
+    const entries: InvoicePlanEntryLike[] = [
+      { id: "standard", sortOrder: 1, isExtra: false, status: "pending" },
+      { id: "extra-precedent", sortOrder: 2, isExtra: true, status: "pending" },
+    ];
+    expect(selectAmendmentTargetInvoiceEntry(entries)?.id).toBe("standard");
+  });
+
+  it("aucun jalon standard pending → null (repli sur un document séparé côté appelant)", () => {
+    const entries: InvoicePlanEntryLike[] = [
+      { id: "a", sortOrder: 0, isExtra: false, status: "sent" },
+      { id: "b", sortOrder: 1, isExtra: false, status: "sent" },
+    ];
+    expect(selectAmendmentTargetInvoiceEntry(entries)).toBe(null);
+  });
+
+  it("liste vide → null", () => {
+    expect(selectAmendmentTargetInvoiceEntry([])).toBe(null);
   });
 });
 
