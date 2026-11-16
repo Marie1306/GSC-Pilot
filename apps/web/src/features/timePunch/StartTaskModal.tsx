@@ -5,7 +5,7 @@ import { useAuth } from "../../lib/auth/useAuth.js";
 import { useOnlineStatus } from "../../offline/useOnlineStatus.js";
 import { startLocalActiveEntry } from "../../offline/localTimer.js";
 import { fetchTechLevels } from "../settings/api.js";
-import { fetchPunchableTasks, fetchProjectOptions, fetchRollingOptions, fetchServiceCallOptions, fetchPunchableEmployees, startTimer } from "./api.js";
+import { fetchPunchableTasks, fetchProjectOptions, fetchRollingOptions, fetchBonDeTravailOptions, fetchPunchableEmployees, startTimer } from "./api.js";
 import { ReferenceFields, type ReferenceValue } from "./ReferenceFields.js";
 
 const PROJECT_TYPE_FALLBACK_LABEL: Record<ReferenceValue["projectType"], string> = {
@@ -17,7 +17,7 @@ const PROJECT_TYPE_FALLBACK_LABEL: Record<ReferenceValue["projectType"], string>
 
 interface StartTaskModalProps {
   onClose: () => void;
-  /** Pré-remplissage (20 août 2026) — "Puncher sur ce call" depuis ServiceCallDetail : ouvre déjà sur projectType "service" + serviceCallId, jamais la tâche (toujours choisie par le technicien). */
+  /** Pré-remplissage (20 août 2026, rescopé au Bon de travail le 16 novembre 2026) — "Puncher sur ce Bon de travail" depuis BonDeTravailDetail : ouvre déjà sur projectType "service" + bonDeTravailId, jamais la tâche (toujours choisie par le technicien). */
   initialValue?: Partial<ReferenceValue>;
 }
 
@@ -29,7 +29,7 @@ export function StartTaskModal({ onClose, initialValue }: StartTaskModalProps) {
   const tasksQuery = useQuery({ queryKey: ["punchable-tasks"], queryFn: fetchPunchableTasks });
   const projectsQuery = useQuery({ queryKey: ["time-entries", "project-options"], queryFn: fetchProjectOptions });
   const rollingsQuery = useQuery({ queryKey: ["time-entries", "rolling-options"], queryFn: fetchRollingOptions });
-  const serviceCallsQuery = useQuery({ queryKey: ["time-entries", "service-call-options"], queryFn: fetchServiceCallOptions });
+  const bonsDeTravailQuery = useQuery({ queryKey: ["time-entries", "bon-de-travail-options"], queryFn: fetchBonDeTravailOptions });
   const techLevelsQuery = useQuery({ queryKey: ["tech-levels"], queryFn: fetchTechLevels });
   const canChooseEmployee = employee ? canPunchForOtherEmployee(employee.persona) : false;
   const employeesQuery = useQuery({
@@ -46,7 +46,7 @@ export function StartTaskModal({ onClose, initialValue }: StartTaskModalProps) {
   const tasks = tasksQuery.data?.tasks ?? [];
   const projects = projectsQuery.data?.projects ?? [];
   const rollings = rollingsQuery.data?.rollings ?? [];
-  const serviceCalls = serviceCallsQuery.data?.serviceCalls ?? [];
+  const bonsDeTravail = bonsDeTravailQuery.data?.bonsDeTravail ?? [];
   const techLevels = techLevelsQuery.data?.techLevels ?? [];
   const punchableEmployees = employeesQuery.data?.employees ?? [];
   const employeeTechLevelIds = canChooseEmployee
@@ -60,7 +60,7 @@ export function StartTaskModal({ onClose, initialValue }: StartTaskModalProps) {
         projectType: value.projectType,
         projectId: value.projectId,
         rollingId: value.rollingId,
-        serviceCallId: value.serviceCallId,
+        bonDeTravailId: value.bonDeTravailId,
         taskId: value.taskId,
         techLevelId: value.techLevelId,
         rateType: value.rateType,
@@ -88,14 +88,14 @@ export function StartTaskModal({ onClose, initialValue }: StartTaskModalProps) {
           : value.projectType === "rolling"
             ? (rollings.find((r) => r.id === value.rollingId)?.label ?? PROJECT_TYPE_FALLBACK_LABEL.rolling)
             : value.projectType === "service"
-              ? (serviceCalls.find((c) => c.id === value.serviceCallId)?.label ?? PROJECT_TYPE_FALLBACK_LABEL.service)
+              ? (bonsDeTravail.find((bt) => bt.id === value.bonDeTravailId)?.label ?? PROJECT_TYPE_FALLBACK_LABEL.service)
               : PROJECT_TYPE_FALLBACK_LABEL.internal;
       void startLocalActiveEntry({
         employeeId,
         projectType: value.projectType,
         projectId: value.projectId,
         rollingId: value.rollingId,
-        serviceCallId: value.serviceCallId,
+        bonDeTravailId: value.bonDeTravailId,
         taskId: value.taskId,
         taskLabel,
         referenceLabel,
@@ -141,7 +141,7 @@ export function StartTaskModal({ onClose, initialValue }: StartTaskModalProps) {
               tasks={tasks}
               projects={projects}
               rollings={rollings}
-              serviceCalls={serviceCalls}
+              bonsDeTravail={bonsDeTravail}
               employeeTechLevelIds={employeeTechLevelIds}
               techLevels={techLevels}
               showRate={employee ? canSeeFinancialValues(employee.persona) : false}

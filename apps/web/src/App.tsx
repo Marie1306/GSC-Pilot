@@ -103,7 +103,7 @@ export function App() {
             }
           />
           <Route
-            path="/appels-service/:id/export"
+            path="/appels-service/bons-travail/:id/export"
             element={
               <RequireRole allow={canAccessServiceCalls}>
                 <ServiceCallExportView />

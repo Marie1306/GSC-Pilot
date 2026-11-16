@@ -8,7 +8,7 @@ import {
   fetchPunchableTasks,
   fetchProjectOptions,
   fetchRollingOptions,
-  fetchServiceCallOptions,
+  fetchBonDeTravailOptions,
   fetchPunchableEmployees,
   createManualEntry,
   updateTimeEntry,
@@ -75,7 +75,7 @@ export function ManualEntryModal({ onClose, entry, initialProjectId, initialRoll
   const tasksQuery = useQuery({ queryKey: ["punchable-tasks"], queryFn: fetchPunchableTasks });
   const projectsQuery = useQuery({ queryKey: ["time-entries", "project-options"], queryFn: fetchProjectOptions });
   const rollingsQuery = useQuery({ queryKey: ["time-entries", "rolling-options"], queryFn: fetchRollingOptions });
-  const serviceCallsQuery = useQuery({ queryKey: ["time-entries", "service-call-options"], queryFn: fetchServiceCallOptions });
+  const bonsDeTravailQuery = useQuery({ queryKey: ["time-entries", "bon-de-travail-options"], queryFn: fetchBonDeTravailOptions });
   const techLevelsQuery = useQuery({ queryKey: ["tech-levels"], queryFn: fetchTechLevels });
   const canChooseEmployee = !entry && employee ? canPunchForOtherEmployee(employee.persona) : false;
   const employeesQuery = useQuery({
@@ -95,7 +95,7 @@ export function ManualEntryModal({ onClose, entry, initialProjectId, initialRoll
             projectType: entry.projectType,
             projectId: entry.projectId ?? undefined,
             rollingId: entry.rollingId ?? undefined,
-            serviceCallId: entry.serviceCallId ?? undefined,
+            bonDeTravailId: entry.bonDeTravailId ?? undefined,
             taskId: entry.taskId ?? "",
             techLevelId: entry.techLevelId ?? undefined,
             rateType: entry.rateType ?? undefined,
@@ -111,7 +111,7 @@ export function ManualEntryModal({ onClose, entry, initialProjectId, initialRoll
   const tasks = tasksQuery.data?.tasks ?? [];
   const projects = projectsQuery.data?.projects ?? [];
   const rollings = rollingsQuery.data?.rollings ?? [];
-  const serviceCalls = serviceCallsQuery.data?.serviceCalls ?? [];
+  const bonsDeTravail = bonsDeTravailQuery.data?.bonsDeTravail ?? [];
   const techLevels = techLevelsQuery.data?.techLevels ?? [];
   const punchableEmployees = employeesQuery.data?.employees ?? [];
   const employeeTechLevelIds = canChooseEmployee
@@ -139,7 +139,7 @@ export function ManualEntryModal({ onClose, entry, initialProjectId, initialRoll
         projectType: row.value.projectType,
         projectId: row.value.projectId,
         rollingId: row.value.rollingId,
-        serviceCallId: row.value.serviceCallId,
+        bonDeTravailId: row.value.bonDeTravailId,
         taskId: row.value.taskId,
         hours: Number(row.hours),
         date,
@@ -166,7 +166,7 @@ export function ManualEntryModal({ onClose, entry, initialProjectId, initialRoll
             projectType: row.value.projectType,
             projectId: row.value.projectId,
             rollingId: row.value.rollingId,
-            serviceCallId: row.value.serviceCallId,
+            bonDeTravailId: row.value.bonDeTravailId,
             taskId: row.value.taskId,
             techLevelId: row.value.techLevelId,
             rateType: row.value.rateType,
@@ -268,7 +268,7 @@ export function ManualEntryModal({ onClose, entry, initialProjectId, initialRoll
                 tasks={tasks}
                 projects={projects}
                 rollings={rollings}
-                serviceCalls={serviceCalls}
+                bonsDeTravail={bonsDeTravail}
                 employeeTechLevelIds={employeeTechLevelIds}
                 techLevels={techLevels}
                 showRate={showRate}

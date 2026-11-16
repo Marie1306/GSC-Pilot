@@ -1,17 +1,9 @@
 import { useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { canSeeServicePricing } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { formatCalendarDate } from "../../lib/date.js";
-import { fetchServiceCallDetail, MEAL_LABELS } from "./api.js";
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: "En attente",
-  in_progress: "En cours",
-  approved: "Approuvé",
-  sent_to_admin: "Envoyé à l'administration",
-};
+import { fetchBonDeTravailDetail } from "./api.js";
 
 function formatDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleDateString("fr-CA", { year: "numeric", month: "long", day: "numeric" }) : "—";
@@ -23,40 +15,47 @@ function formatHours(minutes: number | null): string {
   if (minutes === null) return "—";
   return `${Math.floor(minutes / 60)}h${String(minutes % 60).padStart(2, "0")}`;
 }
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("fr-CA", { style: "currency", currency: "CAD" }).format(value);
+function formatMeals(bt: { mealsBreakfastCount: number; mealsLunchCount: number; mealsDinnerCount: number }): string {
+  const parts: string[] = [];
+  if (bt.mealsBreakfastCount > 0) parts.push(`Déjeuner x${bt.mealsBreakfastCount}`);
+  if (bt.mealsLunchCount > 0) parts.push(`Dîner x${bt.mealsLunchCount}`);
+  if (bt.mealsDinnerCount > 0) parts.push(`Souper x${bt.mealsDinnerCount}`);
+  return parts.length > 0 ? parts.join(", ") : "—";
 }
 
 /**
- * Vue d'export PDF d'un call de service (1er septembre 2026, demande de
- * l'utilisatrice). Même mécanisme que les autres vues d'export — route
- * autonome, window.print(), aucun chiffre recalculé (fetchServiceCallDetail,
- * même fonction que ServiceCallDetail.tsx). showFinancials reprend
- * exactement canSeeServicePricing(employee.persona) — même garde que la vue
- * interactive, jamais assumé que canAccessServiceCalls (qui gate déjà cette
- * route) suffit à voir les prix : un Employé atteint cette page mais ne
- * doit jamais y voir de montant.
+ * Vue d'export PDF d'un Bon de travail (Chantier D, 16 novembre 2026 —
+ * remplace l'export par Call de service, aujourd'hui scopé au déplacement
+ * précis, signé une fois par Bon de travail comme sur papier). Même
+ * mécanisme que les autres vues d'export — route autonome, window.print(),
+ * aucun chiffre recalculé (fetchBonDeTravailDetail, même fonction que
+ * BonDeTravailDetail.tsx).
+ *
+ * Toujours imprimable/téléchargeable SANS PRIX, peu importe qui l'imprime
+ * (confirmé explicitement par Marie, 16 novembre 2026) — contrairement à
+ * l'ancienne vue (qui conditionnait les montants à canSeeServicePricing),
+ * celle-ci n'affiche JAMAIS de prix : c'est le document physique qui peut
+ * rester chez le client. Les prix restent visibles comme avant uniquement
+ * à l'écran sur BonDeTravailDetail.tsx (canSeeServicePricing, inchangé).
  */
 export function ServiceCallExportView() {
   const { id } = useParams<{ id: string }>();
   const { employee } = useAuth();
   const detailQuery = useQuery({
-    queryKey: ["service-call", id],
-    queryFn: () => fetchServiceCallDetail(id!),
+    queryKey: ["bon-de-travail", id],
+    queryFn: () => fetchBonDeTravailDetail(id!),
     enabled: !!id,
   });
-  const call = detailQuery.data?.serviceCall;
+  const bt = detailQuery.data?.bonDeTravail;
 
   useEffect(() => {
-    if (!call) return;
+    if (!bt) return;
     const timer = setTimeout(() => window.print(), 400);
     return () => clearTimeout(timer);
-  }, [call]);
+  }, [bt]);
 
   if (!id || !employee) return null;
-  if (!call) return <div style={{ padding: 40 }}>{detailQuery.isError ? "Call de service introuvable." : "Chargement…"}</div>;
-
-  const showFinancials = canSeeServicePricing(employee.persona);
+  if (!bt) return <div style={{ padding: 40 }}>{detailQuery.isError ? "Bon de travail introuvable." : "Chargement…"}</div>;
 
   return (
     <div className="pdf-export">
@@ -68,39 +67,33 @@ export function ServiceCallExportView() {
         <header className="pdf-export-header">
           <div>
             <div className="pdf-export-brand">
-              GSC Automation — Appel de service {call.displayId} — {call.company ?? call.contactName}
+              GSC Automation — Bon de travail {bt.displayId} — {bt.company ?? bt.contactName}
             </div>
             <p>
-              <strong>Contact :</strong> {call.contactName} &nbsp; <strong>Téléphone :</strong> {call.contactPhone ?? "—"} &nbsp;{" "}
-              <strong>Courriel :</strong> {call.contactEmail ?? "—"}
+              <strong>Call de service :</strong> {bt.serviceCallDisplayId} — {bt.serviceCallTitle}
             </p>
             <p>
-              <strong>Adresse :</strong> {call.address ?? "—"}
+              <strong>Contact :</strong> {bt.contactName}
             </p>
           </div>
-          <div className="pdf-export-status">{STATUS_LABELS[call.status] ?? call.status}</div>
         </header>
 
         <div className="pdf-export-notes">
-          <strong>Titre</strong>
-          <p>{call.title}</p>
-          <strong>Demande</strong>
-          <p>{call.request}</p>
-          <strong>Techniciens assignés</strong>
-          <p>{call.assignedEmployees.length > 0 ? call.assignedEmployees.map((e) => e.name).join(", ") : "—"}</p>
+          <strong>Techniciens</strong>
+          <p>{bt.assignedEmployees.length > 0 ? bt.assignedEmployees.map((e) => e.name).join(", ") : "—"}</p>
           <strong>Dates</strong>
           <p>
-            Prévu : {formatDate(call.scheduledAt)} &nbsp; Début : {formatDateTime(call.startAt)} &nbsp; Fin : {formatDateTime(call.endAt)}
+            Prévu : {formatDate(bt.scheduledAt)} &nbsp; Début : {formatDateTime(bt.startAt)} &nbsp; Fin : {formatDateTime(bt.endAt)}
           </p>
-          {call.summary && (
+          {bt.summary && (
             <>
               <strong>Résumé</strong>
-              <p>{call.summary}</p>
+              <p>{bt.summary}</p>
             </>
           )}
         </div>
 
-        {call.parts.length > 0 && (
+        {bt.parts.length > 0 && (
           <section className="pdf-export-section">
             <h2>Pièces utilisées</h2>
             <table>
@@ -108,27 +101,15 @@ export function ServiceCallExportView() {
                 <tr>
                   <th>Pièce</th>
                   <th>Quantité</th>
-                  {showFinancials && (
-                    <>
-                      <th>Coût unitaire</th>
-                      <th>Prix unitaire</th>
-                    </>
-                  )}
                 </tr>
               </thead>
               <tbody>
-                {call.parts.map((part) => (
+                {bt.parts.map((part) => (
                   <tr key={part.id}>
                     <td>{part.name}</td>
                     <td>
                       {part.qty} {part.unit ?? ""}
                     </td>
-                    {showFinancials && (
-                      <>
-                        <td>{part.costPerUnit !== null ? formatCurrency(part.costPerUnit) : "—"}</td>
-                        <td>{part.salePricePerUnit !== null ? formatCurrency(part.salePricePerUnit) : "—"}</td>
-                      </>
-                    )}
                   </tr>
                 ))}
               </tbody>
@@ -136,7 +117,7 @@ export function ServiceCallExportView() {
           </section>
         )}
 
-        {call.timeEntries.length > 0 && (
+        {bt.timeEntries.length > 0 && (
           <section className="pdf-export-section">
             <h2>Temps consigné</h2>
             <table>
@@ -149,7 +130,7 @@ export function ServiceCallExportView() {
                 </tr>
               </thead>
               <tbody>
-                {call.timeEntries.map((entry) => (
+                {bt.timeEntries.map((entry) => (
                   <tr key={entry.id}>
                     <td>{formatCalendarDate(entry.date)}</td>
                     <td>{entry.employeeName}</td>
@@ -170,15 +151,13 @@ export function ServiceCallExportView() {
                 <th>Kilométrage</th>
                 <th>Repas réclamés</th>
                 <th>Heures de main-d'oeuvre</th>
-                {showFinancials && <th>Total facturable</th>}
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td>{call.kmTraveled !== null ? `${call.kmTraveled} km` : "—"}</td>
-                <td>{call.mealsClaimed.length > 0 ? call.mealsClaimed.map((m) => MEAL_LABELS[m] ?? m).join(", ") : "—"}</td>
-                <td>{formatHours(call.totals.laborHours * 60)}</td>
-                {showFinancials && <td>{call.totals.totalSale !== undefined ? formatCurrency(call.totals.totalSale) : "—"}</td>}
+                <td>{bt.kmTraveled !== null ? `${bt.kmTraveled} km` : "—"}</td>
+                <td>{formatMeals(bt)}</td>
+                <td>{formatHours(bt.totals.laborHours * 60)}</td>
               </tr>
             </tbody>
           </table>
@@ -186,10 +165,10 @@ export function ServiceCallExportView() {
 
         <section className="pdf-export-section pdf-export-signature">
           <h2>Signature du client</h2>
-          {call.signatureCaptured && call.signatureImageUrl ? (
+          {bt.signatureCaptured && bt.signatureImageUrl ? (
             <div>
-              <img src={call.signatureImageUrl} alt="Signature du client" />
-              {call.signatureSignerName && <p>Signé par {call.signatureSignerName}.</p>}
+              <img src={bt.signatureImageUrl} alt="Signature du client" />
+              {bt.signatureSignerName && <p>Signé par {bt.signatureSignerName}.</p>}
             </div>
           ) : (
             <p>Signature non capturée pour l'instant.</p>

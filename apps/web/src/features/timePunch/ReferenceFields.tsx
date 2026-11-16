@@ -1,5 +1,5 @@
 import { BUDGET_CATEGORY_SLUGS } from "@gsc-pilot/business-rules";
-import type { PunchableTaskDto, ProjectOptionDto, RollingOptionDto, ServiceCallOptionDto, PunchProjectType, RateType } from "./api.js";
+import type { PunchableTaskDto, ProjectOptionDto, RollingOptionDto, BonDeTravailOptionDto, PunchProjectType, RateType } from "./api.js";
 import { RATE_TYPE_LABELS } from "./api.js";
 import type { TechLevelDto } from "../settings/api.js";
 
@@ -7,7 +7,7 @@ export interface ReferenceValue {
   projectType: PunchProjectType;
   projectId?: string;
   rollingId?: string;
-  serviceCallId?: string;
+  bonDeTravailId?: string;
   taskId: string;
   techLevelId?: string;
   rateType?: RateType;
@@ -19,7 +19,7 @@ interface ReferenceFieldsProps {
   tasks: PunchableTaskDto[];
   projects: ProjectOptionDto[];
   rollings: RollingOptionDto[];
-  serviceCalls: ServiceCallOptionDto[];
+  bonsDeTravail: BonDeTravailOptionDto[];
   employeeTechLevelIds: string[];
   techLevels: TechLevelDto[];
   showRate: boolean;
@@ -52,7 +52,7 @@ export function ReferenceFields({
   tasks,
   projects,
   rollings,
-  serviceCalls,
+  bonsDeTravail,
   employeeTechLevelIds,
   techLevels,
   showRate,
@@ -82,7 +82,7 @@ export function ReferenceFields({
       projectType: nextType,
       projectId: undefined,
       rollingId: undefined,
-      serviceCallId: undefined,
+      bonDeTravailId: undefined,
       taskId: nextTasks[0]?.id ?? "",
       techLevelId: undefined,
       rateType: undefined,
@@ -144,19 +144,19 @@ export function ReferenceFields({
 
       {value.projectType === "service" && (
         <div className="field">
-          <label htmlFor="punch-service-call">Call de service</label>
+          <label htmlFor="punch-bon-de-travail">Bon de travail</label>
           <select
-            id="punch-service-call"
+            id="punch-bon-de-travail"
             required
-            value={value.serviceCallId ?? ""}
-            onChange={(event) => onChange({ serviceCallId: event.target.value })}
+            value={value.bonDeTravailId ?? ""}
+            onChange={(event) => onChange({ bonDeTravailId: event.target.value })}
           >
             <option value="" disabled>
-              {serviceCalls.length ? "Sélectionner…" : "Aucun call assigné"}
+              {bonsDeTravail.length ? "Sélectionner…" : "Aucun Bon de travail assigné"}
             </option>
-            {serviceCalls.map((call) => (
-              <option key={call.id} value={call.id}>
-                {call.label}
+            {bonsDeTravail.map((bt) => (
+              <option key={bt.id} value={bt.id}>
+                {bt.label}
               </option>
             ))}
           </select>

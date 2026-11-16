@@ -30,7 +30,7 @@ export interface RollingOptionDto {
   rollingNumber: string;
 }
 
-export interface ServiceCallOptionDto {
+export interface BonDeTravailOptionDto {
   id: string;
   label: string;
 }
@@ -51,7 +51,7 @@ export interface TimeEntryDto {
   projectLabel: string | null;
   rollingId: string | null;
   rollingLabel: string | null;
-  serviceCallId: string | null;
+  bonDeTravailId: string | null;
   category: string;
   categoryLabel: string;
   taskId: string | null;
@@ -82,8 +82,8 @@ export function fetchRollingOptions(): Promise<{ rollings: RollingOptionDto[] }>
   return apiFetch("/api/time-entries/rolling-options");
 }
 
-export function fetchServiceCallOptions(): Promise<{ serviceCalls: ServiceCallOptionDto[] }> {
-  return apiFetch("/api/time-entries/service-call-options");
+export function fetchBonDeTravailOptions(): Promise<{ bonsDeTravail: BonDeTravailOptionDto[] }> {
+  return apiFetch("/api/time-entries/bon-de-travail-options");
 }
 
 export function fetchPunchableEmployees(): Promise<{ employees: PunchableEmployeeDto[] }> {
@@ -129,7 +129,7 @@ export interface PunchReferenceInput {
   projectType: PunchProjectType;
   projectId?: string;
   rollingId?: string;
-  serviceCallId?: string;
+  bonDeTravailId?: string;
   taskId: string;
   techLevelId?: string;
   rateType?: RateType;
@@ -164,7 +164,7 @@ export interface UpdateTimeEntryInput {
   projectType?: PunchProjectType;
   projectId?: string;
   rollingId?: string;
-  serviceCallId?: string;
+  bonDeTravailId?: string;
   taskId?: string;
   hours?: number;
   date?: string;

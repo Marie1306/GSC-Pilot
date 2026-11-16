@@ -1,23 +1,33 @@
 import { apiFetch } from "../../lib/apiClient.js";
-import type { InvoiceRequestPreviewDto } from "../projects/api.js";
 
 export interface AssignedEmployeeDto {
   id: string;
   name: string;
 }
 
+/** Statut dérivé à la lecture (Chantier D, 16 novembre 2026) — remplace l'ancien champ status (scheduled/approved), mort au-delà de ces 2 valeurs et retiré du schéma. */
+export type ServiceCallDerivedStatus = "none" | "in_progress" | "ready_to_invoice" | "invoiced";
+
+export const SERVICE_CALL_STATUS_LABELS: Record<ServiceCallDerivedStatus, string> = {
+  none: "Aucun bon de travail",
+  in_progress: "En cours",
+  ready_to_invoice: "Prêt à facturer",
+  invoiced: "Facturé",
+};
+
 export interface ServiceCallListItemDto {
   id: string;
   displayId: string;
-  status: string;
+  derivedStatus: ServiceCallDerivedStatus;
   contactName: string;
   company: string | null;
   title: string;
   request: string;
   assignedEmployees: AssignedEmployeeDto[];
-  scheduledAt: string | null;
+  bonsDeTravailCount: number;
   createdAt: string;
-  // Visible seulement si canSeeServicePricing (16 novembre 2026, filtre par prix).
+  // Visible seulement si canSeeServicePricing — agrégé sur tous les Bons de
+  // travail du Call (Chantier D), pas juste un seul comme avant la refonte.
   salePrice?: number;
 }
 
@@ -42,8 +52,8 @@ export interface CreateServiceCallInput {
   title: string;
   request: string;
   address?: string;
+  /** Qui est censé s'occuper du dossier (gate la création d'un Bon de travail) — plus de scheduledAt ici, ça devient un champ du Bon de travail lui-même. */
   assignedEmployeeIds?: string[];
-  scheduledAt?: string;
   /** Conversion directe depuis une demande client (27 août 2026) — voir ClientRequestOptionsMenu. */
   clientRequestId?: string;
   /** Call lié à un projet, sous-garantie (27 août 2026) — voir ProjectOptionsMenu. */
@@ -93,36 +103,36 @@ export interface ServiceCallTotalsDto {
   totalSale?: number;
 }
 
+/** Résumé d'un Bon de travail affiché dans la liste du dossier (Call) — jamais de prix ici, voir BonDeTravailDetailDto pour les totaux. */
+export interface BonDeTravailSummaryDto {
+  id: string;
+  displayId: string;
+  scheduledAt: string | null;
+  assignedEmployees: AssignedEmployeeDto[];
+  signatureCaptured: boolean;
+  approved: boolean;
+  invoicePlanEntryId: string | null;
+  invoiceNumber: string | null;
+  createdAt: string;
+}
+
+/** Vue dossier (Call) — en-tête + liste de ses Bons de travail (Chantier D, 16 novembre 2026). */
 export interface ServiceCallDetailDto {
   id: string;
   displayId: string;
-  status: string;
+  derivedStatus: ServiceCallDerivedStatus;
   contactId: string;
   contactName: string;
   company: string | null;
   contactPhone: string | null;
   contactEmail: string | null;
   projectId: string | null;
+  rollingId: string | null;
   title: string;
   request: string;
   address: string | null;
   assignedEmployees: AssignedEmployeeDto[];
-  scheduledAt: string | null;
-  startAt: string | null;
-  endAt: string | null;
-  kmTraveled: number | null;
-  mealsClaimed: string[];
-  summary: string | null;
-  signatureCaptured: boolean;
-  signatureImageUrl: string | null;
-  signatureSignerName: string | null;
-  ownerApprovedByName: string | null;
-  ownerApprovedAt: string | null;
-  sentToAdminAt: string | null;
-  parts: ServiceCallPartDto[];
-  photos: ServiceCallPhotoDto[];
-  timeEntries: ServiceCallTimeEntryDto[];
-  totals: ServiceCallTotalsDto;
+  bonsDeTravail: BonDeTravailSummaryDto[];
   createdAt: string;
 }
 
@@ -130,22 +140,84 @@ export function fetchServiceCallDetail(id: string): Promise<{ serviceCall: Servi
   return apiFetch(`/api/service-calls/${id}`);
 }
 
-export const MEAL_LABELS: Record<string, string> = { breakfast: "Déjeuner", lunch: "Dîner", dinner: "Souper" };
-
 export interface UpdateServiceCallInput {
   assignedEmployeeIds?: string[];
-  scheduledAt?: string | null;
-  kmTraveled?: number | null;
-  mealsClaimed?: string[];
-  summary?: string | null;
 }
 
 export function updateServiceCall(id: string, patch: UpdateServiceCallInput): Promise<void> {
   return apiFetch(`/api/service-calls/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
 }
 
-export function addServiceCallPart(id: string, input: { name: string; qty: number; unit?: string }): Promise<{ part: ServiceCallPartDto }> {
-  return apiFetch(`/api/service-calls/${id}/parts`, { method: "POST", body: JSON.stringify(input) });
+export function deleteServiceCall(id: string): Promise<void> {
+  return apiFetch(`/api/service-calls/${id}`, { method: "DELETE" });
+}
+
+// ---------------------------------------------------------------------------
+// Bons de travail (Chantier D, 16 novembre 2026)
+// ---------------------------------------------------------------------------
+
+export interface CreateBonDeTravailInput {
+  /** Omis : le technicien qui crée devient automatiquement l'assigné (voir backend). Direction peut choisir explicitement pour rattraper un oubli. */
+  assignedEmployeeIds?: string[];
+  scheduledAt?: string;
+}
+
+export function createBonDeTravail(serviceCallId: string, input: CreateBonDeTravailInput): Promise<{ id: string; displayId: string }> {
+  return apiFetch(`/api/service-calls/${serviceCallId}/bons-travail`, { method: "POST", body: JSON.stringify(input) });
+}
+
+/** Détail riche d'un Bon de travail — toutes les données qui vivaient à plat sur ServiceCall avant la refonte. */
+export interface BonDeTravailDetailDto {
+  id: string;
+  displayId: string;
+  serviceCallId: string;
+  serviceCallDisplayId: string;
+  serviceCallTitle: string;
+  contactName: string;
+  company: string | null;
+  assignedEmployees: AssignedEmployeeDto[];
+  scheduledAt: string | null;
+  startAt: string | null;
+  endAt: string | null;
+  kmTraveled: number | null;
+  mealsBreakfastCount: number;
+  mealsLunchCount: number;
+  mealsDinnerCount: number;
+  summary: string | null;
+  signatureCaptured: boolean;
+  signatureImageUrl: string | null;
+  signatureSignerName: string | null;
+  ownerApprovedByName: string | null;
+  ownerApprovedAt: string | null;
+  invoicePlanEntryId: string | null;
+  invoiceNumber: string | null;
+  parts: ServiceCallPartDto[];
+  photos: ServiceCallPhotoDto[];
+  timeEntries: ServiceCallTimeEntryDto[];
+  totals: ServiceCallTotalsDto;
+  createdAt: string;
+}
+
+export function fetchBonDeTravailDetail(id: string): Promise<{ bonDeTravail: BonDeTravailDetailDto }> {
+  return apiFetch(`/api/service-calls/bons-travail/${id}`);
+}
+
+export interface UpdateBonDeTravailInput {
+  assignedEmployeeIds?: string[];
+  scheduledAt?: string | null;
+  kmTraveled?: number | null;
+  mealsBreakfastCount?: number;
+  mealsLunchCount?: number;
+  mealsDinnerCount?: number;
+  summary?: string | null;
+}
+
+export function updateBonDeTravail(id: string, patch: UpdateBonDeTravailInput): Promise<void> {
+  return apiFetch(`/api/service-calls/bons-travail/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
+}
+
+export function addServiceCallPart(bonDeTravailId: string, input: { name: string; qty: number; unit?: string }): Promise<{ part: ServiceCallPartDto }> {
+  return apiFetch(`/api/service-calls/bons-travail/${bonDeTravailId}/parts`, { method: "POST", body: JSON.stringify(input) });
 }
 
 export function removeServiceCallPart(partId: string): Promise<void> {
@@ -159,24 +231,10 @@ export function priceServiceCallPart(
   return apiFetch(`/api/service-calls/parts/${partId}/price`, { method: "PATCH", body: JSON.stringify(input) });
 }
 
-export function captureServiceCallSignature(id: string, dataUrl: string, signerName: string): Promise<void> {
-  return apiFetch(`/api/service-calls/${id}/signature`, { method: "POST", body: JSON.stringify({ dataUrl, signerName }) });
+export function captureBonDeTravailSignature(id: string, dataUrl: string, signerName: string): Promise<void> {
+  return apiFetch(`/api/service-calls/bons-travail/${id}/signature`, { method: "POST", body: JSON.stringify({ dataUrl, signerName }) });
 }
 
-export function approveServiceCall(id: string): Promise<void> {
-  return apiFetch(`/api/service-calls/${id}/approve`, { method: "POST" });
-}
-
-/** Aperçu avant confirmation (RequestInvoiceModal, 13 novembre 2026) — jamais attribué/écrit. */
-export function previewServiceCallInvoice(id: string): Promise<{ preview: InvoiceRequestPreviewDto }> {
-  return apiFetch(`/api/service-calls/${id}/invoice-preview`, { method: "POST" });
-}
-
-/** Geste unifié "Demander la facturation" — crée ET confirme le jalon (numéro/taxes/échéance) dans la même transaction. */
-export function sendServiceCallToAdmin(id: string, note?: string): Promise<void> {
-  return apiFetch(`/api/service-calls/${id}/send-to-admin`, { method: "POST", body: JSON.stringify({ note }) });
-}
-
-export function deleteServiceCall(id: string): Promise<void> {
-  return apiFetch(`/api/service-calls/${id}`, { method: "DELETE" });
+export function approveBonDeTravail(id: string): Promise<void> {
+  return apiFetch(`/api/service-calls/bons-travail/${id}/approve`, { method: "POST" });
 }

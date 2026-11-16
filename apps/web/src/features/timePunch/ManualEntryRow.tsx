@@ -1,5 +1,5 @@
 import { ReferenceFields, type ReferenceValue } from "./ReferenceFields.js";
-import type { PunchableTaskDto, ProjectOptionDto, RollingOptionDto, ServiceCallOptionDto } from "./api.js";
+import type { PunchableTaskDto, ProjectOptionDto, RollingOptionDto, BonDeTravailOptionDto } from "./api.js";
 import type { TechLevelDto } from "../settings/api.js";
 import "./timePunch.css";
 
@@ -19,7 +19,7 @@ interface ManualEntryRowProps {
   tasks: PunchableTaskDto[];
   projects: ProjectOptionDto[];
   rollings: RollingOptionDto[];
-  serviceCalls: ServiceCallOptionDto[];
+  bonsDeTravail: BonDeTravailOptionDto[];
   employeeTechLevelIds: string[];
   techLevels: TechLevelDto[];
   showRate: boolean;
@@ -34,7 +34,7 @@ export function ManualEntryRow({
   tasks,
   projects,
   rollings,
-  serviceCalls,
+  bonsDeTravail,
   employeeTechLevelIds,
   techLevels,
   showRate,
@@ -68,7 +68,7 @@ export function ManualEntryRow({
           tasks={tasks}
           projects={projects}
           rollings={rollings}
-          serviceCalls={serviceCalls}
+          bonsDeTravail={bonsDeTravail}
           employeeTechLevelIds={employeeTechLevelIds}
           techLevels={techLevels}
           showRate={showRate}

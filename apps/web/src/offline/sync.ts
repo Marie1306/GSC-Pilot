@@ -1,19 +1,19 @@
 import { offlineDb, type OutboxItem, type OutboxKind } from "./db.js";
 import { clearPendingStop } from "./localTimer.js";
 import { createManualEntry, stopTimer, type ManualEntryInput } from "../features/timePunch/api.js";
-import { updateServiceCall, addServiceCallPart, captureServiceCallSignature, type UpdateServiceCallInput } from "../features/serviceCalls/api.js";
+import { updateBonDeTravail, addServiceCallPart, captureBonDeTravailSignature, type UpdateBonDeTravailInput } from "../features/serviceCalls/api.js";
 
-interface ServiceCallUpdatePayload {
-  serviceCallId: string;
-  patch: UpdateServiceCallInput;
+interface BonDeTravailUpdatePayload {
+  bonDeTravailId: string;
+  patch: UpdateBonDeTravailInput;
 }
-interface ServiceCallAddPartPayload {
-  serviceCallId: string;
+interface BonDeTravailAddPartPayload {
+  bonDeTravailId: string;
   name: string;
   qty: number;
 }
-interface ServiceCallSignaturePayload {
-  serviceCallId: string;
+interface BonDeTravailSignaturePayload {
+  bonDeTravailId: string;
   dataUrl: string;
   signerName: string;
 }
@@ -30,9 +30,9 @@ const HANDLERS: Record<OutboxKind, (payload: never) => Promise<unknown>> = {
     await stopTimer(payload.id);
     await clearPendingStop(payload.id);
   },
-  "service-call-update": (payload: ServiceCallUpdatePayload) => updateServiceCall(payload.serviceCallId, payload.patch),
-  "service-call-add-part": (payload: ServiceCallAddPartPayload) => addServiceCallPart(payload.serviceCallId, { name: payload.name, qty: payload.qty }),
-  "service-call-signature": (payload: ServiceCallSignaturePayload) => captureServiceCallSignature(payload.serviceCallId, payload.dataUrl, payload.signerName),
+  "bon-de-travail-update": (payload: BonDeTravailUpdatePayload) => updateBonDeTravail(payload.bonDeTravailId, payload.patch),
+  "bon-de-travail-add-part": (payload: BonDeTravailAddPartPayload) => addServiceCallPart(payload.bonDeTravailId, { name: payload.name, qty: payload.qty }),
+  "bon-de-travail-signature": (payload: BonDeTravailSignaturePayload) => captureBonDeTravailSignature(payload.bonDeTravailId, payload.dataUrl, payload.signerName),
 };
 
 const listeners = new Set<() => void>();

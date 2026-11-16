@@ -20,7 +20,7 @@ function Harness({ initial }: { initial: ReferenceValue }) {
       tasks={TASKS}
       projects={[]}
       rollings={[]}
-      serviceCalls={[]}
+      bonsDeTravail={[]}
       employeeTechLevelIds={[]}
       techLevels={[]}
       showRate={false}

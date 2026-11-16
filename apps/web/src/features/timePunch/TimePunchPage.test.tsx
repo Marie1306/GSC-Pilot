@@ -33,7 +33,7 @@ const submittedEntry = {
   projectType: "internal",
   projectId: null,
   projectLabel: null,
-  serviceCallId: null,
+  bonDeTravailId: null,
   category: "internal",
   categoryLabel: "Interne — Amélioration GSC",
   taskId: "55555555-5555-5555-5555-555555555555",

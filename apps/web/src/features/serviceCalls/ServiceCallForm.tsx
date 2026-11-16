@@ -58,7 +58,6 @@ const EMPTY: CreateServiceCallInput = {
   request: "",
   address: "",
   assignedEmployeeIds: [],
-  scheduledAt: "",
 };
 
 function initialForm(
@@ -82,7 +81,6 @@ function initialForm(
       request: prefillFromRequest.summary,
       address: prefillFromRequest.address ?? "",
       assignedEmployeeIds: [],
-      scheduledAt: "",
     };
   }
   if (prefillFromProject) {
@@ -98,7 +96,6 @@ function initialForm(
       request: "",
       address: "",
       assignedEmployeeIds: [],
-      scheduledAt: "",
     };
   }
   if (prefillFromRolling) {
@@ -114,7 +111,6 @@ function initialForm(
       request: "",
       address: "",
       assignedEmployeeIds: [],
-      scheduledAt: "",
     };
   }
   return EMPTY;
@@ -141,7 +137,6 @@ export function ServiceCallForm({ onClose, prefillFromRequest, prefillFromProjec
         request: form.request.trim(),
         address: form.address?.trim() || undefined,
         assignedEmployeeIds: form.assignedEmployeeIds,
-        scheduledAt: form.scheduledAt || undefined,
         clientRequestId: prefillFromRequest?.clientRequestId,
         projectId: prefillFromProject?.projectId,
         rollingId: prefillFromRolling?.rollingId,
@@ -272,15 +267,6 @@ export function ServiceCallForm({ onClose, prefillFromRequest, prefillFromProjec
                   </label>
                 ))}
               </div>
-            </div>
-            <div className="field">
-              <label htmlFor="sc-scheduled">Prévu le (facultatif)</label>
-              <input
-                id="sc-scheduled"
-                type="date"
-                value={form.scheduledAt}
-                onChange={(event) => setForm((current) => ({ ...current, scheduledAt: event.target.value }))}
-              />
             </div>
             <div className="field field-full">
               <label htmlFor="sc-request">Description de la demande</label>

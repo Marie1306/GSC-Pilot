@@ -9,7 +9,7 @@ import type { PunchProjectType, RateType } from "../features/timePunch/api.js";
  * ligne ailleurs par accident.
  */
 
-export type OutboxKind = "time-entry-create" | "time-entry-stop" | "service-call-update" | "service-call-add-part" | "service-call-signature";
+export type OutboxKind = "time-entry-create" | "time-entry-stop" | "bon-de-travail-update" | "bon-de-travail-add-part" | "bon-de-travail-signature";
 
 export interface OutboxItem {
   id: string;
@@ -28,7 +28,7 @@ export interface LocalActiveEntry {
   projectType: PunchProjectType;
   projectId?: string;
   rollingId?: string;
-  serviceCallId?: string;
+  bonDeTravailId?: string;
   taskId: string;
   taskLabel: string;
   referenceLabel: string;

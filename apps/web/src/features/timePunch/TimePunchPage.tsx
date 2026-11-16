@@ -14,7 +14,7 @@ import {
   fetchAllTimeEntries,
   fetchProjectOptions,
   fetchRollingOptions,
-  fetchServiceCallOptions,
+  fetchBonDeTravailOptions,
   fetchPunchableEmployees,
   stopTimer,
   approveTimeEntry,
@@ -224,12 +224,12 @@ export function TimePunchPage() {
 
   const projectOptionsQuery = useQuery({ queryKey: ["time-entries", "project-options"], queryFn: fetchProjectOptions });
   const rollingOptionsQuery = useQuery({ queryKey: ["time-entries", "rolling-options"], queryFn: fetchRollingOptions });
-  const serviceCallOptionsQuery = useQuery({ queryKey: ["time-entries", "service-call-options"], queryFn: fetchServiceCallOptions });
+  const bonDeTravailOptionsQuery = useQuery({ queryKey: ["time-entries", "bon-de-travail-options"], queryFn: fetchBonDeTravailOptions });
   const employeeOptionsQuery = useQuery({ queryKey: ["time-entries", "employees"], queryFn: fetchPunchableEmployees, enabled: isDirection });
   const referenceOptions: ReferenceOption[] = [
     ...(projectOptionsQuery.data?.projects ?? []).map((p) => ({ id: `project:${p.id}`, label: p.label })),
     ...(rollingOptionsQuery.data?.rollings ?? []).map((r) => ({ id: `rolling:${r.id}`, label: r.label })),
-    ...(serviceCallOptionsQuery.data?.serviceCalls ?? []).map((s) => ({ id: `service:${s.id}`, label: s.label })),
+    ...(bonDeTravailOptionsQuery.data?.bonsDeTravail ?? []).map((bt) => ({ id: `service:${bt.id}`, label: bt.label })),
     { id: "internal", label: "Interne" },
   ];
 
@@ -304,7 +304,7 @@ export function TimePunchPage() {
         projectType: localActive.projectType,
         projectId: localActive.projectId,
         rollingId: localActive.rollingId,
-        serviceCallId: localActive.serviceCallId,
+        bonDeTravailId: localActive.bonDeTravailId,
         taskId: localActive.taskId,
         techLevelId: localActive.techLevelId,
         rateType: localActive.rateType,
