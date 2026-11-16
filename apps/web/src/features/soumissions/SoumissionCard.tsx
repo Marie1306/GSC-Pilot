@@ -168,15 +168,6 @@ function SoumissionRow({ soumission, onSend, onDecide, onDelete, sendPending, de
               Convertir en confirmation de commande
             </button>
           )}
-          {confirmation && (
-            <button
-              type="button"
-              className="btn btn-secondary btn-small"
-              onClick={() => window.open(`/confirmations/${confirmation.id}/export`, "_blank", "noopener")}
-            >
-              Confirmation {confirmation.displayId}
-            </button>
-          )}
           <button
             type="button"
             className="btn btn-secondary btn-small"
@@ -216,6 +207,26 @@ function SoumissionRow({ soumission, onSend, onDecide, onDelete, sendPending, de
                 {convertMutation.error instanceof ApiError ? convertMutation.error.message : "Une erreur est survenue — réessayez."}
               </p>
             )}
+          </td>
+        </tr>
+      )}
+      {confirmation && (
+        <tr>
+          <td>
+            {confirmation.displayId}
+            <div className="cell-sub">Confirmation de commande</div>
+          </td>
+          <td>{confirmation.clientPoNumber ? `PO ${confirmation.clientPoNumber}` : "—"}</td>
+          <td className="num">{formatCurrency(confirmation.totalWithTax)}</td>
+          <td>{formatDate(confirmation.createdAt)}</td>
+          <td style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-small"
+              onClick={() => window.open(`/confirmations/${confirmation.id}/export`, "_blank", "noopener")}
+            >
+              Imprimer
+            </button>
           </td>
         </tr>
       )}
