@@ -132,6 +132,26 @@ describe("Appels de service", () => {
   });
   // canSendServiceCallToAdmin retirée le 13 novembre 2026 — voir
   // canConfirmInvoiceRequest, testée dans "Facturation" ci-dessous.
+
+  // canCreateBonDeTravail (Chantier D, 16 novembre 2026).
+  it("le technicien assigné au call peut créer un Bon de travail", () => {
+    expect(P.canCreateBonDeTravail(MEMBER, { assignedEmployees: [{ id: "emp-1" }] }, "emp-1")).toBe(true);
+  });
+  it("un technicien non assigné au call ne peut pas créer de Bon de travail", () => {
+    expect(P.canCreateBonDeTravail(MEMBER, { assignedEmployees: [{ id: "emp-2" }] }, "emp-1")).toBe(false);
+  });
+  it("Direction peut toujours créer un Bon de travail, même sans y être assignée (rattraper un oubli)", () => {
+    expect(P.canCreateBonDeTravail(OWNER, { assignedEmployees: [] }, "emp-1")).toBe(true);
+  });
+  it("le Propriétaire ne peut pas créer de Bon de travail — précédent étroit propre à ce module", () => {
+    expect(P.canCreateBonDeTravail(BOSS, { assignedEmployees: [{ id: "emp-1" }] }, "emp-1")).toBe(false);
+  });
+  it("Administration ne peut pas créer de Bon de travail", () => {
+    expect(P.canCreateBonDeTravail(ADMIN, { assignedEmployees: [{ id: "emp-1" }] }, "emp-1")).toBe(false);
+  });
+  it("Magasinier ne peut pas créer de Bon de travail", () => {
+    expect(P.canCreateBonDeTravail(WAREHOUSE, { assignedEmployees: [{ id: "emp-1" }] }, "emp-1")).toBe(false);
+  });
 });
 
 describe("Budgétaire", () => {

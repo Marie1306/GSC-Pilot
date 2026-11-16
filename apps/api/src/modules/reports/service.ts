@@ -7,7 +7,7 @@
  * service, plus un graphique de conversion par canal de vente. Agrège des
  * données déjà confirmées ailleurs — pas de nouvelle règle métier à
  * trancher. » Chaque chiffre ci-dessous reste calculé par les fonctions
- * déjà vérifiées (listProjects, getServiceCallDetail, projectMargin,
+ * déjà vérifiées (listProjects, getServiceCallFinancialSummary, projectMargin,
  * financialStatus, internalHoursSummary/internalPurchasesSummary) — jamais
  * un deuxième calcul divergent.
  *
@@ -40,7 +40,7 @@ import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
 import { listProjects } from "../projects/service.js";
 import { listRollings, getRollingDetail } from "../rollings/service.js";
-import { listServiceCalls, getServiceCallDetail } from "../serviceCalls/service.js";
+import { listServiceCalls, getServiceCallFinancialSummary } from "../serviceCalls/service.js";
 
 function round2(value: number): number {
   return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
@@ -118,12 +118,15 @@ export async function getProfitabilityReport(viewerPersona: Persona, viewerEmplo
     };
   });
 
-  // getServiceCallDetail (déjà exporté, déjà vérifié) recalcule les mêmes
-  // totaux que computeServiceCallFinancials — jamais un troisième calcul.
-  const callDetails = await Promise.all(callSummaries.map((call) => getServiceCallDetail(call.id, viewerPersona)));
-  const callRows: ProfitabilityRowDto[] = callDetails.map((call) => {
-    const revenue = call.totals.totalSale ?? 0;
-    const cost = call.totals.totalCost ?? 0;
+  // getServiceCallFinancialSummary (déjà exporté, déjà vérifié) agrège les
+  // mêmes totaux que computeBonDeTravailFinancials sur tous les Bons de
+  // travail du Call — jamais un troisième calcul (Chantier D, 16 novembre
+  // 2026 : remplace getServiceCallDetail, qui n'a plus de totaux depuis que
+  // ServiceCall est devenu un dossier).
+  const callFinancials = await Promise.all(callSummaries.map((call) => getServiceCallFinancialSummary(call.id)));
+  const callRows: ProfitabilityRowDto[] = callFinancials.map((call) => {
+    const revenue = call.totalSale;
+    const cost = call.totalCost;
     const margin = projectMargin(revenue, cost, 0);
     return {
       id: call.id,
@@ -137,7 +140,7 @@ export async function getProfitabilityReport(viewerPersona: Persona, viewerEmplo
       grossMargin: margin.grossMargin,
       grossMarginPct: round2(margin.grossMarginPct),
       financialStatus: financialStatus(margin.grossMarginPct, thresholds),
-      actualHours: call.totals.laborHours,
+      actualHours: call.laborHours,
     };
   });
 

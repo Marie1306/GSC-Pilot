@@ -45,9 +45,12 @@ describe("Tarif spécifique par tâche (20 août 2026)", () => {
 
 describe("Frais de déplacement et repas", () => {
   const rates = { mileageRate: 0.68, breakfastRate: 15, lunchRate: 20, dinnerRate: 25 };
-  it("kilométrage seul", () => expect(serviceCallExpenseTotal(100, [], rates)).toBe(68));
-  it("repas réclamés (taux fixe par type, pas par quantité)", () =>
-    expect(serviceCallExpenseTotal(0, ["lunch", "dinner"], rates)).toBe(45));
-  it("kilométrage + repas combinés", () => expect(serviceCallExpenseTotal(50, ["breakfast"], rates)).toBe(49));
-  it("aucun frais", () => expect(serviceCallExpenseTotal(null, undefined, rates)).toBe(0));
+  const noMeals = { mealsBreakfastCount: 0, mealsLunchCount: 0, mealsDinnerCount: 0 };
+  it("kilométrage seul", () => expect(serviceCallExpenseTotal(100, noMeals, rates)).toBe(68));
+  it("repas réclamés, un seul de chaque type (compteur 1)", () =>
+    expect(serviceCallExpenseTotal(0, { ...noMeals, mealsLunchCount: 1, mealsDinnerCount: 1 }, rates)).toBe(45));
+  it("repas en quantité (16 novembre 2026) — plusieurs techniciens réclamant le même type sur un même BT", () =>
+    expect(serviceCallExpenseTotal(0, { ...noMeals, mealsLunchCount: 2 }, rates)).toBe(40));
+  it("kilométrage + repas combinés", () => expect(serviceCallExpenseTotal(50, { ...noMeals, mealsBreakfastCount: 1 }, rates)).toBe(49));
+  it("aucun frais", () => expect(serviceCallExpenseTotal(null, noMeals, rates)).toBe(0));
 });

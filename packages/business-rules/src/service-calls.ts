@@ -91,18 +91,25 @@ export interface ServiceCallExpenseRates {
   dinnerRate: number;
 }
 
-/** Frais de déplacement (km × taux) + repas réclamés (un taux fixe par type, pas par quantité). */
-export function serviceCallExpenseTotal(
-  kmTraveled: number | null | undefined,
-  mealsClaimed: string[] | undefined,
-  rates: ServiceCallExpenseRates,
-): number {
+export interface ServiceCallMealCounts {
+  mealsBreakfastCount: number;
+  mealsLunchCount: number;
+  mealsDinnerCount: number;
+}
+
+/**
+ * Frais de déplacement (km × taux) + repas réclamés (tarif du type × nombre
+ * réclamé). Jusqu'au 16 novembre 2026, un repas comptait pour un montant
+ * fixe par type coché, jamais multiplié par une quantité — changé puisqu'un
+ * Bon de travail peut désormais avoir plusieurs techniciens, chacun pouvant
+ * réclamer son propre repas (confirmé par l'utilisatrice, exemple chiffré à
+ * l'appui — voir CLAUDE.md).
+ */
+export function serviceCallExpenseTotal(kmTraveled: number | null | undefined, meals: ServiceCallMealCounts, rates: ServiceCallExpenseRates): number {
   const kmCost = Number(kmTraveled || 0) * Number(rates.mileageRate || 0);
-  const mealRateByType: Record<MealType, number> = {
-    breakfast: Number(rates.breakfastRate || 0),
-    lunch: Number(rates.lunchRate || 0),
-    dinner: Number(rates.dinnerRate || 0),
-  };
-  const mealsCost = (mealsClaimed || []).reduce((sum, meal) => sum + (mealRateByType[meal as MealType] || 0), 0);
+  const mealsCost =
+    Number(meals.mealsBreakfastCount || 0) * Number(rates.breakfastRate || 0) +
+    Number(meals.mealsLunchCount || 0) * Number(rates.lunchRate || 0) +
+    Number(meals.mealsDinnerCount || 0) * Number(rates.dinnerRate || 0);
   return round2(kmCost + mealsCost);
 }

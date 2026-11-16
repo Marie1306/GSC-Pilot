@@ -68,7 +68,7 @@ interface PunchReferenceInput {
   projectType: string;
   projectId?: string | null;
   rollingId?: string | null;
-  serviceCallId?: string | null;
+  bonDeTravailId?: string | null;
   techLevelId?: string | null;
   rateType?: string | null;
 }
@@ -96,14 +96,21 @@ async function resolvePunchTarget(
   input: PunchReferenceInput,
 ): Promise<ResolvedPunchTarget> {
   if (input.projectType === "service") {
-    if (!input.serviceCallId) throw new HttpError(400, "Un call de service est requis.");
-    const call = await prisma.serviceCall.findUnique({
-      where: { id: input.serviceCallId },
-      include: { assignedEmployees: { select: { id: true } } },
+    if (!input.bonDeTravailId) throw new HttpError(400, "Un bon de travail est requis.");
+    const bonDeTravail = await prisma.bonDeTravail.findUnique({
+      where: { id: input.bonDeTravailId },
+      include: { assignedEmployees: { select: { id: true } }, serviceCall: { select: { projectId: true, rollingId: true } } },
     });
-    if (!call) throw new HttpError(404, "Call de service introuvable.");
-    if (!canPunchServiceCall(actorPersona, call, employeeId)) {
-      throw new HttpError(403, "Vous ne pouvez puncher que sur un call qui vous est assigné.");
+    if (!bonDeTravail || bonDeTravail.deletedAt) throw new HttpError(404, "Bon de travail introuvable.");
+    if (bonDeTravail.invoicePlanEntryId) throw new HttpError(409, "Ce bon de travail est déjà facturé — impossible d'y ajouter du temps.");
+    // canPunchServiceCall (business-rules) reste réutilisée telle quelle —
+    // sa forme ({assignedEmployees}) s'applique aussi bien à un BonDeTravail
+    // qu'à un ServiceCall, jamais réimplémentée pour ce renommage (Chantier D,
+    // 16 novembre 2026) : un Employé ne punch que sur un BT qui lui est
+    // RÉELLEMENT assigné (qui est allé sur ce déplacement précis), pas
+    // seulement sur le dossier parent.
+    if (!canPunchServiceCall(actorPersona, bonDeTravail, employeeId)) {
+      throw new HttpError(403, "Vous ne pouvez puncher que sur un bon de travail qui vous est assigné.");
     }
     const employee = await prisma.employee.findUnique({ where: { id: employeeId }, include: { techLevels: true } });
     if (!employee) throw new HttpError(404, "Employé introuvable.");
@@ -114,7 +121,14 @@ async function resolvePunchTarget(
     // le taux de la classe (rateForType) est le tarif FACTURÉ AU CLIENT, jamais
     // un coût; il reste dérivable via techLevelId+rateType (gelés ci-dessous)
     // pour calculer le prix de vente d'un appel de service, séparément.
-    return { category: task.category, costRate: Number(employee.costRate), techLevelId: eligible.id, rateType, linkedProjectId: call.projectId, linkedRollingId: call.rollingId };
+    return {
+      category: task.category,
+      costRate: Number(employee.costRate),
+      techLevelId: eligible.id,
+      rateType,
+      linkedProjectId: bonDeTravail.serviceCall.projectId,
+      linkedRollingId: bonDeTravail.serviceCall.rollingId,
+    };
   }
   if (input.projectType === "project" || input.projectType === "rolling") {
     // Roulement (28 août 2026) : même mécanisme que projet — catalogue de
@@ -174,7 +188,7 @@ export interface TimeEntryDto {
   projectLabel: string | null;
   rollingId: string | null;
   rollingLabel: string | null;
-  serviceCallId: string | null;
+  bonDeTravailId: string | null;
   category: string;
   categoryLabel: string;
   taskId: string | null;
@@ -204,7 +218,7 @@ function toDto(entry: TimeEntryWithRelations, viewerPersona: Persona): TimeEntry
     projectLabel: entry.project ? `${entry.project.projectNumber} — ${entry.project.name}` : null,
     rollingId: entry.rollingId,
     rollingLabel: entry.rolling ? `${entry.rolling.rollingNumber} — ${entry.rolling.contact.company ?? entry.rolling.contact.name}` : null,
-    serviceCallId: entry.serviceCallId,
+    bonDeTravailId: entry.bonDeTravailId,
     category: entry.category,
     categoryLabel: categoryLabel(entry.category),
     taskId: entry.taskId,
@@ -230,7 +244,7 @@ export interface StartTimerInput {
   projectType: "project" | "service" | "internal" | "rolling";
   projectId?: string;
   rollingId?: string;
-  serviceCallId?: string;
+  bonDeTravailId?: string;
   taskId: string;
   note?: string;
   techLevelId?: string;
@@ -256,7 +270,7 @@ export async function startTimer(actorEmployeeId: string, actorPersona: Persona,
       // ce cas, contrairement à un call non lié ou une entrée interne.
       projectId: input.projectType === "project" ? (input.projectId ?? null) : resolved.linkedProjectId,
       rollingId: input.projectType === "rolling" ? (input.rollingId ?? null) : resolved.linkedRollingId,
-      serviceCallId: input.projectType === "service" ? input.serviceCallId : null,
+      bonDeTravailId: input.projectType === "service" ? input.bonDeTravailId : null,
       category: resolved.category,
       taskId: task.id,
       startAt: new Date(),
@@ -301,7 +315,7 @@ export interface ManualEntryInput {
   projectType: "project" | "service" | "internal" | "rolling";
   projectId?: string;
   rollingId?: string;
-  serviceCallId?: string;
+  bonDeTravailId?: string;
   taskId: string;
   hours: number;
   note?: string;
@@ -332,7 +346,7 @@ export async function createManualEntry(actorEmployeeId: string, actorPersona: P
       // Même raison que startTimer ci-dessus (call de service lié à un projet).
       projectId: input.projectType === "project" ? (input.projectId ?? null) : resolved.linkedProjectId,
       rollingId: input.projectType === "rolling" ? (input.rollingId ?? null) : resolved.linkedRollingId,
-      serviceCallId: input.projectType === "service" ? input.serviceCallId : null,
+      bonDeTravailId: input.projectType === "service" ? input.bonDeTravailId : null,
       category: resolved.category,
       taskId: task.id,
       startAt: at,
@@ -358,10 +372,11 @@ export async function createManualEntry(actorEmployeeId: string, actorPersona: P
  * "internal" filtre directement sur projectType (jamais sur l'absence des 3
  * FK — un appel de service NON lié a aussi ses 3 FK nulles, projectType
  * reste le seul discriminant fiable). Les 3 autres filtrent sur la vraie FK
- * (projectId/rollingId/serviceCallId) plutôt que sur projectType, pour
+ * (projectId/rollingId/bonDeTravailId) plutôt que sur projectType, pour
  * qu'un appel de service lié à un projet compte aussi dans les heures de
  * CE projet quand on filtre par lui — comportement voulu, pas une
- * approximation.
+ * approximation. "service:<id>" filtre par Bon de travail précis (Chantier D,
+ * 16 novembre 2026) — un déplacement, pas tout le Call de service parent.
  */
 export interface TimeEntryListFilter {
   dateFrom?: string;
@@ -389,7 +404,7 @@ function timeEntryReferenceWhere(filter: TimeEntryListFilter): Prisma.TimeEntryW
   const [kind, refId] = filter.reference.split(":");
   if (kind === "project" && refId) return { projectId: refId };
   if (kind === "rolling" && refId) return { rollingId: refId };
-  if (kind === "service" && refId) return { serviceCallId: refId };
+  if (kind === "service" && refId) return { bonDeTravailId: refId };
   return {};
 }
 
@@ -451,10 +466,10 @@ export async function approveTimeEntry(entryId: string, actorPersona: Persona): 
   return toDto(updated, actorPersona);
 }
 
-function referenceLabel(entry: { projectType: string; projectId: string | null; rollingId: string | null; serviceCallId: string | null }): string {
+function referenceLabel(entry: { projectType: string; projectId: string | null; rollingId: string | null; bonDeTravailId: string | null }): string {
   if (entry.projectType === "project") return `project:${entry.projectId}`;
   if (entry.projectType === "rolling") return `rolling:${entry.rollingId}`;
-  if (entry.projectType === "service") return `service:${entry.serviceCallId}`;
+  if (entry.projectType === "service") return `service:${entry.bonDeTravailId}`;
   return "internal";
 }
 
@@ -464,7 +479,7 @@ export interface UpdateTimeEntryInput {
   projectType?: "project" | "service" | "internal" | "rolling";
   projectId?: string;
   rollingId?: string;
-  serviceCallId?: string;
+  bonDeTravailId?: string;
   taskId?: string;
   hours?: number;
   date?: string;
@@ -497,7 +512,7 @@ export async function updateTimeEntry(
     (patch.projectType !== undefined && patch.projectType !== entry.projectType) ||
     (patch.projectId !== undefined && patch.projectId !== entry.projectId) ||
     (patch.rollingId !== undefined && patch.rollingId !== entry.rollingId) ||
-    (patch.serviceCallId !== undefined && patch.serviceCallId !== entry.serviceCallId);
+    (patch.bonDeTravailId !== undefined && patch.bonDeTravailId !== entry.bonDeTravailId);
 
   const data: Prisma.TimeEntryUncheckedUpdateInput = {};
   if (patch.note !== undefined) data.note = patch.note;
@@ -510,7 +525,7 @@ export async function updateTimeEntry(
       projectType: nextProjectType,
       projectId: patch.projectId ?? entry.projectId,
       rollingId: patch.rollingId ?? entry.rollingId,
-      serviceCallId: patch.serviceCallId ?? entry.serviceCallId,
+      bonDeTravailId: patch.bonDeTravailId ?? entry.bonDeTravailId,
       techLevelId: entry.techLevelId,
       rateType: entry.rateType,
     });
@@ -518,7 +533,7 @@ export async function updateTimeEntry(
     // Même raison que startTimer/createManualEntry (call de service lié à un projet).
     data.projectId = nextProjectType === "project" ? (patch.projectId ?? entry.projectId) : resolved.linkedProjectId;
     data.rollingId = nextProjectType === "rolling" ? (patch.rollingId ?? entry.rollingId) : resolved.linkedRollingId;
-    data.serviceCallId = nextProjectType === "service" ? patch.serviceCallId ?? entry.serviceCallId : null;
+    data.bonDeTravailId = nextProjectType === "service" ? patch.bonDeTravailId ?? entry.bonDeTravailId : null;
     data.category = resolved.category;
     data.taskId = task.id;
     data.costRate = resolved.costRate;
@@ -658,22 +673,36 @@ export async function listPunchableEmployees(): Promise<PunchableEmployeeDto[]> 
   }));
 }
 
-export interface ServiceCallOptionDto {
+export interface BonDeTravailOptionDto {
   id: string;
   label: string;
 }
 
 /**
- * Numéro + entreprise du client (JAMAIS `request`, le texte libre de la
- * demande d'origine — pouvait faire plusieurs phrases dans ce sélecteur,
- * rapporté le 15 septembre 2026). Repli sur le nom du contact si aucune
- * entreprise n'est renseignée (facultatif sur Contact) — jamais un
- * sélecteur avec seulement un numéro, sans rien pour identifier le client.
+ * Bons de travail à choisir pour puncher (Chantier D, 16 novembre 2026 —
+ * remplace listServiceCallOptions, qui listait les ServiceCall à plat avant
+ * l'introduction des Bons de travail). Jamais un BT déjà facturé
+ * (invoicePlanEntryId posé — figé, plus une cible de punch). Un Employé ne
+ * voit que les BT où il est RÉELLEMENT assigné (pas seulement le Call
+ * parent) — même filtre exact que canPunchServiceCall dans resolvePunchTarget,
+ * pour ne jamais lister une option qui mènerait à un 403 au punch réel.
+ * Libellé = numéro du BT + numéro du Call parent + entreprise du client
+ * (JAMAIS `request`, le texte libre de la demande d'origine — pouvait faire
+ * plusieurs phrases dans ce sélecteur, rapporté le 15 septembre 2026). Repli
+ * sur le nom du contact si aucune entreprise n'est renseignée.
  */
-export async function listServiceCallOptions(employeeId: string, persona: Persona): Promise<ServiceCallOptionDto[]> {
-  const rows = await prisma.serviceCall.findMany({
-    where: persona === "member" ? { assignedEmployees: { some: { id: employeeId } } } : {},
-    select: { id: true, displayId: true, contact: { select: { company: true, name: true } } },
+export async function listBonDeTravailOptions(employeeId: string, persona: Persona): Promise<BonDeTravailOptionDto[]> {
+  const rows = await prisma.bonDeTravail.findMany({
+    where: {
+      deletedAt: null,
+      invoicePlanEntryId: null,
+      ...(persona === "member" ? { assignedEmployees: { some: { id: employeeId } } } : {}),
+    },
+    select: { id: true, displayId: true, serviceCall: { select: { displayId: true, contact: { select: { company: true, name: true } } } } },
+    orderBy: { createdAt: "desc" },
   });
-  return rows.map((row) => ({ id: row.id, label: `${row.displayId} — ${row.contact.company ?? row.contact.name}` }));
+  return rows.map((row) => ({
+    id: row.id,
+    label: `${row.displayId} — ${row.serviceCall.displayId} — ${row.serviceCall.contact.company ?? row.serviceCall.contact.name}`,
+  }));
 }

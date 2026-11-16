@@ -63,6 +63,7 @@ model Employee {
   purchaseRequestsMade  PurchaseRequest[] @relation("PurchaseRequestRequester")
   timeEntries           TimeEntry[]
   assignedServiceCalls  ServiceCall[]
+  assignedBonsDeTravail BonDeTravail[]
   assignedProjectTasks  ProjectTask[]
   errorReportsAsSubject ErrorReport[]     @relation("ErrorReportSubject")
   errorReportsCreated   ErrorReport[]     @relation("ErrorReportCreatedBy")
@@ -903,6 +904,10 @@ model InvoicePlanEntry {
   // targetInvoicePlanEntryId ci-dessous) — jamais le contraire (une entrée
   // n'a elle-même aucun lien direct vers "son" avenant).
   targetedByAmendments Amendment[] @relation("AmendmentTarget")
+  // Bons de travail facturés par cette entrée (facturation sélective,
+  // Chantier D, 16 novembre 2026) — plusieurs BT possibles par entrée
+  // (Marie choisit lesquels mettre sur une même facture).
+  bonsDeTravail        BonDeTravail[]
 
   @@index([status])
 }
@@ -1109,8 +1114,11 @@ model TimeEntry {
   projectType    String // project | service | internal | rolling
   projectId      String?
   project        Project?       @relation(fields: [projectId], references: [id])
-  serviceCallId  String?
-  serviceCall    ServiceCall?   @relation(fields: [serviceCallId], references: [id])
+  // Punch sur un Bon de travail (Chantier D, 16 novembre 2026) — remplace
+  // l'ancien serviceCallId à plat (le Call d'origine reste atteignable via
+  // bonDeTravail.serviceCallId, jamais dupliqué ici).
+  bonDeTravailId String?
+  bonDeTravail   BonDeTravail?  @relation(fields: [bonDeTravailId], references: [id])
   // Punch sur un roulement (28 août 2026, demande de l'utilisatrice) — même
   // mécanique que projectId/serviceCallId ci-dessus, jamais un dossier
   // générique partagé : chaque type de dossier garde son propre FK nullable.
@@ -1190,63 +1198,101 @@ model ServiceCall {
   // l'utilisatrice le 19 août 2026 — "ils doivent parfois y aller à deux
   // techniciens") — remplace l'ancien assignedEmployeeId singulier.
   assignedEmployees            Employee[]
-  techLevelId                  String?
-  billRate                     Decimal?   @db.Decimal(10, 2) // gelé du TechLevel au moment de l'assignation
-  scheduledAt                  DateTime?
-  status                       String     @default("scheduled")
-  startAt                      DateTime?
-  endAt                        DateTime?
-  kmTraveled                   Decimal?   @db.Decimal(10, 2)
-  mealsClaimed                 String[]   @default([])
-  summary                      String?
-  signatureCaptured            Boolean    @default(false)
-  signatureImageUrl            String?
-  // Déclaration + nom du signataire obligatoires à la capture (20 août 2026,
-  // sur demande de l'utilisatrice) — voir SignatureModal.tsx côté interface.
-  signatureSignerName          String?
-  ownerApprovedById            String?
-  ownerApprovedAt              DateTime?
-  partPricingMarginPctOverride Decimal?   @db.Decimal(5, 2)
-  sentToAdminAt                DateTime?
   createdAt                    DateTime   @default(now())
   // Corbeille — même mécanisme que Project.deletedAt/ClientRequest.deletedAt/
   // Budget.deletedAt (19 août 2026) : Direction seulement (canDeleteServiceCall).
   deletedAt                    DateTime?
 
-  parts          ServiceCallPart[]
-  photos         ServiceCallPhoto[]
   invoiceEntries InvoicePlanEntry[]
-  timeEntries    TimeEntry[]
+  bonsDeTravail  BonDeTravail[]
   // Opposé requis de ClientRequest.serviceCall (relation gérée côté
   // ClientRequest, voir serviceCallId juste au-dessus) — jamais lu
   // directement ici, même patron que Budget.clientRequest.
   clientRequest  ClientRequest?
+}
 
-  @@index([status])
+/**
+ * Bon de travail (Chantier D, refonte complète du module Call de service —
+ * 16 novembre 2026, demande explicite de l'utilisatrice). Un ServiceCall
+ * (dossier, ci-dessus) peut contenir plusieurs Bons de travail — un par
+ * déplacement physique, peu importe le nombre de techniciens sur ce
+ * déplacement (jamais un BT par technicien). Reprend tous les champs qui
+ * vivaient à plat sur ServiceCall avant cette refonte (km/heures/repas/
+ * signature/approbation/pièces/photos/temps) — voir CLAUDE.md pour le
+ * contexte complet et la migration des données réelles existantes (un seul
+ * BT créé par ServiceCall déjà en production).
+ */
+model BonDeTravail {
+  id                           String             @id @default(uuid())
+  displayId                    String             @unique // format BT-AAAA-NNNN, remise à zéro annuelle (settings/sequentialNumbers.ts)
+  serviceCallId                String
+  serviceCall                  ServiceCall        @relation(fields: [serviceCallId], references: [id])
+  // Qui est réellement allé sur CE déplacement précis — distinct de
+  // ServiceCall.assignedEmployees ("qui est censé s'occuper du dossier",
+  // voir ce commentaire). Peut être un sous-ensemble ou différer.
+  assignedEmployees            Employee[]
+  scheduledAt                  DateTime?
+  startAt                      DateTime?
+  endAt                        DateTime?
+  kmTraveled                   Decimal?           @db.Decimal(10, 2)
+  // Repas en QUANTITÉ, pas un simple drapeau (16 novembre 2026, confirmé
+  // par l'utilisatrice après comparaison avec une vraie facture de
+  // référence — plusieurs techniciens sur un même BT peuvent chacun
+  // réclamer un repas). Montant = tarif du type (Settings) × compteur.
+  mealsBreakfastCount          Int                @default(0)
+  mealsLunchCount              Int                @default(0)
+  mealsDinnerCount             Int                @default(0)
+  summary                      String?
+  signatureCaptured            Boolean            @default(false)
+  signatureImageUrl            String?
+  signatureSignerName          String?
+  ownerApprovedById            String?
+  ownerApprovedAt              DateTime?
+  partPricingMarginPctOverride Decimal?           @db.Decimal(5, 2)
+  // Facture qui a inclus ce Bon de travail précis — nul tant qu'il n'a pas
+  // été sélectionné dans un lot facturé (facturation sélective, voir
+  // serviceCalls/service.ts). Une fois posé, ce BT est figé (même principe
+  // qu'une facture envoyée partout ailleurs dans l'appli).
+  invoicePlanEntryId           String?
+  invoicePlanEntry             InvoicePlanEntry?  @relation(fields: [invoicePlanEntryId], references: [id])
+  // Qui a créé ce BT — technicien assigné OU Direction (canCreateBonDeTravail).
+  // Nullable : les BT issus de la migration des données réelles (un par
+  // ServiceCall déjà en production) n'ont aucun créateur historique connu
+  // (jamais enregistré sur l'ancien ServiceCall) — jamais deviné.
+  createdById                   String?
+  createdAt                     DateTime           @default(now())
+  // Corbeille — même mécanisme que ServiceCall.deletedAt.
+  deletedAt                     DateTime?
+
+  parts       ServiceCallPart[]
+  photos      ServiceCallPhoto[]
+  timeEntries TimeEntry[]
+
+  @@index([serviceCallId])
 }
 
 model ServiceCallPart {
-  id                String      @id @default(uuid())
-  serviceCallId     String
-  serviceCall       ServiceCall @relation(fields: [serviceCallId], references: [id])
+  id                String       @id @default(uuid())
+  bonDeTravailId    String
+  bonDeTravail      BonDeTravail @relation(fields: [bonDeTravailId], references: [id])
   name              String
-  qty               Decimal     @db.Decimal(10, 2)
+  qty               Decimal      @db.Decimal(10, 2)
   unit              String?
-  costPerUnit       Decimal?    @db.Decimal(10, 2) // 0$ jusqu'à ce que Direction tarife (voir spec)
-  marginPctOverride Decimal?    @db.Decimal(5, 2)
-  salePricePerUnit  Decimal?    @db.Decimal(10, 2)
+  costPerUnit       Decimal?     @db.Decimal(10, 2) // 0$ jusqu'à ce que Direction tarife (voir spec)
+  marginPctOverride Decimal?     @db.Decimal(5, 2)
+  salePricePerUnit  Decimal?     @db.Decimal(10, 2)
   pricedById        String?
   pricedAt          DateTime?
 }
 
 model ServiceCallPhoto {
-  id            String      @id @default(uuid())
-  serviceCallId String
-  serviceCall   ServiceCall @relation(fields: [serviceCallId], references: [id])
-  storagePath   String
-  uploadedById  String
-  uploadedAt    DateTime    @default(now())
-  caption       String?
+  id             String       @id @default(uuid())
+  bonDeTravailId String
+  bonDeTravail   BonDeTravail @relation(fields: [bonDeTravailId], references: [id])
+  storagePath    String
+  uploadedById   String
+  uploadedAt     DateTime     @default(now())
+  caption        String?
 }
 
 // ---------------------------------------------------------------------------
@@ -1750,6 +1796,12 @@ model Settings {
   // même mécanisme que ci-dessus.
   nextConfirmationNumber       Int      @default(1)
   confirmationNumberYear       Int      @default(2026)
+  // Bons de travail (Chantier D, refonte Call de service — 16 novembre
+  // 2026) — BT-AAAA-NNNN, même mécanisme que ci-dessus. Aussi utilisé par
+  // le script de migration des données réelles (un BT par ServiceCall déjà
+  // en production).
+  nextBonDeTravailNumber       Int      @default(1)
+  bonDeTravailNumberYear       Int      @default(2026)
   // TPS/TVQ séparées (confirmé) — Decimal(6,3), pas (5,2) comme les autres
   // %, pour ne jamais arrondir silencieusement 9.975 à 9.98.
   tpsRatePct                   Decimal  @default(5.000) @db.Decimal(6, 3)

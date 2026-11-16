@@ -15,7 +15,7 @@
  */
 import { prisma } from "../../db.js";
 import { HttpError } from "../../middleware/errorHandler.js";
-import { serviceCallDisplayTitle } from "../serviceCalls/service.js";
+import { serviceCallDisplayTitle, deriveServiceCallStatus } from "../serviceCalls/service.js";
 import type { Contact, Prisma } from "../../generated/prisma/client.js";
 
 export interface ContactListItemDto {
@@ -72,7 +72,13 @@ export async function getContactDetail(id: string): Promise<ContactDetailDto> {
       clientRequests: { orderBy: { createdAt: "desc" } },
       projects: { orderBy: { createdAt: "desc" } },
       rollings: { orderBy: { createdAt: "desc" } },
-      serviceCalls: { orderBy: { createdAt: "desc" } },
+      // bonsDeTravail chargés pour dériver le statut (Chantier D, 16 novembre
+      // 2026 — ServiceCall.status n'existe plus, voir deriveServiceCallStatus).
+      // Même filtre/tri qu'avant pour le Call lui-même, jamais changé ici.
+      serviceCalls: {
+        orderBy: { createdAt: "desc" },
+        include: { bonsDeTravail: { where: { deletedAt: null }, select: { ownerApprovedAt: true, invoicePlanEntryId: true } } },
+      },
       deliveries: { orderBy: { createdAt: "desc" } },
     },
   });
@@ -108,7 +114,7 @@ export async function getContactDetail(id: string): Promise<ContactDetailDto> {
     serviceCalls: contact.serviceCalls.map((row) => ({
       id: row.id,
       displayId: row.displayId,
-      status: row.status,
+      status: deriveServiceCallStatus(row.bonsDeTravail),
       label: serviceCallDisplayTitle(row),
       createdAt: row.createdAt.toISOString(),
     })),

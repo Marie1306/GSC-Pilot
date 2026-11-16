@@ -434,7 +434,7 @@ export async function previewExternalSaleInvoice(id: string): Promise<InvoiceReq
  * (computeBillingPlan reste réservé aux projets). Crée le jalon ET
  * l'attribue réellement (numéro/taxes/échéance) dans la MÊME transaction —
  * jamais d'état intermédiaire "créé mais sans numéro", même principe que
- * sendServiceCallToAdmin (serviceCalls/service.ts). Alimente l'écran
+ * createServiceCallInvoiceForSelection (serviceCalls/service.ts). Alimente l'écran
  * Facturation consolidé (voir invoicing/service.ts, listInvoiceEntries).
  */
 export async function requestExternalSaleInvoice(id: string, requestedById: string, note?: string): Promise<InvoicePlanEntryDto> {

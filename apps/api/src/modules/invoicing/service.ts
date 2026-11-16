@@ -4,8 +4,9 @@
  * Regroupe dans un seul écran les jalons de facturation déjà DEMANDÉS
  * (projets/roulements, via le geste unifié "Demander la facturation" —
  * confirmInvoiceRequest, projects/service.ts), les appels de service
- * envoyés à l'administration (sendServiceCallToAdmin, serviceCalls/
- * service.ts) et les ventes externes terminées (requestExternalSaleInvoice,
+ * facturés par sélection de Bons de travail (createServiceCallInvoiceForSelection,
+ * serviceCalls/service.ts, Chantier D 16 novembre 2026 — remplace
+ * sendServiceCallToAdmin) et les ventes externes terminées (requestExternalSaleInvoice,
  * externalSales/service.ts) — les 3 derniers créent ET confirment leur
  * jalon à 100 % dans la même transaction depuis le 13 novembre 2026. Un
  * jalon de projet jamais demandé reste invisible ici — visible seulement
@@ -80,11 +81,15 @@ export interface InvoiceEntrySourceInfo {
   clientLabel: string;
   sourceDeleted: boolean;
   // Date de livraison prévue du dossier parent (fulfillmentScheduled pour
-  // Project/Rolling/ExternalSale, scheduledAt pour ServiceCall) — ancrage
-  // par défaut du prévisionnel (module Trésorerie, 13 novembre 2026) pour
-  // un jalon encore pending. Toujours lue même si le jalon est déjà
-  // confirmé (listInvoiceEntries ne s'en sert pas, mais la resolution reste
-  // la même pour les 2 appelants — un seul point de vérité).
+  // Project/Rolling/ExternalSale) — ancrage par défaut du prévisionnel
+  // (module Trésorerie, 13 novembre 2026) pour un jalon encore pending.
+  // Toujours null pour ServiceCall depuis le Chantier D (16 novembre
+  // 2026) : la date vit maintenant par Bon de travail (plusieurs possibles
+  // par Call), aucune date unique ne représente plus "le call" — de toute
+  // façon jamais vraiment exercé pour ce sourceType : une InvoicePlanEntry
+  // de ServiceCall est toujours créée déjà confirmée (jamais "pending"),
+  // donc jamais retournée par listPendingInvoiceEntriesForForecast
+  // (treasury/service.ts), seule consommatrice de ce champ.
   parentScheduledDate: Date | null;
   contact: ContactLike;
 }
@@ -99,7 +104,7 @@ type ContactLike = { name: string; company: string | null; email: string | null;
  */
 export function resolveInvoiceEntrySource(row: {
   project: { projectNumber: string; name: string; deletedAt: Date | null; fulfillmentScheduled: Date | null; contact: ContactLike } | null;
-  serviceCall: { displayId: string; title: string | null; request: string; deletedAt: Date | null; scheduledAt: Date | null; contact: ContactLike } | null;
+  serviceCall: { displayId: string; title: string | null; request: string; deletedAt: Date | null; contact: ContactLike } | null;
   rolling: { rollingNumber: string; deletedAt: Date | null; fulfillmentScheduled: Date | null; contact: ContactLike } | null;
   externalSale: { displayId: string; deletedAt: Date | null; fulfillmentScheduled: Date | null; contact: ContactLike } | null;
 }): InvoiceEntrySourceInfo {
@@ -119,7 +124,7 @@ export function resolveInvoiceEntrySource(row: {
       sourceLabel: `${row.serviceCall.displayId} — ${serviceCallDisplayTitle(row.serviceCall)}`,
       clientLabel: row.serviceCall.contact.company ?? row.serviceCall.contact.name,
       sourceDeleted: row.serviceCall.deletedAt !== null,
-      parentScheduledDate: row.serviceCall.scheduledAt,
+      parentScheduledDate: null,
       contact: row.serviceCall.contact,
     };
   }

@@ -272,6 +272,26 @@ export function canDeleteServiceCall(persona: Persona): boolean {
   return persona === ROLES.OWNER;
 }
 
+export interface BonDeTravailAssignmentLike {
+  assignedEmployees?: { id: string }[];
+}
+/**
+ * Créer un Bon de travail (Chantier D, refonte complète du module — 16
+ * novembre 2026) : le technicien assigné AU CALL (pas encore au BT lui-
+ * même, qui n'existe pas encore — voir ServiceCall.assignedEmployees,
+ * schema.prisma), OU Direction seule pour rattraper un oubli — confirmé
+ * explicitement par l'utilisatrice ("Seulement le technicien oui, mais
+ * aussi direction pour rattraper un oublie"). Jamais le Propriétaire
+ * (`boss`) : même précédent étroit que canApproveServiceCall/
+ * canDeleteServiceCall/canPriceServiceParts ci-dessus, propre à ce module.
+ */
+export function canCreateBonDeTravail(persona: Persona, call: BonDeTravailAssignmentLike, employeeId: string): boolean {
+  assertRole(persona);
+  if (persona === ROLES.OWNER) return true;
+  if (persona === ROLES.MEMBER) return (call?.assignedEmployees ?? []).some((employee) => employee.id === employeeId);
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // Budgétaire
 // ---------------------------------------------------------------------------

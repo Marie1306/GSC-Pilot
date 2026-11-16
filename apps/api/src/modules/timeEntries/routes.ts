@@ -15,7 +15,7 @@ import {
   listPunchableTasks,
   listProjectOptions,
   listRollingOptions,
-  listServiceCallOptions,
+  listBonDeTravailOptions,
   listPunchableEmployees,
 } from "./service.js";
 
@@ -26,7 +26,7 @@ const referenceFields = {
   projectType: z.enum(["project", "service", "internal", "rolling"]),
   projectId: z.uuid().optional(),
   rollingId: z.uuid().optional(),
-  serviceCallId: z.uuid().optional(),
+  bonDeTravailId: z.uuid().optional(),
   taskId: z.uuid(),
   techLevelId: z.uuid().optional(),
   rateType: z.enum(["regular", "overtime", "extra"]).optional(),
@@ -44,9 +44,9 @@ timeEntriesRouter.get("/time-entries/rolling-options", requireAuth, async (_req,
   res.json({ rollings: await listRollingOptions() });
 });
 
-timeEntriesRouter.get("/time-entries/service-call-options", requireAuth, async (req, res) => {
+timeEntriesRouter.get("/time-entries/bon-de-travail-options", requireAuth, async (req, res) => {
   const employee = req.employee!;
-  res.json({ serviceCalls: await listServiceCallOptions(employee.id, employee.persona) });
+  res.json({ bonsDeTravail: await listBonDeTravailOptions(employee.id, employee.persona) });
 });
 
 timeEntriesRouter.get(
@@ -129,7 +129,7 @@ const updateSchema = z.object({
   projectType: z.enum(["project", "service", "internal", "rolling"]).optional(),
   projectId: z.uuid().optional(),
   rollingId: z.uuid().optional(),
-  serviceCallId: z.uuid().optional(),
+  bonDeTravailId: z.uuid().optional(),
   taskId: z.uuid().optional(),
   hours: z.number().positive().optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date requise (AAAA-MM-JJ).").optional(),
