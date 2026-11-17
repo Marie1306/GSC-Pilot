@@ -1272,6 +1272,18 @@ a {
   body,
   .pdf-export {
     background: #fff;
+    /*
+     * Sans ça (17 novembre 2026, rapporté par Marie) : les navigateurs
+     * n'impriment JAMAIS les couleurs de fond par défaut (économie d'encre),
+     * contrairement à la couleur du texte — la carte grise "FACTURÉ À", la
+     * ligne rouge sous l'en-tête (.pdf-export-doc-accent) et l'encadré rouge
+     * du montant total (.pdf-export-total-highlight) disparaissaient tous à
+     * l'impression/export PDF alors qu'ils s'affichaient bien à l'écran.
+     * Propriété héritée — posée ici une seule fois plutôt que sur chaque
+     * classe à fond coloré, couvre aussi toute classe future du genre.
+     */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
   .pdf-export-page {
     max-width: none;
