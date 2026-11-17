@@ -714,3 +714,24 @@ describe("Documents du Projet (16 novembre 2026) — dépôt seulement, même en
     expect(P.canManageProjectDocuments(WAREHOUSE)).toBe(false);
   });
 });
+
+describe("Documents du Roulement et de la Vente externe (17 novembre 2026) — même portée que canManageProjectDocuments", () => {
+  it("Direction et Propriétaire peuvent déposer un document (Roulement)", () => {
+    expect(P.canManageRollingDocuments(OWNER)).toBe(true);
+    expect(P.canManageRollingDocuments(BOSS)).toBe(true);
+  });
+  it("Administration, Employé et Magasinier ne peuvent pas déposer un document (Roulement)", () => {
+    expect(P.canManageRollingDocuments(ADMIN)).toBe(false);
+    expect(P.canManageRollingDocuments(MEMBER)).toBe(false);
+    expect(P.canManageRollingDocuments(WAREHOUSE)).toBe(false);
+  });
+  it("Direction et Propriétaire peuvent déposer un document (Vente externe)", () => {
+    expect(P.canManageExternalSaleDocuments(OWNER)).toBe(true);
+    expect(P.canManageExternalSaleDocuments(BOSS)).toBe(true);
+  });
+  it("Administration, Employé et Magasinier ne peuvent pas déposer un document (Vente externe)", () => {
+    expect(P.canManageExternalSaleDocuments(ADMIN)).toBe(false);
+    expect(P.canManageExternalSaleDocuments(MEMBER)).toBe(false);
+    expect(P.canManageExternalSaleDocuments(WAREHOUSE)).toBe(false);
+  });
+});

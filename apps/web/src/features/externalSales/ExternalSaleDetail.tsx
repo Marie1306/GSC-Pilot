@@ -6,6 +6,7 @@ import { formatCalendarDate } from "../../lib/date.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { STATUS_LABELS, FULFILLMENT_STATUS_LABELS, applyPurchaseRequestToExternalSale } from "../purchases/api.js";
 import { RequestInvoiceModal } from "../invoicing/RequestInvoiceModal.js";
+import { ExternalSaleDocuments } from "./ExternalSaleDocuments.js";
 import {
   fetchExternalSaleDetail,
   formatCurrency,
@@ -166,6 +167,7 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
               </div>
 
               <ExternalSaleFulfillment sale={sale} />
+              <ExternalSaleDocuments externalSaleId={id} invoiceEntryId={sale.invoiceEntryId} invoiceNumber={sale.invoiceNumber} />
             </>
           )}
         </div>

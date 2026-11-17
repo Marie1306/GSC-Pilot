@@ -29,6 +29,7 @@ import {
 } from "./api.js";
 import { RollingPurchaseEntries } from "./RollingPurchaseEntries.js";
 import { RollingOptionsMenu } from "./RollingOptionsMenu.js";
+import { RollingDocuments } from "./RollingDocuments.js";
 import "./rollings.css";
 
 interface RollingDetailProps {
@@ -537,6 +538,7 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
             </form>
           )}
 
+          <RollingDocuments rollingId={rolling.id} budgetId={rolling.budgetId} />
         </div>
 
         <div className="modal-footer">

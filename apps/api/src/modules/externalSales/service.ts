@@ -231,6 +231,9 @@ export interface ExternalSaleDetailDto {
   fulfillmentConfirmationNote: string | null;
   /** Posé par requestExternalSaleInvoice — jamais réinitialisé (même principe que partout ailleurs : gelé une fois demandé). */
   invoiceRequestedAt: string | null;
+  /** Section Documents (17 novembre 2026) — lien direct vers la Facture envoyée, si elle existe. Au plus une (voir invoiceEntries ci-dessous). */
+  invoiceEntryId: string | null;
+  invoiceNumber: string | null;
   createdAt: string;
   lines: PurchaseRequestDto[];
 }
@@ -241,8 +244,8 @@ async function loadExternalSaleOrThrow(id: string) {
     include: {
       contact: { select: { name: true, company: true } },
       // Au plus une ligne (requestExternalSaleInvoice bloque une 2e demande)
-      // — voir ExternalSaleDetailDto.invoiceRequestedAt ci-dessous.
-      invoiceEntries: { select: { requestedAt: true } },
+      // — voir ExternalSaleDetailDto.invoiceRequestedAt/invoiceEntryId ci-dessous.
+      invoiceEntries: { select: { id: true, requestedAt: true, invoiceNumber: true } },
     },
   });
   if (!sale) throw new HttpError(404, "Vente externe introuvable.");
@@ -286,6 +289,8 @@ export async function getExternalSaleDetail(id: string, viewerPersona: Persona):
     billingReady: sale.billingReady,
     fulfillmentConfirmationNote: sale.fulfillmentConfirmationNote,
     invoiceRequestedAt: sale.invoiceEntries[0]?.requestedAt?.toISOString() ?? null,
+    invoiceEntryId: sale.invoiceEntries[0]?.id ?? null,
+    invoiceNumber: sale.invoiceEntries[0]?.invoiceNumber ?? null,
     createdAt: sale.createdAt.toISOString(),
     lines: purchaseRows.map((row) => toPurchaseRequestDto(row, viewerPersona)),
   };

@@ -1,6 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
-import { canManageExternalSales, canConfirmInvoiceRequest, FULFILLMENT_MODES, type FulfillmentMode } from "@gsc-pilot/business-rules";
+import {
+  canManageExternalSales,
+  canConfirmInvoiceRequest,
+  canManageExternalSaleDocuments,
+  FULFILLMENT_MODES,
+  type FulfillmentMode,
+} from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import {
   createExternalSale,
@@ -14,6 +20,12 @@ import {
   previewExternalSaleInvoice,
   requestExternalSaleInvoice,
 } from "./service.js";
+import {
+  createExternalSaleDocumentUploadUrl,
+  confirmExternalSaleDocumentUpload,
+  listExternalSaleDocuments,
+  getExternalSaleDocumentDownloadUrl,
+} from "./documents.js";
 
 export const externalSalesRouter = Router();
 
@@ -127,3 +139,42 @@ externalSalesRouter.post(
     res.json({ entry });
   },
 );
+
+// ---------------------------------------------------------------------------
+// Documents (17 novembre 2026) — même patron exact que projects/routes.ts.
+// Lecture : canManage (déjà le gate du module entier, OWNER/ADMIN/BOSS).
+// Dépôt : canManageExternalSaleDocuments (OWNER/BOSS seulement).
+// ---------------------------------------------------------------------------
+
+externalSalesRouter.get("/external-sales/:id/documents", requireAuth, requirePermission(canManage), async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  res.json({ documents: await listExternalSaleDocuments(id) });
+});
+
+externalSalesRouter.post(
+  "/external-sales/:id/documents/upload-url",
+  requireAuth,
+  requirePermission((persona) => canManageExternalSaleDocuments(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const { fileName } = z.object({ fileName: z.string().min(1) }).parse(req.body);
+    res.json(await createExternalSaleDocumentUploadUrl(id, fileName));
+  },
+);
+
+externalSalesRouter.post(
+  "/external-sales/:id/documents",
+  requireAuth,
+  requirePermission((persona) => canManageExternalSaleDocuments(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    const body = z.object({ storagePath: z.string().min(1), fileName: z.string().min(1), fileSize: z.number().int().positive() }).parse(req.body);
+    const document = await confirmExternalSaleDocumentUpload(id, req.employee!.id, body);
+    res.status(201).json({ id: document.id });
+  },
+);
+
+externalSalesRouter.get("/external-sales/documents/:documentId/download-url", requireAuth, requirePermission(canManage), async (req, res) => {
+  const documentId = z.uuid().parse(req.params.documentId);
+  res.json({ url: await getExternalSaleDocumentDownloadUrl(documentId) });
+});

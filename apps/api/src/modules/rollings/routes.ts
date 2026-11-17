@@ -10,6 +10,7 @@ import {
   canDeleteRolling,
   canSeeFinancialValues,
   canEditGanttSchedule,
+  canManageRollingDocuments,
 } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import {
@@ -30,6 +31,7 @@ import {
   getApprovedRollingTimeEntries,
 } from "./service.js";
 import { activateRollingGantt } from "../gantt/service.js";
+import { createRollingDocumentUploadUrl, confirmRollingDocumentUpload, listRollingDocuments, getRollingDocumentDownloadUrl } from "./documents.js";
 
 // Monté sur /api directement (voir app.ts) — chaque route applique donc
 // requireAuth/requirePermission elle-même, même patron que deliveries/reports.
@@ -233,3 +235,30 @@ rollingsRouter.post(
     res.status(204).end();
   },
 );
+
+// ---------------------------------------------------------------------------
+// Documents (17 novembre 2026) — même patron exact que projects/routes.ts.
+// ---------------------------------------------------------------------------
+
+rollingsRouter.get("/rollings/:id/documents", requireAuth, requirePermission(canAccessOverviewViews), async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  res.json({ documents: await listRollingDocuments(id) });
+});
+
+rollingsRouter.post("/rollings/:id/documents/upload-url", requireAuth, requirePermission(canManageRollingDocuments), async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  const { fileName } = z.object({ fileName: z.string().min(1) }).parse(req.body);
+  res.json(await createRollingDocumentUploadUrl(id, fileName));
+});
+
+rollingsRouter.post("/rollings/:id/documents", requireAuth, requirePermission(canManageRollingDocuments), async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  const body = z.object({ storagePath: z.string().min(1), fileName: z.string().min(1), fileSize: z.number().int().positive() }).parse(req.body);
+  const document = await confirmRollingDocumentUpload(id, req.employee!.id, body);
+  res.status(201).json({ id: document.id });
+});
+
+rollingsRouter.get("/rollings/documents/:documentId/download-url", requireAuth, requirePermission(canAccessOverviewViews), async (req, res) => {
+  const documentId = z.uuid().parse(req.params.documentId);
+  res.json({ url: await getRollingDocumentDownloadUrl(documentId) });
+});

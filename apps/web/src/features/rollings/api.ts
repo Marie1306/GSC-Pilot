@@ -172,3 +172,20 @@ export function deleteRolling(id: string): Promise<void> {
 export function convertBudgetToRolling(budgetId: string): Promise<{ id: string }> {
   return apiFetch(`/api/budgets/${budgetId}/convert-to-rolling`, { method: "POST" });
 }
+
+/** Section Documents (17 novembre 2026) — même forme que ProjectDocumentDto, mirror projects/documents.ts. */
+export interface RollingDocumentDto {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  uploadedByName: string;
+  uploadedAt: string;
+}
+
+export function fetchRollingDocuments(rollingId: string): Promise<{ documents: RollingDocumentDto[] }> {
+  return apiFetch(`/api/rollings/${rollingId}/documents`);
+}
+
+export function fetchRollingDocumentDownloadUrl(documentId: string): Promise<{ url: string }> {
+  return apiFetch(`/api/rollings/documents/${documentId}/download-url`);
+}

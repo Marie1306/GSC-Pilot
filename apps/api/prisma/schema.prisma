@@ -720,6 +720,46 @@ model ProjectDocument {
 }
 
 /**
+ * Documents téléversés sur un roulement (17 novembre 2026, même demande que
+ * la section Documents du Projet étendue à Roulement/Vente externe) — même
+ * forme exacte que ProjectDocument, même bucket Storage "project-documents"
+ * (préfixe "rolling/", voir lib/storage.ts) : aucun nouveau bucket à créer,
+ * jamais un modèle partagé entre les deux entités malgré la forme identique
+ * (même principe que RollingDocument/ProjectDocument restant 2 modèles
+ * distincts plutôt qu'un seul paramétré — cohérent avec la règle du projet
+ * de ne jamais partager une fonction de permission entre entités même
+ * quand leur portée se recoupe).
+ */
+model RollingDocument {
+  id           String   @id @default(uuid())
+  rollingId    String
+  rolling      Rolling  @relation(fields: [rollingId], references: [id])
+  fileName     String
+  storagePath  String // bucket "project-documents", préfixe "rolling/", voir lib/storage.ts
+  fileSize     Int
+  uploadedById String
+  uploadedAt   DateTime @default(now())
+}
+
+/**
+ * Documents téléversés sur une vente externe (17 novembre 2026) — même
+ * forme que ProjectDocument/RollingDocument, même bucket partagé (préfixe
+ * "external-sale/"). Une vente externe n'a jamais de budgétaire/Soumission/
+ * post-mortem (voir ExternalSaleDocuments.tsx, frontend) — ce modèle sert
+ * donc surtout les Factures envoyées + les documents ajoutés à la main.
+ */
+model ExternalSaleDocument {
+  id             String       @id @default(uuid())
+  externalSaleId String
+  externalSale   ExternalSale @relation(fields: [externalSaleId], references: [id])
+  fileName       String
+  storagePath    String // bucket "project-documents", préfixe "external-sale/", voir lib/storage.ts
+  fileSize       Int
+  uploadedById   String
+  uploadedAt     DateTime     @default(now())
+}
+
+/**
  * Historique des changements de date de fin de garantie (Projet 2D, 17 août
  * 2026) — un projet peut passer de 1 an à 2 ans, etc. changedById reste un
  * scalaire simple (pas de relation Prisma), même patron que
@@ -1424,6 +1464,7 @@ model Rolling {
   purchaseEntries ProjectPurchaseEntry[]
   serviceCalls    ServiceCall[]
   tasks           ProjectTask[]
+  documents       RollingDocument[]
 
   @@index([status])
 }
@@ -1549,6 +1590,7 @@ model ExternalSale {
   // deuxième demande) — tableau par cohérence avec Project/Rolling/ServiceCall,
   // jamais un @unique imposé en base (même raisonnement que ces 3-là).
   invoiceEntries   InvoicePlanEntry[]
+  documents        ExternalSaleDocument[]
 
   @@index([status])
 }

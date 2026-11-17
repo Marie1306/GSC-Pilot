@@ -29,9 +29,12 @@ interface ProjectDocumentsProps {
 /**
  * Soumission + sa Confirmation de commande éventuelle, sur leur propre
  * ligne chacune (même raison que SoumissionCard.tsx : useQuery par ligne,
- * interdit dans un .map() du parent — règle des hooks).
+ * interdit dans un .map() du parent — règle des hooks). Exportée : réutilisée
+ * telle quelle par RollingDocuments.tsx (17 novembre 2026, section Documents
+ * étendue au Roulement — même mécanisme Soumission/CC, simplement keyé par
+ * Budget.id comme ici, jamais dupliquée).
  */
-function SoumissionDocumentRows({ soumission }: { soumission: SoumissionDetailDto }) {
+export function SoumissionDocumentRows({ soumission }: { soumission: SoumissionDetailDto }) {
   const confirmationQuery = useQuery({
     queryKey: ["confirmation-for-soumission", soumission.id],
     queryFn: () => fetchConfirmationForSoumission(soumission.id),

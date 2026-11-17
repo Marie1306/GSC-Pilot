@@ -63,6 +63,9 @@ export interface ExternalSaleDetailDto {
   billingReady: boolean;
   fulfillmentConfirmationNote: string | null;
   invoiceRequestedAt: string | null;
+  /** Section Documents (17 novembre 2026) — lien direct vers la Facture envoyée, si elle existe. */
+  invoiceEntryId: string | null;
+  invoiceNumber: string | null;
   createdAt: string;
   lines: PurchaseRequestDto[];
 }
@@ -131,4 +134,21 @@ export function previewExternalSaleInvoice(id: string): Promise<{ preview: Invoi
 /** Geste unifié "Demander la facturation" — crée ET confirme le jalon (numéro/taxes/échéance) dans la même transaction. */
 export function requestExternalSaleInvoice(id: string, note?: string, lines?: InvoiceRequestLineInput[]): Promise<void> {
   return apiFetch(`/api/external-sales/${id}/request-invoice`, { method: "POST", body: JSON.stringify({ note, lines }) });
+}
+
+/** Section Documents (17 novembre 2026) — même forme que ProjectDocumentDto, mirror projects/documents.ts. */
+export interface ExternalSaleDocumentDto {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  uploadedByName: string;
+  uploadedAt: string;
+}
+
+export function fetchExternalSaleDocuments(id: string): Promise<{ documents: ExternalSaleDocumentDto[] }> {
+  return apiFetch(`/api/external-sales/${id}/documents`);
+}
+
+export function fetchExternalSaleDocumentDownloadUrl(documentId: string): Promise<{ url: string }> {
+  return apiFetch(`/api/external-sales/documents/${documentId}/download-url`);
 }

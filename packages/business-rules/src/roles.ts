@@ -914,3 +914,24 @@ export function canManageProjectDocuments(persona: Persona): boolean {
   assertRole(persona);
   return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
+
+/**
+ * Section Documents du Roulement (17 novembre 2026, même demande que
+ * Projet mais étendue à Roulement/Vente externe) — gouverne SEULEMENT le
+ * dépôt d'un nouveau document téléversé, même portée/raisonnement exact que
+ * canManageProjectDocuments, nom distinct (même principe que
+ * canApprovePurchaseRequest/canManagePurchaseFulfillment).
+ */
+export function canManageRollingDocuments(persona: Persona): boolean {
+  assertRole(persona);
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
+}
+
+/**
+ * Section Documents de la Vente externe (17 novembre 2026) — même portée
+ * que canManageProjectDocuments/canManageRollingDocuments, nom distinct.
+ */
+export function canManageExternalSaleDocuments(persona: Persona): boolean {
+  assertRole(persona);
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
+}
