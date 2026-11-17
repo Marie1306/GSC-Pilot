@@ -222,6 +222,12 @@ l'authentification SMTP est bloquée tenant-wide par les "paramètres de
 sécurité par défaut" de Microsoft (legacy auth désactivée globalement,
 pas seulement au niveau d'une boîte courriel précise).
 
+**Mise à jour du 17 novembre 2026** : n'est plus nécessaire, confirmé par
+Marie — ce fournisseur SMTP dédié visait surtout le pic de création des
+comptes employés en tout début de lancement, pas l'usage courant. Ne
+plus proposer ce chantier tant qu'elle ne rapporte pas un nouveau blocage
+d'envoi de courriel.
+
 **Deux bogues réels trouvés le 2 septembre 2026, lors des tout premiers
 vrais dossiers créés par l'utilisatrice** (déjà corrigés) :
 - Les fenêtres contextuelles (`.modal-backdrop`) se fermaient au clic à
@@ -1210,6 +1216,13 @@ question Boîte à outils) — rien n'indique que Marie les ait créés, ne
 pas supposer que SEAO/Boîte à outils sont utilisables de bout en bout
 avant confirmation explicite.
 
+**Mise à jour du 17 novembre 2026** : Marie confirme que les tests SEAO
+(dépôt de document réel, analyse IA) « ont très bien été » — implique que
+les buckets Storage (point 1 ci-dessus) ont bel et bien été créés, SEAO
+est donc utilisable de bout en bout en production. Boîte à outils reste
+non testée par Marie à ce jour — ne pas supposer qu'elle fonctionne de
+bout en bout avant une confirmation séparée.
+
 **Retenu une deuxième fois de cet épisode** : le processus de
 déploiement de ce projet n'applique toujours aucune migration
 automatiquement (confirmé une première fois le 9 septembre 2026, voir
@@ -1302,6 +1315,21 @@ retirer des colonnes que le code encore en production lisait : collé
 seulement APRÈS le nouveau code poussé/redéployé, jamais avant (sinon ça
 casse la prod avant même un déploiement) — à retenir pour toute future
 migration de ce genre.
+
+**Révisé le 17 novembre 2026** — question directe de Marie après un
+résumé des chantiers en suspens (« Qu'est-ce que ça va me donner
+réellement ? Si je n'oublie jamais de SQL ? ») : les deux pannes qui
+motivaient cette recommandation (9 et 16 septembre 2026) sont toutes les
+deux arrivées *avant* l'adoption du filet de sécurité « coller le SQL et
+obtenir confirmation avant de pousser » ci-dessus — ce filet, suivi sans
+exception depuis le 13 novembre (y compris plusieurs fois le 17 novembre
+le même jour), a déjà fermé la vraie cause des deux pannes. L'automatisation
+Render n'apporterait donc qu'un gain marginal (retirer la copie manuelle
+du SQL par Marie, donc le risque d'un collage partiel ou erroné, et
+rendre la règle impossible à contourner plutôt que dépendante de la
+discipline d'une session) — **reportée, pas abandonnée** : à reconsidérer
+seulement si un oubli se reproduit malgré le filet de sécurité déjà en
+place.
 
 ## Facture de Projet — ventilation par produit depuis la Confirmation de commande (16 novembre 2026)
 
@@ -1491,3 +1519,232 @@ de l'exception ci-dessus. La règle portrait du 16 novembre reste la norme
 par défaut pour tous les autres documents ; seul cet export Trésorerie en
 paysage est une exception confirmée, pas à généraliser ni à revoir sans
 nouvelle demande explicite.
+
+## Facture — couleurs de fond absentes à l'impression (17 novembre 2026)
+
+Trouvé en vérifiant l'export Trésorerie de la veille : la carte grise
+« FACTURÉ À », la ligne rouge sous l'en-tête et l'encadré rouge du
+montant total d'une Facture disparaissaient toujours à l'impression/
+export PDF, bien qu'affichés correctement à l'écran — les navigateurs
+n'imprimant jamais les couleurs de fond par défaut (économie d'encre) à
+moins qu'on le leur impose explicitement. Corrigé : `print-color-adjust:
+exact` (+ préfixe `-webkit-`) posé une seule fois sur `body`/`.pdf-export`
+dans `theme.css`, hérité par tous les documents exportés de l'appli —
+jamais une règle locale à la Facture seulement, puisque tous les gabarits
+d'export partagent déjà ces classes.
+
+Reproduit et vérifié par rendu PDF réel (`pdftoppm`, pas seulement un
+rendu Chromium à l'écran) : sans le correctif, le PDF généré correspond
+exactement au bogue rapporté (aucune couleur de fond) ; avec, toutes les
+couleurs de fond apparaissent même quand « Graphiques d'arrière-plan »
+est décoché dans la boîte d'impression — c'est justement cette case que
+`print-color-adjust: exact` force à ignorer. Aucune migration, correctif
+CSS pur. **Poussé (`8b05440`)**.
+
+## Facture — lignes éditables à la demande de facturation (17 novembre 2026)
+
+Jusqu'ici, la ventilation par produit d'une Facture (voir section du 16
+novembre 2026 ci-dessus) n'était qu'un AFFICHAGE dérivé automatiquement
+de la Confirmation de commande — jamais modifiable. Nouveau modèle
+`InvoicePlanEntryLine` (Description/Qté/Prix unitaire, `onDelete: Cascade`
+vers `InvoicePlanEntry`) : les lignes proposées dans
+`RequestInvoiceModal.tsx` au moment de « Demander la facturation » sont
+maintenant pré-remplies automatiquement — depuis la Confirmation de
+commande pour Projet/Roulement, depuis les lignes de pièces pour Vente
+externe — mais toujours modifiables avant la confirmation finale (ajout/
+retrait/changement de description, qté ou prix). `RequestInvoiceModal.tsx`
+gagne un prop `allowLines` requis à chaque appelant : activé pour
+Projet/Roulement/Vente externe, désactivé pour Call de service qui garde
+sa propre ventilation par Bon de travail (Chantier D, jamais touchée
+ici — deux mécanismes de ventilation distincts, jamais fusionnés).
+
+**Bogue corrigé au passage** : `listInvoiceEntries` (invoicing/service.ts)
+ne cherchait la Confirmation de commande que du côté Projet
+(`getConfirmationBreakdownsByBudgetIds` appelée seulement sur les budgets
+de Projet) — une Facture de Roulement n'affichait donc jamais son détail
+par produit malgré une vraie Confirmation de commande existante derrière
+elle. Corrigé en appelant la même fonction sur les budgets des deux
+types. `InvoiceEntryDto.projectConfirmation` renommé
+`confirmationBreakdown` au passage (n'est plus exclusif au Projet) — même
+piège de nommage que `owner`/`boss` : à garder en tête si une Confirmation
+de commande semble absente alors qu'elle existe, vérifier qu'on
+interroge bien le bon type de budget.
+
+**Vente externe** : nouvelle `externalSaleInvoiceLines`
+(`packages/business-rules/src/external-sales.ts`) — chaque pièce devient
+sa propre ligne, le transport reste toujours sa propre ligne, et le frais
+administratif (jamais une ligne à lui seul, trop abstrait pour un client)
+est distribué par unité vendue et absorbé dans le prix unitaire affiché,
+pour que `qté × prix unitaire = montant` tombe exactement juste sur
+chaque ligne. `externalSaleTotals` (le calcul du total RÉELLEMENT
+facturé) reste intact et inchangé, confirmé par Marie — seule la
+ventilation AFFICHÉE à la demande de facturation est nouvelle, jamais une
+deuxième source de vérité sur le montant.
+
+Vérifié contre Postgres local (4 scénarios + un rejet explicite si les
+lignes modifiées ne balancent plus avec le montant total) et par rebuild
+propre (tar-copy + `npm ci && npm run build && npm test`, 529/529).
+Migration additive, une seule nouvelle table
+(`20261117135204_invoice_plan_entry_lines`). **Fait par Marie le 17
+novembre 2026, confirmé** (« c'est collé ») avant le push — **poussé
+(`a628a9a`)**.
+
+## Section Documents étendue au Roulement et à la Vente externe (17 novembre 2026)
+
+Même mécanisme exact que `ProjectDocuments.tsx` (16 novembre 2026,
+Chantier C Partie A) appliqué aux deux modules qui ne l'avaient pas
+encore : nouveaux modèles `RollingDocument`/`ExternalSaleDocument`,
+réutilisant le bucket Storage déjà existant `project-documents`
+(préfixes `rolling/` et `external-sale/` — jamais un nouveau bucket à
+créer). Nouvelles permissions `canManageRollingDocuments`/
+`canManageExternalSaleDocuments` (`[OWNER, BOSS]`, même portée que
+`canManageProjectDocuments`).
+
+`RollingDocuments.tsx` reprend le patron complet de `ProjectDocuments.tsx`
+— Budgétaire (si `budgetId`), Soumission/Confirmation de commande (via
+`SoumissionDocumentRows`, exportée de `ProjectDocuments.tsx` et réutilisée
+telle quelle, jamais dupliquée), Factures envoyées, Post-mortem (toujours
+affiché), documents téléversés. `ExternalSaleDocuments.tsx` est plus
+simple — une vente externe n'a jamais de budgétaire/Soumission/
+post-mortem — donc seulement Facture envoyée (nouveaux
+`invoiceEntryId`/`invoiceNumber` ajoutés à `ExternalSaleDetailDto`,
+jusqu'ici absents du DTO) + documents téléversés.
+
+Vérifié contre Postgres local (permissions sur l'upload, liste, DTO) et
+par rebuild propre (tar-copy + `npm ci && npm run build && npm test`,
+533/533). Migration additive, 2 nouvelles tables
+(`20261117165650_rolling_and_external_sale_documents`). **Fait par Marie
+le 17 novembre 2026, confirmé** (« le SQL est collé ») avant le push —
+**poussé (`dffa97d`)**.
+
+## Trésorerie — carte Dépenses ponctuelles (17 novembre 2026)
+
+Demande explicite de Marie : « ça me prend également une catégorie
+dépenses ponctuelles ». Aucun changement de schéma ni de backend —
+`TreasuryManualEntry.amount` reste un montant signé unique (négatif =
+sortie), déjà consommé tel quel par `buildForecastTable`, jamais touché.
+
+`ManualEntriesCard.tsx` devient « Entrées ponctuelles » : filtré aux
+montants positifs, rejette maintenant 0/négatif à la saisie (ce rôle est
+repris par la nouvelle carte). Nouveau `OneTimeExpensesCard.tsx`
+(« Dépenses ponctuelles ») : filtré aux montants négatifs, saisie
+toujours positive à l'écran (plus naturel pour entrer un coût) puis
+négation avant l'envoi (`-Math.abs`). Les deux cartes partagent la même
+clé de requête `["treasury", "manual-entries"]` — restent synchronisées
+sans aucun câblage additionnel entre elles.
+
+`npm run typecheck && npm run lint && npm test && npm run build` verts
+(533 tests, inchangé — correctif d'affichage pur). Aucune migration.
+**Poussé (`5c21434`)**.
+
+## Vente externe — liste en tableau plutôt qu'en cartes (17 novembre 2026)
+
+Demande explicite, avec capture d'écran comparant les deux modules :
+Marie veut le même visuel que Roulement pour la liste des ventes. La
+grille de cartes (`ExternalSaleGrid`) remplacée par un tableau
+(`ExternalSaleTable`) — mêmes colonnes exactes que le tableau Roulement
+(`RollingsPage.tsx`) : Vente/Client/Prix vendu/Statut/Créé le/Ouvrir,
+pour les deux sections (Ventes actives + Ventes terminées).
+
+La colonne « Livraison » de l'ancienne carte n'a pas d'équivalent dans le
+tableau Roulement non plus — retirée de la liste, reste visible au détail
+(`ExternalSaleFulfillment.tsx`), jamais perdue.
+
+`npm run typecheck && npm run lint && npm test && npm run build` verts
+(533 tests, inchangé — correctif d'affichage pur). Aucune migration.
+**Poussé (`a230cac`)**.
+
+## Suppression permanente (purge) — Projet/Roulement/Call de service/Vente externe (17 novembre 2026)
+
+Demande de Marie après avoir créé des dossiers test : « j'aimerais être
+capable de les supprimer, ainsi que tous les documents générés en
+parallèle. Si je supprime un projet, est-ce que toutes les données
+rattachées au projet sont aussi supprimées ? Même chose pour roulement,
+call de service et vente externe. »
+
+**Ce qui existait avant, confirmé par lecture de code (jamais deviné)** :
+`deleteProject`/`deleteRolling`/`deleteServiceCall` posent seulement
+`deletedAt` sur le dossier principal (corbeille, `settings/trash.ts`) —
+**rien ne descend en cascade**, tout le reste (punch, achats, factures +
+leurs lignes, documents, sous-assemblages, avenants, checklist,
+livraisons, Call de service rattaché, Budgétaire/Soumission/Confirmation
+de commande d'origine) reste en base, rattaché, intact. Vente externe
+n'avait même **aucune fonction de suppression du tout** (ni douce ni
+permanente) — confirmé par l'absence de toute fonction
+`deleteExternalSale` et de tout bouton « Supprimer » dans ce module.
+
+### Décisions confirmées avec Marie (AskUserQuestion)
+
+1. **Permanente, jamais restaurable** — contrairement à la corbeille
+   existante, qui reste inchangée et continue de servir pour les
+   suppressions réversibles du quotidien.
+2. **Fonctionne même si une facture a déjà été envoyée** (« Permettre
+   quand même ») — aucun garde-fou de blocage, puisque les dossiers
+   purgés sont explicitement des dossiers de test, jamais de vrais
+   clients.
+3. **Direction seulement** (texte tapé par Marie elle-même, pas une des
+   deux options proposées — « Propriétaire seulement » ou « Direction +
+   Propriétaire ») — nouvelle `canPurgeDossier` (roles.ts) retourne
+   `true` pour `persona === ROLES.OWNER` **seulement**, jamais `BOSS`.
+   Attention au piège de nommage déjà documenté plus haut dans ce
+   fichier : « Direction » = `owner`, pas le Propriétaire. Cohérent avec
+   un précédent déjà en place et vérifié avant de coder :
+   `canDeleteProject`/`canDeleteRolling`/`canDeleteServiceCall` (la
+   corbeille existante) sont déjà `OWNER` seul, jamais `BOSS` — la
+   réponse de Marie n'est donc pas une exception, mais un palier déjà
+   établi pour ce genre de geste destructeur sur ces dossiers.
+4. **Bouton « Supprimer définitivement » sur chaque dossier** (plutôt
+   qu'un écran dédié dans Paramètres) — dans le menu Options pour Projet/
+   Roulement (`ProjectOptionsMenu.tsx`/`RollingOptionsMenu.tsx`), dans le
+   pied de page du modal de détail pour Call de service/Vente externe
+   (`ServiceCallDetail.tsx`/`ExternalSaleDetail.tsx`), qui n'ont pas de
+   menu Options dédié.
+5. **Purge aussi le Budgétaire d'origine** (+ sa Soumission + sa
+   Confirmation de commande) pour un Projet ou un Roulement — ce
+   Budgétaire appartient exclusivement à ce seul dossier (`@unique` dans
+   les deux sens), jamais partagé.
+
+### Implémentation
+
+Nouveau `apps/api/src/modules/settings/purge.ts` —
+`purgeProject`/`purgeRolling`/`purgeServiceCall`/`purgeExternalSale`,
+chacune une transaction Prisma qui supprime enfants-avant-parents dans
+l'ordre exact qu'exigent les contraintes FK (le schéma complet relu en
+entier avant d'écrire la moindre ligne, vu l'enjeu) — jamais en comptant
+sur une cascade DB implicite au-delà des 3 `onDelete: Cascade` déjà
+déclarés ailleurs dans le schéma (`SoumissionLine`/
+`ConfirmationDeCommandeLine`/`InvoicePlanEntryLine`). Call de service est
+purgé via sa propre fonction interne (`purgeServiceCallInTx`, supprime
+d'abord chaque Bon de travail et ses pièces/photos/punch) réutilisée à la
+fois pour une purge directe ET pour chaque Call de service rattaché à un
+Projet/Roulement purgé.
+
+**Jamais supprimés, seulement détachés/remis à l'état normal** (même
+geste que `deleteBudget` existant) : le dossier SEAO d'origine d'un
+Projet (`SeaoFile.projectId` remis à `null` — un SeaoFile a une valeur de
+suivi d'appel d'offres indépendante de sa conversion éventuelle) et la
+Demande client d'origine (remise à `status: "in_progress"`, jamais
+supprimée — peut donner lieu à un nouveau dossier plus tard).
+
+Nouveau `PurgeConfirmModal.tsx` (components/) — exige de taper le numéro
+d'affichage exact du dossier pour activer le bouton, jamais un simple
+« Confirmer/Annuler », vu l'absence totale de retour en arrière (premier
+usage de ce patron de confirmation renforcée dans l'application).
+
+### Vérification — rigueur accrue vu l'irréversibilité
+
+Contre Postgres local, pour chaque type de dossier : construction d'un
+arbre complet couvrant tout ce qui peut s'y rattacher (punch, achats,
+factures + leurs lignes, documents, sous-assemblages, avenants,
+checklist, livraisons, Call de service rattaché avec ses Bons de
+travail, Budgétaire/Soumission/Confirmation de commande), PLUS un
+dossier frère témoin construit en parallèle pour chaque scénario — la
+purge ne touchant QUE la cible, jamais le témoin, vérifié après coup.
+Rebuild propre (tar-copy + `npm ci && npm run build && npm test`,
+535/535) malgré l'absence de migration, seulement à cause de l'enjeu.
+
+Aucune migration — rien à coller dans Supabase pour cette fonctionnalité.
+**Poussé (`fc22a2d`)** — reste à tester par Marie elle-même en production
+sur un vrai dossier test avant de considérer le geste confirmé à l'usage
+réel (jamais faisable depuis cette session, par construction : purge
+directe contre la vraie base, aucun accès réseau à Supabase depuis ici).
