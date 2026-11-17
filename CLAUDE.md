@@ -1427,3 +1427,64 @@ Chantier D ci-dessus). Cette session n'a toujours aucun accès réseau à
 Supabase pour vérifier directement que le retrait des colonnes a
 réussi — confirmation reposant entièrement sur la parole de Marie, même
 mécanisme que toutes les corrections de données réelles précédentes.
+
+## Trésorerie — export PDF du Prévisionnel, avec une exception paysage délibérée (17 novembre 2026)
+
+Demande explicite de l'utilisatrice : « Dans le flux de trésorerie, il
+faudrait que je puisse exporter le tableau en pdf » — le tableau visé est
+`TreasuryForecastTable.tsx` (le Prévisionnel 13/17/22/26 semaines sur
+`TreasuryPage.tsx`), pas les cartes CRUD (Dépenses récurrentes/Entrées
+ponctuelles) ni le tableau « Jalons en attente de facturation » —
+seul le tableau principal correspond à son « le tableau » singulier.
+
+**Construit** : même patron que toutes les autres vues d'export (route
+autonome `/tresorerie/export`, hors `AppShell`, `window.print()`) —
+nouveau `TreasuryForecastExportView.tsx`, bouton « 📄 Exporter en PDF »
+sur `TreasuryForecastTable.tsx` (`window.open` avec l'horizon courant en
+query param, pour que l'export reflète exactement ce qui est affiché à
+l'écran). Aucune nouvelle route backend — réutilise `fetchForecastTable`
+tel quel.
+
+**Exception délibérée à la règle portrait du 16 novembre 2026** (« tous
+les documents générés par l'application doivent être en mode portrait »)
+— à 26 semaines, le tableau a 27 colonnes, illisible en portrait même en
+police compacte. Trois tentatives avant d'arriver à une solution sûre :
+(1) sans `table-layout:fixed`, les colonnes dépassaient la largeur
+physique de la page et étaient coupées net ; (2) `table-layout:fixed` +
+`word-break:break-word` pour forcer le retour à la ligne : n'a jamais
+fonctionné, parce que `Intl.NumberFormat("fr-CA", {style:"currency"...})`
+insère des espaces insécables entre les groupes de chiffres — aucune
+occasion de coupure valide pour le navigateur, texte des cellules
+adjacentes qui se chevauchait visuellement. Une 2e règle `@page { size:
+landscape }` SANS PORTÉE aurait réglé l'affichage mais aurait écrasé
+globalement la règle portrait existante pour TOUS les documents — rejeté
+d'emblée, exactement le genre de bogue déjà trouvé et corrigé sur la
+Facture la veille.
+
+**Solution retenue — pages CSS nommées**, un mécanisme jamais utilisé
+avant sur ce projet : `page: treasury-export;` posé uniquement sur
+`.pdf-export-page-wide` (la classe racine de cette vue précise) + une
+règle séparée `@page treasury-export { size: landscape; margin: 12mm; }`
+à l'intérieur du même bloc `@media print` qui contient déjà la règle
+portrait globale (`theme.css`). Vérifié empiriquement (Playwright, 2
+pages dans le même document — une avec la classe nommée, une sans) que
+les deux règles `@page` coexistent sans jamais se contaminer : la page
+nommée sort en paysage (792×612pt), la page par défaut reste portrait
+(612×792pt), avec la MÊME feuille de style chargée dans les deux cas —
+donc aucun risque pour les autres documents de l'application, malgré
+l'apparence d'une exception à la règle de la veille. `.treasury-export-table`
+reste en police compacte (9px, plus dense encore au-delà de 17 semaines)
+avec colonnes à largeur fixe et texte tronqué (`nowrap`/`overflow:hidden`)
+plutôt qu'un retour à la ligne, pour rester lisible sans chevauchement.
+
+Vérifié : `npm run typecheck && npm run lint && npm test && npm run
+build` verts (525 tests, inchangé — fonctionnalité d'export pur, aucune
+nouvelle règle métier), rendu Playwright isolé à 13 et 26 semaines
+(capture zoomée) confirmant un tableau propre, sans chevauchement ni
+troncature, revérifié par tar-copy + `npm ci && npm run build && npm
+test` (même discipline que tout changement touchant `theme.css`, fichier
+global). Aucune migration — pur ajout frontend. **Poussé (`4572f9f`)** —
+reste à confirmer par Marie en production, et à lui signaler explicitement
+l'exception paysage ci-dessus puisqu'elle contredit en apparence sa
+consigne portrait de la veille (raison technique + portée strictement
+limitée à cet export, jamais aux autres documents).
