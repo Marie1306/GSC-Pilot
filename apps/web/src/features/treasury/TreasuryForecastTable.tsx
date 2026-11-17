@@ -57,13 +57,22 @@ export function TreasuryForecastTable() {
           <h3>Prévisionnel</h3>
           <p className="modal-subtitle">Survolez un montant de facturation, de dépense récurrente ou d'entrée ponctuelle pour voir son détail.</p>
         </div>
-        <select value={weekCount} onChange={(event) => setWeekCount(Number(event.target.value))} style={{ maxWidth: 160 }}>
-          {HORIZON_OPTIONS.map((count) => (
-            <option key={count} value={count}>
-              {count} semaines
-            </option>
-          ))}
-        </select>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <select value={weekCount} onChange={(event) => setWeekCount(Number(event.target.value))} style={{ maxWidth: 160 }}>
+            {HORIZON_OPTIONS.map((count) => (
+              <option key={count} value={count}>
+                {count} semaines
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => window.open(`/tresorerie/export?semaines=${weekCount}`, "_blank", "noopener")}
+          >
+            📄 Exporter en PDF
+          </button>
+        </div>
       </div>
 
       {forecastQuery.isError ? (

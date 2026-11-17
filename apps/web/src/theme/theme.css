@@ -1188,6 +1188,83 @@ a {
   color: var(--gsc-color-muted2);
 }
 
+/*
+ * Export Trésorerie (17 novembre 2026) — seul export de l'appli avec un
+ * tableau LARGE (jusqu'à 26 colonnes, une par semaine) plutôt qu'une
+ * poignée de colonnes fixes comme tous les autres documents.
+ *
+ * Testé d'abord en portrait (règle confirmée par Marie le 16 novembre
+ * 2026 pour tous les AUTRES documents) avec une police compacte +
+ * table-layout:fixed — fonctionne bien jusqu'à ~17 semaines, mais vérifié
+ * par rendu isolé que ça devient illisible au-delà (22-26 semaines) :
+ * soit les colonnes débordent carrément de la page (sans fixed), soit
+ * les valeurs de colonnes adjacentes se chevauchent sans espace visible
+ * (avec fixed seul — le format monétaire fr-CA utilise des espaces
+ * insécables, le navigateur ne peut jamais couper la ligne dedans).
+ * Paysage résout proprement ce cas précis (table beaucoup plus large,
+ * confirmé par rendu isolé avant/après) — mais plutôt qu'une 2e règle
+ * @page en conflit avec la règle portrait globale (exactement le genre
+ * de bogue corrigé le 16 novembre 2026 sur la Facture), on utilise les
+ * "pages nommées" CSS (named pages, support Chromium vérifié directement
+ * ici) : .pdf-export-page-wide déclare `page: treasury-export`, qui
+ * n'active la règle `@page treasury-export { size: landscape }`
+ * ci-dessous QUE pour cette page précise — la règle portrait globale
+ * (non nommée) reste strictement inchangée pour tous les autres exports.
+ */
+.pdf-export-page-wide {
+  max-width: 1400px;
+  page: treasury-export;
+}
+.treasury-export-table-wrap {
+  overflow-x: auto;
+}
+.treasury-export-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 9px;
+}
+.treasury-export-table th {
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.3px;
+  color: var(--gsc-color-muted);
+  text-transform: uppercase;
+  text-align: left;
+  padding: 0 4px 6px 0;
+  border-bottom: 2px solid var(--gsc-color-line-strong);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.treasury-export-table td {
+  padding: 5px 4px 5px 0;
+  border-bottom: 1px solid var(--gsc-color-line);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+.treasury-export-table th:first-child,
+.treasury-export-table td:first-child {
+  width: 78px;
+  padding-left: 0;
+  white-space: normal;
+  overflow: visible;
+}
+.treasury-export-table th.num,
+.treasury-export-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.treasury-export-table-dense {
+  font-size: 7.5px;
+}
+.treasury-export-table-dense th {
+  font-size: 7px;
+}
+.treasury-export-row-highlight {
+  background: var(--gsc-color-surface2);
+}
+
 @media print {
   .no-print {
     display: none !important;
@@ -1213,5 +1290,16 @@ a {
      * elle le veut vraiment.
      */
     size: portrait;
+  }
+  /*
+   * Exception scopée, Export Trésorerie seulement (17 novembre 2026) —
+   * voir le commentaire complet sur .pdf-export-page-wide plus haut.
+   * N'affecte QUE les pages dont un élément déclare `page:
+   * treasury-export` — la règle @page portrait ci-dessus reste la seule
+   * appliquée à tous les autres documents, aucun conflit possible.
+   */
+  @page treasury-export {
+    margin: 12mm;
+    size: landscape;
   }
 }

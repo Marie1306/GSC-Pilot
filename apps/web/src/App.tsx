@@ -7,6 +7,7 @@ import {
   canAccessServiceCalls,
   canManageSoumission,
   canViewInvoicing,
+  canManageTreasury,
 } from "@gsc-pilot/business-rules";
 import { AuthProvider } from "./lib/auth/AuthProvider.js";
 import { RequireRole } from "./lib/auth/RequireRole.js";
@@ -19,6 +20,7 @@ import { DeliveryExportView } from "./features/fulfillment/DeliveryExportView.js
 import { SoumissionExportView } from "./features/soumissions/SoumissionExportView.js";
 import { ConfirmationExportView } from "./features/confirmationsDeCommande/ConfirmationExportView.js";
 import { InvoiceExportView } from "./features/invoicing/InvoiceExportView.js";
+import { TreasuryForecastExportView } from "./features/treasury/TreasuryForecastExportView.js";
 import { RollingPostMortemExportView } from "./features/rollings/RollingPostMortemExportView.js";
 import { ServiceCallExportView } from "./features/serviceCalls/ServiceCallExportView.js";
 import { NAV_ITEMS } from "./lib/nav.js";
@@ -139,6 +141,14 @@ export function App() {
             element={
               <RequireRole allow={canViewInvoicing}>
                 <InvoiceExportView />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/tresorerie/export"
+            element={
+              <RequireRole allow={canManageTreasury}>
+                <TreasuryForecastExportView />
               </RequireRole>
             }
           />
