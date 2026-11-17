@@ -6,7 +6,16 @@ function formatDate(iso: string): string {
   return new Date(`${iso}T00:00:00`).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" });
 }
 
-/** Entrées ponctuelles (jamais récurrentes) — montant signé : négatif = sortie, positif = entrée. */
+/**
+ * Entrées ponctuelles (jamais récurrentes) — 17 novembre 2026 : scindée en
+ * deux cartes sur demande de Marie (« ça me prend également une catégorie
+ * dépenses ponctuelles »). `TreasuryManualEntry.amount` reste un montant
+ * SIGNÉ unique (négatif = sortie, positif = entrée, voir treasury.ts) —
+ * aucun changement de schéma ni de backend, seulement un découpage
+ * d'affichage : cette carte filtre aux montants positifs et ne permet plus
+ * de saisir un montant négatif (voir OneTimeExpensesCard.tsx pour les
+ * sorties, qui écrit dans la MÊME table avec un montant négatif).
+ */
 export function ManualEntriesCard() {
   const queryClient = useQueryClient();
   const entriesQuery = useQuery({ queryKey: ["treasury", "manual-entries"], queryFn: fetchManualEntries });
@@ -25,15 +34,15 @@ export function ManualEntriesCard() {
   });
   const deleteMutation = useMutation({ mutationFn: deleteManualEntry, onSuccess: invalidate });
 
-  const entries = entriesQuery.data?.entries ?? [];
-  const canCreate = label.trim().length > 0 && amount.trim().length > 0 && Number(amount) !== 0;
+  const entries = (entriesQuery.data?.entries ?? []).filter((entry) => entry.amount > 0);
+  const canCreate = label.trim().length > 0 && amount.trim().length > 0 && Number(amount) > 0;
 
   return (
     <div className="card" style={{ marginTop: 20 }}>
       <div className="card-band-header">
         <div>
           <h3>Entrées ponctuelles</h3>
-          <p className="modal-subtitle">Mouvements hors cycle normal — jamais récurrents.</p>
+          <p className="modal-subtitle">Argent reçu hors cycle normal de facturation — jamais récurrent.</p>
         </div>
       </div>
 
@@ -52,7 +61,7 @@ export function ManualEntriesCard() {
               <tr key={entry.id}>
                 <td>{entry.label}</td>
                 <td>{formatDate(entry.date)}</td>
-                <td className={`num ${entry.amount < 0 ? "over-budget" : ""}`}>{formatCurrency(entry.amount)}</td>
+                <td className="num">{formatCurrency(entry.amount)}</td>
                 <td>
                   <button type="button" className="btn btn-secondary btn-small" onClick={() => deleteMutation.mutate(entry.id)}>
                     🗑
@@ -69,9 +78,10 @@ export function ManualEntriesCard() {
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         <input
           type="number"
+          min={0.01}
           step="0.01"
-          placeholder="Montant ($, négatif = sortie)"
-          style={{ maxWidth: 200 }}
+          placeholder="Montant ($)"
+          style={{ maxWidth: 160 }}
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
         />

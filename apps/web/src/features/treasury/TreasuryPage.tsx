@@ -4,6 +4,7 @@ import { TreasurySettingsCard } from "./TreasurySettingsCard.js";
 import { TreasuryForecastTable } from "./TreasuryForecastTable.js";
 import { RecurringExpensesCard } from "./RecurringExpensesCard.js";
 import { ManualEntriesCard } from "./ManualEntriesCard.js";
+import { OneTimeExpensesCard } from "./OneTimeExpensesCard.js";
 import { PendingForecastCard } from "./PendingForecastCard.js";
 
 /**
@@ -33,6 +34,7 @@ export function TreasuryPage() {
           </div>
           <RecurringExpensesCard />
           <ManualEntriesCard />
+          <OneTimeExpensesCard />
           <PendingForecastCard />
         </>
       )}
