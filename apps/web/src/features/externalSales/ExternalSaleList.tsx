@@ -23,37 +23,42 @@ interface ExternalSaleListProps {
   onCreate: () => void;
 }
 
-function ExternalSaleGrid({ rows, onOpen }: { rows: ExternalSaleListItemDto[]; onOpen: (id: string) => void }) {
+/** Tableau (17 novembre 2026, demande explicite — même forme que RollingsPage.tsx/RollingsTable, colonnes identiques). */
+function ExternalSaleTable({ rows, onOpen }: { rows: ExternalSaleListItemDto[]; onOpen: (id: string) => void }) {
   return (
-    <div className="project-card-grid">
-      {rows.map((row) => (
-        <div key={row.id} className="project-card" onClick={() => onOpen(row.id)}>
-          <div className="project-card-header">
-            <span className="project-card-number">{row.displayId}</span>
-            <span className={`badge-pill ${row.status === "ready_invoice" ? "badge-conforme" : "badge-neutral"}`}>
-              {EXTERNAL_SALE_STATUS_LABELS[row.status] ?? row.status}
-            </span>
-          </div>
-          <div className="project-card-name">{row.company ?? row.contactName}</div>
-          <div className="project-card-sub">{formatCalendarDate(row.createdAt)}</div>
-
-          <div className="project-card-stats">
-            <div className="stat-tile">
-              <span className="stat-tile-label">Prix vendu</span>
-              <span className="stat-tile-value">{formatCurrency(row.salePrice)}</span>
-            </div>
-            <div className="stat-tile">
-              <span className="stat-tile-label">Livraison</span>
-              <span className="stat-tile-value">{row.readyToDeliver ? "Prête" : "En attente"}</span>
-            </div>
-          </div>
-
-          <div className="project-card-footer">
-            <span />
-            <span className="project-card-open">Ouvrir ›</span>
-          </div>
-        </div>
-      ))}
+    <div style={{ overflowX: "auto" }}>
+      <table className="shortlist-table">
+        <thead>
+          <tr>
+            <th>Vente</th>
+            <th>Client</th>
+            <th className="num">Prix vendu</th>
+            <th>Statut</th>
+            <th>Créé le</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id}>
+              <td>{row.displayId}</td>
+              <td>{row.company ?? row.contactName}</td>
+              <td className="num">{formatCurrency(row.salePrice)}</td>
+              <td>
+                <span className={`badge-pill ${row.status === "ready_invoice" ? "badge-conforme" : "badge-neutral"}`}>
+                  {EXTERNAL_SALE_STATUS_LABELS[row.status] ?? row.status}
+                </span>
+              </td>
+              <td>{formatCalendarDate(row.createdAt)}</td>
+              <td>
+                <button type="button" className="btn btn-secondary btn-small" onClick={() => onOpen(row.id)}>
+                  Ouvrir
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -63,10 +68,19 @@ function ExternalSaleGrid({ rows, onOpen }: { rows: ExternalSaleListItemDto[]; o
  * vie (contrairement à Projet) : une vente reste courte et n'a que 2
  * statuts (voir EXTERNAL_SALE_STATUS_LABELS). Séparée en 2 sections sur la
  * même page depuis le 19 octobre 2026 (demande explicite) — actives en
- * haut (carte existante), terminées (status==="ready_invoice", voir
- * ExternalSaleDetail.tsx pour le geste "Terminer") dans une 2e carte en
- * bas, jamais masquées ni supprimées. Toujours un onglet unique, pas de
- * tabs — cohérent avec le choix d'origine ci-dessus.
+ * haut, terminées (status==="ready_invoice", voir ExternalSaleDetail.tsx
+ * pour le geste "Terminer") dans une 2e carte en bas, jamais masquées ni
+ * supprimées. Toujours un onglet unique, pas de tabs — cohérent avec le
+ * choix d'origine ci-dessus.
+ *
+ * Affichage en tableau (17 novembre 2026, demande explicite de
+ * l'utilisatrice — « comme le module roulement ») : remplace l'ancienne
+ * grille de cartes (ExternalSaleGrid) par ExternalSaleTable, même colonnes
+ * exactes que RollingsTable (RollingsPage.tsx) — Vente/Client/Prix
+ * vendu/Statut/Créé le/Ouvrir. La colonne "Livraison" de l'ancienne carte
+ * est retirée de la liste (cohérent avec Roulement, qui ne l'affiche pas
+ * non plus dans son tableau) — reste visible au détail
+ * (ExternalSaleFulfillment.tsx), jamais perdue.
  */
 export function ExternalSaleList({ onOpen, onCreate }: ExternalSaleListProps) {
   const { employee } = useAuth();
@@ -99,7 +113,7 @@ export function ExternalSaleList({ onOpen, onCreate }: ExternalSaleListProps) {
           onMaxPriceChange={setMaxPrice}
         />
         {activeRows.length === 0 && <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucune vente externe active.</p>}
-        {activeRows.length > 0 && <ExternalSaleGrid rows={activeRows} onOpen={onOpen} />}
+        {activeRows.length > 0 && <ExternalSaleTable rows={activeRows} onOpen={onOpen} />}
       </div>
 
       {completedRows.length > 0 && (
@@ -107,7 +121,7 @@ export function ExternalSaleList({ onOpen, onCreate }: ExternalSaleListProps) {
           <div className="card-band-header">
             <h3>Ventes terminées</h3>
           </div>
-          <ExternalSaleGrid rows={completedRows} onOpen={onOpen} />
+          <ExternalSaleTable rows={completedRows} onOpen={onOpen} />
         </div>
       )}
     </>
