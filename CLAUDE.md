@@ -1405,3 +1405,25 @@ vérifier "Mise en page"/"Plus de paramètres" et choisir explicitement
 Portrait une fois — si Chrome mémorise ce choix par site comme pour les
 autres documents déjà corrects, ça ne devrait plus revenir. À revoir
 seulement si ça persiste après ce geste.
+
+**Confirmé par Marie le 17 novembre 2026** (« Tout est fonctionnel ») :
+la ventilation par produit de la Facture ET le nouveau module Call de
+service/Bons de travail (Chantier D, poussés dans le même lot — voir
+section précédente) fonctionnent tous les deux en production. Le bogue
+paysage/portrait n'a pas été re-signalé depuis — vraisemblablement réglé
+par le remède suggéré ci-dessus (ou jamais revu par Marie depuis), à
+revoir seulement si elle le rapporte à nouveau.
+
+**Bloc 3 collé par Marie le 17 novembre 2026, confirmé** (« j'ai copié
+le sql ») — la migration de nettoyage
+(`20261116192609_bon_de_travail_cleanup`, retrait des colonnes
+orphelines sur `ServiceCall`/`ServiceCallPart`/`ServiceCallPhoto`/
+`TimeEntry`) est maintenant appliquée sur la vraie base. Chantier D est
+donc entièrement clos : code poussé, redéployé, testé par Marie, ET les
+3 blocs de migration tous collés dans l'ordre prévu (additif → données
+réelles → nettoyage, ce dernier seulement après le nouveau code déjà en
+production — voir la règle d'exception documentée dans la section
+Chantier D ci-dessus). Cette session n'a toujours aucun accès réseau à
+Supabase pour vérifier directement que le retrait des colonnes a
+réussi — confirmation reposant entièrement sur la parole de Marie, même
+mécanisme que toutes les corrections de données réelles précédentes.
