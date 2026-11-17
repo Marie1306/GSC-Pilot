@@ -1483,8 +1483,11 @@ nouvelle règle métier), rendu Playwright isolé à 13 et 26 semaines
 (capture zoomée) confirmant un tableau propre, sans chevauchement ni
 troncature, revérifié par tar-copy + `npm ci && npm run build && npm
 test` (même discipline que tout changement touchant `theme.css`, fichier
-global). Aucune migration — pur ajout frontend. **Poussé (`4572f9f`)** —
-reste à confirmer par Marie en production, et à lui signaler explicitement
-l'exception paysage ci-dessus puisqu'elle contredit en apparence sa
-consigne portrait de la veille (raison technique + portée strictement
-limitée à cet export, jamais aux autres documents).
+global). Aucune migration — pur ajout frontend. **Poussé (`4572f9f`)**.
+
+**Exception paysage confirmée par Marie le 17 novembre 2026** (« Garde-le
+en paysage, c'est correct comme ça ») — en réponse directe au signalement
+de l'exception ci-dessus. La règle portrait du 16 novembre reste la norme
+par défaut pour tous les autres documents ; seul cet export Trésorerie en
+paysage est une exception confirmée, pas à généraliser ni à revoir sans
+nouvelle demande explicite.
