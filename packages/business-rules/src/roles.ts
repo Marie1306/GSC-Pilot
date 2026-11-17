@@ -935,3 +935,26 @@ export function canManageExternalSaleDocuments(persona: Persona): boolean {
   assertRole(persona);
   return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
+
+// ---------------------------------------------------------------------------
+// Suppression PERMANENTE (purge) — Projet/Roulement/Call de service/Vente
+// externe (17 novembre 2026, demande explicite pour nettoyer des dossiers
+// test). Distincte de canDeleteProject/canDeleteRolling/canDeleteServiceCall
+// (corbeille — deletedAt, réversible) : ce geste vide réellement les tables
+// pour ce dossier et tout ce qui lui est rattaché (punch, achats, factures,
+// documents, Budgétaire/Soumission/Confirmation de commande d'origine,
+// etc.) — jamais restaurable. Fonctionne même si une facture a déjà été
+// envoyée (confirmé explicitement — "permettre quand même", le dossier
+// purgé est un dossier de test, pas un vrai client). "Direction seulement"
+// confirmé mot pour mot par Marie — PAS le Propriétaire (`boss`), qui
+// n'a pourtant jamais été exclu d'aucun autre geste destructeur de ce
+// calibre ailleurs dans l'appli (canDeleteProject/canDeleteRolling/
+// canDeleteServiceCall sont déjà OWNER seul, donc ce choix reste cohérent
+// avec le palier déjà en place pour la suppression douce des 3 mêmes
+// entités, simplement jamais étendu à BOSS). Une seule fonction pour les 4
+// entités (jamais 4 fonctions séparées) — le geste et sa portée sont
+// identiques, seule la cible change.
+export function canPurgeDossier(persona: Persona): boolean {
+  assertRole(persona);
+  return persona === ROLES.OWNER;
+}

@@ -152,3 +152,8 @@ export function fetchExternalSaleDocuments(id: string): Promise<{ documents: Ext
 export function fetchExternalSaleDocumentDownloadUrl(documentId: string): Promise<{ url: string }> {
   return apiFetch(`/api/external-sales/documents/${documentId}/download-url`);
 }
+
+/** Suppression PERMANENTE (purge, 17 novembre 2026) — jamais restaurable, voir PurgeConfirmModal.tsx. Vente externe n'a jamais eu de suppression douce (corbeille) avant celle-ci. */
+export function purgeExternalSale(id: string): Promise<void> {
+  return apiFetch(`/api/external-sales/${id}/purge`, { method: "POST" });
+}

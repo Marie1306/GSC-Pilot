@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { canManageProject, canArchiveProject, canDeleteProject, canCloseProject, canCreateServiceCall } from "@gsc-pilot/business-rules";
+import { canManageProject, canArchiveProject, canDeleteProject, canCloseProject, canCreateServiceCall, canPurgeDossier } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { OptionsDrawer, OptionRow, OptionSection } from "../../components/OptionsDrawer.js";
-import { updateProjectInfo, setProjectArchived, setProjectClosed, deleteProject, fetchProjectHistory, type ProjectDetail } from "./api.js";
+import { updateProjectInfo, setProjectArchived, setProjectClosed, deleteProject, purgeProject, fetchProjectHistory, type ProjectDetail } from "./api.js";
+import { PurgeConfirmModal } from "../../components/PurgeConfirmModal.js";
 import { ProjectPostMortem } from "./ProjectPostMortem.js";
 import { ProjectChecklistArchive } from "../checklists/ProjectChecklistArchive.js";
 import { ProjectQrCode } from "./ProjectQrCode.js";
@@ -63,6 +64,7 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [showCreateCall, setShowCreateCall] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showPurgeConfirm, setShowPurgeConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const historyQuery = useQuery({
@@ -108,6 +110,7 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
   const canManage = canManageProject(employee.persona);
   const canArchive = canArchiveProject(employee.persona);
   const canDelete = canDeleteProject(employee.persona);
+  const canPurge = canPurgeDossier(employee.persona);
   const canClose = canCloseProject(employee.persona);
   const canCreateCall = canCreateServiceCall(employee.persona);
   const isArchived = !!project.archivedAt;
@@ -321,6 +324,11 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
                       </button>
                     </>
                   ))}
+                {canPurge && (
+                  <button type="button" className="btn btn-secondary btn-small" onClick={() => setShowPurgeConfirm(true)}>
+                    Supprimer définitivement
+                  </button>
+                )}
               </div>
               {isClosed && (
                 <p style={{ margin: "10px 0 0", fontSize: 13, color: "var(--gsc-color-muted)" }}>
@@ -337,6 +345,24 @@ export function ProjectOptionsMenu({ project, open, onClose, onDeleted, onCreate
       </OptionsDrawer>
       )}
 
+      {showPurgeConfirm && (
+        <PurgeConfirmModal
+          title={`Supprimer définitivement le projet ${project.projectNumber}`}
+          displayId={project.projectNumber}
+          warningItems={[
+            "Punch d'heures, achats réels et demandes d'achat",
+            "Factures (même déjà envoyées)",
+            "Documents téléversés",
+            "Sous-assemblages (« Assemblage ») et avenants",
+            "Checklist de production, livraisons",
+            "Les Call de service rattachés, avec tous leurs Bons de travail",
+            "Le Budgétaire d'origine, sa Soumission et sa Confirmation de commande, s'il y en a un",
+          ]}
+          onConfirm={() => purgeProject(project.id)}
+          onClose={() => setShowPurgeConfirm(false)}
+          onSuccess={onDeleted}
+        />
+      )}
       {showPostMortem && <ProjectPostMortem projectId={project.id} onClose={() => setShowPostMortem(false)} />}
       {showChecklistArchive && <ProjectChecklistArchive projectId={project.id} onClose={() => setShowChecklistArchive(false)} />}
       {showQrCode && (

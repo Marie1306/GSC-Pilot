@@ -1,9 +1,18 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { canReassignServiceCall, canCreateBonDeTravail, canDeleteServiceCall, canConfirmInvoiceRequest } from "@gsc-pilot/business-rules";
+import { canReassignServiceCall, canCreateBonDeTravail, canDeleteServiceCall, canConfirmInvoiceRequest, canPurgeDossier } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { fetchPunchableEmployees } from "../timePunch/api.js";
-import { fetchServiceCallDetail, updateServiceCall, createBonDeTravail, deleteServiceCall, SERVICE_CALL_STATUS_LABELS, type BonDeTravailSummaryDto } from "./api.js";
+import {
+  fetchServiceCallDetail,
+  updateServiceCall,
+  createBonDeTravail,
+  deleteServiceCall,
+  purgeServiceCall,
+  SERVICE_CALL_STATUS_LABELS,
+  type BonDeTravailSummaryDto,
+} from "./api.js";
+import { PurgeConfirmModal } from "../../components/PurgeConfirmModal.js";
 import { BonDeTravailDetail } from "./BonDeTravailDetail.js";
 import { SelectBonsDeTravailModal } from "./SelectBonsDeTravailModal.js";
 import "./serviceCalls.css";
@@ -50,6 +59,7 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
   const call = detailQuery.data?.serviceCall;
 
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showPurgeConfirm, setShowPurgeConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openBtId, setOpenBtId] = useState<string | null>(null);
   const [selectionOpen, setSelectionOpen] = useState(false);
@@ -94,6 +104,7 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
 
   const canReassign = canReassignServiceCall(employee.persona);
   const canDelete = canDeleteServiceCall(employee.persona);
+  const canPurge = canPurgeDossier(employee.persona);
   const canCreateBt = canCreateBonDeTravail(employee.persona, call, employee.id);
   const employees = employeesQuery.data?.employees ?? [];
 
@@ -229,22 +240,28 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
         </div>
 
         <div className="modal-footer">
-          {canDelete && (
+          {(canDelete || canPurge) && (
             <div style={{ marginRight: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-              {!confirmDelete ? (
-                <button type="button" className="btn btn-secondary service-call-btn-small" onClick={() => setConfirmDelete(true)}>
-                  Supprimer la demande
+              {canDelete &&
+                (!confirmDelete ? (
+                  <button type="button" className="btn btn-secondary service-call-btn-small" onClick={() => setConfirmDelete(true)}>
+                    Supprimer la demande
+                  </button>
+                ) : (
+                  <>
+                    <span style={{ fontSize: 13 }}>Envoyer à la corbeille — confirmer ?</span>
+                    <button type="button" className="btn service-call-btn-small" disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate()}>
+                      {deleteMutation.isPending ? "…" : "Confirmer la suppression"}
+                    </button>
+                    <button type="button" className="btn btn-secondary service-call-btn-small" onClick={() => setConfirmDelete(false)}>
+                      Annuler
+                    </button>
+                  </>
+                ))}
+              {canPurge && (
+                <button type="button" className="btn btn-secondary service-call-btn-small" onClick={() => setShowPurgeConfirm(true)}>
+                  Supprimer définitivement
                 </button>
-              ) : (
-                <>
-                  <span style={{ fontSize: 13 }}>Envoyer à la corbeille — confirmer ?</span>
-                  <button type="button" className="btn service-call-btn-small" disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate()}>
-                    {deleteMutation.isPending ? "…" : "Confirmer la suppression"}
-                  </button>
-                  <button type="button" className="btn btn-secondary service-call-btn-small" onClick={() => setConfirmDelete(false)}>
-                    Annuler
-                  </button>
-                </>
               )}
             </div>
           )}
@@ -259,6 +276,22 @@ export function ServiceCallDetail({ id, onClose }: ServiceCallDetailProps) {
         </div>
       </div>
 
+      {showPurgeConfirm && (
+        <PurgeConfirmModal
+          title={`Supprimer définitivement l'appel ${call.displayId}`}
+          displayId={call.displayId}
+          warningItems={[
+            "Tous les Bons de travail (pièces, photos, punch, signatures)",
+            "Factures (même déjà envoyées)",
+          ]}
+          onConfirm={() => purgeServiceCall(id)}
+          onClose={() => setShowPurgeConfirm(false)}
+          onSuccess={() => {
+            void queryClient.invalidateQueries({ queryKey: ["service-calls"] });
+            onClose();
+          }}
+        />
+      )}
       {openBtId && <BonDeTravailDetail id={openBtId} onClose={() => setOpenBtId(null)} />}
       {selectionOpen && (
         <SelectBonsDeTravailModal

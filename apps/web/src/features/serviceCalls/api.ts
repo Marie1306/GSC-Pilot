@@ -153,6 +153,11 @@ export function deleteServiceCall(id: string): Promise<void> {
   return apiFetch(`/api/service-calls/${id}`, { method: "DELETE" });
 }
 
+/** Suppression PERMANENTE (purge, 17 novembre 2026) — jamais restaurable, voir PurgeConfirmModal.tsx. */
+export function purgeServiceCall(id: string): Promise<void> {
+  return apiFetch(`/api/service-calls/${id}/purge`, { method: "POST" });
+}
+
 // ---------------------------------------------------------------------------
 // Bons de travail (Chantier D, 16 novembre 2026)
 // ---------------------------------------------------------------------------

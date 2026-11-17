@@ -15,6 +15,7 @@ import {
   canManageProject,
   canArchiveProject,
   canDeleteProject,
+  canPurgeDossier,
   canCloseProject,
   canManagePostMortem,
   canSeeFinancialValues,
@@ -27,6 +28,7 @@ import {
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import { prisma } from "../../db.js";
 import { createProjectDocumentUploadUrl, confirmProjectDocumentUpload, listProjectDocuments, getProjectDocumentDownloadUrl } from "./documents.js";
+import { purgeProject } from "../settings/purge.js";
 import {
   listProjects,
   getProjectDetail,
@@ -466,6 +468,13 @@ projectsRouter.delete(
     res.status(204).end();
   },
 );
+
+/** Suppression PERMANENTE (purge, 17 novembre 2026) — Direction seulement (canPurgeDossier), jamais restaurable. Voir settings/purge.ts. */
+projectsRouter.post("/projects/:id/purge", requireAuth, requirePermission((persona) => canPurgeDossier(persona)), async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  await purgeProject(id);
+  res.status(204).end();
+});
 
 projectsRouter.get(
   "/projects/:id/history",

@@ -8,12 +8,14 @@ import {
   canCreateServiceCall,
   canCreateBudgetFromRequest,
   canChooseFulfillmentMode,
+  canPurgeDossier,
 } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { OptionsDrawer, OptionRow, OptionSection } from "../../components/OptionsDrawer.js";
+import { PurgeConfirmModal } from "../../components/PurgeConfirmModal.js";
 import { updateContact } from "../contacts/api.js";
-import { setRollingArchived, setRollingCompleted, deleteRolling, type RollingDetailDto } from "./api.js";
+import { setRollingArchived, setRollingCompleted, deleteRolling, purgeRolling, type RollingDetailDto } from "./api.js";
 import { RollingPostMortem } from "./RollingPostMortem.js";
 import { RollingHoursDetail } from "./RollingHoursDetail.js";
 import { RollingQrCode } from "./RollingQrCode.js";
@@ -57,6 +59,7 @@ export function RollingOptionsMenu({ rolling, open, onClose, onDeleted, onAddPur
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [showCreateCall, setShowCreateCall] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showPurgeConfirm, setShowPurgeConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const invalidate = () => {
@@ -102,6 +105,7 @@ export function RollingOptionsMenu({ rolling, open, onClose, onDeleted, onAddPur
   const canManage = canManageRolling(employee.persona);
   const canArchive = canArchiveRolling(employee.persona);
   const canDelete = canDeleteRolling(employee.persona);
+  const canPurge = canPurgeDossier(employee.persona);
   const canMarkCompleted = canChooseFulfillmentMode(employee.persona);
   const canCreateCall = canCreateServiceCall(employee.persona);
   const canBuildBudget = canCreateBudgetFromRequest(employee.persona);
@@ -236,7 +240,7 @@ export function RollingOptionsMenu({ rolling, open, onClose, onDeleted, onAddPur
             </>
           )}
 
-          {(canArchive || canDelete || canMarkCompleted) && (
+          {(canArchive || canDelete || canMarkCompleted || canPurge) && (
             <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--gsc-color-line)" }}>
               <p style={{ margin: "0 0 10px", fontSize: 12, textTransform: "uppercase", letterSpacing: 0.04, color: "var(--gsc-color-muted)" }}>
                 Actions sensibles
@@ -279,6 +283,11 @@ export function RollingOptionsMenu({ rolling, open, onClose, onDeleted, onAddPur
                       </button>
                     </>
                   ))}
+                {canPurge && (
+                  <button type="button" className="btn btn-secondary btn-small" onClick={() => setShowPurgeConfirm(true)}>
+                    Supprimer définitivement
+                  </button>
+                )}
               </div>
               {isArchived && (
                 <p style={{ margin: "10px 0 0", fontSize: 13, color: "var(--gsc-color-muted)" }}>
@@ -290,6 +299,22 @@ export function RollingOptionsMenu({ rolling, open, onClose, onDeleted, onAddPur
         </OptionsDrawer>
       )}
 
+      {showPurgeConfirm && (
+        <PurgeConfirmModal
+          title={`Supprimer définitivement le roulement ${rolling.rollingNumber}`}
+          displayId={rolling.rollingNumber}
+          warningItems={[
+            "Punch d'heures, achats réels",
+            "Factures (même déjà envoyées)",
+            "Documents téléversés",
+            "Les Call de service rattachés, avec tous leurs Bons de travail",
+            "Le Budgétaire d'origine, sa Soumission et sa Confirmation de commande, s'il y en a un",
+          ]}
+          onConfirm={() => purgeRolling(rolling.id)}
+          onClose={() => setShowPurgeConfirm(false)}
+          onSuccess={onDeleted}
+        />
+      )}
       {showQrCode && (
         <RollingQrCode rolling={{ rollingNumber: rolling.rollingNumber, label, company: rolling.company }} onClose={() => setShowQrCode(false)} />
       )}

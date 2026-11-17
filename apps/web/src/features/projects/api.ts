@@ -430,6 +430,11 @@ export function deleteProject(id: string): Promise<void> {
   return apiFetch(`/api/projects/${id}`, { method: "DELETE" });
 }
 
+/** Suppression PERMANENTE (purge, 17 novembre 2026) — jamais restaurable, voir PurgeConfirmModal.tsx. */
+export function purgeProject(id: string): Promise<void> {
+  return apiFetch(`/api/projects/${id}/purge`, { method: "POST" });
+}
+
 export interface HistoryEventDto {
   at: string;
   label: string;

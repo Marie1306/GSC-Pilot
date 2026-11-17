@@ -735,3 +735,15 @@ describe("Documents du Roulement et de la Vente externe (17 novembre 2026) — m
     expect(P.canManageExternalSaleDocuments(WAREHOUSE)).toBe(false);
   });
 });
+
+describe("canPurgeDossier (17 novembre 2026) — suppression permanente, Direction seulement", () => {
+  it("Direction peut purger", () => {
+    expect(P.canPurgeDossier(OWNER)).toBe(true);
+  });
+  it("Propriétaire, Administration, Employé et Magasinier ne peuvent pas purger", () => {
+    expect(P.canPurgeDossier(BOSS)).toBe(false);
+    expect(P.canPurgeDossier(ADMIN)).toBe(false);
+    expect(P.canPurgeDossier(MEMBER)).toBe(false);
+    expect(P.canPurgeDossier(WAREHOUSE)).toBe(false);
+  });
+});

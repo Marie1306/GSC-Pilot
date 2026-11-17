@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { canManageExternalSales, canConfirmInvoiceRequest } from "@gsc-pilot/business-rules";
+import { canManageExternalSales, canConfirmInvoiceRequest, canPurgeDossier } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { formatCalendarDate } from "../../lib/date.js";
 import { ApiError } from "../../lib/apiClient.js";
@@ -13,9 +13,11 @@ import {
   setExternalSaleCompleted,
   previewExternalSaleInvoice,
   requestExternalSaleInvoice,
+  purgeExternalSale,
   EXTERNAL_SALE_STATUS_LABELS,
 } from "./api.js";
 import { ExternalSaleFulfillment } from "./ExternalSaleFulfillment.js";
+import { PurgeConfirmModal } from "../../components/PurgeConfirmModal.js";
 
 interface ExternalSaleDetailProps {
   id: string;
@@ -41,6 +43,7 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
   const detailQuery = useQuery({ queryKey: ["external-sale", id], queryFn: () => fetchExternalSaleDetail(id) });
   const sale = detailQuery.data;
   const [requestModalOpen, setRequestModalOpen] = useState(false);
+  const [showPurgeConfirm, setShowPurgeConfirm] = useState(false);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["external-sale", id] });
@@ -59,6 +62,7 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
   });
   const canManage = !!employee && canManageExternalSales(employee.persona);
   const canRequestInvoiceForSale = !!employee && canConfirmInvoiceRequest(employee.persona);
+  const canPurge = !!employee && canPurgeDossier(employee.persona);
   const isCompleted = sale?.status === "ready_invoice";
 
   return (
@@ -188,11 +192,26 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
               Demander la facturation
             </button>
           )}
+          {sale && canPurge && (
+            <button type="button" className="btn btn-secondary" onClick={() => setShowPurgeConfirm(true)}>
+              Supprimer définitivement
+            </button>
+          )}
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Fermer
           </button>
         </div>
       </div>
+      {showPurgeConfirm && sale && (
+        <PurgeConfirmModal
+          title={`Supprimer définitivement la vente ${sale.displayId}`}
+          displayId={sale.displayId}
+          warningItems={["Les demandes d'achat de pièces liées", "La Facture (même déjà envoyée)", "Les documents téléversés", "La livraison"]}
+          onConfirm={() => purgeExternalSale(id)}
+          onClose={() => setShowPurgeConfirm(false)}
+          onSuccess={onClose}
+        />
+      )}
       {requestModalOpen && sale && (
         <RequestInvoiceModal
           subtitle={sale.displayId}

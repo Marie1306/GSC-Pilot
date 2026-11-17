@@ -4,6 +4,7 @@ import {
   canManageExternalSales,
   canConfirmInvoiceRequest,
   canManageExternalSaleDocuments,
+  canPurgeDossier,
   FULFILLMENT_MODES,
   type FulfillmentMode,
 } from "@gsc-pilot/business-rules";
@@ -26,6 +27,7 @@ import {
   listExternalSaleDocuments,
   getExternalSaleDocumentDownloadUrl,
 } from "./documents.js";
+import { purgeExternalSale } from "../settings/purge.js";
 
 export const externalSalesRouter = Router();
 
@@ -178,3 +180,15 @@ externalSalesRouter.get("/external-sales/documents/:documentId/download-url", re
   const documentId = z.uuid().parse(req.params.documentId);
   res.json({ url: await getExternalSaleDocumentDownloadUrl(documentId) });
 });
+
+/** Suppression PERMANENTE (purge, 17 novembre 2026) — Direction seulement (canPurgeDossier), jamais restaurable. Voir settings/purge.ts. */
+externalSalesRouter.post(
+  "/external-sales/:id/purge",
+  requireAuth,
+  requirePermission((persona) => canPurgeDossier(persona)),
+  async (req, res) => {
+    const id = z.uuid().parse(req.params.id);
+    await purgeExternalSale(id);
+    res.status(204).end();
+  },
+);

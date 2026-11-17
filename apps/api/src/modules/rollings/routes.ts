@@ -11,6 +11,7 @@ import {
   canSeeFinancialValues,
   canEditGanttSchedule,
   canManageRollingDocuments,
+  canPurgeDossier,
 } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import {
@@ -32,6 +33,7 @@ import {
 } from "./service.js";
 import { activateRollingGantt } from "../gantt/service.js";
 import { createRollingDocumentUploadUrl, confirmRollingDocumentUpload, listRollingDocuments, getRollingDocumentDownloadUrl } from "./documents.js";
+import { purgeRolling } from "../settings/purge.js";
 
 // Monté sur /api directement (voir app.ts) — chaque route applique donc
 // requireAuth/requirePermission elle-même, même patron que deliveries/reports.
@@ -192,6 +194,13 @@ rollingsRouter.delete(
     res.status(204).end();
   },
 );
+
+/** Suppression PERMANENTE (purge, 17 novembre 2026) — Direction seulement (canPurgeDossier), jamais restaurable. Voir settings/purge.ts. */
+rollingsRouter.post("/rollings/:id/purge", requireAuth, requirePermission((persona) => canPurgeDossier(persona)), async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  await purgeRolling(id);
+  res.status(204).end();
+});
 
 rollingsRouter.patch(
   "/rollings/:id/post-mortem",

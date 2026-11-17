@@ -9,6 +9,7 @@ import {
   canApproveServiceCall,
   canConfirmInvoiceRequest,
   canDeleteServiceCall,
+  canPurgeDossier,
 } from "@gsc-pilot/business-rules";
 import { requireAuth, requirePermission } from "../../auth/middleware.js";
 import { prisma } from "../../db.js";
@@ -31,6 +32,7 @@ import {
   deleteServiceCall,
   getNextServiceCallDisplayId,
 } from "./service.js";
+import { purgeServiceCall } from "../settings/purge.js";
 
 // Monté sur /api directement (voir app.ts, comme budgetsRouter/purchasesRouter)
 // — chaque route applique donc requireAuth/requirePermission elle-même,
@@ -108,6 +110,13 @@ serviceCallsRouter.delete(
     res.status(204).end();
   },
 );
+
+/** Suppression PERMANENTE (purge, 17 novembre 2026) — Direction seulement (canPurgeDossier), jamais restaurable. Voir settings/purge.ts. */
+serviceCallsRouter.post("/service-calls/:id/purge", requireAuth, requirePermission((persona) => canPurgeDossier(persona)), async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  await purgeServiceCall(id);
+  res.status(204).end();
+});
 
 // ---------------------------------------------------------------------------
 // Bons de travail (Chantier D, 16 novembre 2026)

@@ -168,6 +168,11 @@ export function deleteRolling(id: string): Promise<void> {
   return apiFetch(`/api/rollings/${id}`, { method: "DELETE" });
 }
 
+/** Suppression PERMANENTE (purge, 17 novembre 2026) — jamais restaurable, voir PurgeConfirmModal.tsx. */
+export function purgeRolling(id: string): Promise<void> {
+  return apiFetch(`/api/rollings/${id}/purge`, { method: "POST" });
+}
+
 /** Démarré depuis le Budgétaire (voir BudgetDetail.tsx) — route sur /api/budgets, pas /api/rollings (même patron que convertBudgetToProject). */
 export function convertBudgetToRolling(budgetId: string): Promise<{ id: string }> {
   return apiFetch(`/api/budgets/${budgetId}/convert-to-rolling`, { method: "POST" });
