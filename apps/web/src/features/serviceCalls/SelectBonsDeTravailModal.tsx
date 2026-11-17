@@ -102,6 +102,7 @@ export function SelectBonsDeTravailModal({ serviceCallId, serviceCallDisplayId, 
             onSuccess();
             onClose();
           }}
+          allowLines={false}
         />
       )}
     </div>

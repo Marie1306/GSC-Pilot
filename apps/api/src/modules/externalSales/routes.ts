@@ -114,15 +114,16 @@ externalSalesRouter.post(
 );
 
 /** Demander la facturation (13 novembre 2026) — geste unifié, Direction+Propriétaire (canConfirmInvoiceRequest), jamais canManageExternalSales. Voir requestExternalSaleInvoice. */
-const requestExternalSaleInvoiceSchema = z.object({ note: z.string().optional() });
+const invoiceRequestLineSchema = z.object({ description: z.string().min(1), qty: z.number().positive(), unitPrice: z.number() });
+const requestExternalSaleInvoiceSchema = z.object({ note: z.string().optional(), lines: z.array(invoiceRequestLineSchema).optional() });
 externalSalesRouter.post(
   "/external-sales/:id/request-invoice",
   requireAuth,
   requirePermission((persona) => canConfirmInvoiceRequest(persona)),
   async (req, res) => {
     const id = z.uuid().parse(req.params.id);
-    const { note } = requestExternalSaleInvoiceSchema.parse(req.body);
-    const entry = await requestExternalSaleInvoice(id, req.employee!.id, note);
+    const { note, lines } = requestExternalSaleInvoiceSchema.parse(req.body);
+    const entry = await requestExternalSaleInvoice(id, req.employee!.id, note, lines);
     res.json({ entry });
   },
 );

@@ -56,10 +56,16 @@ export interface InvoiceEntryDto {
   // seulement pour sourceType==="serviceCall".
   serviceCallBonsDeTravail?: InvoiceBonDeTravailBreakdownDto[];
   // Ventilation par produit de la Confirmation de commande d'origine (16
-  // novembre 2026) — seulement pour sourceType==="project" quand le budget
-  // d'origine a une Confirmation de commande (undefined sinon — repli sur
-  // l'ancien affichage "{label} ({pct}%)").
-  projectConfirmation?: InvoiceProjectConfirmationDto;
+  // novembre 2026, étendu au Roulement le 17 novembre 2026) — pour
+  // sourceType==="project" OU "rolling" quand le budget d'origine a une
+  // Confirmation de commande (undefined sinon — repli sur lines/l'ancien
+  // affichage "{label} ({pct}%)").
+  confirmationBreakdown?: InvoiceConfirmationBreakdownDto;
+  // Lignes saisies ou dérivées automatiquement puis confirmées au moment de
+  // "Demander la facturation" (17 novembre 2026) — PRIORITAIRES sur
+  // confirmationBreakdown/serviceCallBonsDeTravail ci-dessus quand présentes.
+  // Vide pour toute facture confirmée avant ce chantier.
+  lines?: InvoiceLineDto[];
 }
 
 export interface InvoiceLineDto {
@@ -76,7 +82,7 @@ export interface InvoiceBonDeTravailBreakdownDto {
   lines: InvoiceLineDto[];
 }
 
-export interface InvoiceProjectConfirmationLineDto {
+export interface InvoiceConfirmationBreakdownLineDto {
   description: string;
   quantity: number;
   unitPrice: number;
@@ -84,11 +90,11 @@ export interface InvoiceProjectConfirmationLineDto {
   amount: number;
 }
 
-export interface InvoiceProjectConfirmationDto {
+export interface InvoiceConfirmationBreakdownDto {
   displayId: string;
   introText: string | null;
   termsText: string | null;
-  lines: InvoiceProjectConfirmationLineDto[];
+  lines: InvoiceConfirmationBreakdownLineDto[];
 }
 
 /** Vue consolidée — jalons déjà demandés seulement (voir invoicing/service.ts, backend). */

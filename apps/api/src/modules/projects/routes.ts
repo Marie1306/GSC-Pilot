@@ -242,7 +242,8 @@ projectsRouter.post(
   },
 );
 
-const confirmInvoiceRequestSchema = z.object({ note: z.string().optional() });
+const invoiceRequestLineSchema = z.object({ description: z.string().min(1), qty: z.number().positive(), unitPrice: z.number() });
+const confirmInvoiceRequestSchema = z.object({ note: z.string().optional(), lines: z.array(invoiceRequestLineSchema).optional() });
 projectsRouter.post(
   "/invoice-plan/:entryId/confirm",
   requireAuth,

@@ -187,6 +187,17 @@ export interface InvoicePlanEntryDto {
   // la somme de ces lignes, pour l'affichage seulement.
   amendmentLines: InvoiceAmendmentLineDto[];
   baseAmount: number;
+  // Lignes saisies ou dérivées automatiquement puis confirmées au moment de
+  // "Demander la facturation" (17 novembre 2026) — undefined pour un jalon
+  // pas encore confirmé ou confirmé avant ce chantier.
+  lines?: InvoicePlanEntryLineDto[];
+}
+
+export interface InvoicePlanEntryLineDto {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
 }
 
 const currencyFormatter = new Intl.NumberFormat("fr-CA", { style: "currency", currency: "CAD" });
@@ -305,6 +316,10 @@ export interface InvoiceRequestPreviewDto {
   totalWithTax: number;
   today: string;
   dueDate: string;
+  // Lignes suggérées pour pré-remplir l'éditeur (17 novembre 2026) — dérivées
+  // de la Confirmation de commande du budget d'origine quand une existe
+  // (Projet ou Roulement), undefined sinon (départ vide, saisie manuelle).
+  suggestedLines?: InvoicePlanEntryLineDto[];
 }
 
 /** Aperçu avant confirmation (RequestInvoiceModal, 13 novembre 2026) — jamais attribué/écrit. */
@@ -312,9 +327,15 @@ export function previewInvoiceRequest(entryId: string): Promise<{ preview: Invoi
   return apiFetch(`/api/invoice-plan/${entryId}/preview`, { method: "POST" });
 }
 
+export interface InvoiceRequestLineInput {
+  description: string;
+  qty: number;
+  unitPrice: number;
+}
+
 /** Geste unifié "Demander la facturation" — attribue réellement le numéro, calcule les taxes, pose l'échéance net-30. */
-export function confirmInvoiceRequest(entryId: string, note?: string): Promise<{ entry: InvoicePlanEntryDto }> {
-  return apiFetch(`/api/invoice-plan/${entryId}/confirm`, { method: "POST", body: JSON.stringify({ note }) });
+export function confirmInvoiceRequest(entryId: string, note?: string, lines?: InvoiceRequestLineInput[]): Promise<{ entry: InvoicePlanEntryDto }> {
+  return apiFetch(`/api/invoice-plan/${entryId}/confirm`, { method: "POST", body: JSON.stringify({ note, lines }) });
 }
 
 /** "Annuler la demande" — remet le jalon à pending ; le numéro n'est jamais réutilisé. */

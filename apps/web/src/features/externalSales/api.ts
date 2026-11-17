@@ -1,7 +1,7 @@
 import type { FulfillmentMode } from "@gsc-pilot/business-rules";
 import { apiFetch } from "../../lib/apiClient.js";
 import type { PurchaseRequestDto } from "../purchases/api.js";
-import type { InvoiceRequestPreviewDto } from "../projects/api.js";
+import type { InvoiceRequestPreviewDto, InvoiceRequestLineInput } from "../projects/api.js";
 
 // Libellés de fulfillment + formatCurrency réutilisés tels quels depuis
 // projects/api.ts (mêmes valeurs que Project/Rolling — voir fulfillment.ts,
@@ -129,6 +129,6 @@ export function previewExternalSaleInvoice(id: string): Promise<{ preview: Invoi
 }
 
 /** Geste unifié "Demander la facturation" — crée ET confirme le jalon (numéro/taxes/échéance) dans la même transaction. */
-export function requestExternalSaleInvoice(id: string, note?: string): Promise<void> {
-  return apiFetch(`/api/external-sales/${id}/request-invoice`, { method: "POST", body: JSON.stringify({ note }) });
+export function requestExternalSaleInvoice(id: string, note?: string, lines?: InvoiceRequestLineInput[]): Promise<void> {
+  return apiFetch(`/api/external-sales/${id}/request-invoice`, { method: "POST", body: JSON.stringify({ note, lines }) });
 }

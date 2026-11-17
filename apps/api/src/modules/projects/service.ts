@@ -47,6 +47,7 @@ import { projectPurchasesActual, listProjectPurchaseEntries } from "../purchases
 import { parseBillingSplit } from "../settings/billingSplit.js";
 import { createFulfillmentDelivery } from "../deliveries/service.js";
 import { resolveSequentialNumber } from "../settings/sequentialNumbers.js";
+import { getConfirmationBreakdownsByBudgetIds } from "../confirmationsDeCommande/service.js";
 import type { Project, Prisma } from "../../generated/prisma/client.js";
 
 export interface ConvertBudgetToProjectInput {
@@ -1052,6 +1053,18 @@ export interface InvoicePlanEntryDto {
   // vérité facturée/taxée).
   amendmentLines: InvoiceAmendmentLineDto[];
   baseAmount: number;
+  // Lignes saisies ou dérivées automatiquement puis confirmées au moment de
+  // "Demander la facturation" (17 novembre 2026) — voir InvoicePlanEntryLine,
+  // schema.prisma. Vide (undefined) pour un jalon pas encore confirmé ou
+  // confirmé avant ce chantier.
+  lines?: InvoicePlanEntryLineDto[];
+}
+
+export interface InvoicePlanEntryLineDto {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
 }
 
 // Exporté — réutilisé tel quel par rollings/service.ts (même format, même
@@ -1083,9 +1096,17 @@ export function toInvoicePlanEntryDto(row: {
   // relit toujours via getInvoicePlan/listInvoiceEntries) — jamais besoin
   // d'alourdir leur requête d'un include qui ne serait jamais affiché.
   targetedByAmendments?: { id: string; displayId: string; description: string | null; sale: unknown }[];
+  // Facultatif pour la même raison que targetedByAmendments ci-dessus — seul
+  // confirmInvoiceRequestInTx l'inclut (juste après avoir sauvegardé les
+  // lignes), aucun autre appelant n'en a besoin.
+  lines?: { description: string; qty: unknown; unitPrice: unknown; amount: unknown; sortOrder: number }[];
 }): InvoicePlanEntryDto {
   const amendmentLines = (row.targetedByAmendments ?? []).map((a) => ({ id: a.id, displayId: a.displayId, description: a.description, amount: Number(a.sale) }));
   const amount = Number(row.amount);
+  const lines = row.lines
+    ?.slice()
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((line) => ({ description: line.description, quantity: Number(line.qty), unitPrice: Number(line.unitPrice), amount: Number(line.amount) }));
   return {
     id: row.id,
     label: row.label,
@@ -1093,6 +1114,7 @@ export function toInvoicePlanEntryDto(row: {
     amount,
     amendmentLines,
     baseAmount: round2(amount - amendmentLines.reduce((sum, line) => sum + line.amount, 0)),
+    ...(lines && lines.length > 0 && { lines }),
     // invoiceStatus (billing.ts, PORTÉE, jamais modifiée) ne retourne jamais
     // "pending" — conçue pour une facture déjà envoyée. Un jalon jamais
     // demandé, ou qu'on vient d'Annuler (cancelInvoiceRequest, 13 novembre
@@ -1148,6 +1170,14 @@ export interface InvoiceRequestPreviewDto {
   totalWithTax: number;
   today: string;
   dueDate: string;
+  // Lignes suggérées pour pré-remplir l'éditeur de RequestInvoiceModal (17
+  // novembre 2026) — dérivées de la Confirmation de commande du budget
+  // d'origine quand une existe (Projet ou Roulement), undefined sinon (ex.
+  // dossier sans budgétaire, ou budgétaire jamais passé par Soumission —
+  // Marie saisit alors ses propres lignes à partir d'un départ vide).
+  // Toujours éditable par-dessus, jamais un choix figé entre automatique et
+  // manuel ("les deux options partout", confirmé explicitement).
+  suggestedLines?: InvoicePlanEntryLineDto[];
 }
 
 /**
@@ -1180,16 +1210,51 @@ export async function buildInvoiceRequestPreview(amountBeforeTax: number): Promi
  * Aperçu avant confirmation (RequestInvoiceModal, 13 novembre 2026) pour un
  * jalon déjà existant (Project/Rolling). Jamais pour un jalon déjà demandé —
  * à ce stade, Annuler puis re-demander est le seul chemin.
+ *
+ * Étendu le 17 novembre 2026 pour suggérer des lignes (suggestedLines) — le
+ * budget d'origine (Projet OU Roulement, voir le bogue corrigé dans
+ * invoicing/service.ts : un Roulement peut aussi avoir une Confirmation de
+ * commande, jamais vérifié avant) est recherché pour sa Confirmation de
+ * commande éventuelle ; si une existe, ses lignes × le % de CE jalon
+ * précis deviennent la suggestion, exactement le même calcul que
+ * l'ancienne ventilation dérivée en direct (invoicing/service.ts) —
+ * jamais une 2e formule divergente.
  */
 export async function previewInvoiceRequest(entryId: string): Promise<InvoiceRequestPreviewDto> {
-  const entry = await prisma.invoicePlanEntry.findUnique({ where: { id: entryId } });
+  const entry = await prisma.invoicePlanEntry.findUnique({
+    where: { id: entryId },
+    include: { project: { select: { budgetId: true } }, rolling: { select: { budgetId: true } } },
+  });
   if (!entry) throw new HttpError(404, "Jalon de facturation introuvable.");
   if (entry.requestedAt) throw new HttpError(400, "La facturation de ce jalon a déjà été demandée.");
-  return buildInvoiceRequestPreview(Number(entry.amount));
+  const preview = await buildInvoiceRequestPreview(Number(entry.amount));
+
+  const budgetId = entry.project?.budgetId ?? entry.rolling?.budgetId ?? null;
+  if (budgetId) {
+    const confirmations = await getConfirmationBreakdownsByBudgetIds([budgetId]);
+    const confirmation = confirmations[budgetId];
+    if (confirmation) {
+      const pct = Number(entry.pct);
+      preview.suggestedLines = confirmation.lines.map((line) => ({
+        description: line.label,
+        quantity: Number(line.qty),
+        unitPrice: Number(line.unitPrice),
+        amount: round2(Number(line.qty) * Number(line.unitPrice) * (pct / 100)),
+      }));
+    }
+  }
+  return preview;
 }
 
 export interface ConfirmInvoiceRequestInput {
   note?: string;
+  // Lignes saisies dans RequestInvoiceModal (17 novembre 2026) — qty/unitPrice
+  // seulement, amount toujours RECALCULÉ ici (jamais une valeur envoyée par
+  // le client prise telle quelle). Optionnel : une facture peut toujours
+  // être confirmée sans lignes (comportement d'avant ce chantier, repli
+  // générique à l'affichage). Si fourni, la somme DOIT égaler entry.amount
+  // (tolérance d'un cent) — validé avant toute écriture.
+  lines?: { description: string; qty: number; unitPrice: number }[];
 }
 
 /**
@@ -1216,7 +1281,32 @@ export async function confirmInvoiceRequestInTx(
   const invoiceNumber = formatInvoiceDisplayId(year, number);
   const tax = computeInvoiceTax(Number(entry.amount), Number(settings.tpsRatePct), Number(settings.tvqRatePct));
   const now = new Date();
+
+  // Lignes (17 novembre 2026) — validées AVANT toute écriture : la somme
+  // doit égaler le montant déjà figé du jalon (entry.amount), jamais
+  // l'inverse (les lignes ne déterminent jamais le montant réellement
+  // facturé/taxé). Tolérance d'un cent pour l'arrondi par ligne — même
+  // limite acceptée que la ventilation Confirmation de commande.
+  const computedLines = (input.lines ?? [])
+    .filter((line) => line.description?.trim())
+    .map((line, index) => ({
+      description: line.description.trim(),
+      qty: Number(line.qty),
+      unitPrice: Number(line.unitPrice),
+      amount: round2(Number(line.qty) * Number(line.unitPrice)),
+      sortOrder: index,
+    }));
+  if (computedLines.length > 0) {
+    const sum = round2(computedLines.reduce((total, line) => total + line.amount, 0));
+    if (Math.abs(sum - Number(entry.amount)) > 0.01) {
+      throw new HttpError(400, `Les lignes (${sum.toFixed(2)} $) ne correspondent pas au montant du jalon (${Number(entry.amount).toFixed(2)} $).`);
+    }
+  }
+
   await tx.settings.update({ where: { id: settings.id }, data: { nextInvoiceNumber: number + 1, invoiceNumberYear: year } });
+  if (computedLines.length > 0) {
+    await tx.invoicePlanEntryLine.createMany({ data: computedLines.map((line) => ({ ...line, invoicePlanEntryId: entryId })) });
+  }
   const row = await tx.invoicePlanEntry.update({
     where: { id: entryId },
     data: {
@@ -1232,6 +1322,7 @@ export async function confirmInvoiceRequestInTx(
       processedById: actorId,
       processedAt: now,
     },
+    include: { lines: { orderBy: { sortOrder: "asc" } } },
   });
   return toInvoicePlanEntryDto(row);
 }

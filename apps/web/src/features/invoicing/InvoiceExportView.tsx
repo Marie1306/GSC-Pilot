@@ -27,17 +27,27 @@ function formatDate(iso: string | null): string {
  *
  * Ventilation par produit (16 novembre 2026, 2e correctif — premier test
  * réel en échec rapporté par Marie, voir CLAUDE.md) : pour un jalon de
- * Projet dont le budget d'origine a une Confirmation de commande,
- * `entry.projectConfirmation` remplace la ligne générique "{label}
- * ({pct}%)" par les VRAIS produits de la confirmation (qté/description/
- * prix unitaire identiques, colonne % = ce jalon précis) — gabarit
- * confirmé par Marie (maquette). Repli sur l'ancien affichage sinon (projet
- * créé directement, sans Soumission/Confirmation). Pour un Call de
- * service, `entry.serviceCallBonsDeTravail` fait la même chose par Bon de
- * travail (Chantier D Partie 3) — une sous-section par BT, seulement ses
- * propres lignes (jamais une ligne à 0 $). Dans les deux cas, le
- * sous-total/TPS/TVQ/total affichés restent TOUJOURS entry.amount/
- * tpsAmount/tvqAmount/totalWithTax, jamais re-dérivés de ces lignes.
+ * Projet OU Roulement (étendu le 17 novembre 2026 — un Roulement peut aussi
+ * avoir un budgétaire donc une Confirmation de commande) dont le budget
+ * d'origine en a une, `entry.confirmationBreakdown` remplace la ligne
+ * générique "{label} ({pct}%)" par les VRAIS produits de la confirmation
+ * (qté/description/prix unitaire identiques, colonne % = ce jalon précis) —
+ * gabarit confirmé par Marie (maquette). Pour un Call de service,
+ * `entry.serviceCallBonsDeTravail` fait la même chose par Bon de travail
+ * (Chantier D Partie 3) — une sous-section par BT, seulement ses propres
+ * lignes (jamais une ligne à 0 $).
+ *
+ * `entry.lines` (17 novembre 2026) — PRIORITAIRE sur les deux ci-dessus
+ * quand présentes : lignes saisies ou dérivées automatiquement PUIS
+ * CONFIRMÉES au moment de "Demander la facturation" (Projet/Roulement/Vente
+ * externe, jamais Call de service qui garde sa propre ventilation par Bon
+ * de travail). Vide pour toute facture confirmée avant ce chantier — repli
+ * sur confirmationBreakdown/serviceCallBonsDeTravail/l'ancien affichage
+ * générique dans ce cas, jamais deviné.
+ *
+ * Dans tous les cas, le sous-total/TPS/TVQ/total affichés restent TOUJOURS
+ * entry.amount/tpsAmount/tvqAmount/totalWithTax, jamais re-dérivés de ces
+ * lignes.
  */
 export function InvoiceExportView() {
   const { entryId } = useParams<{ entryId: string }>();
@@ -88,11 +98,11 @@ export function InvoiceExportView() {
                 <span>Réf. </span>
                 <strong>{entry.sourceLabel}</strong>
               </div>
-              {entry.projectConfirmation && (
+              {entry.confirmationBreakdown && (
                 <>
                   <div>
                     <span>Réf. confirmation </span>
-                    <strong>{entry.projectConfirmation.displayId}</strong>
+                    <strong>{entry.confirmationBreakdown.displayId}</strong>
                   </div>
                   <div>
                     <span>Jalon facturé </span>
@@ -121,12 +131,52 @@ export function InvoiceExportView() {
           {(entry.email || entry.phone) && <div className="pdf-export-client-card-line">{[entry.email, entry.phone].filter(Boolean).join(" · ")}</div>}
         </div>
 
-        {entry.projectConfirmation?.introText && (
-          <p style={{ marginTop: 18, fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{entry.projectConfirmation.introText}</p>
+        {!entry.lines?.length && entry.confirmationBreakdown?.introText && (
+          <p style={{ marginTop: 18, fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{entry.confirmationBreakdown.introText}</p>
         )}
         {entry.note && <p style={{ marginTop: 18, fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{entry.note}</p>}
 
-        {entry.projectConfirmation ? (
+        {entry.lines && entry.lines.length > 0 ? (
+          <table className="pdf-export-doc-table" style={{ marginTop: 22 }}>
+            <thead>
+              <tr>
+                <th className="num" style={{ width: 44 }}>
+                  Qté
+                </th>
+                <th>Description</th>
+                <th className="num" style={{ width: 110 }}>
+                  Prix unitaire
+                </th>
+                <th className="num" style={{ width: 110 }}>
+                  Montant
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {entry.lines.map((line, index) => (
+                <tr key={index}>
+                  <td className="num">{line.quantity}</td>
+                  <td>{line.description}</td>
+                  <td className="num">{formatCurrency(line.unitPrice)}</td>
+                  <td className="num" style={{ fontWeight: 650 }}>
+                    {formatCurrency(line.amount)}
+                  </td>
+                </tr>
+              ))}
+              {entry.amendmentLines.map((line) => (
+                <tr key={line.id}>
+                  <td colSpan={3}>
+                    Avenant {line.displayId}
+                    {line.description ? ` — ${line.description}` : ""}
+                  </td>
+                  <td className="num" style={{ fontWeight: 650 }}>
+                    {formatCurrency(line.amount)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : entry.confirmationBreakdown ? (
           <table className="pdf-export-doc-table" style={{ marginTop: 22 }}>
             <thead>
               <tr>
@@ -146,7 +196,7 @@ export function InvoiceExportView() {
               </tr>
             </thead>
             <tbody>
-              {entry.projectConfirmation.lines.map((line, index) => (
+              {entry.confirmationBreakdown.lines.map((line, index) => (
                 <tr key={index}>
                   <td className="num">{line.quantity}</td>
                   <td>{line.description}</td>
@@ -231,7 +281,7 @@ export function InvoiceExportView() {
           </table>
         )}
 
-        {entry.projectConfirmation && (
+        {!entry.lines?.length && entry.confirmationBreakdown && (
           <p style={{ marginTop: 8, fontSize: 11.5, color: "var(--gsc-color-muted)", fontStyle: "italic" }}>
             Qté et Prix unitaire restent ceux de la confirmation de commande — la colonne % indique la portion facturée sur ce jalon ; Montant = Qté
             × Prix unitaire × %.
@@ -271,10 +321,10 @@ export function InvoiceExportView() {
           </div>
         </div>
 
-        {entry.projectConfirmation?.termsText && (
+        {!entry.lines?.length && entry.confirmationBreakdown?.termsText && (
           <div style={{ marginTop: 22 }}>
             <div className="pdf-export-eyebrow">Conditions</div>
-            <p style={{ fontSize: 11.5, color: "var(--gsc-color-muted)", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{entry.projectConfirmation.termsText}</p>
+            <p style={{ fontSize: 11.5, color: "var(--gsc-color-muted)", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{entry.confirmationBreakdown.termsText}</p>
           </div>
         )}
 

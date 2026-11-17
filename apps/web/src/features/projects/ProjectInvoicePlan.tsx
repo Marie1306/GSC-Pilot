@@ -326,9 +326,10 @@ export function ProjectInvoicePlan({ projectId }: ProjectInvoicePlanProps) {
         <RequestInvoiceModal
           subtitle={entries.find((entry) => entry.id === requestModalEntryId)?.label ?? ""}
           fetchPreview={() => previewInvoiceRequest(requestModalEntryId)}
-          confirm={(note) => confirmInvoiceRequest(requestModalEntryId, note)}
+          confirm={(note, lines) => confirmInvoiceRequest(requestModalEntryId, note, lines)}
           onClose={() => setRequestModalEntryId(null)}
           onSuccess={invalidate}
+          allowLines
         />
       )}
     </div>

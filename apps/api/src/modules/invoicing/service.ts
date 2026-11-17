@@ -73,14 +73,34 @@ export interface InvoiceEntryDto {
   serviceCallBonsDeTravail?: InvoiceBonDeTravailBreakdownDto[];
   // Ventilation par produit de la Confirmation de commande d'origine (16
   // novembre 2026, rapporté en échec par Marie sur un premier test réel —
-  // voir CLAUDE.md) — seulement pour sourceType==="project" ET quand le
-  // budget d'origine a une Confirmation de commande (undefined sinon, ex.
-  // projet créé directement sans passer par Soumission/Confirmation —
-  // repli sur l'ancien affichage "{label} ({pct}%)" dans ce cas).
-  projectConfirmation?: InvoiceProjectConfirmationDto;
+  // voir CLAUDE.md ; étendu au Roulement le 17 novembre 2026, même bogue
+  // trouvé : un Roulement PEUT avoir un budgétaire donc une Confirmation de
+  // commande, jamais vérifié avant ce correctif) — pour sourceType==="project"
+  // OU "rolling" ET quand le budget d'origine a une Confirmation de commande
+  // (undefined sinon, ex. dossier créé directement sans passer par
+  // Soumission/Confirmation — repli sur les lignes manuelles/l'ancien
+  // affichage "{label} ({pct}%)" dans ce cas). Nommé sans "project" depuis
+  // son élargissement — jamais projectConfirmation, pour ne pas laisser
+  // croire que c'est encore réservé au Projet (même piège que owner/boss,
+  // voir CLAUDE.md).
+  confirmationBreakdown?: InvoiceConfirmationBreakdownDto;
+  // Lignes saisies ou dérivées automatiquement puis confirmées au moment de
+  // "Demander la facturation" (17 novembre 2026, InvoicePlanEntryLine) —
+  // PRIORITAIRES sur confirmationBreakdown/serviceCallBonsDeTravail ci-dessus
+  // quand présentes (facture passée par ce nouveau chemin). Vide pour toute
+  // facture confirmée avant ce chantier — jamais deviné, repli sur l'ancien
+  // affichage dérivé en direct dans ce cas.
+  lines?: InvoiceEntryLineDto[];
 }
 
-export interface InvoiceProjectConfirmationLineDto {
+export interface InvoiceEntryLineDto {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+}
+
+export interface InvoiceConfirmationBreakdownLineDto {
   description: string;
   quantity: number;
   unitPrice: number;
@@ -88,11 +108,11 @@ export interface InvoiceProjectConfirmationLineDto {
   amount: number;
 }
 
-export interface InvoiceProjectConfirmationDto {
+export interface InvoiceConfirmationBreakdownDto {
   displayId: string;
   introText: string | null;
   termsText: string | null;
-  lines: InvoiceProjectConfirmationLineDto[];
+  lines: InvoiceConfirmationBreakdownLineDto[];
 }
 
 /** include Prisma partagé par listInvoiceEntries ci-dessous et listPendingInvoiceEntriesForForecast (treasury/service.ts) — un seul endroit à tenir à jour. */
@@ -196,6 +216,7 @@ export async function listInvoiceEntries(): Promise<InvoiceEntryDto[]> {
     include: {
       ...INVOICE_ENTRY_SOURCE_INCLUDE,
       targetedByAmendments: { select: { id: true, displayId: true, description: true, sale: true } },
+      lines: true,
     },
     orderBy: { requestedAt: "desc" },
   });
@@ -203,16 +224,22 @@ export async function listInvoiceEntries(): Promise<InvoiceEntryDto[]> {
   const serviceCallEntryIds = rows.filter((row) => row.serviceCall).map((row) => row.id);
   const serviceCallBreakdowns = await getServiceCallInvoiceBreakdowns(serviceCallEntryIds);
 
-  const projectBudgetIds = [...new Set(rows.map((row) => row.project?.budgetId).filter((id): id is string => !!id))];
-  const confirmationsByBudgetId = await getConfirmationBreakdownsByBudgetIds(projectBudgetIds);
+  // Project ET Rolling peuvent chacun avoir leur propre budgétaire — donc
+  // chacun peut avoir une Confirmation de commande (17 novembre 2026,
+  // corrige le bogue qui ne vérifiait jamais le cas Roulement).
+  const sourceBudgetIds = [
+    ...new Set(rows.map((row) => row.project?.budgetId ?? row.rolling?.budgetId).filter((id): id is string => !!id)),
+  ];
+  const confirmationsByBudgetId = await getConfirmationBreakdownsByBudgetIds(sourceBudgetIds);
 
   return rows.map((row) => {
     const { sourceType, sourceLabel, clientLabel, sourceDeleted, contact } = resolveInvoiceEntrySource(row);
     const amount = Number(row.amount);
     const pct = Number(row.pct);
     const amendmentLines = row.targetedByAmendments.map((a) => ({ id: a.id, displayId: a.displayId, description: a.description, amount: Number(a.sale) }));
-    const confirmation = row.project?.budgetId ? confirmationsByBudgetId[row.project.budgetId] : undefined;
-    const projectConfirmation: InvoiceProjectConfirmationDto | undefined = confirmation && {
+    const sourceBudgetId = row.project?.budgetId ?? row.rolling?.budgetId ?? null;
+    const confirmation = sourceBudgetId ? confirmationsByBudgetId[sourceBudgetId] : undefined;
+    const confirmationBreakdown: InvoiceConfirmationBreakdownDto | undefined = confirmation && {
       displayId: confirmation.displayId,
       introText: confirmation.introText,
       termsText: confirmation.termsText,
@@ -224,6 +251,13 @@ export async function listInvoiceEntries(): Promise<InvoiceEntryDto[]> {
         amount: round2(line.qty * line.unitPrice * (pct / 100)),
       })),
     };
+    const lines: InvoiceEntryLineDto[] | undefined =
+      row.lines.length > 0
+        ? row.lines
+            .slice()
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .map((line) => ({ description: line.description, quantity: Number(line.qty), unitPrice: Number(line.unitPrice), amount: Number(line.amount) }))
+        : undefined;
 
     // totalWithTax ?? amount : même résolution tax-aware que toInvoicePlanEntryDto (projects/service.ts), 13 novembre 2026.
     const statusInput: InvoiceLike = {
@@ -241,7 +275,8 @@ export async function listInvoiceEntries(): Promise<InvoiceEntryDto[]> {
       amendmentLines,
       baseAmount: round2(amount - amendmentLines.reduce((sum, line) => sum + line.amount, 0)),
       ...(sourceType === "serviceCall" && { serviceCallBonsDeTravail: serviceCallBreakdowns[row.id] ?? [] }),
-      ...(sourceType === "project" && projectConfirmation && { projectConfirmation }),
+      ...((sourceType === "project" || sourceType === "rolling") && confirmationBreakdown && { confirmationBreakdown }),
+      ...(lines && { lines }),
       contactName: contact.name,
       company: contact.company,
       email: contact.email,

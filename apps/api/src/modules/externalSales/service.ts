@@ -30,6 +30,7 @@
 import {
   externalSaleLineAmount,
   externalSaleTotals,
+  externalSaleInvoiceLines,
   chooseFulfillment as chooseFulfillmentPure,
   confirmFulfillment as confirmFulfillmentPure,
   FULFILLMENT_MODES,
@@ -415,12 +416,40 @@ export async function setExternalSaleCompleted(id: string, completed: boolean): 
   await prisma.externalSale.update({ where: { id }, data: { status: completed ? "ready_invoice" : "active" } });
 }
 
-/** Aperçu avant confirmation (RequestInvoiceModal, 13 novembre 2026) — même rôle que previewInvoiceRequest (projects/service.ts) mais sans InvoicePlanEntry encore créée. */
+/**
+ * Lignes de pièces de la vente (PurchaseRequest liées, projectType==="sale")
+ * pour le calcul des lignes de Facture ci-dessous — TOUTES les lignes, y
+ * compris une éventuellement rejetée (même principe que partsBaseCost/
+ * salePrice ci-dessus : gelés à la création, une ligne rejetée y reste
+ * comptée, donc la ventilation de la Facture doit elle aussi la garder pour
+ * que la somme corresponde).
+ */
+async function getExternalSalePurchaseLines(id: string): Promise<{ description: string; qty: number; unitCost: number }[]> {
+  const rows = await prisma.purchaseRequest.findMany({
+    where: { externalSaleId: id },
+    select: { description: true, qty: true, unitCost: true },
+    orderBy: { requestedAt: "asc" },
+  });
+  return rows.map((row) => ({ description: row.description ?? "—", qty: Number(row.qty), unitCost: Number(row.unitCost) }));
+}
+
+/**
+ * Aperçu avant confirmation (RequestInvoiceModal, 13 novembre 2026) — même
+ * rôle que previewInvoiceRequest (projects/service.ts) mais sans
+ * InvoicePlanEntry encore créée. Lignes suggérées (17 novembre 2026) :
+ * toujours dérivées automatiquement (jamais vides par défaut comme pour
+ * Projet/Roulement) — une vente externe a toujours ses pièces/transport/
+ * frais administratifs déjà connus, aucune raison de partir d'une page
+ * blanche. Reste éditable dans RequestInvoiceModal comme partout ailleurs.
+ */
 export async function previewExternalSaleInvoice(id: string): Promise<InvoiceRequestPreviewDto> {
   const sale = await loadExternalSaleOrThrow(id);
   if (sale.status !== "ready_invoice") throw new HttpError(400, "La vente doit d'abord être terminée.");
   if (sale.invoiceEntries.length > 0) throw new HttpError(409, "Facturation déjà demandée pour cette vente.");
-  return buildInvoiceRequestPreview(Number(sale.salePrice));
+  const preview = await buildInvoiceRequestPreview(Number(sale.salePrice));
+  const lines = await getExternalSalePurchaseLines(id);
+  preview.suggestedLines = externalSaleInvoiceLines(lines, Number(sale.transportFee), Number(sale.adminFee), Number(sale.marginPct));
+  return preview;
 }
 
 /**
@@ -437,7 +466,12 @@ export async function previewExternalSaleInvoice(id: string): Promise<InvoiceReq
  * createServiceCallInvoiceForSelection (serviceCalls/service.ts). Alimente l'écran
  * Facturation consolidé (voir invoicing/service.ts, listInvoiceEntries).
  */
-export async function requestExternalSaleInvoice(id: string, requestedById: string, note?: string): Promise<InvoicePlanEntryDto> {
+export async function requestExternalSaleInvoice(
+  id: string,
+  requestedById: string,
+  note?: string,
+  lines?: { description: string; qty: number; unitPrice: number }[],
+): Promise<InvoicePlanEntryDto> {
   const sale = await loadExternalSaleOrThrow(id);
   if (sale.status !== "ready_invoice") throw new HttpError(400, "La vente doit d'abord être terminée.");
   if (sale.invoiceEntries.length > 0) throw new HttpError(409, "Facturation déjà demandée pour cette vente.");
@@ -445,6 +479,6 @@ export async function requestExternalSaleInvoice(id: string, requestedById: stri
     const entry = await tx.invoicePlanEntry.create({
       data: { externalSaleId: id, label: sale.displayId, pct: 100, amount: sale.salePrice, sortOrder: 0 },
     });
-    return confirmInvoiceRequestInTx(tx, entry.id, requestedById, { note });
+    return confirmInvoiceRequestInTx(tx, entry.id, requestedById, { note, lines });
   });
 }

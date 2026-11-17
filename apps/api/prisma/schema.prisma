@@ -908,8 +908,40 @@ model InvoicePlanEntry {
   // Chantier D, 16 novembre 2026) — plusieurs BT possibles par entrée
   // (Marie choisit lesquels mettre sur une même facture).
   bonsDeTravail        BonDeTravail[]
+  // Lignes saisies (ou dérivées automatiquement puis confirmées) au moment
+  // de "Demander la facturation" (17 novembre 2026) — voir
+  // InvoicePlanEntryLine ci-dessous. Vide pour toute facture confirmée
+  // AVANT ce chantier (repli sur l'ancien affichage dérivé en direct,
+  // jamais retouché).
+  lines          InvoicePlanEntryLine[]
 
   @@index([status])
+}
+
+/**
+ * Lignes d'une Facture, sauvegardées UNE SEULE FOIS au moment de
+ * confirmInvoiceRequestInTx (17 novembre 2026) — jamais recalculées après
+ * coup, même principe que tout le reste de l'application. Remplace, pour
+ * toute facture passant par ce nouveau chemin, l'ancienne ventilation
+ * dérivée EN DIRECT depuis la Confirmation de commande (confirmationBreakdown,
+ * invoicing/service.ts) — qui reste le repli pour les factures confirmées
+ * avant ce chantier, jamais retouchées. Pré-remplies automatiquement quand
+ * une source existe (Confirmation de commande pour Projet/Roulement, lignes
+ * de pièces pour Vente externe) mais toujours éditables par Marie avant de
+ * confirmer — "les deux options partout", jamais un choix figé entre les
+ * deux. La somme des montants doit égaler InvoicePlanEntry.amount (validé à
+ * la confirmation, tolérance d'un cent pour l'arrondi par ligne — même
+ * limite acceptée que la ventilation Confirmation de commande).
+ */
+model InvoicePlanEntryLine {
+  id                 String           @id @default(uuid())
+  invoicePlanEntryId String
+  invoicePlanEntry   InvoicePlanEntry @relation(fields: [invoicePlanEntryId], references: [id], onDelete: Cascade)
+  description        String
+  qty                Decimal          @db.Decimal(12, 2)
+  unitPrice          Decimal          @db.Decimal(12, 2)
+  amount             Decimal          @db.Decimal(12, 2)
+  sortOrder          Int              @default(0)
 }
 
 // ---------------------------------------------------------------------------

@@ -560,9 +560,10 @@ export function RollingDetail({ id, onClose }: RollingDetailProps) {
         <RequestInvoiceModal
           subtitle={rolling.rollingNumber}
           fetchPreview={() => previewInvoiceRequest(requestModalEntryId)}
-          confirm={(note) => confirmInvoiceRequest(requestModalEntryId, note)}
+          confirm={(note, lines) => confirmInvoiceRequest(requestModalEntryId, note, lines)}
           onClose={() => setRequestModalEntryId(null)}
           onSuccess={invalidatePlan}
+          allowLines
         />
       )}
     </div>

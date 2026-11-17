@@ -1,18 +1,34 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ApiError } from "../../lib/apiClient.js";
-import { formatCurrency, type InvoiceRequestPreviewDto } from "../projects/api.js";
+import { formatCurrency, type InvoiceRequestPreviewDto, type InvoiceRequestLineInput } from "../projects/api.js";
 
 interface RequestInvoiceModalProps {
   subtitle: string;
   fetchPreview: () => Promise<{ preview: InvoiceRequestPreviewDto }>;
-  confirm: (note?: string) => Promise<unknown>;
+  confirm: (note?: string, lines?: InvoiceRequestLineInput[]) => Promise<unknown>;
   onClose: () => void;
   onSuccess: () => void;
+  /**
+   * Éditeur de lignes (17 novembre 2026, demande explicite) — Description/
+   * Qté/Prix unitaire, pré-rempli automatiquement quand une source existe
+   * (Confirmation de commande pour Projet/Roulement, lignes de pièces pour
+   * Vente externe) mais toujours éditable par-dessus ("les deux options
+   * partout", confirmé). Explicitement DÉSACTIVÉ pour Call de service
+   * (SelectBonsDeTravailModal.tsx) — garde sa propre ventilation par Bon de
+   * travail, déjà réelle et détaillée, jamais remplacée par un éditeur
+   * générique. Un prop requis (jamais de valeur par défaut devinée) pour
+   * que chaque appelant déclare explicitement son choix.
+   */
+  allowLines: boolean;
 }
 
 function formatDueDate(iso: string): string {
   return new Date(iso).toLocaleDateString("fr-CA", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function round2(value: number): number {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
 }
 
 /**
@@ -26,13 +42,29 @@ function formatDueDate(iso: string): string {
  * (ex-"Enregistrer", InvoiceDetailDrawer.tsx) : numéro réel attribué
  * seulement à la confirmation, jamais avant.
  */
-export function RequestInvoiceModal({ subtitle, fetchPreview, confirm, onClose, onSuccess }: RequestInvoiceModalProps) {
+export function RequestInvoiceModal({ subtitle, fetchPreview, confirm, onClose, onSuccess, allowLines }: RequestInvoiceModalProps) {
   const [note, setNote] = useState("");
+  const [lines, setLines] = useState<InvoiceRequestLineInput[]>([]);
   const [error, setError] = useState<string | null>(null);
   const previewQuery = useQuery({ queryKey: ["invoice-request-preview", subtitle], queryFn: fetchPreview });
 
+  const preview = previewQuery.data?.preview;
+
+  // Pré-remplissage des lignes depuis la suggestion du serveur — une seule
+  // fois, à l'arrivée de l'aperçu (jamais réinitialisé ensuite, même si
+  // React Query refetch en arrière-plan). Ajustement pendant le rendu
+  // plutôt qu'un effect (recommandation React : éviter setState synchrone
+  // dans un effect — même patron que ProjectAmendments.tsx).
+  const [lastPreview, setLastPreview] = useState(preview);
+  if (preview !== lastPreview) {
+    setLastPreview(preview);
+    if (allowLines && preview) {
+      setLines(preview.suggestedLines?.map((line) => ({ description: line.description, qty: line.quantity, unitPrice: line.unitPrice })) ?? []);
+    }
+  }
+
   const confirmMutation = useMutation({
-    mutationFn: () => confirm(note.trim() || undefined),
+    mutationFn: () => confirm(note.trim() || undefined, allowLines && lines.length > 0 ? lines : undefined),
     onSuccess: () => {
       onSuccess();
       onClose();
@@ -40,7 +72,19 @@ export function RequestInvoiceModal({ subtitle, fetchPreview, confirm, onClose, 
     onError: (err: unknown) => setError(err instanceof ApiError ? err.message : "Une erreur est survenue — réessayez."),
   });
 
-  const preview = previewQuery.data?.preview;
+  function updateLine(index: number, patch: Partial<InvoiceRequestLineInput>) {
+    setLines((current) => current.map((line, i) => (i === index ? { ...line, ...patch } : line)));
+  }
+  function removeLine(index: number) {
+    setLines((current) => current.filter((_, i) => i !== index));
+  }
+
+  const linesTotal = round2(lines.reduce((sum, line) => sum + Number(line.qty || 0) * Number(line.unitPrice || 0), 0));
+  const target = preview ? round2(preview.amountBeforeTax) : 0;
+  // Un cent de tolérance — même limite acceptée que la ventilation
+  // Confirmation de commande (arrondi par ligne).
+  const linesBalanced = lines.length === 0 || Math.abs(linesTotal - target) <= 0.01;
+  const canConfirm = !!preview && linesBalanced && !confirmMutation.isPending;
 
   return (
     <div className="modal-backdrop">
@@ -89,7 +133,85 @@ export function RequestInvoiceModal({ subtitle, fetchPreview, confirm, onClose, 
                   <span className="stat-tile-value">{formatDueDate(preview.dueDate)}</span>
                 </div>
               </div>
-              <div className="field field-full">
+
+              {allowLines && (
+                <>
+                  <h3 style={{ fontSize: 15, margin: "4px 0 8px" }}>Lignes de la facture</h3>
+                  <p className="modal-subtitle" style={{ marginTop: 0 }}>
+                    Pré-remplies automatiquement quand possible — modifiables, ou videz-les pour revenir à l'affichage générique.
+                  </p>
+                  {lines.length > 0 && (
+                    <div className="table-scroll">
+                      <table className="shortlist-table">
+                        <thead>
+                          <tr>
+                            <th className="num" style={{ width: 70 }}>
+                              Qté
+                            </th>
+                            <th>Description</th>
+                            <th className="num">Prix unitaire</th>
+                            <th className="num">Montant</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {lines.map((line, index) => (
+                            <tr key={index}>
+                              <td className="num">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step="0.01"
+                                  value={line.qty || ""}
+                                  onChange={(e) => updateLine(index, { qty: Number(e.target.value) })}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="text"
+                                  style={{ width: "100%" }}
+                                  value={line.description}
+                                  onChange={(e) => updateLine(index, { description: e.target.value })}
+                                />
+                              </td>
+                              <td className="num">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={line.unitPrice || ""}
+                                  onChange={(e) => updateLine(index, { unitPrice: Number(e.target.value) })}
+                                />
+                              </td>
+                              <td className="num">{formatCurrency(round2(Number(line.qty || 0) * Number(line.unitPrice || 0)))}</td>
+                              <td>
+                                <button type="button" className="btn btn-secondary btn-small" onClick={() => removeLine(index)}>
+                                  🗑
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-small"
+                    style={{ marginTop: 8 }}
+                    onClick={() => setLines((current) => [...current, { description: "", qty: 1, unitPrice: 0 }])}
+                  >
+                    + Ajouter une ligne
+                  </button>
+                  {lines.length > 0 && (
+                    <p className={linesBalanced ? "modal-subtitle" : "form-error"} style={{ marginTop: 10 }}>
+                      Total des lignes : {formatCurrency(linesTotal)} — cible : {formatCurrency(target)}
+                      {!linesBalanced && " (doit correspondre au montant avant taxes du jalon)"}
+                    </p>
+                  )}
+                </>
+              )}
+
+              <div className="field field-full" style={{ marginTop: 16 }}>
                 <label htmlFor="invoice-request-note">Note (facultatif)</label>
                 <textarea id="invoice-request-note" rows={2} value={note} onChange={(event) => setNote(event.target.value)} />
               </div>
@@ -98,7 +220,7 @@ export function RequestInvoiceModal({ subtitle, fetchPreview, confirm, onClose, 
           {error && <p className="form-error">{error}</p>}
         </div>
         <div className="modal-footer">
-          <button type="button" className="btn" disabled={!preview || confirmMutation.isPending} onClick={() => confirmMutation.mutate()}>
+          <button type="button" className="btn" disabled={!canConfirm} onClick={() => confirmMutation.mutate()}>
             {confirmMutation.isPending ? "…" : "Demander la facturation"}
           </button>
           <button type="button" className="btn btn-secondary" onClick={onClose}>

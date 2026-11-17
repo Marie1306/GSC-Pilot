@@ -195,8 +195,9 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
         <RequestInvoiceModal
           subtitle={sale.displayId}
           fetchPreview={() => previewExternalSaleInvoice(id)}
-          confirm={(note) => requestExternalSaleInvoice(id, note)}
+          confirm={(note, lines) => requestExternalSaleInvoice(id, note, lines)}
           onClose={() => setRequestModalOpen(false)}
+          allowLines
           onSuccess={invalidate}
         />
       )}
