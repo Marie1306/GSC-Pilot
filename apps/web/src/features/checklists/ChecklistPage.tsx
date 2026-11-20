@@ -19,6 +19,14 @@ import "./checklist.css";
  * reste ici (confirmé : « le bouton peut rester où il est ») — en
  * sélectionnant le projet, la checklist se crée directement dedans, puis
  * on atterrit directement sur sa vue filtrée après l'entrée rapide.
+ *
+ * Sélecteur de projet limité aux projets « en cours » (20 novembre 2026,
+ * demande explicite) : fetchProjects() renvoie TOUS les projets non
+ * supprimés (y compris Garantie/Fermés, mêmes onglets que ProjectList.tsx)
+ * — filtré ici sur lifecycleTab==="active" seulement, un projet déjà
+ * terminé n'a pas de raison de recevoir une nouvelle checklist de
+ * production. Champ déjà calculé côté serveur (listProjects), jamais un
+ * nouveau filtre réinventé.
  */
 export function ChecklistPage() {
   const { employee } = useAuth();
@@ -35,6 +43,8 @@ export function ChecklistPage() {
     queryFn: fetchProjectsWithActiveChecklists,
     enabled: !selectedProjectId,
   });
+
+  const activeOnlyProjects = (projectsQuery.data?.projects ?? []).filter((p) => p.lifecycleTab === "active");
 
   const createMutation = useMutation({
     mutationFn: () => createChecklist(newProjectId, newAssemblyLabel.trim() || undefined),
@@ -82,7 +92,7 @@ export function ChecklistPage() {
                     <option value="" disabled>
                       Sélectionner…
                     </option>
-                    {projectsQuery.data?.projects.map((p) => (
+                    {activeOnlyProjects.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.projectNumber} — {p.name}
                       </option>
