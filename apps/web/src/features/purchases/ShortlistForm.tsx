@@ -23,7 +23,24 @@ function emptyLines(count: number): ShortlistLine[] {
  * demande d'achat indépendante une fois soumise, SANS catégorie — donc
  * jamais de double autorisation du Propriétaire, peu importe le montant
  * (voir apps/api/src/modules/purchases).
+ *
+ * Bogue réel corrigé (23 novembre 2026) : une ligne n'était considérée
+ * « remplie » que si la description était non vide — une ligne avec
+ * seulement code de produit + quantité (pourtant une colonne à part
+ * entière du formulaire) était silencieusement exclue de la soumission,
+ * ET le formulaire se vidait quand même comme si tout avait réussi,
+ * sans aucun avertissement. Rapporté par Marie après une grosse liste
+ * saisie en code+quantité seulement — perte réelle de données en
+ * production. hasLineContent() considère maintenant description OU
+ * productCode ; la description envoyée au serveur (qui l'exige non
+ * vide, voir shortlistLineSchema) se replie sur le code de produit
+ * quand la description est vide, jamais l'inverse — aucun changement
+ * côté backend nécessaire.
  */
+function hasLineContent(line: ShortlistLine): boolean {
+  return line.description.trim().length > 0 || (line.productCode ?? "").trim().length > 0;
+}
+
 export function ShortlistForm() {
   const queryClient = useQueryClient();
   const projectsQuery = useQuery({ queryKey: ["projects"], queryFn: fetchProjects });
@@ -33,7 +50,10 @@ export function ShortlistForm() {
 
   const mutation = useMutation({
     mutationFn: () => {
-      const filled = lines.filter((line) => line.description.trim().length > 0);
+      const filled = lines.filter(hasLineContent).map((line) => ({
+        ...line,
+        description: line.description.trim() || (line.productCode ?? "").trim(),
+      }));
       return submitPurchaseShortlist(projectId, filled);
     },
     onSuccess: (result) => {
@@ -52,7 +72,7 @@ export function ShortlistForm() {
     setLines((current) => [...current, { description: "", productCode: "", qty: undefined, supplier: "" }]);
   }
 
-  const hasAtLeastOneLine = lines.some((line) => line.description.trim().length > 0);
+  const hasAtLeastOneLine = lines.some(hasLineContent);
   const canSubmit = projectId !== "" && hasAtLeastOneLine && !mutation.isPending;
 
   return (
