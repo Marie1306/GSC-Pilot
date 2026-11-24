@@ -1748,3 +1748,127 @@ Aucune migration — rien à coller dans Supabase pour cette fonctionnalité.
 sur un vrai dossier test avant de considérer le geste confirmé à l'usage
 réel (jamais faisable depuis cette session, par construction : purge
 directe contre la vraie base, aucun accès réseau à Supabase depuis ici).
+
+## Vente externe — modifier une vente + Soumission (devis) avant la vente (23-24 novembre 2026)
+
+Deux demandes de Marie traitées ensemble : « Je ne peux toujours pas créer
+de documents de soumission pour une VE » (confirmé par question à choix :
+un vrai devis à faire accepter par le client avant que la vente ne soit
+finalisée) et, en cours de route, « Faudrait aussi que je puisse modifier
+la vente » (aucune fonction d'édition n'existait pour une `ExternalSale`
+déjà créée).
+
+**Piège de nommage volontaire, même principe qu'Assemblage/Sous-assemblage
+plus haut dans ce fichier** : affiché « Soumission » à l'écran (le mot que
+Marie a elle-même utilisé, cohérent avec Projet/Roulement), mais nouveau
+modèle `ExternalSaleQuote` (nom de code anglais, délibérément différent)
+— mécanisme TECHNIQUEMENT DISTINCT du modèle `Soumission` existant
+(Budget→Projet/Roulement). Jamais fusionner les deux : le `Soumission`
+existant s'est révélé trop profondément couplé à `Budget` (validation,
+résolution de contact, DTO, routes imbriquées, et surtout
+`PrepareSoumissionModal.tsx` qui affiche les catégories de coût du
+budgétaire) pour être retouché sans risquer une régression sur un flux
+déjà en production — même prudence que `applyPurchaseRequestToExternalSale`
+déjà gardée séparée de `applyPurchaseRequestToProject`. Les deux flux de
+création (vente directe ET soumission d'abord) restent disponibles côte à
+côte, jamais une obligation. Le prix imprimé sur la Soumission de VE
+inclut les taxes (TPS/TVQ) — le client voit le montant total à payer,
+même logique que la Soumission de Projet/Roulement.
+
+**Partie A — modifier une vente** (`updateExternalSaleHeader`/
+`addExternalSaleLine`/`updateExternalSaleLine`/`removeExternalSaleLine`,
+`externalSales/service.ts` + `ExternalSaleEditForm.tsx`) : gelée dès que
+`invoiceEntries.length > 0` (facturation déjà demandée), jamais sur un
+statut de fin de cycle — même principe que `updateProjectBillingPlan`.
+Une ligne (`PurchaseRequest`) ne reste modifiable que tant qu'elle est
+encore `owner_pending`/`boss_pending` (`PENDING_STATUSES`, exporté depuis
+`purchases/service.ts` plutôt que dupliqué). Aucune migration. Poussé
+(`7edec5c`).
+
+**Partie B — Soumission** (nouveau `ExternalSaleQuote`/
+`ExternalSaleQuoteLine`, `apps/api/src/modules/externalSaleQuotes/`,
+`apps/web/src/features/externalSaleQuotes/`) : cycle brouillon → envoyée
+(gèle `partsBaseCost`/`salePrice` via `externalSaleTotals` +
+`tpsAmount`/`tvqAmount`/`totalWithTax` via `computeInvoiceTax`) → acceptée/
+refusée → convertie en vente (`convertExternalSaleQuoteToSale`, réutilise
+`createExternalSale` tel quel — c'est SEULEMENT à la conversion que le
+Contact est résolu/fusionné et que la `ClientRequest` bascule, jamais à la
+création de la soumission, pour qu'une soumission refusée ne laisse aucune
+trace). Numérotation `DV-AAAA-NNNN`, propre compteur annuel, jamais
+partagé avec `SO-`. Migration additive
+(`20261124163045_external_sale_quote`) — **collée par Marie, confirmé
+(« c'est collé ») avant le push** (règle du 13 novembre respectée). Poussé
+(`494caa5`).
+
+**Rattrapage le jour même — coût affiché au lieu du prix** : Marie a
+remarqué elle-même (« il me semble qu'on avait bien discuté du calcul des
+taxes, de la marge, des frais administratifs divisés par le nombre de
+produits... est-ce que c'était parce que c'était pour la facturation ? »)
+que `ExternalSaleQuoteDetail.tsx`/`ExternalSaleQuoteExportView.tsx`
+affichaient `quote.lines[].unitCost` brut — le coût interne, jamais censé
+être vu par un client — au lieu du prix marqué. Corrigé en réutilisant
+`externalSaleInvoiceLines` (déjà construite le 17 novembre pour la
+ventilation de Facture de VE) aux deux endroits, jamais réimplémentée.
+Poussé (`a84c47d`).
+
+### Bogue réel trouvé le lendemain — Sous-total incohérent avec les lignes affichées (24 novembre 2026)
+
+Rapporté par Marie avec capture d'écran de l'export PDF d'une vraie
+Soumission (DV-2026-0001, ENPQ) : « la nouvelle section fonctionne. MAIS,
+je ne peux pas exporter ma soumission en pdf selon le modèle qu'on a
+convenu ensemble », puis en précisant après une fausse piste (le gabarit
+visuel correspondait pourtant exactement à la maquette approuvée) : « Ok
+ca fonctionne. MAis le calcul ne fonctionne pas ». Dans l'export : 2
+lignes (20 × 1,71 $ = 34,20 $ ; 20 × 0,41 $ = 8,20 $, somme réelle
+42,40 $) mais un Sous-total affiché de 42,50 $ — écart de 0,10 $, trop
+systématique pour être un simple arrondi d'un ou deux cents.
+
+**Cause réelle** : `externalSaleTotals` (utilisée pour geler `salePrice`
+à l'envoi d'une soumission ET à la création/au recalcul d'une vente
+directe) appliquait la marge **une seule fois sur le total agrégé des
+coûts**, alors que `externalSaleInvoiceLines` (les lignes RÉELLEMENT
+affichées, construite le 17 novembre pour la Facture) applique la marge
+**par ligne puis arrondit le PRIX UNITAIRE avant de multiplier par la
+quantité** — pour que « prix unitaire × qté = montant » reste toujours
+exact à l'écran (décision confirmée le 17 novembre, jamais remise en
+cause). Les deux approches sont mathématiquement équivalentes SANS
+arrondi (`saleFromCost` est linéaire), mais arrondir au niveau de
+l'UNITÉ avant de multiplier par la quantité amplifie l'écart par un
+facteur qté — invisible aux petites quantités (qté 1-5, seul cas couvert
+par les tests existants jusqu'ici) mais atteignant 0,10 $ à qté 20 (cas
+réel) et potentiellement bien plus à de plus grandes quantités. Ce même
+mécanisme touchait aussi, en silence, la Facture de Vente externe
+(`requestExternalSaleInvoice`, qui utilise déjà `externalSaleInvoiceLines`
+pour ses lignes suggérées) depuis le 17 novembre — jamais rapporté comme
+bogue jusqu'ici, probablement parce qu'aucune VE invoicée depuis n'avait
+une quantité par ligne assez grande pour que l'écart saute aux yeux.
+
+**Corrigé** : `externalSaleTotals` dérive maintenant `salePrice` de la
+somme des montants de `externalSaleInvoiceLines` (pièces + transport)
+plutôt que de recalculer indépendamment — les deux chiffres sont
+désormais identiques **par construction**, jamais seulement « proches à
+quelques cents près » comme le documentait l'ancien commentaire de
+`external-sales.ts`. Signature changée (`lines: {qty, unitCost}[]` au
+lieu de montants déjà additionnés — nécessaire, l'ancienne signature ne
+permettait pas de reproduire l'arrondi par ligne) — mis à jour aux 5
+points d'appel (`createExternalSale`, `recomputeExternalSaleTotals` côté
+API, `sendExternalSaleQuote`, + les aperçus en direct de
+`ExternalSaleForm.tsx`/`ExternalSaleQuoteForm.tsx`), chacun avait déjà le
+détail des lignes en main — aucun nouvel aller-retour DB nécessaire.
+`partsBaseCost`/`baseCostBeforeMargin` (coût, jamais prix) inchangés.
+
+Tests `packages/business-rules/test/external-sales.test.ts` mis à jour
+(valeur attendue du scénario à 3 lignes passée de 700,00 $ à 700,03 $ —
+changement attendu, PAS une régression : c'est maintenant la somme
+exacte des lignes, pas l'ancien calcul agrégat) + nouveau test
+reproduisant le cas réel exact (qté 20/20, coûts 1,37 $/0,33 $, marge
+20 % → 42,40 $, jamais 42,50 $). Vérifié contre Postgres local (script
+jetable, supprimé après usage) en reproduisant exactement DV-2026-0001 :
+Soumission envoyée → `salePrice` 42,40 $ (TPS/TVQ/Total cohérents) ;
+vente directe créée avec les mêmes lignes → même correction ; recalcul
+après changement de marge (Partie A) → toujours cohérent. `npm run
+typecheck && npm run lint && npm test && npm run build` verts (538
+tests, +3 depuis la veille). Aucune migration — correctif de calcul pur.
+**Poussé (`1685975`)** — reste à confirmer par Marie que le nouvel export
+de DV-2026-0001 (ou une nouvelle soumission) montre bien un Sous-total
+cohérent avec les lignes.
