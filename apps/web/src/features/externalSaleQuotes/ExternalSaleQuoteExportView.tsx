@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { externalSaleInvoiceLines } from "@gsc-pilot/business-rules";
 import { CompanyLetterhead } from "../../components/CompanyLetterhead.js";
 import { fetchCompanyLetterhead } from "../../lib/companyLetterhead.js";
 import { printWhenReady } from "../../lib/printWhenReady.js";
@@ -38,6 +39,18 @@ export function ExternalSaleQuoteExportView() {
   if (!quote) {
     return <div style={{ padding: 40 }}>{detailQuery.isError ? "Soumission introuvable." : "Chargement…"}</div>;
   }
+
+  // Lignes au PRIX, jamais le coût interne (unitCost) — un client ne doit
+  // jamais voir les coûts de GSC Automation. Même calcul exact que la
+  // ventilation de Facture (externalSaleInvoiceLines, 17 novembre 2026) :
+  // marge réappliquée par pièce + frais administratifs divisés par le
+  // nombre d'unités, transport en ligne séparée.
+  const invoiceLines = externalSaleInvoiceLines(
+    quote.lines.map((line) => ({ description: line.description, qty: line.qty, unitCost: line.unitCost })),
+    quote.transportFee,
+    quote.adminFee,
+    quote.marginPct,
+  );
 
   const registrationLine = [
     identity?.companyBusinessNumber && `N° d'entreprise ${identity.companyBusinessNumber}`,
@@ -90,7 +103,7 @@ export function ExternalSaleQuoteExportView() {
               </th>
               <th>Description</th>
               <th className="num" style={{ width: 110 }}>
-                Coût unitaire
+                Prix unitaire
               </th>
               <th className="num" style={{ width: 110 }}>
                 Montant
@@ -98,11 +111,11 @@ export function ExternalSaleQuoteExportView() {
             </tr>
           </thead>
           <tbody>
-            {quote.lines.map((line) => (
-              <tr key={line.id}>
-                <td className="num">{line.qty}</td>
+            {invoiceLines.map((line, index) => (
+              <tr key={index}>
+                <td className="num">{line.quantity}</td>
                 <td>{line.description}</td>
-                <td className="num">{formatCurrency(line.unitCost)}</td>
+                <td className="num">{formatCurrency(line.unitPrice)}</td>
                 <td className="num" style={{ fontWeight: 650 }}>
                   {formatCurrency(line.amount)}
                 </td>

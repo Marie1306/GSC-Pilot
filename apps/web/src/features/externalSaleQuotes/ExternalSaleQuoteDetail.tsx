@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { canManageExternalSales } from "@gsc-pilot/business-rules";
+import { canManageExternalSales, externalSaleInvoiceLines } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { formatCalendarDate } from "../../lib/date.js";
 import { ApiError } from "../../lib/apiClient.js";
@@ -91,6 +91,19 @@ export function ExternalSaleQuoteDetail({ id, onClose, onConverted }: ExternalSa
 
   const badgeClass = quote.status === "accepted" ? "badge-conforme" : quote.status === "declined" ? "badge-critical" : "badge-neutral";
 
+  // Lignes affichées au PRIX (jamais le coût interne, voir unitCost sur
+  // quote.lines) — même calcul exact que la ventilation de Facture
+  // (externalSaleInvoiceLines, déjà construite le 17 novembre 2026) :
+  // marge réappliquée par pièce + frais administratifs divisés par le
+  // nombre d'unités vendues, transport en ligne séparée. La Soumission
+  // devient ainsi un aperçu fidèle de ce que montrera la Facture.
+  const invoiceLines = externalSaleInvoiceLines(
+    quote.lines.map((line) => ({ description: line.description, qty: line.qty, unitCost: line.unitCost })),
+    quote.transportFee,
+    quote.adminFee,
+    quote.marginPct,
+  );
+
   return (
     <div className="modal-backdrop">
       <div className="modal" style={{ maxWidth: 700 }}>
@@ -135,16 +148,16 @@ export function ExternalSaleQuoteDetail({ id, onClose, onConverted }: ExternalSa
                 <tr>
                   <th>Description</th>
                   <th className="num">Qté</th>
-                  <th className="num">Coût unitaire</th>
+                  <th className="num">Prix unitaire</th>
                   <th className="num">Montant</th>
                 </tr>
               </thead>
               <tbody>
-                {quote.lines.map((line) => (
-                  <tr key={line.id}>
+                {invoiceLines.map((line, index) => (
+                  <tr key={index}>
                     <td>{line.description}</td>
-                    <td className="num">{line.qty}</td>
-                    <td className="num">{formatCurrency(line.unitCost)}</td>
+                    <td className="num">{line.quantity}</td>
+                    <td className="num">{formatCurrency(line.unitPrice)}</td>
                     <td className="num">{formatCurrency(line.amount)}</td>
                   </tr>
                 ))}
