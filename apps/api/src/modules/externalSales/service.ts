@@ -222,6 +222,9 @@ export interface ExternalSaleDetailDto {
   phone: string | null;
   email: string | null;
   clientRequestId: string | null;
+  /** Soumission d'origine (24 novembre 2026, section Documents) — null si la vente a été créée directement, jamais depuis une soumission convertie. */
+  quoteId: string | null;
+  quoteDisplayId: string | null;
   partsBaseCost: number;
   transportFee: number;
   adminFee: number;
@@ -253,6 +256,7 @@ async function loadExternalSaleOrThrow(id: string) {
       // Au plus une ligne (requestExternalSaleInvoice bloque une 2e demande)
       // — voir ExternalSaleDetailDto.invoiceRequestedAt/invoiceEntryId ci-dessous.
       invoiceEntries: { select: { id: true, requestedAt: true, invoiceNumber: true } },
+      quote: { select: { displayId: true } },
     },
   });
   if (!sale) throw new HttpError(404, "Vente externe introuvable.");
@@ -284,6 +288,8 @@ export async function getExternalSaleDetail(id: string, viewerPersona: Persona):
     phone: sale.contact.phone,
     email: sale.contact.email,
     clientRequestId: sale.clientRequestId,
+    quoteId: sale.quoteId,
+    quoteDisplayId: sale.quote?.displayId ?? null,
     partsBaseCost: Number(sale.partsBaseCost),
     transportFee: Number(sale.transportFee),
     adminFee: Number(sale.adminFee),

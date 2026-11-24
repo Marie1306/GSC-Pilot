@@ -276,22 +276,32 @@ export interface ExternalSaleQuoteListItemDto {
   convertedSaleId: string | null;
 }
 
+/**
+ * Une soumission déjà convertie en vente quitte cette liste « en cours » —
+ * demande explicite du 24 novembre 2026 (« il faut qu'elle se supprime de
+ * cette section ») : elle reste pleinement consultable/imprimable par son
+ * propre id (getExternalSaleQuoteDetail, jamais touché ici), mais
+ * uniquement via le document rattaché à sa vente
+ * (ExternalSaleDocuments.tsx), jamais plus listée ici en double.
+ */
 export async function listExternalSaleQuotes(): Promise<ExternalSaleQuoteListItemDto[]> {
   const rows = await prisma.externalSaleQuote.findMany({
     where: { deletedAt: null },
     include: { sale: { select: { id: true } } },
     orderBy: { createdAt: "desc" },
   });
-  return rows.map((row) => ({
-    id: row.id,
-    displayId: row.displayId,
-    contactName: row.contactName,
-    company: row.company,
-    status: row.status,
-    salePrice: row.salePrice === null ? null : Number(row.salePrice),
-    createdAt: row.createdAt.toISOString(),
-    convertedSaleId: row.sale?.id ?? null,
-  }));
+  return rows
+    .filter((row) => !row.sale)
+    .map((row) => ({
+      id: row.id,
+      displayId: row.displayId,
+      contactName: row.contactName,
+      company: row.company,
+      status: row.status,
+      salePrice: row.salePrice === null ? null : Number(row.salePrice),
+      createdAt: row.createdAt.toISOString(),
+      convertedSaleId: row.sale?.id ?? null,
+    }));
 }
 
 export interface ExternalSaleQuoteLineDto {

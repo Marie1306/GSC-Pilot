@@ -173,7 +173,13 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
               </div>
 
               <ExternalSaleFulfillment sale={sale} />
-              <ExternalSaleDocuments externalSaleId={id} invoiceEntryId={sale.invoiceEntryId} invoiceNumber={sale.invoiceNumber} />
+              <ExternalSaleDocuments
+                externalSaleId={id}
+                quoteId={sale.quoteId}
+                quoteDisplayId={sale.quoteDisplayId}
+                invoiceEntryId={sale.invoiceEntryId}
+                invoiceNumber={sale.invoiceNumber}
+              />
             </>
           )}
         </div>

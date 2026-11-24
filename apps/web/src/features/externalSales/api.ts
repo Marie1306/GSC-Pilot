@@ -52,6 +52,9 @@ export interface ExternalSaleDetailDto {
   phone: string | null;
   email: string | null;
   clientRequestId: string | null;
+  /** Soumission d'origine (24 novembre 2026, section Documents) — null si créée directement. */
+  quoteId: string | null;
+  quoteDisplayId: string | null;
   partsBaseCost: number;
   transportFee: number;
   adminFee: number;

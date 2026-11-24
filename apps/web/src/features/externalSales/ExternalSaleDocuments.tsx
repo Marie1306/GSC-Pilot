@@ -21,23 +21,28 @@ function formatDate(iso: string): string {
 
 interface ExternalSaleDocumentsProps {
   externalSaleId: string;
+  /** Soumission d'origine (24 novembre 2026) — présente seulement si la vente vient d'une soumission convertie, jamais pour une vente créée directement. */
+  quoteId: string | null;
+  quoteDisplayId: string | null;
   invoiceEntryId: string | null;
   invoiceNumber: string | null;
 }
 
 /**
- * Section Documents de la Vente externe (17 novembre 2026) — plus simple
- * que ProjectDocuments.tsx/RollingDocuments.tsx : une vente externe n'a
- * jamais de budgétaire/Soumission/post-mortem, donc seulement la Facture
- * envoyée (au plus une, voir externalSales/service.ts) + les documents
- * téléversés (même bucket partagé "project-documents", préfixe
- * "external-sale/", voir modules/externalSales/documents.ts backend).
+ * Section Documents de la Vente externe (17 novembre 2026) — une vente
+ * externe n'a jamais de budgétaire/post-mortem, donc Soumission d'origine
+ * (si convertie, 24 novembre 2026 — demande explicite : la soumission doit
+ * disparaître de la section "Soumissions" une fois convertie et rester
+ * accessible uniquement ici) + Facture envoyée (au plus une, voir
+ * externalSales/service.ts) + documents téléversés (même bucket partagé
+ * "project-documents", préfixe "external-sale/", voir
+ * modules/externalSales/documents.ts backend).
  *
  * Permissions : canManageExternalSales (déjà le gate du module entier,
  * OWNER/ADMIN/BOSS) pour le bloc entier, canManageExternalSaleDocuments
  * (plus étroite, OWNER/BOSS) pour le dépôt.
  */
-export function ExternalSaleDocuments({ externalSaleId, invoiceEntryId, invoiceNumber }: ExternalSaleDocumentsProps) {
+export function ExternalSaleDocuments({ externalSaleId, quoteId, quoteDisplayId, invoiceEntryId, invoiceNumber }: ExternalSaleDocumentsProps) {
   const { employee } = useAuth();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -75,13 +80,22 @@ export function ExternalSaleDocuments({ externalSaleId, invoiceEntryId, invoiceN
         <h3>Documents</h3>
       </div>
 
-      {invoiceEntryId && (
+      {(quoteId || invoiceEntryId) && (
         <ul className="notes-list">
-          <li>
-            <button type="button" className="link-button" onClick={() => window.open(`/factures/${invoiceEntryId}/export`, "_blank", "noopener")}>
-              Facture {invoiceNumber}
-            </button>
-          </li>
+          {quoteId && (
+            <li>
+              <button type="button" className="link-button" onClick={() => window.open(`/external-sale-quotes/${quoteId}/export`, "_blank", "noopener")}>
+                Soumission {quoteDisplayId}
+              </button>
+            </li>
+          )}
+          {invoiceEntryId && (
+            <li>
+              <button type="button" className="link-button" onClick={() => window.open(`/factures/${invoiceEntryId}/export`, "_blank", "noopener")}>
+                Facture {invoiceNumber}
+              </button>
+            </li>
+          )}
         </ul>
       )}
 
