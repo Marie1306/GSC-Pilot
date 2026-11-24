@@ -41,6 +41,9 @@ export const STATUS_LABELS: Record<string, string> = {
   rejected: "Rejetée",
 };
 
+/** Miroir de PENDING_STATUSES (apps/api/src/modules/purchases/service.ts) — une ligne de Vente externe ne reste éditable (ExternalSaleEditForm.tsx) que dans l'un de ces 2 statuts. */
+export const PENDING_STATUSES = ["owner_pending", "boss_pending"];
+
 export interface PurchaseRequestPhotoDto {
   id: string;
   imageDataUrl: string;
@@ -63,6 +66,8 @@ export interface PurchaseRequestDto {
   description: string;
   productCode: string | null;
   qty: number | null;
+  /** Ligne de Vente externe (projectType==="sale") seulement — même visibilité que amount (23 novembre 2026, édition d'une vente). */
+  unitCost?: number | null;
   amount?: number | null;
   estimatedAmountMin?: number | null;
   estimatedAmountMax?: number | null;

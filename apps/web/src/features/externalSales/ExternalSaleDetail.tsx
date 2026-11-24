@@ -17,6 +17,7 @@ import {
   EXTERNAL_SALE_STATUS_LABELS,
 } from "./api.js";
 import { ExternalSaleFulfillment } from "./ExternalSaleFulfillment.js";
+import { ExternalSaleEditForm } from "./ExternalSaleEditForm.js";
 import { PurgeConfirmModal } from "../../components/PurgeConfirmModal.js";
 
 interface ExternalSaleDetailProps {
@@ -44,6 +45,7 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
   const sale = detailQuery.data;
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [showPurgeConfirm, setShowPurgeConfirm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["external-sale", id] });
@@ -177,6 +179,11 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
         </div>
 
         <div className="modal-footer">
+          {sale && canManage && !sale.invoiceRequestedAt && (
+            <button type="button" className="btn btn-secondary" onClick={() => setShowEditForm(true)}>
+              Modifier
+            </button>
+          )}
           {sale && canManage && (
             <button
               type="button"
@@ -202,6 +209,7 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
           </button>
         </div>
       </div>
+      {showEditForm && sale && <ExternalSaleEditForm sale={sale} onClose={() => setShowEditForm(false)} />}
       {showPurgeConfirm && sale && (
         <PurgeConfirmModal
           title={`Supprimer définitivement la vente ${sale.displayId}`}

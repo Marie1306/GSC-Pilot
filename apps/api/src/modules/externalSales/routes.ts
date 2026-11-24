@@ -18,6 +18,10 @@ import {
   confirmExternalSaleFulfillment,
   getNextExternalSaleDisplayId,
   setExternalSaleCompleted,
+  updateExternalSaleHeader,
+  addExternalSaleLine,
+  updateExternalSaleLine,
+  removeExternalSaleLine,
   previewExternalSaleInvoice,
   requestExternalSaleInvoice,
 } from "./service.js";
@@ -112,6 +116,52 @@ externalSalesRouter.patch("/external-sales/:id/completed", requireAuth, requireP
   const id = z.uuid().parse(req.params.id);
   const { completed } = z.object({ completed: z.boolean() }).parse(req.body);
   await setExternalSaleCompleted(id, completed);
+  res.status(204).end();
+});
+
+// ---------------------------------------------------------------------------
+// Modifier la vente (23 novembre 2026) — gelée dès que la facturation a été
+// demandée, voir assertExternalSaleEditable (service.ts). Même porte que le
+// reste du module (canManage).
+// ---------------------------------------------------------------------------
+
+const updateExternalSaleHeaderSchema = z.object({
+  newContact: newContactSchema.optional(),
+  transportFee: z.number().nonnegative().optional(),
+  adminFee: z.number().nonnegative().optional(),
+  marginPct: z.number().min(0).max(99.99).optional(),
+});
+externalSalesRouter.patch("/external-sales/:id", requireAuth, requirePermission(canManage), async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  const body = updateExternalSaleHeaderSchema.parse(req.body);
+  await updateExternalSaleHeader(id, body);
+  res.status(204).end();
+});
+
+externalSalesRouter.post("/external-sales/:id/lines", requireAuth, requirePermission(canManage), async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  const body = lineSchema.parse(req.body);
+  await addExternalSaleLine(id, body);
+  res.status(201).end();
+});
+
+const updateExternalSaleLineSchema = z.object({
+  description: z.string().min(1, "La description est requise.").optional(),
+  qty: z.number().positive().optional(),
+  unitCost: z.number().nonnegative().optional(),
+});
+externalSalesRouter.patch("/external-sales/:id/lines/:lineId", requireAuth, requirePermission(canManage), async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  const lineId = z.uuid().parse(req.params.lineId);
+  const body = updateExternalSaleLineSchema.parse(req.body);
+  await updateExternalSaleLine(id, lineId, body);
+  res.status(204).end();
+});
+
+externalSalesRouter.delete("/external-sales/:id/lines/:lineId", requireAuth, requirePermission(canManage), async (req, res) => {
+  const id = z.uuid().parse(req.params.id);
+  const lineId = z.uuid().parse(req.params.lineId);
+  await removeExternalSaleLine(id, lineId);
   res.status(204).end();
 });
 

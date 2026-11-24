@@ -119,6 +119,8 @@ export interface PurchaseRequestDto {
   /** Colonnes "Code de produit"/"Quantité" de la liste rapide (19 octobre 2026) — jamais financier, visible à tous peu importe canSeeFinancialValues, même esprit que description/supplier. qty reste aussi utilisé (avec unitCost, non exposé ici) pour une ligne de Vente externe, voir schema.prisma. */
   productCode: string | null;
   qty: number | null;
+  /** Coût unitaire d'une ligne de Vente externe (jamais utilisé par le formulaire général ni la liste rapide) — existait en base sans jamais être exposé, nécessaire depuis l'édition d'une vente (23 novembre 2026, ExternalSaleEditForm.tsx) pour pré-remplir une ligne. Même visibilité que amount. */
+  unitCost?: number | null;
   amount?: number | null;
   estimatedAmountMin?: number | null;
   estimatedAmountMax?: number | null;
@@ -147,7 +149,8 @@ type PurchaseRequestWithRelations = PurchaseRequest & {
   photos: { id: string; imageDataUrl: string; uploadedAt: Date }[];
 };
 
-const PENDING_STATUSES = ["owner_pending", "boss_pending"];
+/** Exportée pour externalSales/service.ts (édition d'une vente, 23 novembre 2026) — une ligne de Vente externe reste une PurchaseRequest, même garde que partout ici. */
+export const PENDING_STATUSES = ["owner_pending", "boss_pending"];
 
 /**
  * Crée une liste rapide d'achats pour un projet — plusieurs lignes
@@ -379,6 +382,7 @@ export function toPurchaseRequestDto(row: PurchaseRequestWithRelations, viewerPe
     description: row.description,
     productCode: row.productCode,
     qty: row.qty === null ? null : Number(row.qty),
+    unitCost: showFinancials ? (row.unitCost === null ? null : Number(row.unitCost)) : undefined,
     amount: showFinancials ? (row.amount === null ? null : Number(row.amount)) : undefined,
     estimatedAmountMin: showFinancials ? (row.estimatedAmountMin === null ? null : Number(row.estimatedAmountMin)) : undefined,
     estimatedAmountMax: showFinancials ? (row.estimatedAmountMax === null ? null : Number(row.estimatedAmountMax)) : undefined,

@@ -47,6 +47,10 @@ export interface ExternalSaleDetailDto {
   contactId: string;
   contactName: string;
   company: string | null;
+  /** Manquants jusqu'au 23 novembre 2026 (édition de la vente) — voir ExternalSaleEditForm.tsx. */
+  contactRole: string | null;
+  phone: string | null;
+  email: string | null;
   clientRequestId: string | null;
   partsBaseCost: number;
   transportFee: number;
@@ -119,6 +123,40 @@ export function chooseExternalSaleFulfillmentMode(id: string, input: ChooseExter
 
 export function confirmExternalSaleFulfillment(id: string, note?: string): Promise<void> {
   return apiFetch(`/api/external-sales/${id}/fulfillment/confirm`, { method: "POST", body: JSON.stringify({ note }) });
+}
+
+/**
+ * Modifier la vente (23 novembre 2026) — gelée côté serveur dès que
+ * invoiceRequestedAt est posé, voir ExternalSaleEditForm.tsx. Un champ omis
+ * reste inchangé (newContact absent = contact inchangé, etc.).
+ */
+export interface UpdateExternalSaleHeaderInput {
+  newContact?: NewExternalSaleContactInput;
+  transportFee?: number;
+  adminFee?: number;
+  marginPct?: number;
+}
+
+export function updateExternalSaleHeader(id: string, input: UpdateExternalSaleHeaderInput): Promise<void> {
+  return apiFetch(`/api/external-sales/${id}`, { method: "PATCH", body: JSON.stringify(input) });
+}
+
+export function addExternalSaleLine(id: string, input: ExternalSaleLineInput): Promise<void> {
+  return apiFetch(`/api/external-sales/${id}/lines`, { method: "POST", body: JSON.stringify(input) });
+}
+
+export interface UpdateExternalSaleLineInput {
+  description?: string;
+  qty?: number;
+  unitCost?: number;
+}
+
+export function updateExternalSaleLine(id: string, lineId: string, patch: UpdateExternalSaleLineInput): Promise<void> {
+  return apiFetch(`/api/external-sales/${id}/lines/${lineId}`, { method: "PATCH", body: JSON.stringify(patch) });
+}
+
+export function removeExternalSaleLine(id: string, lineId: string): Promise<void> {
+  return apiFetch(`/api/external-sales/${id}/lines/${lineId}`, { method: "DELETE" });
 }
 
 /** Marquer/démarquer manuellement une vente comme terminée — réversible (19 octobre 2026). */
