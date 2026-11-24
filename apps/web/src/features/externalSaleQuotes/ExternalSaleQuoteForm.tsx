@@ -64,8 +64,7 @@ export function ExternalSaleQuoteForm({ onClose, onCreated }: ExternalSaleQuoteF
   const effectiveTermsText = termsText ?? letterheadQuery.data?.identity.soumissionDefaultNote ?? "";
 
   const lines = parsedLines(rows);
-  const lineAmounts = lines.map((line) => externalSaleLineAmount(line.qty, line.unitCost));
-  const totals = externalSaleTotals(lineAmounts, Number(transportFee) || 0, Number(adminFee) || 0, Number(effectiveMarginPct) || 0);
+  const totals = externalSaleTotals(lines, Number(transportFee) || 0, Number(adminFee) || 0, Number(effectiveMarginPct) || 0);
 
   const createMutation = useMutation({
     mutationFn: () =>

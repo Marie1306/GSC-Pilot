@@ -131,7 +131,7 @@ export async function createExternalSale(createdById: string, input: CreateExter
   const contact = await ensureContactRow({ ...input.newContact, requestType: "sale" });
 
   const lineAmounts = input.lines.map((line) => externalSaleLineAmount(line.qty, line.unitCost));
-  const { partsBaseCost, salePrice } = externalSaleTotals(lineAmounts, input.transportFee, input.adminFee, input.marginPct);
+  const { partsBaseCost, salePrice } = externalSaleTotals(input.lines, input.transportFee, input.adminFee, input.marginPct);
 
   return prisma.$transaction(async (tx) => {
     const settings = await tx.settings.findFirst();
@@ -329,9 +329,9 @@ async function recomputeExternalSaleTotals(
   adminFee: number,
   marginPct: number,
 ): Promise<void> {
-  const lines = await tx.purchaseRequest.findMany({ where: { externalSaleId: saleId }, select: { amount: true } });
+  const lines = await tx.purchaseRequest.findMany({ where: { externalSaleId: saleId }, select: { qty: true, unitCost: true } });
   const { partsBaseCost, salePrice } = externalSaleTotals(
-    lines.map((line) => Number(line.amount ?? 0)),
+    lines.map((line) => ({ qty: Number(line.qty ?? 0), unitCost: Number(line.unitCost ?? 0) })),
     transportFee,
     adminFee,
     marginPct,

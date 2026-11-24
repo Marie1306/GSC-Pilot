@@ -72,8 +72,7 @@ export function ExternalSaleForm({ onClose, onCreated, prefillFromRequest }: Ext
   const effectiveMarginPct = marginPct ?? (nextNumberQuery.data ? String(nextNumberQuery.data.defaultMarginPct) : "20");
 
   const lines = parsedLines(rows);
-  const lineAmounts = lines.map((line) => externalSaleLineAmount(line.qty, line.unitCost));
-  const totals = externalSaleTotals(lineAmounts, Number(transportFee) || 0, Number(adminFee) || 0, Number(effectiveMarginPct) || 0);
+  const totals = externalSaleTotals(lines, Number(transportFee) || 0, Number(adminFee) || 0, Number(effectiveMarginPct) || 0);
 
   const createMutation = useMutation({
     mutationFn: () =>

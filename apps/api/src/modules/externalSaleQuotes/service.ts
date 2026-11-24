@@ -198,8 +198,12 @@ export async function sendExternalSaleQuote(id: string): Promise<void> {
   const settings = await prisma.settings.findFirst();
   if (!settings) throw new HttpError(500, "Paramètres non initialisés — lancer le seed.");
 
-  const lineAmounts = quote.lines.map((line) => Number(line.amount));
-  const { partsBaseCost, salePrice } = externalSaleTotals(lineAmounts, Number(quote.transportFee), Number(quote.adminFee), Number(quote.marginPct));
+  const { partsBaseCost, salePrice } = externalSaleTotals(
+    quote.lines.map((line) => ({ qty: Number(line.qty), unitCost: Number(line.unitCost) })),
+    Number(quote.transportFee),
+    Number(quote.adminFee),
+    Number(quote.marginPct),
+  );
   const tax = computeInvoiceTax(salePrice, Number(settings.tpsRatePct), Number(settings.tvqRatePct));
 
   await prisma.externalSaleQuote.update({

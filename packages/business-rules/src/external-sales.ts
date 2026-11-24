@@ -28,17 +28,51 @@ export function externalSaleLineAmount(qty: number, unitCost: number): number {
   return round2(Number(qty || 0) * Number(unitCost || 0));
 }
 
+export interface ExternalSaleTotalsLineInput {
+  qty: number;
+  unitCost: number;
+}
+
 export interface ExternalSaleTotals {
   partsBaseCost: number;
   baseCostBeforeMargin: number;
   salePrice: number;
 }
 
-/** lineAmounts : sorties de externalSaleLineAmount, déjà arrondies par ligne. */
-export function externalSaleTotals(lineAmounts: number[], transportFee: number, adminFee: number, marginPct: number): ExternalSaleTotals {
-  const partsBaseCost = round2(lineAmounts.reduce((sum, amount) => sum + Number(amount || 0), 0));
+/**
+ * lines : qty + coût unitaire de chaque ligne de pièce — jamais des
+ * montants déjà additionnés (voir pourquoi juste en dessous).
+ *
+ * Correctif du 24 novembre 2026 (bogue réel rapporté par l'utilisatrice sur
+ * l'export PDF d'une Soumission de Vente externe — Sous-total 42,50 $
+ * affiché alors que les 2 lignes affichées juste au-dessus totalisaient
+ * 42,40 $) : salePrice est maintenant DÉRIVÉ de la somme des montants de
+ * externalSaleInvoiceLines (pièces + transport, jamais réimplémenté
+ * séparément) plutôt que d'une marge appliquée une seule fois sur le total
+ * des coûts (ancien calcul). Les deux approches sont mathématiquement
+ * équivalentes SANS arrondi (saleFromCost est linéaire), mais
+ * externalSaleInvoiceLines arrondit le PRIX UNITAIRE avant de multiplier
+ * par la quantité (pour que prix unitaire × qté = montant reste toujours
+ * exact à l'écran, confirmé explicitement par l'utilisatrice le 17
+ * novembre 2026) — ce qui amplifie l'écart par un facteur qté. Avec de
+ * petites quantités (qté 1-5, seul cas couvert par les anciens tests)
+ * l'écart restait sous le cent et passait inaperçu ; à qté 20 (cas réel
+ * rapporté), il atteint 0,10 $ et devient visible. Dériver salePrice de la
+ * MÊME fonction que l'affichage élimine la divergence par construction —
+ * les deux chiffres sont désormais TOUJOURS identiques, jamais seulement
+ * « proches à quelques cents près ».
+ */
+export function externalSaleTotals(lines: ExternalSaleTotalsLineInput[], transportFee: number, adminFee: number, marginPct: number): ExternalSaleTotals {
+  const partsBaseCost = round2(lines.reduce((sum, line) => sum + externalSaleLineAmount(line.qty, line.unitCost), 0));
   const baseCostBeforeMargin = round2(partsBaseCost + Number(transportFee || 0) + Number(adminFee || 0));
-  return { partsBaseCost, baseCostBeforeMargin, salePrice: saleFromCost(baseCostBeforeMargin, marginPct) };
+  const invoiceLines = externalSaleInvoiceLines(
+    lines.map((line) => ({ description: "", qty: line.qty, unitCost: line.unitCost })),
+    transportFee,
+    adminFee,
+    marginPct,
+  );
+  const salePrice = round2(invoiceLines.reduce((sum, line) => sum + line.amount, 0));
+  return { partsBaseCost, baseCostBeforeMargin, salePrice };
 }
 
 export interface ExternalSaleInvoiceLineInput {
