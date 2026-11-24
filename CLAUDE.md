@@ -1872,3 +1872,32 @@ tests, +3 depuis la veille). Aucune migration — correctif de calcul pur.
 **Poussé (`1685975`)** — reste à confirmer par Marie que le nouvel export
 de DV-2026-0001 (ou une nouvelle soumission) montre bien un Sous-total
 cohérent avec les lignes.
+
+### Soumission convertie — quitte la liste, rattachée aux Documents de la vente (même jour)
+
+Rapporté par Marie juste après : « Lorsque je convertie en vente, la
+ligne reste dans la catégorie soumission, il faut qu'elle se supprime de
+cette section et qu'elle reste greffé à sa vente dans les documents ».
+`listExternalSaleQuotes` n'excluait pas les soumissions déjà converties
+(celles avec une `ExternalSale` liée) — restaient indéfiniment dans la
+section « Soumissions » de `ExternalSalesPage`, affichées « Acceptée »
+pour toujours, sans aucun lien visible vers la vente résultante.
+
+**Corrigé** : `listExternalSaleQuotes` filtre maintenant les lignes ayant
+une `sale` liée — une soumission convertie disparaît de cette liste,
+mais reste pleinement consultable/imprimable par son propre id
+(`getExternalSaleQuoteDetail`/export, jamais touchés). `ExternalSaleDetailDto`
+gagne `quoteId`/`quoteDisplayId` (null si la vente a été créée
+directement) ; `ExternalSaleDocuments.tsx` affiche un lien « Soumission
+{displayId} » vers son export quand présent — même patron exact que la
+Confirmation de commande dans `ProjectDocuments.tsx`/
+`SoumissionDocumentRows`.
+
+Vérifié contre Postgres local (script jetable, supprimé après usage, +
+nettoyage de 2 soumissions de test résiduelles d'une session antérieure
+jamais nettoyées, DV-2026-0001/0003) : soumission témoin non convertie
+reste listée, soumission convertie disparaît de la liste ET porte bien
+son `quoteId`/`quoteDisplayId` sur la vente résultante, vente créée
+directement garde `quoteId` null. `npm run typecheck && npm run lint &&
+npm test && npm run build` verts (538 tests, inchangé — correctif de
+lecture/affichage pur). Aucune migration. **Poussé (`6e7aa81`)**.
