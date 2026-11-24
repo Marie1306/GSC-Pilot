@@ -6,6 +6,7 @@ import {
   canAccessDeliveries,
   canAccessServiceCalls,
   canManageSoumission,
+  canManageExternalSales,
   canViewInvoicing,
   canManageTreasury,
 } from "@gsc-pilot/business-rules";
@@ -19,6 +20,7 @@ import { ProjectPostMortemExportView } from "./features/projects/ProjectPostMort
 import { DeliveryExportView } from "./features/fulfillment/DeliveryExportView.js";
 import { SoumissionExportView } from "./features/soumissions/SoumissionExportView.js";
 import { ConfirmationExportView } from "./features/confirmationsDeCommande/ConfirmationExportView.js";
+import { ExternalSaleQuoteExportView } from "./features/externalSaleQuotes/ExternalSaleQuoteExportView.js";
 import { InvoiceExportView } from "./features/invoicing/InvoiceExportView.js";
 import { TreasuryForecastExportView } from "./features/treasury/TreasuryForecastExportView.js";
 import { RollingPostMortemExportView } from "./features/rollings/RollingPostMortemExportView.js";
@@ -125,6 +127,14 @@ export function App() {
             element={
               <RequireRole allow={canManageSoumission}>
                 <ConfirmationExportView />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/external-sale-quotes/:id/export"
+            element={
+              <RequireRole allow={canManageExternalSales}>
+                <ExternalSaleQuoteExportView />
               </RequireRole>
             }
           />

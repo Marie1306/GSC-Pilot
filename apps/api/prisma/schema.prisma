@@ -760,6 +760,84 @@ model ExternalSaleDocument {
 }
 
 /**
+ * Soumission de Vente externe (23 novembre 2026, demande explicite — « un
+ * vrai devis à faire accepter avant la vente ») — affichée « Soumission » à
+ * l'écran (même mot que Projet/Roulement, décision confirmée) mais un
+ * mécanisme TECHNIQUEMENT DISTINCT du modèle Soumission existant
+ * (Budget→Projet/Roulement, voir plus haut dans ce fichier) : ce dernier
+ * est profondément couplé à Budget (validation, résolution du contact,
+ * routes imbriquées, panneau de référence frontend avec les catégories de
+ * coût du budgétaire) — Vente externe n'a jamais de budgétaire derrière
+ * elle. Piège de nommage volontaire, même principe qu'Assemblage/
+ * Sous-assemblage déjà documenté dans CLAUDE.md : ne jamais fusionner les
+ * deux mécanismes, ne jamais renommer le code pour suivre l'affichage.
+ *
+ * Contact capturé en texte brut (PAS encore via ensureContactRow) — la
+ * résolution/fusion de Contact n'arrive qu'à la conversion
+ * (convertExternalSaleQuoteToSale), pour qu'une soumission refusée ne
+ * laisse jamais de trace dans la table Contact.
+ *
+ * Numéro DV-AAAA-NNNN — compteur propre, jamais partagé avec SO- (aucun
+ * précédent dans ce schéma de deux types de documents partageant un
+ * compteur).
+ */
+model ExternalSaleQuote {
+  id        String @id @default(uuid())
+  displayId String @unique // format DV-AAAA-NNNN
+
+  // Miroir simple, PAS @unique (plusieurs soumissions possibles dans le
+  // temps pour une même demande, ex. révision après refus) — contrairement
+  // à ExternalSale.clientRequestId/ClientRequest.externalSaleId.
+  clientRequestId String?
+
+  contactName String
+  company     String?
+  contactRole String?
+  phone       String?
+  email       String?
+
+  status String @default("draft") // draft | sent | accepted | declined
+
+  transportFee Decimal @default(0) @db.Decimal(12, 2)
+  adminFee     Decimal @default(0) @db.Decimal(12, 2)
+  marginPct    Decimal @db.Decimal(5, 2)
+
+  // Gelés à l'envoi (sendExternalSaleQuote) — externalSaleTotals +
+  // computeInvoiceTax, jamais réimplémentés. totalWithTax inclut les taxes
+  // (décision confirmée — le client voit le montant total à payer).
+  partsBaseCost Decimal? @db.Decimal(12, 2)
+  salePrice     Decimal? @db.Decimal(12, 2)
+  tpsAmount     Decimal? @db.Decimal(12, 2)
+  tvqAmount     Decimal? @db.Decimal(12, 2)
+  totalWithTax  Decimal? @db.Decimal(12, 2)
+
+  introText String?
+  termsText String?
+
+  sentAt      DateTime?
+  decidedAt   DateTime?
+  createdById String
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+
+  lines ExternalSaleQuoteLine[]
+  sale  ExternalSale? // relation gérée vit sur ExternalSale.quoteId (@unique)
+
+  @@index([status])
+}
+
+model ExternalSaleQuoteLine {
+  id          String            @id @default(uuid())
+  quoteId     String
+  quote       ExternalSaleQuote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  description String
+  qty         Decimal @db.Decimal(10, 2)
+  unitCost    Decimal @db.Decimal(12, 2)
+  amount      Decimal @db.Decimal(12, 2) // externalSaleLineAmount(qty, unitCost), gelé
+  sortOrder   Int     @default(0)
+}
+
+/**
  * Historique des changements de date de fin de garantie (Projet 2D, 17 août
  * 2026) — un projet peut passer de 1 an à 2 ans, etc. changedById reste un
  * scalaire simple (pas de relation Prisma), même patron que
@@ -1591,6 +1669,13 @@ model ExternalSale {
   // jamais un @unique imposé en base (même raisonnement que ces 3-là).
   invoiceEntries   InvoicePlanEntry[]
   documents        ExternalSaleDocument[]
+  // Soumission d'origine (23 novembre 2026, module "Vente externe —
+  // Soumission") — même patron que ConfirmationDeCommande.soumissionId :
+  // FK @unique côté résultat, pas côté source. Null pour une vente créée
+  // directement (sans passer par une soumission), ce qui reste et restera
+  // toujours possible — voir ExternalSaleQuote ci-dessous.
+  quoteId String?            @unique
+  quote   ExternalSaleQuote? @relation(fields: [quoteId], references: [id])
 
   @@index([status])
 }
@@ -1851,6 +1936,13 @@ model Settings {
   externalSaleNumberYear       Int      @default(2026)
   externalSaleDefaultMarginPct Decimal  @default(20) @db.Decimal(5, 2) // même patron que servicePartsDefaultMarginPct ci-dessous — pré-rempli à la création, modifiable
   servicePartsDefaultMarginPct Decimal  @default(20) @db.Decimal(5, 2)
+  // Soumission de Vente externe (23 novembre 2026) — DV-AAAA-NNNN, remise à
+  // zéro annuelle dès le départ, même mécanisme que externalSaleNumberYear.
+  // Compteur propre, jamais partagé avec nextSoumissionNumber (Soumission
+  // Budget→Projet/Roulement — mécanisme technique distinct, voir
+  // ExternalSaleQuote).
+  nextExternalSaleQuoteNumber  Int      @default(1)
+  externalSaleQuoteNumberYear  Int      @default(2026)
   // SEAO (nouveau module, 16 septembre 2026) — AO-AAAA-NNNN, remise à zéro
   // annuelle dès le départ, même mécanisme que externalSaleNumberYear.
   nextSeaoNumber               Int      @default(1)

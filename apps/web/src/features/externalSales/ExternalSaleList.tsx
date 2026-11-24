@@ -5,6 +5,7 @@ import { useAuth } from "../../lib/auth/useAuth.js";
 import { formatCalendarDate } from "../../lib/date.js";
 import { ListFilterBar } from "../../components/ListFilterBar.js";
 import { fetchExternalSales, formatCurrency, EXTERNAL_SALE_STATUS_LABELS, type ExternalSaleListItemDto } from "./api.js";
+import { fetchExternalSaleQuotes, EXTERNAL_SALE_QUOTE_STATUS_LABELS, type ExternalSaleQuoteListItemDto } from "../externalSaleQuotes/api.js";
 
 /** Filtre par numéro/client + tranche de prix vendu (16 novembre 2026, Chantier C Partie B) — pas de champ "nom" (Vente externe n'en a pas). */
 function matchesFilter(row: ExternalSaleListItemDto, search: string, minPrice: string, maxPrice: string): boolean {
@@ -21,6 +22,48 @@ function matchesFilter(row: ExternalSaleListItemDto, search: string, minPrice: s
 interface ExternalSaleListProps {
   onOpen: (id: string) => void;
   onCreate: () => void;
+  onOpenQuote: (id: string) => void;
+  onCreateQuote: () => void;
+}
+
+/** Soumissions (devis à faire accepter avant la vente, 23 novembre 2026) — pas encore converties (celles qui le sont restent visibles, repli sur le numéro de la vente créée en libellé). */
+function ExternalSaleQuoteTable({ rows, onOpen }: { rows: ExternalSaleQuoteListItemDto[]; onOpen: (id: string) => void }) {
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table className="shortlist-table">
+        <thead>
+          <tr>
+            <th>Soumission</th>
+            <th>Client</th>
+            <th className="num">Prix vendu</th>
+            <th>Statut</th>
+            <th>Créé le</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id}>
+              <td>{row.displayId}</td>
+              <td>{row.company ?? row.contactName}</td>
+              <td className="num">{row.salePrice != null ? formatCurrency(row.salePrice) : "—"}</td>
+              <td>
+                <span className={`badge-pill ${row.status === "accepted" ? "badge-conforme" : row.status === "declined" ? "badge-critical" : "badge-neutral"}`}>
+                  {EXTERNAL_SALE_QUOTE_STATUS_LABELS[row.status]}
+                </span>
+              </td>
+              <td>{formatCalendarDate(row.createdAt)}</td>
+              <td>
+                <button type="button" className="btn btn-secondary btn-small" onClick={() => onOpen(row.id)}>
+                  Ouvrir
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 /** Tableau (17 novembre 2026, demande explicite — même forme que RollingsPage.tsx/RollingsTable, colonnes identiques). */
@@ -82,22 +125,38 @@ function ExternalSaleTable({ rows, onOpen }: { rows: ExternalSaleListItemDto[]; 
  * non plus dans son tableau) — reste visible au détail
  * (ExternalSaleFulfillment.tsx), jamais perdue.
  */
-export function ExternalSaleList({ onOpen, onCreate }: ExternalSaleListProps) {
+export function ExternalSaleList({ onOpen, onCreate, onOpenQuote, onCreateQuote }: ExternalSaleListProps) {
   const { employee } = useAuth();
   const [search, setSearch] = useState("");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const listQuery = useQuery({ queryKey: ["external-sales"], queryFn: fetchExternalSales });
+  const quotesQuery = useQuery({ queryKey: ["external-sale-quotes"], queryFn: fetchExternalSaleQuotes });
   const rows = (listQuery.data?.externalSales ?? []).filter((row) => matchesFilter(row, search, minPrice, maxPrice));
   const activeRows = rows.filter((row) => row.status !== "ready_invoice");
   const completedRows = rows.filter((row) => row.status === "ready_invoice");
+  const quoteRows = quotesQuery.data?.quotes ?? [];
+  const canManage = !!employee && canManageExternalSales(employee.persona);
 
   return (
     <>
       <div className="card" style={{ marginTop: 20 }}>
         <div className="card-band-header">
+          <h3>Soumissions</h3>
+          {canManage && (
+            <button type="button" className="btn" onClick={onCreateQuote}>
+              + Nouvelle soumission
+            </button>
+          )}
+        </div>
+        {quoteRows.length === 0 && <p style={{ color: "var(--gsc-color-muted)", fontSize: 13 }}>Aucune soumission pour l'instant.</p>}
+        {quoteRows.length > 0 && <ExternalSaleQuoteTable rows={quoteRows} onOpen={onOpenQuote} />}
+      </div>
+
+      <div className="card" style={{ marginTop: 20 }}>
+        <div className="card-band-header">
           <h3>Ventes externes</h3>
-          {employee && canManageExternalSales(employee.persona) && (
+          {canManage && (
             <button type="button" className="btn" onClick={onCreate}>
               + Nouvelle vente
             </button>

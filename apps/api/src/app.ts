@@ -32,6 +32,7 @@ import { checklistsRouter } from "./modules/checklists/routes.js";
 import { errorReportsRouter } from "./modules/errorReports/routes.js";
 import { teamNotesRouter } from "./modules/teamNotes/routes.js";
 import { externalSalesRouter } from "./modules/externalSales/routes.js";
+import { externalSaleQuotesRouter } from "./modules/externalSaleQuotes/routes.js";
 import { seaoRouter } from "./modules/seao/routes.js";
 import { toolboxRouter } from "./modules/toolbox/routes.js";
 import { treasuryRouter } from "./modules/treasury/routes.js";
@@ -103,6 +104,7 @@ export function createApp() {
   app.use("/api", errorReportsRouter);
   app.use("/api", teamNotesRouter);
   app.use("/api", externalSalesRouter);
+  app.use("/api", externalSaleQuotesRouter);
   app.use("/api", seaoRouter);
   app.use("/api", toolboxRouter);
   app.use("/api", treasuryRouter);

@@ -97,6 +97,8 @@ export interface NewExternalSaleContactInput {
 
 export interface CreateExternalSaleInput {
   clientRequestId?: string;
+  /** Posé uniquement par convertExternalSaleQuoteToSale (externalSaleQuotes/service.ts, 23 novembre 2026) — jamais fourni par le formulaire de création directe. */
+  quoteId?: string;
   newContact: NewExternalSaleContactInput;
   lines: ExternalSaleLineInput[];
   transportFee: number;
@@ -143,6 +145,7 @@ export async function createExternalSale(createdById: string, input: CreateExter
         displayId,
         contactId: contact.id,
         clientRequestId: input.clientRequestId ?? null,
+        quoteId: input.quoteId ?? null,
         partsBaseCost,
         transportFee: input.transportFee,
         adminFee: input.adminFee,
