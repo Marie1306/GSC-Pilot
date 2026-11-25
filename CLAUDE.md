@@ -2143,3 +2143,139 @@ section purchase ; Direction garde l'accès complet déjà existant partout
 (unitPrice, complexité), aucune régression. `npm run typecheck && npm
 run lint && npm test && npm run build` verts (538 tests, inchangé).
 Aucune migration. **Poussé (`dcf02b7`)**.
+
+## Miroir exact des autorisations Propriétaire/Direction, presque partout (25 novembre 2026)
+
+Demande explicite de l'utilisatrice, posée juste après les correctifs
+Budgétaire ci-dessus : « En fait, je crois que dorénavant, propriétaire
+devrais avoir exactement les même autorisations que direction partout
+dans l'application. » — un changement de politique global, pas un
+correctif ponctuel, formulé alors qu'un travail de permission ciblé
+(Budgétaire) venait tout juste d'être livré sur la même session.
+
+**Démarche, avant d'écrire une seule ligne** : lecture complète des
+~55 fonctions de `packages/business-rules/src/roles.ts` (961 lignes),
+en catégorisant chacune : déjà symétrique (aucun changement), générique
+« Direction seulement » sans raison nommée (candidate à l'élargissement
+par défaut), ou avec une exclusion Propriétaire EXPLICITEMENT nommée et
+raisonnée dans le code/commentaire (jamais supposée, toujours soumise à
+une question précise). Quatre rounds d'`AskUserQuestion` (une quinzaine
+de décisions au total) plutôt qu'une seule question générale — chaque
+exclusion nommée a son propre historique (parfois une demande explicite
+antérieure de Marie elle-même, parfois une correction de bogue passée)
+et méritait sa propre confirmation plutôt qu'un « oui » générique.
+
+### Décisions confirmées
+
+1. **Miroir EXACT dans les deux sens** (pas seulement « Propriétaire
+   gagne tout ce que Direction a ») — y compris le seul cas inverse de
+   toute l'application, `canDeclareSubassembly` (jusqu'ici Propriétaire
+   SEUL, Marc le seul designer) : Direction gagne maintenant ce geste
+   aussi.
+2. Les exclusions suivantes, **déjà nommées explicitement dans le
+   code avec leur propre raisonnement**, ont été revues une par une
+   plutôt que blanket-appliquées :
+   - **Levées** (Propriétaire gagne l'accès) : Marquer la production
+     complétée, Créer un Bon de travail, Enregistrer le résultat d'un
+     budgétaire (envoyé/Contrat obtenu/Refusé), Déclarer un
+     sous-assemblage prêt (→ Direction, voir plus haut).
+   - **Gardées comme exceptions** (Propriétaire reste exclu) :
+     Facturation (créer/payer/suspendre/supprimer une facture/modifier
+     le cycle de jalons — `canRequestInvoice`/`canRecordPayment`/
+     `canHoldInvoice`/`canDeleteInvoiceEntry`/`canModifyBillingCycle`),
+     Purge permanente (`canPurgeDossier`), les prix/taux fixes du
+     Budgétaire (`canModifyBudget` — cohérent avec le correctif du matin
+     même, voir section précédente).
+3. **Deux cas structurels découverts en cours d'audit, jamais
+   simplement « Direction seulement » comme les autres** — soumis
+   séparément :
+   - `canApproveProjectPurchase`/`canManagePurchaseFulfillment`/
+     `canApprovePunch` reposaient sur `actsAsDirection` (Direction, OU
+     Propriétaire avec une délégation ACTIVE — tout le mécanisme de
+     Délégation du Paramètres repose sur cette distinction). Confirmé :
+     rendre **PERMANENT** pour Propriétaire sur ces 3 fonctions
+     précisément (jamais besoin d'une délégation active pour celles-ci
+     désormais) — `persona === BOSS || actsAsDirection(...)`, sans
+     toucher `actsAsDirection` elle-même (qui reste inchangée pour tout
+     futur usage).
+   - Le seuil de double autorisation des demandes d'achat
+     (`canApprovePurchaseRequest`) : au-dessus du montant gelé, seul le
+     Propriétaire pouvait approuver, PAS même Direction seule — un
+     contrôle financier délibéré (double signature). Confirmé malgré
+     l'avertissement explicite que ça élimine ce contrôle : Direction
+     approuve aussi maintenant au-dessus du seuil
+     (`persona === BOSS || persona === OWNER`). Administration reste
+     exclue de l'escalade, inchangé.
+4. **Deux cas posés séparément, ni levés ni explicitement exclus** :
+   - `canEditGanttSchedule` (Administration ET Propriétaire en lecture
+     seule, exclusion nommée) — l'utilisatrice a répondu que le module
+     Gantt lui-même « avait été complètement abandonné » : jamais
+     tranché dans un sens ou l'autre, laissé exactement comme avant,
+     à revisiter si le module redevient actif un jour.
+   - `canAccessSettings` (Direction seulement, « sans exception »,
+     portée énorme : taux des employés, délégation, corbeille, journal
+     d'audit) — gardé Direction seule « pour l'instant », sur demande
+     explicite de ne pas trancher ce module précis aujourd'hui.
+
+### Implémentation (`packages/business-rules/src/roles.ts`)
+
+**~31 fonctions simples** élargies par un ajout direct de `ROLES.BOSS`
+(ou `ROLES.OWNER` pour `canDeclareSubassembly`) à leur liste de rôles
+déjà en place, sans aucune autre logique à ajouter : `canGrantDelegation`,
+`canEnterProjectPurchase`, `canPriceServiceParts`,
+`canReassignServiceCall`, `canApproveServiceCall`, `canDeleteServiceCall`,
+`canCreateBonDeTravail`, `canConvertBudgetToProject`,
+`canConvertBudgetToRolling`, `canDeleteBudget`, `canResetBudget`,
+`canRecordBudgetOutcome`, `canDeleteTimeEntry`,
+`canMarkProductionComplete`, `canChooseFulfillmentMode`,
+`canManageWarranty`, `canManageProject`, `canArchiveProject`,
+`canDeleteProject`, `canCloseProject`, `canManageRolling`,
+`canArchiveRolling`, `canDeleteRolling`, `canManagePostMortem`,
+`canDeleteClientRequest`, `canDeclareSubassembly`,
+`canPrepareSubassemblyPartsList`, `canDeclareAssemblyReady`,
+`canCreateAmendment`, `canManageProductionChecklist`,
+`canDeleteErrorReport`.
+
+**3 fonctions structurelles** (voir point 3 ci-dessus) : `persona ===
+ROLES.BOSS ||` ajouté en préfixe, AVANT l'appel à `actsAsDirection`
+existant, jamais en modifiant `actsAsDirection` elle-même (qui n'a que
+4 appelants dans tout `roles.ts`, tous internes — vérifié avant de
+choisir cette approche chirurgicale plutôt que de toucher la fonction
+partagée, pour ne changer QUE les 3 fonctions explicitement visées, pas
+le comportement de délégation en général).
+
+**1 fonction avec logique de seuil** (`canApprovePurchaseRequest`) :
+`if (overThreshold) return persona === ROLES.BOSS;` devient `return
+persona === ROLES.BOSS || persona === ROLES.OWNER;` — le reste de la
+fonction (branche `requesterExempt`, branche normale sous le seuil)
+intouché.
+
+**Vérification de non-duplication** (avant de considérer le travail
+terminé, vu l'ampleur) : grep exhaustif sur `apps/api/src` et
+`apps/web/src` pour toute vérification de persona qui court-circuiterait
+`roles.ts` (`"owner"`/`'owner'` en chaîne brute, `ROLES.OWNER` utilisé
+hors énumération/fixture) — confirmé qu'aucun route ni composant ne
+duplique une de ces ~35 règles indépendamment ; chaque route
+backend appelle déjà la fonction `roles.ts` correspondante via
+`requirePermission`, jamais une copie locale. Le principe de source
+unique de vérité (déjà établi tout au long de ce projet) tenait bel et
+bien avant ce changement, confirmé plutôt que supposé.
+
+`packages/business-rules/test/roles.test.ts` : 27 assertions existantes
+corrigées (false→true pour chaque fonction élargie) + 9 nouveaux tests
+pour des fonctions jusqu'ici non couvertes mais touchées par le
+changement (`canEnterProjectPurchase(BOSS)`,
+`canApproveProjectPurchase`/`canApprovePunch`/
+`canManagePurchaseFulfillment` en PERMANENCE sans délégation active,
+`canReassignServiceCall`/`canDeleteServiceCall`/
+`canConvertBudgetToRolling`/`canManageRolling` jamais testées
+auparavant) — 159 tests dans ce fichier, 547 sur tout le monorepo
+(538 + 9). `npm run typecheck && npm run lint && npm test && npm run
+build` verts. Aucune migration — correctif de permission pur, rien à
+coller dans Supabase. **Poussé (`167fb2b`)**.
+
+**Portée volontairement non couverte par ce lot** (ni levée ni
+explicitement confirmée exclue, simplement jamais posée) : toute
+fonction déjà symétrique avant ce jour (ex. `canCreateBudgetFromRequest`,
+`canManageExternalSales`, `canManageTreasury`, `canConfirmInvoiceRequest`,
+etc.) n'a eu besoin d'aucun changement, le miroir y était déjà en place.
