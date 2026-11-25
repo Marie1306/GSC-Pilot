@@ -72,7 +72,16 @@ function blurOnEnter(e: KeyboardEvent<HTMLInputElement>) {
   if (e.key === "Enter") e.currentTarget.blur();
 }
 
-/** Une ligne "labor" ou marquée directionOnly exige Direction seulement; sinon Direction ET Propriétaire — voir service.ts, même règle côté serveur. */
+/**
+ * Une ligne "labor" ou marquée directionOnly exige Direction seulement;
+ * sinon Direction ET Propriétaire — voir service.ts, même règle côté
+ * serveur. Gouverne le nom/prix unitaire/risque/retrait d'une ligne.
+ *
+ * Exception du 25 novembre 2026 : la QUANTITÉ (heures ou qté) d'une ligne
+ * par ailleurs verrouillée ici reste ouverte au Propriétaire — voir
+ * editableQty ci-dessous, jamais ce booléen-ci, qui continue de gouverner
+ * uniquement les autres champs (prix, nom, risque, retrait de ligne).
+ */
 function isRowEditable(row: BudgetSectionRow, kind: "labor" | "purchase", canModifyLabor: boolean, canModifyPurchase: boolean): boolean {
   const requiresDirectionOnly = kind === "labor" || row.directionOnly;
   return requiresDirectionOnly ? canModifyLabor : canModifyPurchase;
@@ -153,6 +162,12 @@ function BudgetSectionCard({
         <tbody>
           {section.rows.map((row) => {
             const editable = isRowEditable(row, section.kind, canModifyLabor, canModifyPurchase) && !busy;
+            // Exception du 25 novembre 2026 (demande explicite de l'utilisatrice) :
+            // la quantité (heures ou qté) reste ajustable par le Propriétaire même
+            // sur une ligne "labor"/directionOnly par ailleurs verrouillée (taux/prix
+            // fixes comme Formation/Hébergement/Kilométrage) — jamais les autres
+            // champs de cette même ligne, qui restent gouvernés par `editable`.
+            const editableQty = canModifyPurchase && !busy;
             const isSaving = (field: keyof UpdateRowPatch) => savingCell?.rowId === row.id && savingCell.field === field;
             return (
               <tr key={row.id}>
@@ -188,7 +203,7 @@ function BudgetSectionCard({
                       min={0}
                       step={section.kind === "labor" ? 0.25 : 1}
                       defaultValue={section.kind === "labor" ? row.hours : row.qty}
-                      disabled={!editable || isSaving(section.kind === "labor" ? "hours" : "qty")}
+                      disabled={!editableQty || isSaving(section.kind === "labor" ? "hours" : "qty")}
                       enterKeyHint="done"
                       onFocus={(e) => e.target.select()}
                       onKeyDown={blurOnEnter}
