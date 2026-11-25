@@ -62,11 +62,15 @@ export interface DelegationSettings {
   delegation?: DelegationInfo | null;
 }
 
-/** Qui peut mettre en place une délégation : Direction seulement. Elle
- * délègue à Propriétaire ou Administration seulement (jamais Employé/Magasinier). */
+/**
+ * Qui peut mettre en place une délégation : Direction ET Propriétaire
+ * depuis le 25 novembre 2026 (miroir exact des autorisations, demande
+ * explicite de l'utilisatrice) — auparavant Direction seulement. Elle
+ * délègue à Propriétaire ou Administration seulement (jamais Employé/Magasinier).
+ */
 export function canGrantDelegation(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
 /** Est-ce que `persona` agit actuellement avec les pouvoirs de Direction pour `category`? */
@@ -112,13 +116,23 @@ export function canSeeFinancialValues(persona: Persona): boolean {
 // contradiction : deux chemins séparés avec des règles différentes)
 // ---------------------------------------------------------------------------
 
-/** Achats affectés directement à un projet : jamais de double autorisation du Propriétaire, peu importe le montant. */
+/**
+ * Achats affectés directement à un projet : jamais de double autorisation
+ * du Propriétaire, peu importe le montant. Propriétaire ajouté le 25
+ * novembre 2026 (miroir exact), aux deux fonctions ci-dessous.
+ */
 export function canEnterProjectPurchase(persona: Persona): boolean {
   assertRole(persona);
-  return ([ROLES.OWNER, ROLES.ADMIN] as Persona[]).includes(persona);
+  return ([ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS] as Persona[]).includes(persona);
 }
+/**
+ * Propriétaire ajouté de façon PERMANENTE le 25 novembre 2026 (miroir
+ * exact, demande explicite) — jusqu'ici il n'agissait ici qu'avec une
+ * délégation active (actsAsDirection), jamais en permanence. La
+ * délégation reste le seul chemin pour Administration sur cette fonction.
+ */
 export function canApproveProjectPurchase(settings: DelegationSettings | null | undefined, persona: Persona): boolean {
-  return actsAsDirection(settings, persona, "purchases");
+  return persona === ROLES.BOSS || actsAsDirection(settings, persona, "purchases");
 }
 
 /** Demandes d'achat : seuil monétaire par catégorie, au-delà duquel le Propriétaire doit aussi approuver. */
@@ -162,9 +176,14 @@ export function buildFrozenPurchaseThresholdsMap(request: {
  * Administration approuve elle aussi de façon permanente depuis le 2
  * septembre 2026 (demande explicite de l'utilisatrice — "qui reçoit les
  * demandes d'achats ? Il faudrait que ce soit aussi Administration"),
- * jamais seulement via une délégation temporaire comme avant. L'escalade de
- * seuil au-delà du montant gelé reste inchangée : Propriétaire seul, ni
- * Direction ni Administration ne suffisent alors.
+ * jamais seulement via une délégation temporaire comme avant.
+ *
+ * L'escalade de seuil au-delà du montant gelé — à l'origine Propriétaire
+ * SEUL, ni Direction ni Administration ne suffisaient alors — s'ouvre
+ * aussi à Direction le 25 novembre 2026 (miroir exact des autorisations,
+ * demande explicite et confirmée malgré l'avertissement qu'elle élimine
+ * le contrôle à double signature : Direction seule suffit désormais aussi
+ * au-dessus du seuil). Administration reste exclue de l'escalade.
  */
 export function canApprovePurchaseRequest(
   settings: DelegationSettings | null | undefined,
@@ -179,21 +198,21 @@ export function canApprovePurchaseRequest(
     const category = request?.category;
     const threshold = category !== undefined ? thresholdsByCategory[category] : undefined;
     const overThreshold = Number.isFinite(threshold) && Number(request?.amount || 0) > (threshold as number);
-    if (overThreshold) return persona === ROLES.BOSS;
+    if (overThreshold) return persona === ROLES.BOSS || persona === ROLES.OWNER;
   }
   return persona === ROLES.ADMIN || actsAsDirection(settings, persona, "purchases");
 }
 /**
  * Suivi de commande (en attente/commandé/reçu) et application au projet —
  * confirmé le 13 août 2026, réutilise la même porte que l'approbation
- * normale (Direction, ou délégué "purchases"). Jamais le Propriétaire seul
- * via l'escalade de seuil : cette étape suit toujours l'autorisation, pas
- * le mécanisme de double autorisation. Administration ajoutée de façon
- * permanente le 2 septembre 2026, même demande et même raisonnement que
- * canApprovePurchaseRequest ci-dessus ("Commande à passer" aussi).
+ * normale (Direction, ou délégué "purchases"). Administration ajoutée de
+ * façon permanente le 2 septembre 2026, même demande et même raisonnement
+ * que canApprovePurchaseRequest ci-dessus ("Commande à passer" aussi).
+ * Propriétaire ajouté de façon PERMANENTE le 25 novembre 2026 (miroir
+ * exact) — jusqu'ici il ne pouvait agir ici que via une délégation active.
  */
 export function canManagePurchaseFulfillment(settings: DelegationSettings | null | undefined, persona: Persona): boolean {
-  return persona === ROLES.ADMIN || actsAsDirection(settings, persona, "purchases");
+  return persona === ROLES.ADMIN || persona === ROLES.BOSS || actsAsDirection(settings, persona, "purchases");
 }
 /** Un achat rejeté par le Propriétaire est final — jamais de re-soumission. */
 export function canResubmitRejectedPurchase(): boolean {
@@ -238,13 +257,15 @@ export function canSeeServicePricing(persona: Persona): boolean {
   assertRole(persona);
   return ([ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS] as Persona[]).includes(persona);
 }
+/** Propriétaire ajouté le 25 novembre 2026 (miroir exact). */
 export function canPriceServiceParts(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
+/** Propriétaire ajouté le 25 novembre 2026 (miroir exact). */
 export function canReassignServiceCall(persona: Persona): boolean {
   assertRole(persona);
-  return ([ROLES.OWNER, ROLES.ADMIN] as Persona[]).includes(persona);
+  return ([ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS] as Persona[]).includes(persona);
 }
 /** Le Magasinier n'a aucun rôle dans les appels de service. */
 export function canAccessServiceCalls(persona: Persona): boolean {
@@ -258,18 +279,24 @@ export function canAccessServiceCalls(persona: Persona): boolean {
  * corrigé le 9 août 2026 : ces deux actions n'avaient aucune vérification
  * de rôle dans la v19 vérifiée).
  */
+/** Propriétaire ajouté le 25 novembre 2026 (miroir exact). */
 export function canApproveServiceCall(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 // canSendServiceCallToAdmin retirée le 13 novembre 2026 — "Envoyer à
 // l'administration" est devenue une variante du geste unifié "Demander la
 // facturation" (canConfirmInvoiceRequest ci-dessous), voir serviceCalls/service.ts.
 
-/** Supprimer un appel de service (corbeille) : Direction seulement — même palier que canDeleteBudget/canDeleteProject/canDeleteClientRequest (19 août 2026). */
+/**
+ * Supprimer un appel de service (corbeille) — Propriétaire ajouté le 25
+ * novembre 2026 (miroir exact), même palier que
+ * canDeleteBudget/canDeleteProject/canDeleteClientRequest ci-dessous,
+ * tous élargis le même jour.
+ */
 export function canDeleteServiceCall(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
 export interface BonDeTravailAssignmentLike {
@@ -281,13 +308,15 @@ export interface BonDeTravailAssignmentLike {
  * même, qui n'existe pas encore — voir ServiceCall.assignedEmployees,
  * schema.prisma), OU Direction seule pour rattraper un oubli — confirmé
  * explicitement par l'utilisatrice ("Seulement le technicien oui, mais
- * aussi direction pour rattraper un oublie"). Jamais le Propriétaire
- * (`boss`) : même précédent étroit que canApproveServiceCall/
- * canDeleteServiceCall/canPriceServiceParts ci-dessus, propre à ce module.
+ * aussi direction pour rattraper un oublie"). Propriétaire ajouté le 25
+ * novembre 2026 (miroir exact, demande explicite) — jusqu'ici exclu par un
+ * précédent étroit propre à ce module (même palier que
+ * canApproveServiceCall/canDeleteServiceCall/canPriceServiceParts
+ * ci-dessus, tous élargis le même jour).
  */
 export function canCreateBonDeTravail(persona: Persona, call: BonDeTravailAssignmentLike, employeeId: string): boolean {
   assertRole(persona);
-  if (persona === ROLES.OWNER) return true;
+  if (persona === ROLES.OWNER || persona === ROLES.BOSS) return true;
   if (persona === ROLES.MEMBER) return (call?.assignedEmployees ?? []).some((employee) => employee.id === employeeId);
   return false;
 }
@@ -338,32 +367,34 @@ export function canAccessBudget(persona: Persona): boolean {
 }
 
 /**
- * Convertir un budgétaire « Contrat obtenu » en projet : Direction
- * seulement — distinct de la création DIRECTE d'un projet (Direction ET
- * Propriétaire, voir canCreateProjectDirectly plus bas), confirmé le
- * 12 août 2026.
+ * Convertir un budgétaire « Contrat obtenu » en projet — Propriétaire
+ * ajouté le 25 novembre 2026 (miroir exact) ; reste distinct de la
+ * création DIRECTE d'un projet (déjà Direction ET Propriétaire, voir
+ * canCreateProjectDirectly plus bas), confirmé le 12 août 2026 — les deux
+ * portes restent séparées, simplement toutes les deux OWNER+BOSS
+ * maintenant.
  */
 export function canConvertBudgetToProject(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
-/** Même palier que canConvertBudgetToProject (module Roulements, 20 août 2026) — distinct de canCreateRollingDirectly (Direction ET Propriétaire). */
+/** Même palier que canConvertBudgetToProject (module Roulements, 20 août 2026), élargi le même jour (25 novembre 2026, miroir exact). */
 export function canConvertBudgetToRolling(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
-/** Supprimer un budgétaire (corbeille) : Direction seulement — même palier que canDeleteProject/canDeleteClientRequest (18 août 2026). */
+/** Supprimer un budgétaire (corbeille) — Propriétaire ajouté le 25 novembre 2026 (miroir exact), même palier que canDeleteProject/canDeleteClientRequest ci-dessous, tous élargis le même jour. */
 export function canDeleteBudget(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
-/** Réinitialiser le contenu d'un budgétaire (recommencer) : Direction seulement, même palier que canModifyBudget (18 août 2026). */
+/** Réinitialiser le contenu d'un budgétaire (recommencer) — Propriétaire ajouté le 25 novembre 2026 (miroir exact). Distinct de canModifyBudget (prix/taux des lignes), resté Direction seule, décision explicite de l'utilisatrice. */
 export function canResetBudget(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
 /** Voir le détail financier d'un projet — mêmes rôles que le budgétaire (Employé/Magasinier jamais). */
@@ -373,22 +404,29 @@ export function canAccessProject(persona: Persona): boolean {
 }
 
 /**
- * Marquer envoyé, Contrat obtenu, ou Refusé : Direction seulement, le
- * Propriétaire n'y est pas impliqué — spec confirmée (« Suivi budgétaire »)
- * pour envoyé/Contrat obtenu, étendue à Refusé le 12 août 2026 (même
- * catégorie d'action : enregistrer le résultat d'une soumission envoyée).
+ * Marquer envoyé, Contrat obtenu, ou Refusé — spec confirmée (« Suivi
+ * budgétaire ») pour envoyé/Contrat obtenu, étendue à Refusé le 12 août
+ * 2026 (même catégorie d'action : enregistrer le résultat d'une
+ * soumission envoyée). Propriétaire ajouté le 25 novembre 2026 (miroir
+ * exact, demande explicite) — jusqu'ici explicitement exclu («le
+ * Propriétaire n'y est pas impliqué»).
  */
 export function canRecordBudgetOutcome(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
 // ---------------------------------------------------------------------------
 // Punchs et temps
 // ---------------------------------------------------------------------------
 
+/**
+ * Propriétaire ajouté de façon PERMANENTE le 25 novembre 2026 (miroir
+ * exact, demande explicite) — jusqu'ici il n'approuvait un punch qu'avec
+ * une délégation active (actsAsDirection), jamais en permanence.
+ */
 export function canApprovePunch(settings: DelegationSettings | null | undefined, persona: Persona): boolean {
-  return actsAsDirection(settings, persona, "hours");
+  return persona === ROLES.BOSS || actsAsDirection(settings, persona, "hours");
 }
 export interface PunchLike {
   employee?: string;
@@ -426,29 +464,37 @@ export function canPunchForOtherEmployee(persona: Persona): boolean {
   return ([ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
-/** Supprimer une entrée de temps (corbeille) : Direction seulement — même palier que canDeleteServiceCall/canDeleteBudget/canDeleteProject (20 août 2026). */
+/** Supprimer une entrée de temps (corbeille) — Propriétaire ajouté le 25 novembre 2026 (miroir exact), même palier que canDeleteServiceCall/canDeleteBudget/canDeleteProject, tous élargis le même jour. */
 export function canDeleteTimeEntry(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
 // ---------------------------------------------------------------------------
 // Livraisons et roulements
 // ---------------------------------------------------------------------------
 
-/** Marquer la production complétée : Direction seulement (le Propriétaire
- * ne s'occupe pas de ça — confirmé, la présence du Propriétaire dans le
- * code pour l'étape suivante était un oubli). */
+/**
+ * Marquer la production complétée — Propriétaire ajouté le 25 novembre
+ * 2026 (miroir exact, demande explicite) — jusqu'ici exclu (« le
+ * Propriétaire ne s'occupe pas de ça », une exclusion elle-même déjà
+ * corrigée une fois comme bogue par le passé — cette fois c'est un choix
+ * confirmé, pas une correction).
+ */
 export function canMarkProductionComplete(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
-/** Choisir le mode de sortie (Bon de livraison, tiers, ramassage,
+/**
+ * Choisir le mode de sortie (Bon de livraison, tiers, ramassage,
  * installation) une fois la production complétée : Direction et
- * Administration. */
+ * Administration, Propriétaire ajouté le 25 novembre 2026 (miroir exact
+ * — même mouvement que canManageProject/canManageRolling ci-dessous,
+ * décrits comme suivant le même palier).
+ */
 export function canChooseFulfillmentMode(persona: Persona): boolean {
   assertRole(persona);
-  return ([ROLES.OWNER, ROLES.ADMIN] as Persona[]).includes(persona);
+  return ([ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS] as Persona[]).includes(persona);
 }
 /**
  * Voir et confirmer une livraison (module Livraisons, 20 août 2026) : toute
@@ -480,7 +526,15 @@ export function canCreateProjectDirectly(persona: Persona): boolean {
 // Paramètres et facturation
 // ---------------------------------------------------------------------------
 
-/** Direction seulement, sans exception — verrouillé au niveau navigation dans la v19 depuis la v0.8. */
+/**
+ * Direction seulement, sans exception — verrouillé au niveau navigation
+ * dans la v19 depuis la v0.8. Délibérément LAISSÉ DE CÔTÉ lors du miroir
+ * exact des autorisations Propriétaire/Direction du 25 novembre 2026 —
+ * confirmé explicitement avec l'utilisatrice (« garder Paramètres
+ * Direction seule pour l'instant »), vu la portée (taux des employés,
+ * délégation, corbeille, journal d'audit) — jamais deviné, à revisiter
+ * séparément si elle le demande.
+ */
 export function canAccessSettings(persona: Persona): boolean {
   assertRole(persona);
   return persona === ROLES.OWNER;
@@ -571,42 +625,50 @@ export function canDeleteInvoiceEntry(persona: Persona): boolean {
 // Garantie
 // ---------------------------------------------------------------------------
 
-/** Activer/modifier la garantie (case "prévue", date de fin, historique) :
- * Direction seulement — n'importe quand, aucun préalable de production/
- * sortie (confirmé le 17 août 2026). */
+/**
+ * Activer/modifier la garantie (case "prévue", date de fin, historique) —
+ * n'importe quand, aucun préalable de production/sortie (confirmé le 17
+ * août 2026). Propriétaire ajouté le 25 novembre 2026 (miroir exact).
+ */
 export function canManageWarranty(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
 // ---------------------------------------------------------------------------
 // Menu Options du projet
 // ---------------------------------------------------------------------------
 
-/** Modifier les informations courantes (nom, échéance) : Direction et
+/**
+ * Modifier les informations courantes (nom, échéance) : Direction et
  * Administration — même palier que les autres actions de gestion courante
- * du projet (fulfillment, facturation). */
+ * du projet (fulfillment, facturation). Propriétaire ajouté le 25
+ * novembre 2026 (miroir exact, demande explicite — confirmé malgré le
+ * lien décrit ici avec la Facturation, restée elle-même exclue : les deux
+ * n'ont pas suivi le même choix ce jour-là).
+ */
 export function canManageProject(persona: Persona): boolean {
   assertRole(persona);
-  return ([ROLES.OWNER, ROLES.ADMIN] as Persona[]).includes(persona);
+  return ([ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
-/** Archiver/désarchiver, supprimer (corbeille) : Direction seulement — la
- * capture d'écran du menu Options les regroupe elle-même sous "Actions
- * sensibles", même palier que les autres actions les plus sensibles du
- * projet (marquer la production complétée, demander la facturation). */
+/**
+ * Archiver/désarchiver, supprimer (corbeille) — Propriétaire ajouté le 25
+ * novembre 2026 (miroir exact), même palier que canMarkProductionComplete
+ * ci-dessus, élargi le même jour.
+ */
 export function canArchiveProject(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 export function canDeleteProject(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
-/** Fermer/rouvrir un projet (19 octobre 2026, demande explicite — confirmé : Direction seulement, réversible, aucune précondition) — même palier qu'Archiver/Supprimer. */
+/** Fermer/rouvrir un projet (19 octobre 2026) — Propriétaire ajouté le 25 novembre 2026 (miroir exact), même palier qu'Archiver/Supprimer. */
 export function canCloseProject(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
 // ---------------------------------------------------------------------------
@@ -616,34 +678,37 @@ export function canCloseProject(persona: Persona): boolean {
 // ailleurs dans ce fichier pour les paliers de suppression/archivage.
 // ---------------------------------------------------------------------------
 
-/** Modifier les informations courantes (contact du roulement) — même palier que canManageProject. */
+/** Modifier les informations courantes (contact du roulement) — même palier que canManageProject, élargi le même jour (25 novembre 2026, miroir exact). */
 export function canManageRolling(persona: Persona): boolean {
   assertRole(persona);
-  return ([ROLES.OWNER, ROLES.ADMIN] as Persona[]).includes(persona);
+  return ([ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
-/** Archiver/désarchiver, supprimer (corbeille) : Direction seulement — même palier que canArchiveProject/canDeleteProject. */
+/** Archiver/désarchiver, supprimer (corbeille) — même palier que canArchiveProject/canDeleteProject, élargi le même jour (25 novembre 2026, miroir exact). */
 export function canArchiveRolling(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 export function canDeleteRolling(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
 // ---------------------------------------------------------------------------
 // Post-mortem
 // ---------------------------------------------------------------------------
 
-/** Écrire l'« Analyse finale » du Post-mortem (dépassements, améliorations,
- * recommandation) : Direction seulement — n'importe quand, aucun préalable
- * de fermeture (confirmé le 17 août 2026). Le reste de l'écran (chiffres
- * déjà calculés) suit canAccessProject/canSeeFinancialValues, comme
- * partout ailleurs dans le module Projet. */
+/**
+ * Écrire l'« Analyse finale » du Post-mortem (dépassements, améliorations,
+ * recommandation) — n'importe quand, aucun préalable de fermeture
+ * (confirmé le 17 août 2026). Le reste de l'écran (chiffres déjà
+ * calculés) suit canAccessProject/canSeeFinancialValues, comme partout
+ * ailleurs dans le module Projet. Propriétaire ajouté le 25 novembre 2026
+ * (miroir exact).
+ */
 export function canManagePostMortem(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
 // ---------------------------------------------------------------------------
@@ -696,10 +761,10 @@ export function canManageClientRequest(persona: Persona): boolean {
   return ([ROLES.OWNER, ROLES.ADMIN, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
-/** Supprimer une demande client (corbeille) : Direction seulement — même palier que canDeleteProject (18 août 2026). */
+/** Supprimer une demande client (corbeille) — même palier que canDeleteProject (18 août 2026), élargi le même jour (25 novembre 2026, miroir exact). */
 export function canDeleteClientRequest(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
 // ---------------------------------------------------------------------------
@@ -708,35 +773,37 @@ export function canDeleteClientRequest(persona: Persona): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * Déclarer un sous-assemblage prêt : Propriétaire SEULEMENT — corrigé le
- * 21 août 2026, signalé par l'utilisatrice ("sous-assemblage toujours
- * Marc (propriétaire)"). Confirmé directement dans la spec (ligne 639,
+ * Déclarer un sous-assemblage prêt — à l'origine Propriétaire SEULEMENT,
+ * corrigé le 21 août 2026, signalé par l'utilisatrice ("sous-assemblage
+ * toujours Marc (propriétaire)"), confirmé dans la spec (ligne 639,
  * section Achats liste rapide) : « le Propriétaire (Marc, aussi le seul
- * designer/conception) ». Pas "tout employé" comme deviné au premier jet —
- * un seul designer, un seul rôle, jamais Direction/Administration/Employé/
- * Magasinier.
+ * designer/conception) ». Direction ajoutée le 25 novembre 2026 (miroir
+ * exact des autorisations, demande explicite et confirmée malgré
+ * l'asymétrie : c'est le seul geste de l'application où Propriétaire avait
+ * JUSQU'ICI plus de pouvoir que Direction, pas l'inverse) — reste SANS
+ * Administration/Employé/Magasinier.
  */
 export function canDeclareSubassembly(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.BOSS;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
-/** Créer la liste de pièces d'un sous-assemblage : Direction seulement (spec confirmée). */
+/** Créer la liste de pièces d'un sous-assemblage (spec confirmée) — Propriétaire ajouté le 25 novembre 2026 (miroir exact). */
 export function canPrepareSubassemblyPartsList(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
-/** Déclarer l'assemblage prêt à commencer : Direction seulement (spec confirmée) — même geste explicite que Marc pour la conception. */
+/** Déclarer l'assemblage prêt à commencer (spec confirmée) — même geste explicite que Marc pour la conception. Propriétaire ajouté le 25 novembre 2026 (miroir exact). */
 export function canDeclareAssemblyReady(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
-/** Créer un avenant : Direction seulement (spec confirmée, vérifié le 9 août 2026 — "déjà correct"). */
+/** Créer un avenant (spec confirmée, vérifié le 9 août 2026 — "déjà correct") — Propriétaire ajouté le 25 novembre 2026 (miroir exact). */
 export function canCreateAmendment(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
 /**
@@ -744,7 +811,11 @@ export function canCreateAmendment(persona: Persona): boolean {
  * dérogations de compétence, marquer une tâche complétée) : Direction
  * seulement — spec confirmée et corrigée le 9 août 2026 (Administration et
  * Propriétaire n'ont qu'un accès visuel, voir canAccessOverviewViews pour
- * la vue elle-même).
+ * la vue elle-même). Délibérément LAISSÉ DE CÔTÉ lors du miroir exact des
+ * autorisations du 25 novembre 2026 — l'utilisatrice a indiqué que le
+ * module Gantt lui-même avait été complètement abandonné, donc jamais
+ * tranché explicitement dans un sens ou l'autre ; à revisiter si le module
+ * redevient actif.
  */
 export function canEditGanttSchedule(persona: Persona): boolean {
   assertRole(persona);
@@ -757,10 +828,10 @@ export function canEditGanttSchedule(persona: Persona): boolean {
 // fabriquées à l'interne, pas les pièces achetées.
 // ---------------------------------------------------------------------------
 
-/** Créer une checklist et y ajouter des pièces/achats : Direction seulement (spec confirmée). */
+/** Créer une checklist et y ajouter des pièces/achats (spec confirmée) — Propriétaire ajouté le 25 novembre 2026 (miroir exact). */
 export function canManageProductionChecklist(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
 /**
@@ -795,10 +866,10 @@ export function canBeErrorReportSubject(persona: Persona): boolean {
   return ([ROLES.MEMBER, ROLES.WAREHOUSE] as Persona[]).includes(persona);
 }
 
-/** Supprimer un rapport d'erreur (corbeille) : Direction seulement — même palier que canDeleteServiceCall/canDeleteBudget/canDeleteProject/canDeleteClientRequest/canDeleteTimeEntry/canDeleteRolling. */
+/** Supprimer un rapport d'erreur (corbeille) — même palier que canDeleteServiceCall/canDeleteBudget/canDeleteProject/canDeleteClientRequest/canDeleteTimeEntry/canDeleteRolling, tous élargis le même jour (25 novembre 2026, miroir exact). */
 export function canDeleteErrorReport(persona: Persona): boolean {
   assertRole(persona);
-  return persona === ROLES.OWNER;
+  return ([ROLES.OWNER, ROLES.BOSS] as Persona[]).includes(persona);
 }
 
 // ---------------------------------------------------------------------------

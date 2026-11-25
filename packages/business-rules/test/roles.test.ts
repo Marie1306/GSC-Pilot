@@ -21,11 +21,17 @@ describe("Achats directs de projet (jamais de seuil)", () => {
   it("Administration peut saisir", () => {
     expect(P.canEnterProjectPurchase(ADMIN)).toBe(true);
   });
+  it("Propriétaire peut aussi saisir depuis le 25 novembre 2026 (miroir exact)", () => {
+    expect(P.canEnterProjectPurchase(BOSS)).toBe(true);
+  });
   it("Employé ne peut pas saisir", () => {
     expect(P.canEnterProjectPurchase(MEMBER)).toBe(false);
   });
   it("Direction approuve peu importe le montant", () => {
     expect(P.canApproveProjectPurchase({}, OWNER)).toBe(true);
+  });
+  it("Propriétaire approuve aussi de façon PERMANENTE depuis le 25 novembre 2026 (miroir exact) — sans aucune délégation active", () => {
+    expect(P.canApproveProjectPurchase({}, BOSS)).toBe(true);
   });
   it("Administration ne peut jamais approuver elle-même", () => {
     expect(P.canApproveProjectPurchase({}, ADMIN)).toBe(false);
@@ -43,11 +49,11 @@ describe("Demandes d'achat (seuil par catégorie)", () => {
   it("Sous le seuil : Propriétaire ne peut pas (pas nécessaire)", () => {
     expect(P.canApprovePurchaseRequest({}, BOSS, { category: "fabrication", amount: 1000 }, thresholds)).toBe(false);
   });
-  it("Au-dessus du seuil : seul le Propriétaire approuve", () => {
+  it("Au-dessus du seuil : le Propriétaire approuve", () => {
     expect(P.canApprovePurchaseRequest({}, BOSS, { category: "fabrication", amount: 9000 }, thresholds)).toBe(true);
   });
-  it("Au-dessus du seuil : Direction seule ne suffit plus", () => {
-    expect(P.canApprovePurchaseRequest({}, OWNER, { category: "fabrication", amount: 9000 }, thresholds)).toBe(false);
+  it("Au-dessus du seuil : Direction approuve aussi depuis le 25 novembre 2026 (miroir exact, double signature éliminée)", () => {
+    expect(P.canApprovePurchaseRequest({}, OWNER, { category: "fabrication", amount: 9000 }, thresholds)).toBe(true);
   });
   it("Au-dessus du seuil : Administration seule ne suffit pas non plus", () => {
     expect(P.canApprovePurchaseRequest({}, ADMIN, { category: "fabrication", amount: 9000 }, thresholds)).toBe(false);
@@ -67,8 +73,8 @@ describe("Délégation", () => {
   it("Seule la Direction peut mettre en place une délégation", () => {
     expect(P.canGrantDelegation(OWNER)).toBe(true);
   });
-  it("Le Propriétaire ne peut pas configurer sa propre délégation", () => {
-    expect(P.canGrantDelegation(BOSS)).toBe(false);
+  it("Le Propriétaire peut aussi mettre en place une délégation depuis le 25 novembre 2026 (miroir exact)", () => {
+    expect(P.canGrantDelegation(BOSS)).toBe(true);
   });
   it("Administration ne peut pas configurer une délégation", () => {
     expect(P.canGrantDelegation(ADMIN)).toBe(false);
@@ -116,8 +122,11 @@ describe("Appels de service", () => {
   it("Technicien ne voit jamais de prix", () => {
     expect(P.canSeeServicePricing(MEMBER)).toBe(false);
   });
-  it("Seule la Direction fixe le prix des pièces", () => {
+  it("Direction fixe le prix des pièces", () => {
     expect(P.canPriceServiceParts(OWNER)).toBe(true);
+  });
+  it("Propriétaire aussi depuis le 25 novembre 2026 (miroir exact)", () => {
+    expect(P.canPriceServiceParts(BOSS)).toBe(true);
   });
   it("Administration ne peut pas fixer le prix des pièces", () => {
     expect(P.canPriceServiceParts(ADMIN)).toBe(false);
@@ -125,10 +134,24 @@ describe("Appels de service", () => {
   it("Magasinier hors de la portée des appels de service", () => {
     expect(P.canAccessServiceCalls(WAREHOUSE)).toBe(false);
   });
-  it("Seule la Direction approuve un call de service", () => {
+  it("Direction et Propriétaire approuvent un call de service (miroir exact, 25 novembre 2026)", () => {
     expect(P.canApproveServiceCall(OWNER)).toBe(true);
+    expect(P.canApproveServiceCall(BOSS)).toBe(true);
     expect(P.canApproveServiceCall(ADMIN)).toBe(false);
-    expect(P.canApproveServiceCall(BOSS)).toBe(false);
+  });
+  it("Direction et Propriétaire réassignent un call de service (miroir exact, 25 novembre 2026)", () => {
+    expect(P.canReassignServiceCall(OWNER)).toBe(true);
+    expect(P.canReassignServiceCall(ADMIN)).toBe(true);
+    expect(P.canReassignServiceCall(BOSS)).toBe(true);
+    expect(P.canReassignServiceCall(MEMBER)).toBe(false);
+    expect(P.canReassignServiceCall(WAREHOUSE)).toBe(false);
+  });
+  it("Direction et Propriétaire suppriment un call de service, corbeille (miroir exact, 25 novembre 2026)", () => {
+    expect(P.canDeleteServiceCall(OWNER)).toBe(true);
+    expect(P.canDeleteServiceCall(BOSS)).toBe(true);
+    expect(P.canDeleteServiceCall(ADMIN)).toBe(false);
+    expect(P.canDeleteServiceCall(MEMBER)).toBe(false);
+    expect(P.canDeleteServiceCall(WAREHOUSE)).toBe(false);
   });
   // canSendServiceCallToAdmin retirée le 13 novembre 2026 — voir
   // canConfirmInvoiceRequest, testée dans "Facturation" ci-dessous.
@@ -143,8 +166,8 @@ describe("Appels de service", () => {
   it("Direction peut toujours créer un Bon de travail, même sans y être assignée (rattraper un oubli)", () => {
     expect(P.canCreateBonDeTravail(OWNER, { assignedEmployees: [] }, "emp-1")).toBe(true);
   });
-  it("le Propriétaire ne peut pas créer de Bon de travail — précédent étroit propre à ce module", () => {
-    expect(P.canCreateBonDeTravail(BOSS, { assignedEmployees: [{ id: "emp-1" }] }, "emp-1")).toBe(false);
+  it("le Propriétaire peut aussi créer un Bon de travail depuis le 25 novembre 2026 (miroir exact, même sans y être assigné)", () => {
+    expect(P.canCreateBonDeTravail(BOSS, { assignedEmployees: [] }, "emp-1")).toBe(true);
   });
   it("Administration ne peut pas créer de Bon de travail", () => {
     expect(P.canCreateBonDeTravail(ADMIN, { assignedEmployees: [{ id: "emp-1" }] }, "emp-1")).toBe(false);
@@ -170,9 +193,9 @@ describe("Budgétaire", () => {
   it("Employé n'accède jamais au budgétaire", () => {
     expect(P.canAccessBudget(MEMBER)).toBe(false);
   });
-  it("Seule la Direction enregistre le résultat d'une soumission (envoyé/Contrat obtenu/Refusé) — Propriétaire exclu", () => {
+  it("Direction et Propriétaire enregistrent le résultat d'une soumission (envoyé/Contrat obtenu/Refusé) — miroir exact, 25 novembre 2026", () => {
     expect(P.canRecordBudgetOutcome(OWNER)).toBe(true);
-    expect(P.canRecordBudgetOutcome(BOSS)).toBe(false);
+    expect(P.canRecordBudgetOutcome(BOSS)).toBe(true);
     expect(P.canRecordBudgetOutcome(ADMIN)).toBe(false);
   });
   it("Direction et Propriétaire modifient une ligne Achat 'Direction/Propriétaire' — Administration exclue", () => {
@@ -182,34 +205,42 @@ describe("Budgétaire", () => {
   });
 });
 
-describe("Conversion Budgétaire → Projet (confirmé le 12 août 2026)", () => {
-  it("Direction seulement peut convertir — distinct de la création directe (Direction ET Propriétaire)", () => {
+describe("Conversion Budgétaire → Projet (confirmé le 12 août 2026 ; miroir exact le 25 novembre 2026)", () => {
+  it("Direction et Propriétaire peuvent convertir depuis le 25 novembre 2026 (miroir exact) — Administration exclue", () => {
     expect(P.canConvertBudgetToProject(OWNER)).toBe(true);
-    expect(P.canConvertBudgetToProject(BOSS)).toBe(false);
+    expect(P.canConvertBudgetToProject(BOSS)).toBe(true);
     expect(P.canConvertBudgetToProject(ADMIN)).toBe(false);
   });
-  it("Propriétaire peut créer un projet directement, mais pas convertir un budgétaire", () => {
+  it("Propriétaire peut créer un projet directement ET convertir un budgétaire (même porte que Direction depuis le 25 novembre 2026)", () => {
     expect(P.canCreateProjectDirectly(BOSS)).toBe(true);
-    expect(P.canConvertBudgetToProject(BOSS)).toBe(false);
+    expect(P.canConvertBudgetToProject(BOSS)).toBe(true);
+  });
+  it("Direction et Propriétaire peuvent aussi convertir un budgétaire en roulement (miroir exact)", () => {
+    expect(P.canConvertBudgetToRolling(OWNER)).toBe(true);
+    expect(P.canConvertBudgetToRolling(BOSS)).toBe(true);
+    expect(P.canConvertBudgetToRolling(ADMIN)).toBe(false);
   });
   it("Employé et Magasinier n'accèdent jamais au détail financier d'un projet", () => {
     expect(P.canAccessProject(MEMBER)).toBe(false);
     expect(P.canAccessProject(WAREHOUSE)).toBe(false);
     expect(P.canAccessProject(OWNER)).toBe(true);
   });
-  it("Supprimer ou réinitialiser un budgétaire : Direction seulement", () => {
+  it("Direction et Propriétaire peuvent supprimer ou réinitialiser un budgétaire (miroir exact, 25 novembre 2026)", () => {
     expect(P.canDeleteBudget(OWNER)).toBe(true);
+    expect(P.canDeleteBudget(BOSS)).toBe(true);
     expect(P.canDeleteBudget(ADMIN)).toBe(false);
-    expect(P.canDeleteBudget(BOSS)).toBe(false);
     expect(P.canResetBudget(OWNER)).toBe(true);
+    expect(P.canResetBudget(BOSS)).toBe(true);
     expect(P.canResetBudget(ADMIN)).toBe(false);
-    expect(P.canResetBudget(BOSS)).toBe(false);
   });
 });
 
 describe("Punchs", () => {
   it("Direction approuve les punchs", () => {
     expect(P.canApprovePunch({}, OWNER)).toBe(true);
+  });
+  it("Propriétaire approuve aussi les punchs, de façon PERMANENTE depuis le 25 novembre 2026 (miroir exact) — sans délégation active", () => {
+    expect(P.canApprovePunch({}, BOSS)).toBe(true);
   });
   it("Administration n'approuve pas les punchs", () => {
     expect(P.canApprovePunch({}, ADMIN)).toBe(false);
@@ -303,8 +334,8 @@ describe("Livraisons / Roulements", () => {
   it("Direction marque la production complétée", () => {
     expect(P.canMarkProductionComplete(OWNER)).toBe(true);
   });
-  it("Propriétaire ne marque jamais la production complétée", () => {
-    expect(P.canMarkProductionComplete(BOSS)).toBe(false);
+  it("Propriétaire marque aussi la production complétée depuis le 25 novembre 2026 (miroir exact)", () => {
+    expect(P.canMarkProductionComplete(BOSS)).toBe(true);
   });
   it("Administration ne marque pas la production complétée", () => {
     expect(P.canMarkProductionComplete(ADMIN)).toBe(false);
@@ -315,8 +346,8 @@ describe("Livraisons / Roulements", () => {
   it("Administration choisit aussi le mode de sortie", () => {
     expect(P.canChooseFulfillmentMode(ADMIN)).toBe(true);
   });
-  it("Propriétaire ne choisit jamais le mode de sortie", () => {
-    expect(P.canChooseFulfillmentMode(BOSS)).toBe(false);
+  it("Propriétaire choisit aussi le mode de sortie depuis le 25 novembre 2026 (miroir exact)", () => {
+    expect(P.canChooseFulfillmentMode(BOSS)).toBe(true);
   });
   it("Tous les rôles accèdent aux livraisons, y compris Employé (2 septembre 2026)", () => {
     expect(P.canAccessDeliveries(OWNER)).toBe(true);
@@ -386,10 +417,10 @@ describe("Création de demandes clients et d'appels de service (règle confirmé
       expect(P.canManageClientRequest(persona)).toBe(false);
     }
   });
-  it("Supprimer une demande client (corbeille) : Direction seulement", () => {
+  it("Supprimer une demande client (corbeille) : Direction et Propriétaire depuis le 25 novembre 2026 (miroir exact)", () => {
     expect(P.canDeleteClientRequest(OWNER)).toBe(true);
+    expect(P.canDeleteClientRequest(BOSS)).toBe(true);
     expect(P.canDeleteClientRequest(ADMIN)).toBe(false);
-    expect(P.canDeleteClientRequest(BOSS)).toBe(false);
     expect(P.canDeleteClientRequest(MEMBER)).toBe(false);
     expect(P.canDeleteClientRequest(WAREHOUSE)).toBe(false);
   });
@@ -430,19 +461,19 @@ describe("Demandes d'achat — jamais de double autorisation quand le demandeur 
     expect(P.canApprovePurchaseRequest({}, OWNER, request, thresholds)).toBe(true);
     expect(P.canApprovePurchaseRequest({}, BOSS, request, thresholds)).toBe(false);
   });
-  it("Demandeur Employé, gros montant : le seuil s'applique normalement (double autorisation)", () => {
+  it("Demandeur Employé, gros montant : le seuil s'applique normalement — Direction ET Propriétaire approuvent depuis le 25 novembre 2026 (miroir exact)", () => {
     const request = { category: "fabrication", amount: 50000, requesterPersona: MEMBER };
-    expect(P.canApprovePurchaseRequest({}, OWNER, request, thresholds)).toBe(false);
+    expect(P.canApprovePurchaseRequest({}, OWNER, request, thresholds)).toBe(true);
     expect(P.canApprovePurchaseRequest({}, BOSS, request, thresholds)).toBe(true);
   });
-  it("Demandeur Magasinier, gros montant : le seuil s'applique normalement (double autorisation)", () => {
+  it("Demandeur Magasinier, gros montant : le seuil s'applique normalement — Direction ET Propriétaire approuvent", () => {
     const request = { category: "fabrication", amount: 50000, requesterPersona: WAREHOUSE };
-    expect(P.canApprovePurchaseRequest({}, OWNER, request, thresholds)).toBe(false);
+    expect(P.canApprovePurchaseRequest({}, OWNER, request, thresholds)).toBe(true);
     expect(P.canApprovePurchaseRequest({}, BOSS, request, thresholds)).toBe(true);
   });
-  it("requesterPersona absent : comportement d'origine inchangé (rétrocompatibilité)", () => {
+  it("requesterPersona absent : comportement d'origine pour le seuil, étendu à Direction depuis le 25 novembre 2026", () => {
     const request = { category: "fabrication", amount: 50000 };
-    expect(P.canApprovePurchaseRequest({}, OWNER, request, thresholds)).toBe(false);
+    expect(P.canApprovePurchaseRequest({}, OWNER, request, thresholds)).toBe(true);
     expect(P.canApprovePurchaseRequest({}, BOSS, request, thresholds)).toBe(true);
   });
 });
@@ -480,8 +511,8 @@ describe("Suivi de commande et application au projet (13 août 2026)", () => {
   it("Administration peut aussi gérer le suivi, de façon permanente (2 septembre 2026)", () => {
     expect(P.canManagePurchaseFulfillment({}, ADMIN)).toBe(true);
   });
-  it("Propriétaire ne peut pas, sans délégation (voit tout, mais ne fait pas progresser le suivi)", () => {
-    expect(P.canManagePurchaseFulfillment({}, BOSS)).toBe(false);
+  it("Propriétaire peut aussi, de façon PERMANENTE depuis le 25 novembre 2026 (miroir exact) — sans délégation active", () => {
+    expect(P.canManagePurchaseFulfillment({}, BOSS)).toBe(true);
   });
   it("Employé/Magasinier ne peuvent pas, sans délégation", () => {
     expect(P.canManagePurchaseFulfillment({}, MEMBER)).toBe(false);
@@ -493,8 +524,8 @@ describe("Garantie (17 août 2026)", () => {
   it("Direction gère la garantie", () => {
     expect(P.canManageWarranty(OWNER)).toBe(true);
   });
-  it("Propriétaire ne gère pas la garantie", () => {
-    expect(P.canManageWarranty(BOSS)).toBe(false);
+  it("Propriétaire gère aussi la garantie depuis le 25 novembre 2026 (miroir exact)", () => {
+    expect(P.canManageWarranty(BOSS)).toBe(true);
   });
   it("Administration/Employé/Magasinier ne gèrent pas la garantie", () => {
     expect(P.canManageWarranty(ADMIN)).toBe(false);
@@ -503,75 +534,93 @@ describe("Garantie (17 août 2026)", () => {
   });
 });
 
-describe("Menu Options du projet (17 août 2026)", () => {
-  it("Direction et Administration modifient les informations courantes", () => {
+describe("Menu Options du projet (17 août 2026 ; miroir exact le 25 novembre 2026)", () => {
+  it("Direction, Administration et Propriétaire modifient les informations courantes depuis le 25 novembre 2026 (miroir exact)", () => {
     expect(P.canManageProject(OWNER)).toBe(true);
     expect(P.canManageProject(ADMIN)).toBe(true);
+    expect(P.canManageProject(BOSS)).toBe(true);
   });
-  it("Propriétaire/Employé/Magasinier ne modifient pas les informations", () => {
-    expect(P.canManageProject(BOSS)).toBe(false);
+  it("Employé/Magasinier ne modifient pas les informations", () => {
     expect(P.canManageProject(MEMBER)).toBe(false);
     expect(P.canManageProject(WAREHOUSE)).toBe(false);
   });
-  it("Direction seulement archive un projet", () => {
+  it("Direction et Propriétaire archivent un projet (miroir exact)", () => {
     expect(P.canArchiveProject(OWNER)).toBe(true);
+    expect(P.canArchiveProject(BOSS)).toBe(true);
     expect(P.canArchiveProject(ADMIN)).toBe(false);
-    expect(P.canArchiveProject(BOSS)).toBe(false);
   });
-  it("Direction seulement supprime un projet (corbeille)", () => {
+  it("Direction et Propriétaire suppriment un projet, corbeille (miroir exact)", () => {
     expect(P.canDeleteProject(OWNER)).toBe(true);
+    expect(P.canDeleteProject(BOSS)).toBe(true);
     expect(P.canDeleteProject(ADMIN)).toBe(false);
-    expect(P.canDeleteProject(BOSS)).toBe(false);
   });
-  it("Direction seulement ferme/rouvre un projet", () => {
+  it("Direction et Propriétaire ferment/rouvrent un projet (miroir exact)", () => {
     expect(P.canCloseProject(OWNER)).toBe(true);
+    expect(P.canCloseProject(BOSS)).toBe(true);
     expect(P.canCloseProject(ADMIN)).toBe(false);
-    expect(P.canCloseProject(BOSS)).toBe(false);
   });
 });
 
-describe("Post-mortem (17 août 2026)", () => {
-  it("Direction seulement écrit l'analyse finale", () => {
-    expect(P.canManagePostMortem(OWNER)).toBe(true);
+describe("Menu Options du roulement (28 août 2026 ; miroir exact le 25 novembre 2026)", () => {
+  it("Direction, Administration et Propriétaire modifient les informations courantes (miroir exact)", () => {
+    expect(P.canManageRolling(OWNER)).toBe(true);
+    expect(P.canManageRolling(ADMIN)).toBe(true);
+    expect(P.canManageRolling(BOSS)).toBe(true);
+    expect(P.canManageRolling(MEMBER)).toBe(false);
+    expect(P.canManageRolling(WAREHOUSE)).toBe(false);
   });
-  it("Administration/Propriétaire/Employé/Magasinier ne peuvent pas", () => {
+  it("Direction et Propriétaire archivent/suppriment un roulement, corbeille (miroir exact)", () => {
+    expect(P.canArchiveRolling(OWNER)).toBe(true);
+    expect(P.canArchiveRolling(BOSS)).toBe(true);
+    expect(P.canArchiveRolling(ADMIN)).toBe(false);
+    expect(P.canDeleteRolling(OWNER)).toBe(true);
+    expect(P.canDeleteRolling(BOSS)).toBe(true);
+    expect(P.canDeleteRolling(ADMIN)).toBe(false);
+  });
+});
+
+describe("Post-mortem (17 août 2026 ; miroir exact le 25 novembre 2026)", () => {
+  it("Direction et Propriétaire écrivent l'analyse finale (miroir exact)", () => {
+    expect(P.canManagePostMortem(OWNER)).toBe(true);
+    expect(P.canManagePostMortem(BOSS)).toBe(true);
+  });
+  it("Administration/Employé/Magasinier ne peuvent pas", () => {
     expect(P.canManagePostMortem(ADMIN)).toBe(false);
-    expect(P.canManagePostMortem(BOSS)).toBe(false);
     expect(P.canManagePostMortem(MEMBER)).toBe(false);
     expect(P.canManagePostMortem(WAREHOUSE)).toBe(false);
   });
 });
 
-describe("Sous-assemblages / Avenants / Gantt (21 août 2026)", () => {
-  it("Propriétaire seulement déclare un sous-assemblage prêt (Marc, spec ligne 639)", () => {
+describe("Sous-assemblages / Avenants / Gantt (21 août 2026 ; miroir exact le 25 novembre 2026, sauf le Gantt laissé de côté — module abandonné)", () => {
+  it("Direction ET Propriétaire déclarent un sous-assemblage prêt depuis le 25 novembre 2026 (miroir exact — Marc restait auparavant le seul, spec ligne 639)", () => {
     expect(P.canDeclareSubassembly(BOSS)).toBe(true);
-    expect(P.canDeclareSubassembly(OWNER)).toBe(false);
+    expect(P.canDeclareSubassembly(OWNER)).toBe(true);
     expect(P.canDeclareSubassembly(ADMIN)).toBe(false);
     expect(P.canDeclareSubassembly(MEMBER)).toBe(false);
     expect(P.canDeclareSubassembly(WAREHOUSE)).toBe(false);
   });
-  it("Direction seulement crée la liste de pièces d'un sous-assemblage", () => {
+  it("Direction et Propriétaire créent la liste de pièces d'un sous-assemblage (miroir exact)", () => {
     expect(P.canPrepareSubassemblyPartsList(OWNER)).toBe(true);
+    expect(P.canPrepareSubassemblyPartsList(BOSS)).toBe(true);
     expect(P.canPrepareSubassemblyPartsList(ADMIN)).toBe(false);
-    expect(P.canPrepareSubassemblyPartsList(BOSS)).toBe(false);
     expect(P.canPrepareSubassemblyPartsList(MEMBER)).toBe(false);
     expect(P.canPrepareSubassemblyPartsList(WAREHOUSE)).toBe(false);
   });
-  it("Direction seulement déclare l'assemblage prêt", () => {
+  it("Direction et Propriétaire déclarent l'assemblage prêt (miroir exact)", () => {
     expect(P.canDeclareAssemblyReady(OWNER)).toBe(true);
+    expect(P.canDeclareAssemblyReady(BOSS)).toBe(true);
     expect(P.canDeclareAssemblyReady(ADMIN)).toBe(false);
-    expect(P.canDeclareAssemblyReady(BOSS)).toBe(false);
     expect(P.canDeclareAssemblyReady(MEMBER)).toBe(false);
     expect(P.canDeclareAssemblyReady(WAREHOUSE)).toBe(false);
   });
-  it("Direction seulement crée un avenant", () => {
+  it("Direction et Propriétaire créent un avenant (miroir exact)", () => {
     expect(P.canCreateAmendment(OWNER)).toBe(true);
+    expect(P.canCreateAmendment(BOSS)).toBe(true);
     expect(P.canCreateAmendment(ADMIN)).toBe(false);
-    expect(P.canCreateAmendment(BOSS)).toBe(false);
     expect(P.canCreateAmendment(MEMBER)).toBe(false);
     expect(P.canCreateAmendment(WAREHOUSE)).toBe(false);
   });
-  it("Direction seulement édite le Gantt (affectations, dépendances, complétion) — Administration/Propriétaire en lecture seule", () => {
+  it("Direction seulement édite le Gantt — jamais tranché pour Propriétaire (module abandonné, laissé de côté lors du miroir du 25 novembre 2026)", () => {
     expect(P.canEditGanttSchedule(OWNER)).toBe(true);
     expect(P.canEditGanttSchedule(ADMIN)).toBe(false);
     expect(P.canEditGanttSchedule(BOSS)).toBe(false);
@@ -581,10 +630,10 @@ describe("Sous-assemblages / Avenants / Gantt (21 août 2026)", () => {
 });
 
 describe("Checklist de production (21 août 2026)", () => {
-  it("Direction seulement crée une checklist et y ajoute des pièces/achats", () => {
+  it("Direction et Propriétaire créent une checklist et y ajoutent des pièces/achats (miroir exact, 25 novembre 2026)", () => {
     expect(P.canManageProductionChecklist(OWNER)).toBe(true);
+    expect(P.canManageProductionChecklist(BOSS)).toBe(true);
     expect(P.canManageProductionChecklist(ADMIN)).toBe(false);
-    expect(P.canManageProductionChecklist(BOSS)).toBe(false);
     expect(P.canManageProductionChecklist(MEMBER)).toBe(false);
     expect(P.canManageProductionChecklist(WAREHOUSE)).toBe(false);
   });
@@ -612,9 +661,9 @@ describe("Rapport d'erreurs (28 août 2026)", () => {
     expect(P.canBeErrorReportSubject(ADMIN)).toBe(false);
     expect(P.canBeErrorReportSubject(BOSS)).toBe(false);
   });
-  it("Direction seulement supprime un rapport d'erreur (corbeille)", () => {
+  it("Direction et Propriétaire suppriment un rapport d'erreur, corbeille (miroir exact, 25 novembre 2026)", () => {
     expect(P.canDeleteErrorReport(OWNER)).toBe(true);
-    expect(P.canDeleteErrorReport(BOSS)).toBe(false);
+    expect(P.canDeleteErrorReport(BOSS)).toBe(true);
     expect(P.canDeleteErrorReport(ADMIN)).toBe(false);
     expect(P.canDeleteErrorReport(MEMBER)).toBe(false);
     expect(P.canDeleteErrorReport(WAREHOUSE)).toBe(false);
