@@ -646,14 +646,17 @@ export async function resetBudgetContent(id: string): Promise<void> {
  * l'intérieur d'une même catégorie pour Installation — Frais divers).
  *
  * Exception ajoutée le 25 novembre 2026 (demande explicite de
- * l'utilisatrice) : une ligne "labor"/directionOnly reste verrouillée pour
- * le Propriétaire SAUF si le patch ne touche QUE la quantité (hours/qty,
- * jamais label/unitPrice/risk) — il doit pouvoir ajuster toutes les cases
- * d'heures ET les quantités des lignes à prix fixe (Formation/
- * Hébergement/Kilométrage/etc., "Installation — Frais divers"), mais
- * jamais les taux/prix eux-mêmes. Un patch qui touche aussi un autre champ
- * (ex. qty + label dans la même requête) retombe sur la porte complète —
- * jamais une ouverture partielle d'un champ verrouillé via un patch mixte.
+ * l'utilisatrice, étendue le même jour sur un deuxième rapport — « tu as
+ * oublié risque... ») : une ligne "labor"/directionOnly reste verrouillée
+ * pour le Propriétaire SAUF si le patch ne touche QUE la quantité
+ * (hours/qty) ET/OU le risque/note (risk) — jamais label/unitPrice. Il
+ * doit pouvoir ajuster toutes les cases d'heures, les quantités ET la
+ * note de risque des lignes à prix fixe (Formation/Hébergement/
+ * Kilométrage/etc., "Installation — Frais divers"), mais jamais les
+ * taux/prix eux-mêmes ni le nom de la ligne. Un patch qui touche aussi un
+ * autre champ (ex. qty + label dans la même requête) retombe sur la porte
+ * complète — jamais une ouverture partielle d'un champ verrouillé via un
+ * patch mixte.
  */
 function assertRowEditable(persona: Persona, kind: BudgetSectionKind, directionOnly: boolean, patch: UpdateRowPatch): void {
   const requiresDirectionOnly = kind === "labor" || directionOnly;
@@ -661,9 +664,10 @@ function assertRowEditable(persona: Persona, kind: BudgetSectionKind, directionO
     if (!canModifyBudgetPurchaseLine(persona)) throw new HttpError(403, "Vous n'avez pas la permission de modifier cette ligne.");
     return;
   }
+  const OPEN_FIELDS_FOR_OWNER = new Set<keyof UpdateRowPatch>(["hours", "qty", "risk"]);
   const patchKeys = Object.keys(patch) as (keyof UpdateRowPatch)[];
-  const touchesOnlyQuantity = patchKeys.length > 0 && patchKeys.every((key) => key === "hours" || key === "qty");
-  const allowed = touchesOnlyQuantity ? canModifyBudgetPurchaseLine(persona) : canModifyBudget(persona);
+  const touchesOnlyOpenFields = patchKeys.length > 0 && patchKeys.every((key) => OPEN_FIELDS_FOR_OWNER.has(key));
+  const allowed = touchesOnlyOpenFields ? canModifyBudgetPurchaseLine(persona) : canModifyBudget(persona);
   if (!allowed) throw new HttpError(403, "Vous n'avez pas la permission de modifier cette ligne.");
 }
 
@@ -742,10 +746,10 @@ export async function removeBudgetRow(persona: Persona, budgetId: string, rowId:
   if (!(MODULAR_CATEGORIES as readonly string[]).includes(row.section.category)) {
     throw new HttpError(400, "Cette section n'accepte pas le retrait de lignes.");
   }
-  // Retrait d'une ligne : jamais traité comme une modification de quantité
-  // (patch vide → touchesOnlyQuantity toujours faux) — supprimer une ligne
-  // reste un geste structurel, exige la porte complète même pour une ligne
-  // par ailleurs ouverte au Propriétaire pour sa quantité.
+  // Retrait d'une ligne : jamais traité comme une modification de quantité/
+  // risque (patch vide → touchesOnlyOpenFields toujours faux) — supprimer
+  // une ligne reste un geste structurel, exige la porte complète même pour
+  // une ligne par ailleurs ouverte au Propriétaire pour sa quantité/risque.
   assertRowEditable(persona, row.section.kind, row.directionOnly, {});
   if (row.section.rows.length <= 1) {
     throw new HttpError(400, "Impossible de retirer la dernière ligne d'une section.");

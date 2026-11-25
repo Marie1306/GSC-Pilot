@@ -159,7 +159,12 @@ budgetsRouter.delete(
 budgetsRouter.patch(
   "/budgets/:id/sections/:sectionId",
   requireAuth,
-  requirePermission((persona) => canModifyBudget(persona)),
+  // Porte élargie le 25 novembre 2026 (même demande explicite que la
+  // quantité/risque ci-dessus) : la complexité d'une section n'est ni un
+  // prix ni un taux fixe, ouverte à Direction ET Propriétaire — contraste
+  // avec /backup et /project-backup ci-dessous, restées Direction seule
+  // (elles mêlent la complexité à un champ non demandé, pct/montant).
+  requirePermission((persona) => canModifyBudgetPurchaseLine(persona)),
   async (req, res) => {
     const id = z.uuid().parse(req.params.id);
     const sectionId = z.uuid().parse(req.params.sectionId);

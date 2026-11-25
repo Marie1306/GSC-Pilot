@@ -75,12 +75,13 @@ function blurOnEnter(e: KeyboardEvent<HTMLInputElement>) {
 /**
  * Une ligne "labor" ou marquée directionOnly exige Direction seulement;
  * sinon Direction ET Propriétaire — voir service.ts, même règle côté
- * serveur. Gouverne le nom/prix unitaire/risque/retrait d'une ligne.
+ * serveur. Gouverne le nom/prix unitaire/retrait d'une ligne.
  *
- * Exception du 25 novembre 2026 : la QUANTITÉ (heures ou qté) d'une ligne
- * par ailleurs verrouillée ici reste ouverte au Propriétaire — voir
- * editableQty ci-dessous, jamais ce booléen-ci, qui continue de gouverner
- * uniquement les autres champs (prix, nom, risque, retrait de ligne).
+ * Exception du 25 novembre 2026 (étendue le même jour après un deuxième
+ * rapport de l'utilisatrice) : la QUANTITÉ (heures ou qté) ET le champ
+ * Risque/note d'une ligne par ailleurs verrouillée ici restent ouverts au
+ * Propriétaire — voir editableQty ci-dessous, jamais ce booléen-ci, qui
+ * continue de gouverner uniquement prix unitaire/nom/retrait de ligne.
  */
 function isRowEditable(row: BudgetSectionRow, kind: "labor" | "purchase", canModifyLabor: boolean, canModifyPurchase: boolean): boolean {
   const requiresDirectionOnly = kind === "labor" || row.directionOnly;
@@ -135,7 +136,7 @@ function BudgetSectionCard({
           <select
             id={`complexity-${section.id}`}
             value={section.complexity}
-            disabled={!canModifyLabor || busy}
+            disabled={!canModifyPurchase || busy}
             onChange={(e) => onUpdateComplexity(section.id, Number(e.target.value))}
           >
             {COMPLEXITY_OPTIONS.map((level) => (
@@ -162,11 +163,13 @@ function BudgetSectionCard({
         <tbody>
           {section.rows.map((row) => {
             const editable = isRowEditable(row, section.kind, canModifyLabor, canModifyPurchase) && !busy;
-            // Exception du 25 novembre 2026 (demande explicite de l'utilisatrice) :
-            // la quantité (heures ou qté) reste ajustable par le Propriétaire même
-            // sur une ligne "labor"/directionOnly par ailleurs verrouillée (taux/prix
-            // fixes comme Formation/Hébergement/Kilométrage) — jamais les autres
-            // champs de cette même ligne, qui restent gouvernés par `editable`.
+            // Exception du 25 novembre 2026 (demande explicite de l'utilisatrice,
+            // étendue au champ Risque/note le même jour sur un deuxième rapport —
+            // « tu as oublié risque... et la complexité ») : la quantité (heures ou
+            // qté) ET le risque/note restent ajustables par le Propriétaire même sur
+            // une ligne "labor"/directionOnly par ailleurs verrouillée (taux/prix
+            // fixes comme Formation/Hébergement/Kilométrage) — jamais le nom ni le
+            // prix unitaire de cette même ligne, qui restent gouvernés par `editable`.
             const editableQty = canModifyPurchase && !busy;
             const isSaving = (field: keyof UpdateRowPatch) => savingCell?.rowId === row.id && savingCell.field === field;
             return (
@@ -242,7 +245,7 @@ function BudgetSectionCard({
                     key={`risk-${row.id}-${row.risk}`}
                     placeholder="Risque, hypothèse ou note"
                     defaultValue={row.risk ?? ""}
-                    disabled={!editable || isSaving("risk")}
+                    disabled={!editableQty || isSaving("risk")}
                     enterKeyHint="done"
                     onKeyDown={blurOnEnter}
                     onBlur={(e) => {
