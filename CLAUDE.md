@@ -1901,3 +1901,98 @@ son `quoteId`/`quoteDisplayId` sur la vente résultante, vente créée
 directement garde `quoteId` null. `npm run typecheck && npm run lint &&
 npm test && npm run build` verts (538 tests, inchangé — correctif de
 lecture/affichage pur). Aucune migration. **Poussé (`6e7aa81`)**.
+
+## Vente externe — Confirmation de commande entre la Soumission et la Vente (25 novembre 2026)
+
+Demande explicite de Marie, après avoir testé la Soumission VE : « Il faut
+maintenant que je puisse convertir ma soumission en confirmation de
+commande, puis en facture, comme les autres modules » (corrigée elle-même :
+« confirmation de commande, pas bon de commande »). Projet/Roulement ont
+déjà ce document entre Soumission et Facture ; la Vente externe n'avait que
+Soumission → Vente directement.
+
+Plan complet passé par le mode Plan (1 agent Explore relisant tout
+`confirmationsDeCommande/`+`soumissions/`+Project/Rolling, 1 agent Plan
+critiquant le design) avant d'écrire une ligne de code — voir
+`/root/.claude/plans/magical-finding-fog.md` pour le détail complet si
+encore présent. Deux décisions confirmées avec Marie (AskUserQuestion) :
+
+1. **Indépendante, comme Projet/Roulement** — jamais un passage obligé
+   avant « Convertir en vente ». Exactement comme `convertBudgetToProject`/
+   `convertBudgetToRolling` ne vérifient que `budget.status==="won"`
+   (zéro référence à Confirmation/Soumission), les deux conversions
+   (confirmation, vente) restent deux boutons séparés sur la même
+   Soumission acceptée, disponibles dans n'importe quel ordre.
+2. **Même trio que le reste de la Vente externe**
+   (`canManageExternalSales`) — pas le couple plus étroit Direction+
+   Propriétaire (`canManageSoumission`) qu'utilise la Confirmation de
+   Projet/Roulement. Cohérence avec le reste du module VE.
+
+**Nouveau modèle parallèle, jamais une fusion** (même principe que
+`ExternalSaleQuote` vs `Soumission`) : `ExternalSaleConfirmation`/
+`ExternalSaleConfirmationLine` (`apps/api/src/modules/
+externalSaleConfirmations/`, module sœur à part entière de
+`externalSaleQuotes/`, jamais ajouté dedans), FK vers `ExternalSaleQuote`
+(pas `Soumission`). Numéro `CE-AAAA-NNNN`, propre compteur annuel, jamais
+partagé avec `CC-` (Projet/Roulement) ni `DV-` (Soumission VE).
+
+Créée UNE SEULE FOIS depuis une Soumission `status==="accepted"`
+(`convertExternalSaleQuoteToConfirmation`) — copie GELÉE pure, rien n'est
+recalculé : contact (`contactName`/`company`/`contactRole`/`phone`/
+`email`) copié depuis la Soumission, JAMAIS depuis `ExternalSale.contact`
+(qui peut ne pas encore exister, ou avoir été résolu séparément — les deux
+conversions sont indépendantes, dans n'importe quel ordre) ; montants de
+taxe copiés tels quels depuis `quote.salePrice`/`tpsAmount`/`tvqAmount`/
+`totalWithTax` (déjà gelés à `sendExternalSaleQuote`) ; lignes repassées
+par `externalSaleInvoiceLines` (déjà construite le 17 novembre, déjà
+réutilisée le 24 novembre) pour geler le PRIX — jamais le `unitCost` brut
+de `ExternalSaleQuoteLine`. Aucun statut, aucun cycle décision — « née
+déjà complète », comme son équivalent Budget. **Jamais branchée dans le
+calcul de Facture de VE** (qui utilise déjà `externalSaleInvoiceLines` sur
+les `PurchaseRequest` réelles de la vente, déjà correct depuis le 24
+novembre) — un document purement contractuel, pas une source de vérité
+financière ; pas de `getConfirmationBreakdownsByBudgetIds`-équivalent,
+volontairement absent.
+
+`deleteExternalSaleQuote` gagne une 2e garde (409 si une confirmation
+existe déjà) — même garde exacte que `deleteSoumission` pour
+`ConfirmationDeCommande`, indépendante de la garde existante sur la vente.
+`ExternalSaleDetailDto` gagne `confirmationId`/`confirmationDisplayId` —
+nouveau lien « Confirmation de commande {displayId} » dans
+`ExternalSaleDocuments.tsx`, à côté du lien Soumission ajouté la veille.
+Nouveau bouton « Convertir en confirmation de commande » + révélation
+inline (champ `clientPoNumber` optionnel) sur `ExternalSaleQuoteDetail.tsx`,
+nouvelle vue d'export `ExternalSaleConfirmationExportView.tsx` (gabarit
+visuel identique à `ConfirmationExportView.tsx`, sans ligne d'adresse —
+aucun champ adresse côté VE — et sans aucun recalcul, lignes déjà gelées).
+
+Vérifié contre Postgres local (script jetable, supprimé après usage) :
+blocage avant acceptation ; lignes gelées au prix réel (vérifié
+explicitement que le prix unitaire diffère du coût brut, ex. coût 5,00 $
+→ prix unitaire 6,25 $ à marge 20 %) et contact copié depuis la
+Soumission ; blocage 409 si déjà convertie une fois ; **les deux ordres
+testés explicitement** (confirmation créée PUIS vente créée ; vente créée
+PUIS confirmation créée après coup) — `confirmationId` apparaît
+correctement sur la vente dans les deux cas, sans dépendance entre les
+deux conversions ; `deleteExternalSaleQuote` bloqué si une confirmation
+existe même sans vente ; vente créée directement garde `confirmationId`
+null. `npm run typecheck && npm run lint && npm test && npm run build`
+verts (538 tests, inchangé — aucune nouvelle règle métier testée
+séparément, déjà couvert par la vérification Postgres directe). Migration
+additive (`20261125132337_external_sale_confirmation`, 2 colonnes
+`Settings` + 2 nouvelles tables), **revérifiée par tar-copy + `npm ci &&
+npm run build && npm test`** (même discipline que tout changement de
+schéma). **Fait par Marie le 25 novembre 2026, confirmé** (« c'est
+collé ») avant le push — **poussé (`4026bce`)**.
+
+**Reste hors de ce lot** : « puis en facture » de la demande d'origine est
+déjà satisfait par le mécanisme EXISTANT de Facture de VE
+(`externalSaleInvoiceLines` sur les `PurchaseRequest` réelles, corrigé le
+24 novembre) — aucun changement nécessaire là, la nouvelle Confirmation
+de commande reste volontairement un document contractuel séparé, jamais
+une entrée du calcul financier. `purgeExternalSale`
+(`settings/purge.ts`) ne purge toujours pas la chaîne Soumission/Vente
+(lacune préexistante au module Soumission du 23 novembre, jamais
+revisitée) — ajouter `ExternalSaleConfirmation` n'aggrave pas cette
+lacune mais ne la corrige pas non plus ; à traiter une prochaine session
+si Marie le demande.
