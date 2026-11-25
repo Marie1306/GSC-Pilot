@@ -2023,3 +2023,73 @@ l'écran où Marie se trouve déjà.
 
 `npm run typecheck && npm run lint && npm test && npm run build` verts
 (538 tests, inchangé). Aucune migration. **Poussé (`270b3ac`)**.
+
+## Budgétaire — le Propriétaire peut ajuster les quantités, jamais les prix fixes (25 novembre 2026)
+
+Demande explicite de l'utilisatrice, formulée comme la correction d'une
+erreur : « Propriétaire DOIS pouvoir créer le budgétaire dans
+l'application. Pour l'instant, les cases normalement remplissable sont
+grisé (N'oublie pas, il y a des case qui ne doit pas changé comme
+certain prix dans service repas,km etc) Mais il doit pouvoir ajuster la
+quantité. Puis toute les cases de quantité d'heure. »
+
+**Ce qui existait avant, confirmé par lecture de code et de la
+spécification** : le Propriétaire pouvait déjà CRÉER un budgétaire
+(`canCreateBudgetFromRequest`, déjà `[OWNER, BOSS]`) mais, une fois
+ouvert, presque toutes les cases étaient grisées pour lui — `isRowEditable`
+(`BudgetDetail.tsx`)/`assertRowEditable` (`budgets/service.ts`) verrouillent
+TOUTE une ligne « labor » (toutes les catégories d'heures) ou marquée
+`directionOnly` (8 des 11 lignes d'« Installation — Frais divers » : Formation/
+Hébergement/Kilométrage/Transport/Déjeuner/Dîner/Souper/Avion, à prix réels
+fixes) à Direction seulement — **y compris la case Quantité/Heures**, pas
+seulement le taux/prix. C'était un comportement délibéré et déjà
+vérifié par test réel le 12 août 2026 (« le Propriétaire peut modifier
+une ligne Stock Fabrication mais pas « Formation »... ni aucune ligne
+Heures », `GSC_Pilot_Specification_confirmee.md`) — Marie demande ici de
+le renverser PARTIELLEMENT : la quantité doit s'ouvrir au Propriétaire,
+le taux/prix doit rester verrouillé.
+
+**Corrigé** : `assertRowEditable` (`apps/api/src/modules/budgets/service.ts`)
+devient sensible au PATCH reçu, pas seulement au type de ligne — sur une
+ligne par ailleurs verrouillée (labor ou directionOnly), un patch qui ne
+touche QUE `hours`/`qty` retombe sur la porte large déjà existante
+(`canModifyBudgetPurchaseLine`, Direction OU Propriétaire) ; un patch qui
+touche aussi `label`/`unitPrice`/`risk` (y compris un patch MIXTE,
+ex. qty + unitPrice dans la même requête) garde la porte étroite
+(`canModifyBudget`, Direction seule) — jamais d'ouverture partielle d'un
+champ verrouillé via un patch mixte. `removeBudgetRow` passe désormais un
+patch vide à `assertRowEditable`, donc `touchesOnlyQuantity` y est
+toujours faux : retirer une ligne reste un geste structurel complet,
+jamais traité comme une modification de quantité, même sur une ligne par
+ailleurs ouverte au Propriétaire pour sa quantité. Aucun changement à
+`routes.ts` : la porte au niveau route était déjà la porte large
+(`canModifyBudgetPurchaseLine`), avec un commentaire existant confirmant
+que la porte fine par ligne vit entièrement dans le service — exactement
+le point d'entrée qu'il fallait modifier.
+
+Côté frontend (`BudgetDetail.tsx`) : nouveau `editableQty` (= `canModifyPurchase
+&& !busy`, indépendant du type de ligne) gouverne UNIQUEMENT le champ
+Heures/Qté de chaque ligne ; le booléen existant `editable` (dérivé de
+`isRowEditable`, inchangé) continue de gouverner prix unitaire/nom/
+risque/bouton de retrait. Sur une ligne purchase non-directionOnly (déjà
+ouverte aux deux rôles avant ce correctif), `editableQty` et `editable`
+restent strictement identiques — aucun changement de comportement pour
+ces lignes-là.
+
+Vérifié contre Postgres local (`gscpilot_verify`, cluster relancé,
+script jetable supprimé après usage) : Propriétaire peut patcher `hours`
+sur une ligne labor (Plasma) et `qty` sur une ligne purchase
+directionOnly (Formation) ; Propriétaire reste bloqué (403) sur
+`unitPrice`/`label` de ces mêmes lignes, et sur un patch mixte
+qty+unitPrice ; Propriétaire garde l'accès complet déjà existant sur les
+lignes purchase non-directionOnly (Location, Vérin) y compris leur
+retrait ; Propriétaire reste bloqué pour retirer une ligne modulaire
+même artificiellement marquée directionOnly (patch vide, cas qui ne se
+produit jamais en pratique — aucune vraie ligne modulable n'est
+directionOnly aujourd'hui, mais le chemin de code est exercé directement) ;
+Direction garde l'accès complet déjà existant sur toutes ces lignes,
+aucune régression. `npm run typecheck && npm run lint && npm test &&
+npm run build` verts (538 tests, inchangé — correctif de permission pur,
+aucune nouvelle règle métier testée séparément, déjà couvert par la
+vérification Postgres directe). Aucune migration — correctif de
+permission pur, rien à coller dans Supabase. **Poussé (`c75db1d`)**.
