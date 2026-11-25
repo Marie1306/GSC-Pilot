@@ -13,6 +13,7 @@ import {
   formatCurrency,
   EXTERNAL_SALE_QUOTE_STATUS_LABELS,
 } from "./api.js";
+import { fetchConfirmationForExternalSaleQuote, convertExternalSaleQuoteToConfirmation } from "../externalSaleConfirmations/api.js";
 
 interface ExternalSaleQuoteDetailProps {
   id: string;
@@ -28,6 +29,13 @@ interface ExternalSaleQuoteDetailProps {
  * ce genre). « Convertir en vente » appelle convertExternalSaleQuoteToSale
  * — crée la vraie ExternalSale (VE-AAAA-NNNN) + ses PurchaseRequest,
  * seulement disponible une fois acceptée.
+ *
+ * « Convertir en confirmation de commande » (25 novembre 2026) —
+ * indépendante de la conversion en vente ci-dessus (décision confirmée
+ * avec Marie) : les deux restent disponibles dans n'importe quel ordre, dès
+ * l'acceptation, sans dépendance entre elles — exactement comme
+ * ConfirmationDeCommande (Budget/Soumission) ne gate jamais
+ * convertBudgetToProject/convertBudgetToRolling.
  */
 export function ExternalSaleQuoteDetail({ id, onClose, onConverted }: ExternalSaleQuoteDetailProps) {
   const { employee } = useAuth();
@@ -36,6 +44,18 @@ export function ExternalSaleQuoteDetail({ id, onClose, onConverted }: ExternalSa
   const quote = detailQuery.data;
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showConvertToConfirmation, setShowConvertToConfirmation] = useState(false);
+  const [clientPoNumber, setClientPoNumber] = useState("");
+
+  // Confirmation de commande (25 novembre 2026) — indépendante de
+  // « Convertir en vente » (décision confirmée) : disponible dès
+  // l'acceptation, dans n'importe quel ordre par rapport à la vente.
+  const confirmationQuery = useQuery({
+    queryKey: ["confirmation-for-external-sale-quote", id],
+    queryFn: () => fetchConfirmationForExternalSaleQuote(id),
+    enabled: quote?.status === "accepted",
+  });
+  const confirmation = confirmationQuery.data?.confirmation ?? null;
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["external-sale-quote", id] });
@@ -73,6 +93,16 @@ export function ExternalSaleQuoteDetail({ id, onClose, onConverted }: ExternalSa
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["external-sale-quotes"] });
       onClose();
+    },
+    onError: onMutationError,
+  });
+  const convertToConfirmationMutation = useMutation({
+    mutationFn: () => convertExternalSaleQuoteToConfirmation(id, { clientPoNumber: clientPoNumber.trim() || undefined }),
+    onSuccess: () => {
+      setError(null);
+      setShowConvertToConfirmation(false);
+      setClientPoNumber("");
+      void queryClient.invalidateQueries({ queryKey: ["confirmation-for-external-sale-quote", id] });
     },
     onError: onMutationError,
   });
@@ -117,6 +147,13 @@ export function ExternalSaleQuoteDetail({ id, onClose, onConverted }: ExternalSa
             </p>
             {quote.convertedSaleDisplayId && (
               <p style={{ margin: "4px 0 0", color: "var(--gsc-color-muted)", fontSize: 13 }}>Convertie en vente {quote.convertedSaleDisplayId}</p>
+            )}
+            {confirmation && (
+              <p style={{ margin: "4px 0 0", color: "var(--gsc-color-muted)", fontSize: 13 }}>
+                Confirmation de commande {confirmation.displayId}
+                {confirmation.clientPoNumber ? ` · BC client ${confirmation.clientPoNumber}` : ""} · {formatCurrency(confirmation.totalWithTax)} ·{" "}
+                {formatCalendarDate(confirmation.createdAt)}
+              </p>
             )}
           </div>
           <button type="button" className="modal-close" onClick={onClose} aria-label="Fermer">
@@ -187,12 +224,46 @@ export function ExternalSaleQuoteDetail({ id, onClose, onConverted }: ExternalSa
               {convertMutation.isPending ? "…" : "Convertir en vente"}
             </button>
           )}
+          {canManage && quote.status === "accepted" && !confirmation && (
+            <>
+              {!showConvertToConfirmation ? (
+                <button type="button" className="btn btn-secondary" onClick={() => setShowConvertToConfirmation(true)}>
+                  Convertir en confirmation de commande
+                </button>
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    placeholder="No de bon de commande du client (facultatif)"
+                    value={clientPoNumber}
+                    onChange={(e) => setClientPoNumber(e.target.value)}
+                    style={{ width: 220 }}
+                  />
+                  <button type="button" className="btn" disabled={convertToConfirmationMutation.isPending} onClick={() => convertToConfirmationMutation.mutate()}>
+                    {convertToConfirmationMutation.isPending ? "…" : "Confirmer la conversion"}
+                  </button>
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowConvertToConfirmation(false)}>
+                    Annuler
+                  </button>
+                </>
+              )}
+            </>
+          )}
           {quote.sentAt && (
             <button type="button" className="btn btn-secondary" onClick={() => window.open(`/external-sale-quotes/${id}/export`, "_blank", "noopener")}>
               Imprimer
             </button>
           )}
-          {canManage && !quote.convertedSaleId && (
+          {confirmation && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => window.open(`/external-sale-confirmations/${confirmation.id}/export`, "_blank", "noopener")}
+            >
+              Imprimer la confirmation
+            </button>
+          )}
+          {canManage && !quote.convertedSaleId && !confirmation && (
             <>
               {!confirmDelete ? (
                 <button type="button" className="btn btn-secondary" onClick={() => setConfirmDelete(true)}>

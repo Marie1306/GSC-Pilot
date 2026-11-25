@@ -24,6 +24,9 @@ interface ExternalSaleDocumentsProps {
   /** Soumission d'origine (24 novembre 2026) — présente seulement si la vente vient d'une soumission convertie, jamais pour une vente créée directement. */
   quoteId: string | null;
   quoteDisplayId: string | null;
+  /** Confirmation de commande de cette soumission (25 novembre 2026) — indépendante de la vente, peut exister ou non peu importe l'ordre de conversion. */
+  confirmationId: string | null;
+  confirmationDisplayId: string | null;
   invoiceEntryId: string | null;
   invoiceNumber: string | null;
 }
@@ -42,7 +45,15 @@ interface ExternalSaleDocumentsProps {
  * OWNER/ADMIN/BOSS) pour le bloc entier, canManageExternalSaleDocuments
  * (plus étroite, OWNER/BOSS) pour le dépôt.
  */
-export function ExternalSaleDocuments({ externalSaleId, quoteId, quoteDisplayId, invoiceEntryId, invoiceNumber }: ExternalSaleDocumentsProps) {
+export function ExternalSaleDocuments({
+  externalSaleId,
+  quoteId,
+  quoteDisplayId,
+  confirmationId,
+  confirmationDisplayId,
+  invoiceEntryId,
+  invoiceNumber,
+}: ExternalSaleDocumentsProps) {
   const { employee } = useAuth();
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -80,12 +91,23 @@ export function ExternalSaleDocuments({ externalSaleId, quoteId, quoteDisplayId,
         <h3>Documents</h3>
       </div>
 
-      {(quoteId || invoiceEntryId) && (
+      {(quoteId || confirmationId || invoiceEntryId) && (
         <ul className="notes-list">
           {quoteId && (
             <li>
               <button type="button" className="link-button" onClick={() => window.open(`/external-sale-quotes/${quoteId}/export`, "_blank", "noopener")}>
                 Soumission {quoteDisplayId}
+              </button>
+            </li>
+          )}
+          {confirmationId && (
+            <li>
+              <button
+                type="button"
+                className="link-button"
+                onClick={() => window.open(`/external-sale-confirmations/${confirmationId}/export`, "_blank", "noopener")}
+              >
+                Confirmation de commande {confirmationDisplayId}
               </button>
             </li>
           )}

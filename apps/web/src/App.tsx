@@ -21,6 +21,7 @@ import { DeliveryExportView } from "./features/fulfillment/DeliveryExportView.js
 import { SoumissionExportView } from "./features/soumissions/SoumissionExportView.js";
 import { ConfirmationExportView } from "./features/confirmationsDeCommande/ConfirmationExportView.js";
 import { ExternalSaleQuoteExportView } from "./features/externalSaleQuotes/ExternalSaleQuoteExportView.js";
+import { ExternalSaleConfirmationExportView } from "./features/externalSaleConfirmations/ExternalSaleConfirmationExportView.js";
 import { InvoiceExportView } from "./features/invoicing/InvoiceExportView.js";
 import { TreasuryForecastExportView } from "./features/treasury/TreasuryForecastExportView.js";
 import { RollingPostMortemExportView } from "./features/rollings/RollingPostMortemExportView.js";
@@ -135,6 +136,14 @@ export function App() {
             element={
               <RequireRole allow={canManageExternalSales}>
                 <ExternalSaleQuoteExportView />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/external-sale-confirmations/:id/export"
+            element={
+              <RequireRole allow={canManageExternalSales}>
+                <ExternalSaleConfirmationExportView />
               </RequireRole>
             }
           />

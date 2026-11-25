@@ -177,6 +177,8 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
                 externalSaleId={id}
                 quoteId={sale.quoteId}
                 quoteDisplayId={sale.quoteDisplayId}
+                confirmationId={sale.confirmationId}
+                confirmationDisplayId={sale.confirmationDisplayId}
                 invoiceEntryId={sale.invoiceEntryId}
                 invoiceNumber={sale.invoiceNumber}
               />

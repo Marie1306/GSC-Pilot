@@ -820,8 +820,13 @@ model ExternalSaleQuote {
   createdAt   DateTime  @default(now())
   deletedAt   DateTime?
 
-  lines ExternalSaleQuoteLine[]
-  sale  ExternalSale? // relation gérée vit sur ExternalSale.quoteId (@unique)
+  lines        ExternalSaleQuoteLine[]
+  sale         ExternalSale? // relation gérée vit sur ExternalSale.quoteId (@unique)
+  // Confirmation de commande VE (25 novembre 2026) — relation gérée vit sur
+  // ExternalSaleConfirmation.quoteId (@unique). Indépendante de `sale` ci-
+  // dessus : les deux conversions (confirmation, vente) sont disponibles
+  // dans n'importe quel ordre, sans dépendance entre elles (confirmé).
+  confirmation ExternalSaleConfirmation?
 
   @@index([status])
 }
@@ -835,6 +840,70 @@ model ExternalSaleQuoteLine {
   unitCost    Decimal @db.Decimal(12, 2)
   amount      Decimal @db.Decimal(12, 2) // externalSaleLineAmount(qty, unitCost), gelé
   sortOrder   Int     @default(0)
+}
+
+/**
+ * Confirmation de commande de Vente externe (25 novembre 2026, demande
+ * explicite de Marie — « comme les autres modules ») — même esprit que
+ * ConfirmationDeCommande (Budget/Soumission) mais mécanisme PARALLÈLE,
+ * jamais fusionné : FK vers ExternalSaleQuote (pas Soumission), module API
+ * sœur à part entière (externalSaleConfirmations/, jamais ajouté dans
+ * externalSaleQuotes/service.ts). Artefact feuille, lecture seule, figé une
+ * fois pour toutes — aucun statut, aucun cycle décision, jamais recalculé.
+ *
+ * Indépendante de ExternalSale.quoteId (décision confirmée) : créer cette
+ * confirmation ne gate JAMAIS convertExternalSaleQuoteToSale, et
+ * inversement — exactement comme ConfirmationDeCommande ne gate jamais
+ * convertBudgetToProject/convertBudgetToRolling. Jamais branchée dans le
+ * calcul de Facture (qui utilise déjà externalSaleInvoiceLines sur les
+ * PurchaseRequest réelles de la vente, corrigé le 24 novembre) — un document
+ * purement contractuel, pas une source de vérité financière.
+ */
+model ExternalSaleConfirmation {
+  id        String @id @default(uuid())
+  displayId String @unique // format CE-AAAA-NNNN
+
+  quoteId String            @unique
+  quote   ExternalSaleQuote @relation(fields: [quoteId], references: [id])
+
+  // Texte brut, PAS de FK Contact — même philosophie qu'ExternalSaleQuote :
+  // copié depuis ExternalSaleQuote.contactName/etc. à la conversion, JAMAIS
+  // depuis ExternalSale.contact (qui peut ne pas encore exister, ou avoir
+  // été résolu séparément — les deux conversions sont indépendantes, dans
+  // n'importe quel ordre).
+  contactName String
+  company     String?
+  contactRole String?
+  phone       String?
+  email       String?
+
+  clientPoNumber String?
+  introText      String?
+  termsText      String?
+
+  // Copie PURE de quote.salePrice/tpsAmount/tvqAmount/totalWithTax (déjà
+  // gelés à sendExternalSaleQuote) — jamais recalculés ici.
+  amountBeforeTax Decimal @db.Decimal(12, 2)
+  tpsAmount       Decimal @db.Decimal(12, 2)
+  tvqAmount       Decimal @db.Decimal(12, 2)
+  totalWithTax    Decimal @db.Decimal(12, 2)
+
+  createdById String
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+
+  lines ExternalSaleConfirmationLine[]
+}
+
+model ExternalSaleConfirmationLine {
+  id             String                   @id @default(uuid())
+  confirmationId String
+  confirmation   ExternalSaleConfirmation @relation(fields: [confirmationId], references: [id], onDelete: Cascade)
+  description    String
+  qty            Decimal @db.Decimal(10, 2)
+  unitPrice      Decimal @db.Decimal(12, 2)
+  amount         Decimal @db.Decimal(12, 2) // qty × unitPrice, gelé (sortie de externalSaleInvoiceLines)
+  sortOrder      Int     @default(0)
 }
 
 /**
@@ -1943,6 +2012,11 @@ model Settings {
   // ExternalSaleQuote).
   nextExternalSaleQuoteNumber  Int      @default(1)
   externalSaleQuoteNumberYear  Int      @default(2026)
+  // Confirmation de commande VE (25 novembre 2026) — CE-AAAA-NNNN, propre
+  // compteur annuel, jamais partagé avec nextConfirmationNumber (CC-,
+  // Projet/Roulement) ni nextExternalSaleQuoteNumber (DV-) ci-dessus.
+  nextExternalSaleConfirmationNumber Int @default(1)
+  externalSaleConfirmationNumberYear Int @default(2026)
   // SEAO (nouveau module, 16 septembre 2026) — AO-AAAA-NNNN, remise à zéro
   // annuelle dès le départ, même mécanisme que externalSaleNumberYear.
   nextSeaoNumber               Int      @default(1)

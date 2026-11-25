@@ -55,6 +55,9 @@ export interface ExternalSaleDetailDto {
   /** Soumission d'origine (24 novembre 2026, section Documents) — null si créée directement. */
   quoteId: string | null;
   quoteDisplayId: string | null;
+  /** Confirmation de commande de la soumission d'origine (25 novembre 2026, section Documents) — null si absente. */
+  confirmationId: string | null;
+  confirmationDisplayId: string | null;
   partsBaseCost: number;
   transportFee: number;
   adminFee: number;

@@ -231,6 +231,12 @@ export async function deleteExternalSaleQuote(id: string): Promise<void> {
   await loadExternalSaleQuoteOrThrow(id);
   const existingSale = await prisma.externalSale.findUnique({ where: { quoteId: id } });
   if (existingSale) throw new HttpError(409, "Cette soumission a déjà été convertie en vente externe.");
+  // Même garde que deleteSoumission pour ConfirmationDeCommande (25
+  // novembre 2026) — indépendante de la garde ci-dessus : protège la
+  // soumission SOURCE une fois qu'un document en dépend, sans lien avec
+  // l'indépendance entre les deux conversions elles-mêmes.
+  const existingConfirmation = await prisma.externalSaleConfirmation.findUnique({ where: { quoteId: id } });
+  if (existingConfirmation) throw new HttpError(409, "Cette soumission a déjà été convertie en confirmation de commande.");
   await prisma.externalSaleQuote.update({ where: { id }, data: { deletedAt: new Date() } });
 }
 

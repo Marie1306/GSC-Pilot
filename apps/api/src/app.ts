@@ -33,6 +33,7 @@ import { errorReportsRouter } from "./modules/errorReports/routes.js";
 import { teamNotesRouter } from "./modules/teamNotes/routes.js";
 import { externalSalesRouter } from "./modules/externalSales/routes.js";
 import { externalSaleQuotesRouter } from "./modules/externalSaleQuotes/routes.js";
+import { externalSaleConfirmationsRouter } from "./modules/externalSaleConfirmations/routes.js";
 import { seaoRouter } from "./modules/seao/routes.js";
 import { toolboxRouter } from "./modules/toolbox/routes.js";
 import { treasuryRouter } from "./modules/treasury/routes.js";
@@ -105,6 +106,7 @@ export function createApp() {
   app.use("/api", teamNotesRouter);
   app.use("/api", externalSalesRouter);
   app.use("/api", externalSaleQuotesRouter);
+  app.use("/api", externalSaleConfirmationsRouter);
   app.use("/api", seaoRouter);
   app.use("/api", toolboxRouter);
   app.use("/api", treasuryRouter);
