@@ -19,6 +19,7 @@ import {
 import { ExternalSaleFulfillment } from "./ExternalSaleFulfillment.js";
 import { ExternalSaleEditForm } from "./ExternalSaleEditForm.js";
 import { PurgeConfirmModal } from "../../components/PurgeConfirmModal.js";
+import { convertExternalSaleQuoteToConfirmation } from "../externalSaleConfirmations/api.js";
 
 interface ExternalSaleDetailProps {
   id: string;
@@ -37,6 +38,13 @@ function formatDateTime(iso: string): string {
  * reçue, puis Livraison (ExternalSaleFulfillment.tsx). L'approbation/
  * commande/réception de chaque ligne se fait dans le module Achats existant
  * (PurchaseRequestList.tsx) — jamais dupliquée ici, voir le plan confirmé.
+ *
+ * « Convertir en confirmation de commande » (25 novembre 2026) — 2e point
+ * d'entrée vers la même action que ExternalSaleQuoteDetail.tsx (nécessaire
+ * : une fois la soumission convertie en vente, elle quitte la liste
+ * "Soumissions" et son détail interactif n'est plus accessible autrement
+ * que par ici). `sale.quoteId` null (vente créée directement, jamais de
+ * soumission) → bouton absent, aucun moyen de générer une confirmation.
  */
 export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
   const { employee } = useAuth();
@@ -46,11 +54,31 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
   const [requestModalOpen, setRequestModalOpen] = useState(false);
   const [showPurgeConfirm, setShowPurgeConfirm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
+  const [showConvertToConfirmation, setShowConvertToConfirmation] = useState(false);
+  const [clientPoNumber, setClientPoNumber] = useState("");
+  const [confirmationError, setConfirmationError] = useState<string | null>(null);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["external-sale", id] });
     void queryClient.invalidateQueries({ queryKey: ["external-sales"] });
   };
+  // Accessible aussi depuis l'écran de la vente (25 novembre 2026, rapporté
+  // par Marie — VE-2026-0008) : une fois une soumission convertie en vente,
+  // elle quitte la liste "Soumissions" (24 novembre) et son détail
+  // interactif devient impossible à rouvrir depuis l'interface — le lien
+  // Documents n'ouvre que l'export PDF. Reprend exactement la même logique
+  // que ExternalSaleQuoteDetail.tsx (indépendante, n'importe quel ordre),
+  // juste un 2e point d'entrée vers la même action.
+  const convertToConfirmationMutation = useMutation({
+    mutationFn: () => convertExternalSaleQuoteToConfirmation(sale!.quoteId!, { clientPoNumber: clientPoNumber.trim() || undefined }),
+    onSuccess: () => {
+      setConfirmationError(null);
+      setShowConvertToConfirmation(false);
+      setClientPoNumber("");
+      invalidate();
+    },
+    onError: (err: unknown) => setConfirmationError(err instanceof ApiError ? err.message : "Une erreur est survenue — réessayez."),
+  });
   const applyMutation = useMutation({
     mutationFn: applyPurchaseRequestToExternalSale,
     onSuccess: invalidate,
@@ -87,6 +115,11 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
                     Facturation demandée le {formatDateTime(sale.invoiceRequestedAt)}
                   </p>
                 )}
+                {sale.confirmationId && (
+                  <p style={{ margin: "4px 0 0", color: "var(--gsc-color-muted)", fontSize: 13 }}>
+                    Confirmation de commande {sale.confirmationDisplayId}
+                  </p>
+                )}
               </>
             )}
           </div>
@@ -99,6 +132,7 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
           {!sale && <p>Chargement…</p>}
           {sale && (
             <>
+              {confirmationError && <p className="form-error">{confirmationError}</p>}
               <div className="stat-tile-grid">
                 <div className="stat-tile">
                   <span className="stat-tile-label">Coût des pièces</span>
@@ -205,6 +239,40 @@ export function ExternalSaleDetail({ id, onClose }: ExternalSaleDetailProps) {
           {sale && isCompleted && canRequestInvoiceForSale && !sale.invoiceRequestedAt && (
             <button type="button" className="btn btn-secondary" onClick={() => setRequestModalOpen(true)}>
               Demander la facturation
+            </button>
+          )}
+          {sale && canManage && sale.quoteId && !sale.confirmationId && (
+            <>
+              {!showConvertToConfirmation ? (
+                <button type="button" className="btn btn-secondary" onClick={() => setShowConvertToConfirmation(true)}>
+                  Convertir en confirmation de commande
+                </button>
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    placeholder="No de bon de commande du client (facultatif)"
+                    value={clientPoNumber}
+                    onChange={(e) => setClientPoNumber(e.target.value)}
+                    style={{ width: 220 }}
+                  />
+                  <button type="button" className="btn" disabled={convertToConfirmationMutation.isPending} onClick={() => convertToConfirmationMutation.mutate()}>
+                    {convertToConfirmationMutation.isPending ? "…" : "Confirmer la conversion"}
+                  </button>
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowConvertToConfirmation(false)}>
+                    Annuler
+                  </button>
+                </>
+              )}
+            </>
+          )}
+          {sale && sale.confirmationId && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => window.open(`/external-sale-confirmations/${sale.confirmationId}/export`, "_blank", "noopener")}
+            >
+              Imprimer la confirmation
             </button>
           )}
           {sale && canPurge && (
