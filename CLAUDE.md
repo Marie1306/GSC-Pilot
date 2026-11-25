@@ -1996,3 +1996,30 @@ une entrée du calcul financier. `purgeExternalSale`
 revisitée) — ajouter `ExternalSaleConfirmation` n'aggrave pas cette
 lacune mais ne la corrige pas non plus ; à traiter une prochaine session
 si Marie le demande.
+
+### Bogue trouvé le jour même — bouton inaccessible pour une vente déjà convertie avant ce chantier
+
+Rapporté par Marie (« je ne peux toujours pas convertir ma VE-2026-0008 »
+— une vente créée à partir d'une soumission déjà acceptée/convertie
+**avant** le chantier Confirmation de commande ci-dessus). Cause : le
+bouton « Convertir en confirmation de commande » ne vivait que sur
+`ExternalSaleQuoteDetail.tsx` (détail de la Soumission) — mais une
+soumission déjà convertie quitte la liste « Soumissions » depuis le
+correctif du 24 novembre, et le lien « Soumission {displayId} » dans
+`ExternalSaleDocuments.tsx` n'ouvre que l'export PDF en lecture seule,
+jamais l'écran interactif. Pour toute vente créée avant ce matin (donc
+TOUTES les ventes réelles existantes issues d'une soumission), le bouton
+était ainsi invisible et inatteignable.
+
+**Corrigé** : même bouton (+ révélation inline `clientPoNumber`, + bouton
+Imprimer une fois créée) ajouté directement sur `ExternalSaleDetail.tsx`
+(écran de la vente elle-même) — visible dès que `sale.quoteId` existe,
+absent si la vente a été créée directement (aucune soumission à
+convertir, cas non couvert par ce mécanisme, voir plus haut). Réutilise
+exactement la même route déjà vérifiée (`convertExternalSaleQuoteToConfirmation`)
+— aucun changement backend, correctif purement frontend. Les deux points
+d'entrée (Soumission ET Vente) coexistent désormais, chacun utile selon
+l'écran où Marie se trouve déjà.
+
+`npm run typecheck && npm run lint && npm test && npm run build` verts
+(538 tests, inchangé). Aucune migration. **Poussé (`270b3ac`)**.
