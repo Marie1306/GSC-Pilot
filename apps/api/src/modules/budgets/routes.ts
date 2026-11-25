@@ -161,9 +161,9 @@ budgetsRouter.patch(
   requireAuth,
   // Porte élargie le 25 novembre 2026 (même demande explicite que la
   // quantité/risque ci-dessus) : la complexité d'une section n'est ni un
-  // prix ni un taux fixe, ouverte à Direction ET Propriétaire — contraste
-  // avec /backup et /project-backup ci-dessous, restées Direction seule
-  // (elles mêlent la complexité à un champ non demandé, pct/montant).
+  // prix ni un taux fixe, ouverte à Direction ET Propriétaire — même porte
+  // que /backup et /project-backup ci-dessous, élargies le même jour sur
+  // confirmation explicite de l'utilisatrice (« oui, ouvre-les aussi »).
   requirePermission((persona) => canModifyBudgetPurchaseLine(persona)),
   async (req, res) => {
     const id = z.uuid().parse(req.params.id);
@@ -177,7 +177,12 @@ budgetsRouter.patch(
 budgetsRouter.patch(
   "/budgets/:id/backup",
   requireAuth,
-  requirePermission((persona) => canModifyBudget(persona)),
+  // Porte élargie le 25 novembre 2026 (confirmation explicite de
+  // l'utilisatrice après l'avoir d'abord laissée de côté le même jour) :
+  // ni pct ni complexity ne sont un prix/taux fixe — les deux champs de ce
+  // patch sont ouverts à Direction ET Propriétaire, aucune logique par-champ
+  // nécessaire ici (contrairement à assertRowEditable, voir plus haut).
+  requirePermission((persona) => canModifyBudgetPurchaseLine(persona)),
   async (req, res) => {
     const id = z.uuid().parse(req.params.id);
     const patch = z
@@ -191,7 +196,9 @@ budgetsRouter.patch(
 budgetsRouter.patch(
   "/budgets/:id/project-backup",
   requireAuth,
-  requirePermission((persona) => canModifyBudget(persona)),
+  // Porte élargie le 25 novembre 2026, même raisonnement que /backup
+  // ci-dessus : amount/complexity ouverts à Direction ET Propriétaire.
+  requirePermission((persona) => canModifyBudgetPurchaseLine(persona)),
   async (req, res) => {
     const id = z.uuid().parse(req.params.id);
     const patch = z

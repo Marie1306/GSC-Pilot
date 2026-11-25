@@ -736,7 +736,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       min={0}
                       step={1}
                       defaultValue={budget.backupHoursPct}
-                      disabled={!canModifyLabor || backupMutation.isPending}
+                      disabled={!canModifyPurchase || backupMutation.isPending}
                       onFocus={(e) => e.target.select()}
                       onBlur={(e) => {
                         const pct = Number(e.target.value || 0);
@@ -749,7 +749,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                     <select
                       id="backup-complexity"
                       value={budget.backupHoursComplexity}
-                      disabled={!canModifyLabor || backupMutation.isPending}
+                      disabled={!canModifyPurchase || backupMutation.isPending}
                       onChange={(e) => backupMutation.mutate({ complexity: Number(e.target.value) })}
                     >
                       {COMPLEXITY_OPTIONS.map((level) => (
@@ -791,7 +791,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       min={0}
                       step={100}
                       defaultValue={budget.projectBackupAmount}
-                      disabled={!canModifyLabor || projectBackupMutation.isPending}
+                      disabled={!canModifyPurchase || projectBackupMutation.isPending}
                       onFocus={(e) => e.target.select()}
                       onBlur={(e) => {
                         const amount = Number(e.target.value || 0);
@@ -804,7 +804,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                     <select
                       id="project-backup-complexity"
                       value={budget.projectBackupComplexity}
-                      disabled={!canModifyLabor || projectBackupMutation.isPending}
+                      disabled={!canModifyPurchase || projectBackupMutation.isPending}
                       onChange={(e) => projectBackupMutation.mutate({ complexity: Number(e.target.value) })}
                     >
                       {COMPLEXITY_OPTIONS.map((level) => (
