@@ -2112,12 +2112,19 @@ complète, inchangé. Route `PATCH /budgets/:id/sections/:sectionId`
 nécessaire) : porte route élargie de `canModifyBudget` à
 `canModifyBudgetPurchaseLine` — s'applique à toutes les sections, labor
 et purchase, puisque la complexité n'a jamais été liée à `directionOnly`.
-**Volontairement laissé en dehors de ce lot** : les 2 sélecteurs
-Complexité des cartes Back-up d'heures/Back-up projet, et leurs champs
-« % des heures admissibles »/« Montant de réserve » — ces 2 routes
-(`/backup`, `/project-backup`) mêlent la complexité à un champ non
-demandé par Marie (pct/montant) dans la même permission ; jamais deviné
-au-delà de ce qu'elle a rapporté, à traiter si elle le signale.
+**Laissé en dehors de ce lot, puis ouvert le même jour sur confirmation**
+(« oui, ouvre-les aussi ») : les 2 sélecteurs Complexité des cartes
+Back-up d'heures/Back-up projet, et leurs champs « % des heures
+admissibles »/« Montant de réserve » — ces 2 routes (`/backup`,
+`/project-backup`) mêlent la complexité à un champ non encore demandé
+(pct/montant) dans la même permission. Confirmé qu'aucune des deux
+fonctions service (`updateBackupSettings`/`updateProjectBackup`) ne
+prend de `persona` du tout (contrairement à `assertRowEditable`) — porte
+route élargie en bloc (`canModifyBudget` → `canModifyBudgetPurchaseLine`),
+aucune logique par-champ nécessaire ici, les deux champs de chaque patch
+sont désormais ouverts. `npm run typecheck && npm run lint && npm test
+&& npm run build` verts (538 tests, inchangé). Aucune migration.
+**Poussé (`f7c0a45`)**.
 
 Côté frontend (`BudgetDetail.tsx`) : le select Complexité de l'en-tête de
 section passe de `canModifyLabor` à `canModifyPurchase` ; l'input Risque/
