@@ -2093,3 +2093,46 @@ npm run build` verts (538 tests, inchangé — correctif de permission pur,
 aucune nouvelle règle métier testée séparément, déjà couvert par la
 vérification Postgres directe). Aucune migration — correctif de
 permission pur, rien à coller dans Supabase. **Poussé (`c75db1d`)**.
+
+### Rattrapage le jour même — risque/note + complexité de section oubliés
+
+Rapporté par Marie immédiatement après avoir testé le correctif
+ci-dessus : « ok ca fonctionne, mais tu as oublié risque (a remplir) et
+la complexité ». Deux champs de plus, sur les mêmes lignes « labor »/
+directionOnly déjà identifiées ci-dessus, étaient restés verrouillés à
+Direction seule sans raison confirmée — ni l'un ni l'autre n'est un prix
+ou un taux fixe comme Formation/Hébergement/Kilométrage.
+
+**Corrigé** : `assertRowEditable` (budgets/service.ts) — l'ensemble des
+champs ouverts au Propriétaire sur un patch passe de `{hours, qty}` à
+`{hours, qty, risk}` (`OPEN_FIELDS_FOR_OWNER`) ; un patch qui touche
+`label`/`unitPrice` (seul ou mélangé à un champ ouvert) garde la porte
+complète, inchangé. Route `PATCH /budgets/:id/sections/:sectionId`
+(complexité de section, un seul champ, aucune logique par-patch
+nécessaire) : porte route élargie de `canModifyBudget` à
+`canModifyBudgetPurchaseLine` — s'applique à toutes les sections, labor
+et purchase, puisque la complexité n'a jamais été liée à `directionOnly`.
+**Volontairement laissé en dehors de ce lot** : les 2 sélecteurs
+Complexité des cartes Back-up d'heures/Back-up projet, et leurs champs
+« % des heures admissibles »/« Montant de réserve » — ces 2 routes
+(`/backup`, `/project-backup`) mêlent la complexité à un champ non
+demandé par Marie (pct/montant) dans la même permission ; jamais deviné
+au-delà de ce qu'elle a rapporté, à traiter si elle le signale.
+
+Côté frontend (`BudgetDetail.tsx`) : le select Complexité de l'en-tête de
+section passe de `canModifyLabor` à `canModifyPurchase` ; l'input Risque/
+note réutilise le `editableQty` déjà introduit pour la quantité (renommé
+seulement dans son commentaire, pas dans le code, pour limiter le diff) —
+`editable` (porte étroite) ne gouverne donc plus que nom/prix unitaire/
+retrait de ligne.
+
+Vérifié contre Postgres local (`gscpilot_verify`, script jetable
+supprimé après usage) : Propriétaire peut patcher `risk` seul sur une
+ligne labor et sur une ligne purchase directionOnly, et un patch MIXTE
+`qty`+`risk` (les deux ouverts) sur la même ligne ; Propriétaire reste
+bloqué sur `unitPrice` seul ET sur un patch mixte `risk`+`unitPrice` ;
+Propriétaire peut patcher la complexité d'une section labor ET d'une
+section purchase ; Direction garde l'accès complet déjà existant partout
+(unitPrice, complexité), aucune régression. `npm run typecheck && npm
+run lint && npm test && npm run build` verts (538 tests, inchangé).
+Aucune migration. **Poussé (`dcf02b7`)**.
