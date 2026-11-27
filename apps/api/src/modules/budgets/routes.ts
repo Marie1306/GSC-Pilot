@@ -3,7 +3,6 @@ import { z } from "zod";
 import {
   canCreateBudgetFromRequest,
   canAccessBudget,
-  canModifyBudget,
   canModifyBudgetPurchaseLine,
   canApproveBudgetForSending,
   canRecordBudgetOutcome,
@@ -209,10 +208,19 @@ budgetsRouter.patch(
   },
 );
 
+/**
+ * Champs d'en-tête (PO client/Quantité/Valide jusqu'au/Résumés) — jamais
+ * un prix ou un taux fixe, donc HORS de l'exception canModifyBudget
+ * confirmée le 25 novembre 2026 (miroir exact) pour les lignes du
+ * budgétaire uniquement. Porte élargie le 27 novembre 2026, rapporté par
+ * l'utilisatrice (« il ne peut toujours pas rentrer des informations
+ * ici ») : canModifyBudget était réutilisée ici par défaut historique,
+ * jamais une exclusion délibérée de Propriétaire sur CE contenu précis.
+ */
 budgetsRouter.patch(
   "/budgets/:id/meta",
   requireAuth,
-  requirePermission((persona) => canModifyBudget(persona)),
+  requirePermission((persona) => canModifyBudgetPurchaseLine(persona)),
   async (req, res) => {
     const id = z.uuid().parse(req.params.id);
     const patch = z
@@ -229,11 +237,17 @@ budgetsRouter.patch(
   },
 );
 
-/** Notes datées pour le suivi client (25 août 2026) — même porte que la modification du contenu, jamais bloquée par readOnly (informatif, pas du contenu financier). */
+/**
+ * Notes datées pour le suivi client (25 août 2026) — même porte que la
+ * modification du contenu, jamais bloquée par readOnly (informatif, pas
+ * du contenu financier) ; élargie le 27 novembre 2026 pour la même
+ * raison que /meta ci-dessus (jamais un prix, canModifyBudget réutilisée
+ * par défaut, pas une exclusion voulue).
+ */
 budgetsRouter.post(
   "/budgets/:id/notes",
   requireAuth,
-  requirePermission((persona) => canModifyBudget(persona)),
+  requirePermission((persona) => canModifyBudgetPurchaseLine(persona)),
   async (req, res) => {
     const id = z.uuid().parse(req.params.id);
     const { body } = z.object({ body: z.string().min(1, "La note ne peut pas être vide.") }).parse(req.body);

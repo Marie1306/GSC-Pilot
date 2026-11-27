@@ -623,6 +623,12 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                 <div className="budget-section-header">
                   <h3>Informations du budgétaire</h3>
                 </div>
+                {/* Champs d'en-tête (PO/Quantité/Valide jusqu'au/Résumés) : jamais
+                    un prix, donc canModifyPurchase (Direction OU Propriétaire) —
+                    pas canModifyLabor. Corrigé le 27 novembre 2026, rapporté par
+                    l'utilisatrice après le miroir exact du 25 novembre : ces champs
+                    utilisaient par défaut historique la même porte que les prix
+                    fixes des lignes, jamais une exclusion voulue pour ce contenu. */}
                 <div className="form-grid budget-meta-grid">
                   <div className="field">
                     <label htmlFor="meta-po">PO client (facultatif)</label>
@@ -630,7 +636,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       id="meta-po"
                       key={`po-${budget.poNumber}`}
                       defaultValue={budget.poNumber ?? ""}
-                      disabled={!canModifyLabor || metaMutation.isPending}
+                      disabled={!canModifyPurchase || metaMutation.isPending}
                       onBlur={(e) => {
                         const value = e.target.value.trim() || null;
                         if (value !== budget.poNumber) metaMutation.mutate({ poNumber: value });
@@ -645,7 +651,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       type="number"
                       min={1}
                       defaultValue={budget.quantity}
-                      disabled={!canModifyLabor || metaMutation.isPending}
+                      disabled={!canModifyPurchase || metaMutation.isPending}
                       onFocus={(e) => e.target.select()}
                       onBlur={(e) => {
                         const value = Math.max(1, Number(e.target.value || 1));
@@ -660,7 +666,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       key={`valid-${budget.validUntil}`}
                       type="date"
                       defaultValue={toDateInputValue(budget.validUntil)}
-                      disabled={!canModifyLabor || metaMutation.isPending}
+                      disabled={!canModifyPurchase || metaMutation.isPending}
                       onBlur={(e) => {
                         const value = e.target.value.trim() || null;
                         if (value !== toDateInputValue(budget.validUntil)) metaMutation.mutate({ validUntil: value });
@@ -675,7 +681,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       rows={2}
                       placeholder="Portée, hypothèses, prix, échéancier…"
                       defaultValue={budget.summary ?? ""}
-                      disabled={!canModifyLabor || metaMutation.isPending}
+                      disabled={!canModifyPurchase || metaMutation.isPending}
                       onBlur={(e) => {
                         const value = e.target.value.trim() || null;
                         if (value !== budget.summary) metaMutation.mutate({ summary: value });
@@ -692,7 +698,7 @@ export function BudgetDetail({ id, onClose }: BudgetDetailProps) {
                       rows={2}
                       placeholder="Complexité, ressources critiques, disponibilité des composantes…"
                       defaultValue={budget.riskSummary ?? ""}
-                      disabled={!canModifyLabor || metaMutation.isPending}
+                      disabled={!canModifyPurchase || metaMutation.isPending}
                       onBlur={(e) => {
                         const value = e.target.value.trim() || null;
                         if (value !== budget.riskSummary) metaMutation.mutate({ riskSummary: value });

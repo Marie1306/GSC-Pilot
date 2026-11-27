@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { canDeleteBudget, canResetBudget, canModifyBudget } from "@gsc-pilot/business-rules";
+import { canDeleteBudget, canResetBudget, canModifyBudgetPurchaseLine } from "@gsc-pilot/business-rules";
 import { useAuth } from "../../lib/auth/useAuth.js";
 import { ApiError } from "../../lib/apiClient.js";
 import { OptionsDrawer, OptionRow, OptionSection } from "../../components/OptionsDrawer.js";
@@ -72,7 +72,12 @@ export function BudgetOptionsMenu({ budget, open, onClose, onDeleted }: BudgetOp
   if (!open || !employee) return null;
   const canReset = canResetBudget(employee.persona);
   const canDelete = canDeleteBudget(employee.persona);
-  const canAddNote = canModifyBudget(employee.persona);
+  // Jamais un prix — hors de l'exception canModifyBudget (lignes du
+  // budgétaire uniquement, confirmée le 25 novembre 2026). Élargi le 27
+  // novembre 2026, même raisonnement que les champs d'en-tête
+  // (BudgetDetail.tsx) : canModifyBudget était réutilisée ici par défaut
+  // historique, jamais une exclusion voulue pour ce contenu informatif.
+  const canAddNote = canModifyBudgetPurchaseLine(employee.persona);
 
   return (
     <OptionsDrawer eyebrow="Options du budgétaire" title={`${budget.displayId} — ${budget.company ?? budget.contactName}`} onClose={onClose}>
