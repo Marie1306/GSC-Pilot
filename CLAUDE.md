@@ -2279,3 +2279,35 @@ explicitement confirmée exclue, simplement jamais posée) : toute
 fonction déjà symétrique avant ce jour (ex. `canCreateBudgetFromRequest`,
 `canManageExternalSales`, `canManageTreasury`, `canConfirmInvoiceRequest`,
 etc.) n'a eu besoin d'aucun changement, le miroir y était déjà en place.
+
+### Rattrapage — champs d'en-tête du Budgétaire + notes oubliés (27 novembre 2026)
+
+Rapporté par Marie (capture d'écran de la carte « Informations du
+budgétaire ») : « Il ne peux toujours pas rentrer des information ici »
+— PO client/Quantité/Valide jusqu'au/Résumé du budgétaire/Résumé des
+risques restaient grisés pour Propriétaire malgré le miroir exact
+ci-dessus.
+
+**Cause** : ces 5 champs d'en-tête (`PATCH /budgets/:id/meta`) et les
+notes de suivi client (`POST /budgets/:id/notes`, menu Options)
+réutilisaient `canModifyBudget` par défaut historique — la MÊME fonction
+gardée comme exception le 25 novembre, mais CETTE exception ne couvrait
+que les prix fixes des lignes du budgétaire (Formation/Hébergement/
+Kilométrage), jamais ces 5 champs d'en-tête ni les notes, qui ne sont ni
+l'un ni l'autre un prix. Jamais une exclusion voulue pour ce contenu —
+`canModifyBudget` avait simplement été réutilisée à la construction
+d'origine de ces deux routes, sans lien avec la décision du 25 novembre.
+
+**Corrigé** : `PATCH /budgets/:id/meta` et `POST /budgets/:id/notes`
+passent à `canModifyBudgetPurchaseLine` (Direction OU Propriétaire, déjà
+exhaustivement testée, aucune nouvelle règle). Frontend : les 5 champs
+(`BudgetDetail.tsx`) passent de `canModifyLabor` à `canModifyPurchase` ;
+`canAddNote` (`BudgetOptionsMenu.tsx`) passe à
+`canModifyBudgetPurchaseLine`. Le verrou sur les PRIX des lignes
+(`assertRowEditable` côté service, `isRowEditable`/`editable` côté
+`BudgetDetail.tsx`) reste totalement intact, aucun changement — seul ce
+qui n'était jamais un prix s'ouvre.
+
+`npm run typecheck && npm run lint && npm test && npm run build` verts
+(547 tests, inchangé). Aucune migration — correctif de permission pur.
+**Poussé (`5bcde57`)**.
